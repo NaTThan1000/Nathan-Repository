@@ -272,6 +272,169 @@ body{
 
 @media(max-width:900px){.battle-row{grid-template-columns:repeat(2,1fr);}}
 
+/* 调试模式按钮 */
+.btn-debug{
+  padding:2px 10px;font-size:11px;background:rgba(255,180,40,0.12);color:#e8a840;
+  border:1px solid rgba(255,180,40,0.3);border-radius:8px;cursor:pointer;
+  font-family:inherit;transition:all 0.2s;margin-left:6px;
+}
+.btn-debug:hover{background:rgba(255,180,40,0.25);border-color:rgba(255,180,40,0.6);}
+.btn-debug.active{background:rgba(255,180,40,0.3);color:#ffcc44;box-shadow:0 0 10px rgba(255,180,40,0.2);}
+
+/* 调试横幅 */
+#debug-banner{
+  text-align:center;padding:4px 12px;margin-bottom:6px;
+  background:rgba(255,180,40,0.1);border:1px dashed rgba(255,180,40,0.3);
+  border-radius:8px;font-size:12px;color:#e8a840;letter-spacing:1px;
+}
+
+/* 卡牌选择器弹窗 */
+.card-selector-overlay{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;
+  z-index:150;backdrop-filter:blur(6px);
+}
+.card-selector-panel{
+  background:linear-gradient(160deg,#1a1530,#201835);
+  border:2px solid rgba(255,215,0,0.3);border-radius:20px;
+  padding:20px 24px;max-width:800px;width:95%;max-height:85vh;overflow-y:auto;
+  box-shadow:0 20px 60px rgba(0,0,0,0.7);
+}
+.card-selector-panel h3{color:#e8d5a0;text-align:center;margin-bottom:4px;font-size:18px;}
+.card-selector-panel .cs-subtitle{color:#888;text-align:center;font-size:11px;margin-bottom:12px;}
+.cs-section{margin-bottom:14px;}
+.cs-section-title{font-size:14px;color:#e8d5a0;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.1);}
+.cs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;}
+.cs-card{
+  padding:8px 10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);
+  border-radius:8px;cursor:pointer;text-align:center;transition:all 0.15s;
+  font-size:12px;color:#ccc;user-select:none;
+}
+.cs-card:hover{border-color:rgba(255,215,0,0.5);background:rgba(255,215,0,0.1);color:#ffd700;transform:translateY(-1px);}
+.cs-card.cs-court{border-color:rgba(255,200,100,0.35);background:rgba(255,200,100,0.08);}
+.cs-card.cs-court:hover{border-color:rgba(255,200,100,0.7);background:rgba(255,200,100,0.18);}
+.cs-card.cs-major{border-color:rgba(255,215,0,0.25);background:rgba(255,215,0,0.06);}
+.cs-card.cs-major:hover{border-color:rgba(255,215,0,0.7);background:rgba(255,215,0,0.16);}
+.cs-card .cs-icon{font-size:22px;display:block;line-height:1.2;}
+.cs-card .cs-val{font-size:10px;color:#888;margin-top:2px;}
+.cs-card .cs-name{font-size:11px;line-height:1.2;}
+
+/* 调试选中卡牌预览 */
+.debug-preview{border-color:rgba(255,180,40,0.6)!important;background:linear-gradient(165deg,rgba(50,35,15,0.96),rgba(30,20,10,0.96))!important;box-shadow:0 0 20px rgba(255,180,40,0.2)!important;}
+
+/* 数字小牌叠放 */
+.card-stack{
+  display:flex;flex-direction:row;align-items:center;
+  flex-wrap:nowrap;overflow-x:auto;min-height:50px;
+  padding:4px 0;position:relative;
+}
+.card-stack .tarot-card.stacked{
+  flex-shrink:0;margin-right:-28px;position:relative;
+  width:48px;height:66px;padding:2px 1px 3px;
+  transition:all 0.2s;z-index:1;
+}
+.card-stack .tarot-card.stacked .card-top{
+  justify-content:flex-start;padding:0 0 0 2px;
+}
+.card-stack .tarot-card.stacked .card-val{font-size:10px;line-height:1;}
+.card-stack .tarot-card.stacked .card-suit-icon{font-size:20px;}
+.card-stack .tarot-card.stacked .card-name{display:none;}
+.card-stack .tarot-card.stacked:last-child{margin-right:0;}
+.card-stack .tarot-card.stacked:hover{
+  transform:translateY(-6px) scale(1.12);
+  box-shadow:3px 8px 20px rgba(0,0,0,0.6);
+  border-color:rgba(255,215,0,0.7);z-index:10;margin-right:-10px;
+}
+/* 宫廷牌在叠放中同样重叠 + 右上角品级 */
+.card-stack .tarot-card.court-card{
+  margin-right:-28px;
+  background:linear-gradient(165deg,rgba(50,38,20,0.96) 0%,rgba(30,20,12,0.96) 100%);
+  border-color:rgba(255,200,100,0.45);
+}
+.card-stack .tarot-card.court-card:last-child{margin-right:0;}
+.card-stack .tarot-card.court-card .card-top{
+  justify-content:space-between;
+}
+.card-stack .tarot-card.court-card .card-val{
+  color:#ffcc88;font-size:10px;
+}
+.card-stack .tarot-card.court-card .card-rank-stacked{
+  font-size:7px;color:#ffcc88;font-weight:bold;
+  writing-mode:vertical-rl;letter-spacing:1px;
+  line-height:1.2;
+}
+.card-stack .tarot-card.court-card .card-suit-icon{font-size:18px;}
+.card-stack .tarot-card.court-card:hover{
+  border-color:rgba(255,215,0,0.7);
+}
+
+/* 大牌双牌堆 */
+.major-piles{
+  display:flex;gap:8px;align-items:stretch;margin-top:4px;
+  padding-top:4px;border-top:1px dashed rgba(255,215,0,0.15);
+}
+.major-pile{
+  flex:1;min-width:60px;position:relative;
+  background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);
+  border-radius:10px;padding:6px 8px;text-align:center;
+  cursor:pointer;transition:all 0.2s;user-select:none;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:60px;
+}
+.major-pile:hover{background:rgba(255,215,0,0.08);border-color:rgba(255,215,0,0.3);}
+.major-pile.active-pile{border-color:rgba(255,215,0,0.4);background:rgba(255,215,0,0.06);}
+.major-pile .pile-label{font-size:9px;color:#666;margin-bottom:2px;}
+.major-pile .pile-name{font-size:12px;font-weight:bold;color:#e8d5a0;line-height:1.2;}
+.major-pile .pile-orient{font-size:10px;color:#c8a860;}
+.major-pile .pile-count{font-size:16px;font-weight:bold;color:#ccc;}
+.major-pile .pile-sub{font-size:10px;color:#888;}
+.major-pile .pile-empty{font-size:10px;color:#444;}
+
+/* 大牌hover提示 */
+.major-pile-tooltip{
+  position:fixed;z-index:130;pointer-events:none;
+  background:linear-gradient(160deg,#1a1530,#201835);
+  border:2px solid rgba(255,215,0,0.4);border-radius:12px;
+  padding:10px 14px;max-width:260px;
+  box-shadow:0 8px 30px rgba(0,0,0,0.7);
+  font-size:12px;color:#d4c8b8;line-height:1.5;
+  opacity:0;transition:opacity 0.15s;
+}
+.major-pile-tooltip.show{opacity:1;}
+.major-pile-tooltip .tt-name{color:#ffd700;font-weight:bold;font-size:13px;}
+.major-pile-tooltip .tt-type{font-size:10px;color:#c8a860;}
+
+/* 弃牌堆弹窗 */
+.discard-grid-overlay{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;
+  z-index:140;backdrop-filter:blur(4px);
+}
+.discard-grid-panel{
+  background:linear-gradient(160deg,#1a1530,#201835);
+  border:2px solid rgba(255,215,0,0.3);border-radius:20px;
+  padding:20px 24px;max-width:650px;width:90%;max-height:75vh;overflow-y:auto;
+  box-shadow:0 20px 60px rgba(0,0,0,0.7);
+}
+.discard-grid-panel h4{color:#e8d5a0;text-align:center;margin-bottom:4px;}
+.discard-grid-panel .dg-sub{color:#888;font-size:11px;text-align:center;margin-bottom:12px;}
+.discard-grid-panel .dg-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;
+}
+.discard-grid-card{
+  padding:10px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);
+  border-radius:10px;cursor:pointer;text-align:center;transition:all 0.15s;
+  font-size:12px;color:#ccc;user-select:none;
+}
+.discard-grid-card:hover{border-color:rgba(255,215,0,0.5);background:rgba(255,215,0,0.08);}
+.discard-grid-card .dgc-name{font-size:13px;font-weight:bold;color:#e8d5a0;margin-bottom:2px;}
+.discard-grid-card .dgc-ori{font-size:10px;margin-bottom:2px;}
+.discard-grid-card .dgc-desc{font-size:10px;color:#888;line-height:1.3;}
+
+
+
+
+
 
 
 /* 大牌历史区域 */
@@ -1232,7 +1395,123 @@ class TarotGame {
 // ==================== UI ====================
 let game;
 
+// === 调试模式 ===
+let debugMode = false;
+let debugSelectedCard = null;
+let debugSelectedOrient = 'upright';
+
+function toggleDebugMode(){
+  debugMode = !debugMode;
+  if(debugMode){
+    debugSelectedCard = null;
+    showToast('🔧 调试模式开启 - 可自由选牌测试效果','info');
+  } else {
+    debugSelectedCard = null;
+    showToast('调试模式已关闭','info');
+  }
+  render();
+}
+
+function showCardSelector(){
+  // 构建所有牌的数据
+  const minorDeck = createMinorDeck();
+  const majorDeck = createMajorDeck();
+
+  let html = '';
+  // 小牌 - 按花色分组
+  for(const suit of SUITS){
+    const suitCards = minorDeck.filter(c=>c.suit===suit);
+    const numbers = suitCards.filter(c=>c.subtype==='number');
+    const courts = suitCards.filter(c=>c.subtype==='court');
+    html += `<div class="cs-section">
+      <div class="cs-section-title">${SUIT_ICONS[suit]} ${SUIT_NAMES[suit]} (数字牌×10 + 宫廷牌×4)</div>
+      <div class="cs-grid">`;
+    for(const c of numbers){
+      html += `<div class="cs-card" onclick="onDebugSelectCard('${c.id}')" title="${c.name} · ${c.points}点">
+        <span class="cs-icon">${c.icon}</span>
+        <span>${c.name}</span>
+        <span class="cs-val">${c.points}点</span>
+      </div>`;
+    }
+    for(const c of courts){
+      html += `<div class="cs-card cs-court" onclick="onDebugSelectCard('${c.id}')" title="${c.name} · 10点 · 👑宫廷牌">
+        <span class="cs-icon">${c.icon}</span>
+        <span>👑${c.name.split('·')[0]}</span>
+        <span class="cs-val">10点</span>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  // 大牌
+  html += `<div class="cs-section">
+    <div class="cs-section-title">🌟 大阿尔卡纳 (共22张)</div>
+    <div class="cs-grid">`;
+  for(const m of majorDeck){
+    html += `<div class="cs-card cs-major" onclick="onDebugSelectCard('${m.id}')" title="${m.name}\\n正位:${m.effectDesc}\\n逆位:${m.revEffectDesc}">
+      <span class="cs-icon">🌟</span>
+      <span>${m.name}</span>
+      <span class="cs-val">#${m.arcanaId}</span>
+    </div>`;
+  }
+  html += `</div></div>`;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'card-selector-overlay';
+  overlay.onclick = (e) => { if(e.target===overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div class="card-selector-panel">
+      <h3>🃏 选择卡牌</h3>
+      <div class="cs-subtitle">点击卡牌选中，然后选择元素阵打出</div>
+      ${html}
+      <div style="text-align:center;margin-top:12px;">
+        <button class="btn btn-sm" style="background:rgba(255,255,255,0.1);color:#aaa;border:1px solid rgba(255,255,255,0.2);" onclick="this.closest('.card-selector-overlay').remove()">取消</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function onDebugSelectCard(cardId){
+  // 关闭选择器
+  const overlay = document.querySelector('.card-selector-overlay');
+  if(overlay) overlay.remove();
+
+  // 从完整牌组中找到对应卡牌
+  const allMinors = createMinorDeck();
+  const allMajors = createMajorDeck();
+  const allCards = [...allMinors, ...allMajors];
+  debugSelectedCard = allCards.find(c=>c.id===cardId);
+
+  if(!debugSelectedCard){
+    showToast('卡牌未找到','warn');
+    return;
+  }
+
+  debugSelectedOrient = 'upright';
+  const cardType = debugSelectedCard.type==='major'?'大牌':'小牌';
+  showToast(`已选择: ${debugSelectedCard.name} (${cardType})，请点击元素阵打出`,'success');
+  render();
+}
+
+function endDebugPlay(){
+  debugSelectedCard = null;
+  debugSelectedOrient = 'upright';
+  render();
+}
+
+function forceEndGame(){
+  if(game.gameOver) return;
+  game.addLog('🔧 [调试] 手动触发立刻结算');
+  game.gameOver = true;
+  game.phase = 'game_over';
+  showGameOver();
+}
+
 function init(){
+  // 重置调试状态
+  debugSelectedCard = null;
+  debugSelectedOrient = 'upright';
+
   game = new TarotGame();
   game.addLog('🎴 游戏开始！点击元素阵出牌，宫廷牌可任选阵');
   game.addLog('🔵 玩家A先手行动');
@@ -1273,8 +1552,14 @@ function render(){
       <span class="deck-count minor">小:${game.minorDeck.length}</span>
       <span class="deck-count major">大:${game.majorDeck.length}</span>
       <button class="btn btn-sm" style="padding:2px 10px;font-size:11px;background:rgba(255,255,255,0.08);color:#aaa;border:1px solid rgba(255,255,255,0.2);border-radius:8px;" onclick="showLogViewer();event.stopPropagation();">📋 日志</button>
+      <button class="btn-debug${debugMode?' active':''}" onclick="toggleDebugMode();event.stopPropagation();">🔧 调试</button>
     </div>
   </div>`;
+
+  // 调试横幅
+  if(debugMode){
+    html += `<div id="debug-banner">🔧 调试模式 — 可自由选牌打入任意阵测试效果</div>`;
+  }
 
   // 日志
   const recentLogs = game.logs.slice(-3);
@@ -1290,6 +1575,7 @@ function render(){
     const zoneId = `zone-B-${suit}`;
     let cls = `element-zone elem-${suit} zone-enemy`;
     if(canClick) cls += ' selectable enemy';
+    if(debugSelectedCard) cls += ' selectable enemy';
     const preview = buildZonePreview('B', suit);
 
     html += `<div class="${cls}" id="${zoneId}" onclick="onElementClick('B','${suit}')" title="${preview}">
@@ -1297,7 +1583,7 @@ function render(){
         <span style="font-size:10px;color:rgba(255,130,100,0.6);margin-left:3px;">[敌]</span></div>
       <div class="player-zone">
         <div class="player-label"><span class="dot b"></span>玩家B</div>
-        ${renderElementContent('B',suit,true)}
+        ${renderElementContent('B',suit,debugSelectedCard?true:true)}
       </div>
     </div>`;
   }
@@ -1310,6 +1596,7 @@ function render(){
     const zoneId = `zone-A-${suit}`;
     let cls = `element-zone elem-${suit} zone-friendly`;
     if(canClick) cls += ' selectable friendly';
+    if(debugSelectedCard) cls += ' selectable friendly';
     const preview = buildZonePreview('A', suit);
 
     html += `<div class="${cls}" id="${zoneId}" onclick="onElementClick('A','${suit}')" title="${preview}">
@@ -1335,6 +1622,14 @@ function render(){
   } else if(isHumanTurn && game.phase==='play_major'){
     html += `<button class="btn btn-warn btn-sm" onclick="onDiscardMajor()">🗑️ 弃掉大牌</button>`;
   }
+  // 调试模式按钮
+  if(debugMode && !game.gameOver){
+    html += `<button class="btn btn-success btn-sm" onclick="showCardSelector()" style="box-shadow:0 4px 12px rgba(255,180,40,0.3);">🃏 选发牌</button>`;
+    html += `<button class="btn btn-warn btn-sm" onclick="forceEndGame()" style="background:linear-gradient(135deg,#8a3a3a,#ba5a3a);">🏆 立刻结算</button>`;
+    if(debugSelectedCard){
+      html += `<button class="btn btn-warn btn-sm" onclick="endDebugPlay()">取消选中</button>`;
+    }
+  }
   html += `<button class="btn btn-sm" style="background:rgba(255,255,255,0.1);color:#aaa;border:1px solid rgba(255,255,255,0.2);" onclick="init()">🔄 重新开始</button>`;
   html += `</div>`;
 
@@ -1346,30 +1641,37 @@ function renderElementContent(player, suit, cardMode = false){
   let html = '';
 
   if(cardMode){
-    // === 卡牌模式：己方区域，常规卡牌样式展示 ===
-    html += '<div class="cards-row card-mode">';
-    const maxShow = 16;
-    const showCards = el.cards.slice(-maxShow);
-    for(const c of showCards){
-      const isCourt = c.subtype==='court';
-      const suitClass = `suit-${c.suit}`;
-      if(isCourt){
-        html += `<div class="tarot-card court-card ${suitClass}" title="${c.name} · ${c.points}点 · 👑宫廷牌">
-          <div class="card-top"><span class="card-rank">${c.rank?RANK_NAMES[c.rank]:'宫廷'}</span></div>
-          <div class="card-suit-icon">${c.icon}</div>
-          <div class="card-name">${SUIT_NAMES[c.suit]}</div>
-        </div>`;
-      } else {
-        html += `<div class="tarot-card ${suitClass}" title="${c.name} · ${c.points}点">
-          <div class="card-top"><span class="card-val">${c.points}</span></div>
-          <div class="card-suit-icon">${c.icon}</div>
-          <div class="card-name">${c.name}</div>
-        </div>`;
+    // 所有牌统一叠放
+    if(el.cards.length > 0){
+      html += '<div class="card-stack">';
+      let count = 0;
+      const maxShow = 24;
+      const showCards = el.cards.slice(-maxShow);
+      for(const c of showCards){
+        count++;
+        const isCourt = c.subtype==='court';
+        // 宫廷牌：左上10 + 右上品级 + 中间图标
+        if(isCourt){
+          html += `<div class="tarot-card stacked court-card suit-${c.suit}" title="${c.name} · 10点 · 👑宫廷牌" style="z-index:${count}">
+            <div class="card-top">
+              <span class="card-val">10</span>
+              <span class="card-rank-stacked">${c.rank?RANK_NAMES[c.rank]:'宫廷'}</span>
+            </div>
+            <div class="card-suit-icon">${c.icon}</div>
+          </div>`;
+        } else {
+          html += `<div class="tarot-card stacked suit-${c.suit}" title="${c.name} · ${c.points}点" style="z-index:${count}">
+            <div class="card-top"><span class="card-val">${c.points}</span></div>
+            <div class="card-suit-icon">${c.icon}</div>
+            <div class="card-name">${c.name}</div>
+          </div>`;
+        }
       }
+      if(el.cards.length > maxShow) html += `<span style="font-size:10px;color:#666;align-self:flex-end;margin-left:2px;">+${el.cards.length-maxShow}张</span>`;
+      html += '</div>';
+    } else {
+      html += `<span style="font-size:11px;color:#444;padding:10px 6px;width:100%;text-align:center;">暂无卡牌</span>`;
     }
-    if(el.cards.length > maxShow) html += `<span style="font-size:10px;color:#666;align-self:flex-end;margin-left:4px;">+${el.cards.length-maxShow}张</span>`;
-    if(el.cards.length===0) html += `<span style="font-size:11px;color:#444;padding:10px 6px;width:100%;text-align:center;">暂无卡牌</span>`;
-    html += '</div>';
   } else {
     // === 紧凑模式：敌方区域，迷你徽章 ===
     html += '<div class="cards-row">';
@@ -1386,25 +1688,34 @@ function renderElementContent(player, suit, cardMode = false){
   html += `<div class="score-display"><span class="score-label">得分</span>
     <span class="score-num">${el.score}</span></div>`;
 
-  // 大牌（持续性/触发性 + 历史）
+  // 大牌双牌堆
   const activeMajor = el.activeMajor;
-  const hasHistory = el.majorHistory && el.majorHistory.length>0;
-  if(activeMajor || hasHistory){
-    html += `<div class="majors-history"><div class="mh-title">🌟 大牌</div>`;
-    // 当前激活的持续性/触发性
+  const hasDiscard = el.majorHistory && el.majorHistory.length>0;
+  if(activeMajor || hasDiscard){
+    html += `<div class="major-piles">`;
+    // 左：生效中大牌
+    html += `<div class="major-pile active-pile"
+      onmouseenter="${activeMajor?`showMajorTooltip(event,'${activeMajor.name.replace(/'/g,"\\'")}','${activeMajor.orientation}','${(activeMajor.desc||'').replace(/'/g,"\\'")}','${activeMajor.type||''}')`:`void(0)`}"
+      onmouseleave="hideMajorTooltip()"
+      onclick="event.stopPropagation();${activeMajor?`showMajorDetail('${player}','${suit}',-1)`:`void(0)`}">`;
     if(activeMajor){
-      const orientCls = activeMajor.orientation==='upright'?'upright':'reversed';
-      const typeBadge = activeMajor.type==='persistent'?'[持续]':'[触发]';
-      html += `<span class="mh-item ${orientCls}" style="background:rgba(255,215,0,0.15);border-color:#ffd700;" onclick="event.stopPropagation();showMajorDetail('${player}','${suit}',-1)" title="${activeMajor.name}(${activeMajor.orientation==='upright'?'正':'逆'}位)\\n${typeBadge} ${activeMajor.desc||''}">${activeMajor.name}${typeBadge}</span>`;
+      html += `<div class="pile-label">生效中</div>
+        <div class="pile-name">${activeMajor.name}</div>
+        <div class="pile-orient">${activeMajor.orientation==='upright'?'☀️正位':'🌑逆位'}</div>`;
+    } else {
+      html += `<div class="pile-empty">无生效大牌</div>`;
     }
-    // 历史记录
-    if(hasHistory){
-      for(const m of el.majorHistory.slice(-2)){
-        const orientCls = m.orientation==='upright'?'upright':'reversed';
-        html += `<span class="mh-item ${orientCls}" onclick="event.stopPropagation();showMajorDetail('${player}','${suit}',${el.majorHistory.indexOf(m)})" title="${m.name}(${m.orientation==='upright'?'正':'逆'}位)\\n${m.effectDesc}">${m.name}</span>`;
-      }
-      if(el.majorHistory.length>2) html += `<span style="font-size:10px;color:#666;">+${el.majorHistory.length-2}</span>`;
+    html += `</div>`;
+    // 右：弃牌堆
+    html += `<div class="major-pile" onclick="event.stopPropagation();showMajorDiscardPile('${player}','${suit}')">`;
+    if(hasDiscard){
+      html += `<div class="pile-label">弃牌堆</div>
+        <div class="pile-count">${el.majorHistory.length}</div>
+        <div class="pile-sub">张弃牌</div>`;
+    } else {
+      html += `<div class="pile-empty">无弃牌</div>`;
     }
+    html += `</div>`;
     html += `</div>`;
   }
 
@@ -1416,7 +1727,42 @@ function renderDrawArea(cp){
 
   if(game.gameOver){
     html += `<div style="font-size:18px;color:#ffd700;">🏆 游戏结束 - 小牌堆已空</div>`;
-  } else if(cp === 'B'){
+  }
+  // 调试模式：显示已选中卡牌
+  else if(debugSelectedCard){
+    const card = debugSelectedCard;
+    const isMajor = card.type==='major';
+    const isCourt = card.subtype==='court';
+    let cardCls = isCourt?'court-preview':'';
+
+    if(!isMajor){
+      html += `<div class="draw-preview-card ${cardCls} debug-preview">
+        <div class="pc-icon">${card.icon}</div>
+        <div class="pc-name">${card.name}</div>
+        <div class="pc-detail">${isCourt?'👑宫廷牌':'数字牌'} · ${card.points}点</div>`;
+      if(!isCourt){
+        html += `<div class="pc-restrict">调试模式：可打入任意阵</div>`;
+      }
+      html += `<div style="color:#e8a840;font-size:11px;margin-top:auto;">← 点击任意阵打出</div>`;
+      html += `</div>`;
+    } else {
+      const orient = debugSelectedOrient;
+      const desc = orient==='upright' ? card.effectDesc : card.revEffectDesc;
+      const etype = orient==='upright' ? card.effectType : card.revEffectType;
+      html += `<div class="draw-preview-card major-preview debug-preview">
+        <div class="pc-icon">🌟</div>
+        <div class="pc-name">${card.name}</div>
+        <div class="pc-detail">${orient==='upright'?'☀️正位':'🌑逆位'} (${etype==='instant'?'一次性':etype==='persistent'?'持续性':'触发性'})：${desc}</div>`;
+      html += `<div class="toggle-orient" style="margin-top:auto;" onclick="event.stopPropagation();debugToggleOrient()" title="点击切换正位/逆位">
+        <span class="arrow">${orient==='upright'?'☀️':'🌑'}</span>
+        <span>${orient==='upright'?'正位':'逆位'}</span>
+        <span style="font-size:10px;color:#888;">↔切换</span>
+      </div>`;
+      html += `<div style="color:#ffd700;font-size:11px;">← 点击元素阵打出大牌</div>`;
+      html += `</div>`;
+    }
+  }
+  else if(cp === 'B'){
     // AI回合：不展示AI的牌
     html += `<div class="placeholder">🤖 AI思考中...</div>`;
   } else if(game.drawnMinor){
@@ -1470,6 +1816,50 @@ function renderDrawArea(cp){
 // ====== 交互 ======
 function onElementClick(targetPlayer, suit){
   if(game.gameOver) return;
+
+  // ===== 调试模式：自由选牌打出 =====
+  if(debugSelectedCard){
+    const card = debugSelectedCard;
+    const orient = debugSelectedOrient;
+
+    if(card.type === 'minor'){
+      // 小牌：调用游戏逻辑打出
+      game.addLog(`🔧 [调试] ${targetPlayer==='A'?'🔵A':'🔴B'} 手动打出小牌 ${card.name}`);
+      game.playMinorToElement(targetPlayer, {...card}, suit);
+      game.addLog(`  → ${card.name}打入${targetPlayer==='A'?'🔵A':'🔴B'}方${SUIT_NAMES[suit]}阵(+${card.points})`);
+      game._rankSnapshot = game._getRankSnapshot();
+      game._checkTowerTrigger(targetPlayer);
+    } else if(card.type === 'major'){
+      // 大牌
+      const etype = orient==='upright' ? card.effectType : card.revEffectType;
+      game.addLog(`🔧 [调试] ${targetPlayer==='A'?'🔵A':'🔴B'} 手动打出大牌 ${card.name}(${orient==='upright'?'正位':'逆位'}) → ${SUIT_NAMES[suit]}阵 [${etype==='instant'?'一次性':etype==='persistent'?'持续性':'触发性'}]`);
+
+      if(etype === 'instant'){
+        // 一次性：执行效果后弃牌
+        game._execEffect(targetPlayer, {...card}, suit, orient);
+        game.majorDiscard.push({...card});
+      } else {
+        // 持续性/触发性：放置在阵中
+        game._setupActiveMajor(targetPlayer, {...card}, suit, orient);
+      }
+
+      // 记录大牌历史
+      const el = game.players[targetPlayer].elements[suit];
+      const desc = orient==='upright' ? card.effectDesc : card.revEffectDesc;
+      el.majorHistory.push({
+        name: card.name, arcanaId: card.arcanaId, orientation: orient,
+        effectDesc: desc, detail: game._effectDetail||'', turn: game.totalActions, type: etype
+      });
+    }
+
+    // 清除选中状态，刷新界面
+    debugSelectedCard = null;
+    debugSelectedOrient = 'upright';
+    render();
+    return;
+  }
+
+  // ===== 正常游戏模式 =====
   if(game.currentPlayer !== 'A') return;
 
   // 仅允许操作己方区域（后续扩展时可放开敌方点击逻辑）
@@ -1533,6 +1923,11 @@ function toggleOrientation(){
   render();
 }
 
+function debugToggleOrient(){
+  debugSelectedOrient = debugSelectedOrient==='upright'?'reversed':'upright';
+  render();
+}
+
 function onDiscardMajor(){
   if(game.phase !== 'play_major' || game.currentPlayer !== 'A') return;
   game.majorDecision(false);
@@ -1576,6 +1971,71 @@ function showMajorDetail(player, suit, index){
       <button class="btn btn-sm" style="margin-top:8px;background:rgba(255,255,255,0.1);color:#aaa;" onclick="this.closest('.major-detail-overlay').remove()">关闭</button>
     </div>`;
   document.body.appendChild(overlay);
+}
+
+// === 大牌hover提示 ===
+let _tooltipEl = null;
+function showMajorTooltip(e, name, orient, desc, type){
+  if(!_tooltipEl){
+    _tooltipEl = document.createElement('div');
+    _tooltipEl.className = 'major-pile-tooltip';
+    document.body.appendChild(_tooltipEl);
+  }
+  const typeLabel = type==='persistent'?'[持续性]':type==='trigger'?'[触发性]':'';
+  _tooltipEl.innerHTML = `
+    <div class="tt-name">🌟 ${name} <span style="font-size:11px;color:${orient==='upright'?'#ffd700':'#999'};">${orient==='upright'?'☀️正位':'🌑逆位'}</span></div>
+    <div class="tt-type">${typeLabel}</div>
+    <div style="margin-top:4px;">${desc||'无描述'}</div>`;
+  // 定位在鼠标附近
+  const x = e.clientX + 16, y = e.clientY - 10;
+  _tooltipEl.style.left = Math.min(x, window.innerWidth - 280) + 'px';
+  _tooltipEl.style.top = Math.min(y, window.innerHeight - 120) + 'px';
+  _tooltipEl.classList.add('show');
+}
+function hideMajorTooltip(){
+  if(_tooltipEl) _tooltipEl.classList.remove('show');
+}
+
+// === 弃牌堆弹窗 ===
+function showMajorDiscardPile(player, suit){
+  const el = game.players[player].elements[suit];
+  const history = el.majorHistory || [];
+  const playerLabel = player==='A'?'玩家A':'玩家B';
+
+  let gridHTML = '';
+  if(history.length === 0){
+    gridHTML = '<div style="color:#666;text-align:center;padding:20px;">该阵暂无弃牌</div>';
+  } else {
+    for(const m of history){
+      gridHTML += `<div class="discard-grid-card" onclick="event.stopPropagation();showMajorDetailFromData('${player}','${suit}',${history.indexOf(m)})">
+        <div class="dgc-name">🌟 ${m.name}</div>
+        <div class="dgc-ori" style="color:${m.orientation==='upright'?'#ffd700':'#999'}">${m.orientation==='upright'?'☀️正位':'🌑逆位'}</div>
+        <div class="dgc-desc">${m.effectDesc||''}</div>
+      </div>`;
+    }
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'discard-grid-overlay';
+  overlay.onclick = (e) => { if(e.target===overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div class="discard-grid-panel">
+      <h4>🗂️ ${playerLabel} · ${SUIT_ICONS[suit]} ${SUIT_NAMES[suit]}阵 弃牌</h4>
+      <div class="dg-sub">共 ${history.length} 张已打出的大牌</div>
+      <div class="dg-grid">${gridHTML}</div>
+      <div style="text-align:center;margin-top:12px;">
+        <button class="btn btn-sm" style="background:rgba(255,255,255,0.1);color:#aaa;border:1px solid rgba(255,255,255,0.2);" onclick="this.closest('.discard-grid-overlay').remove()">关闭</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function showMajorDetailFromData(player, suit, index){
+  // 关闭弃牌弹窗
+  const dgOverlay = document.querySelector('.discard-grid-overlay');
+  if(dgOverlay) dgOverlay.remove();
+  // 显示大牌详情
+  showMajorDetail(player, suit, index);
 }
 
 function showLogViewer(){
