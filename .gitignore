@@ -4,6 +4,9 @@ snapshots/
 # 存档目录（历史版本归档，通过 Git tag 管理更精确）
 archive/
 
+# Playwright 浏览器会话缓存
+.playwright-cli/
+
 # Windows 系统文件
 Thumbs.db
 desktop.ini
