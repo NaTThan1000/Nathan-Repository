@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>塔罗对决 - 桌游原型 v2</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  background:linear-gradient(160deg,#0d0d1a 0%,#1a1025 30%,#0d1520 70%,#0a0a14 100%);
+  min-height:100vh;font-family:'Microsoft YaHei','PingFang SC',sans-serif;
+  color:#d4c8b8;overflow-x:hidden;
+  background-image:
+    radial-gradient(ellipse at 20% 50%,rgba(120,80,200,0.08) 0%,transparent 50%),
+    radial-gradient(ellipse at 80% 50%,rgba(200,150,50,0.06) 0%,transparent 50%),
+    radial-gradient(ellipse at 50% 30%,rgba(80,120,200,0.05) 0%,transparent 60%);
+}
+#app{max-width:1400px;margin:0 auto;padding:8px 12px;}
+
+#top-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 16px;background:rgba(20,15,30,0.85);
+  border:1px solid rgba(180,160,200,0.2);border-radius:12px;
+  margin-bottom:8px;backdrop-filter:blur(10px);
+}
+#round-info{font-size:18px;font-weight:bold;color:#e8d5a0;}
+#round-info span{color:#c8a860;font-size:24px;}
+#phase-info{
+  padding:4px 16px;border-radius:20px;font-size:14px;font-weight:bold;transition:all 0.3s;
+}
+.phase-a{background:rgba(100,180,255,0.2);color:#8cc8ff;border:1px solid rgba(100,180,255,0.3);}
+.phase-b{background:rgba(255,140,100,0.2);color:#ffaa88;border:1px solid rgba(255,140,100,0.3);}
+#deck-info{display:flex;gap:12px;font-size:13px;color:#aaa;}
+.deck-count{padding:2px 10px;border-radius:6px;background:rgba(0,0,0,0.3);}
+.deck-count.minor{border:1px solid rgba(150,150,200,0.3);}
+.deck-count.major{border:1px solid rgba(255,215,0,0.3);color:#e8d5a0;}
+
+#log-area{
+  margin-top:6px;padding:4px 12px;background:rgba(0,0,0,0.4);border-radius:8px;
+  font-size:12px;color:#aaa;max-height:48px;overflow-y:auto;min-height:24px;
+}
+
+#battlefield{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:10px;
+  margin-bottom:10px;min-height:380px;
+}
+.element-zone{
+  background:rgba(15,10,25,0.8);border:2px solid rgba(100,80,160,0.3);
+  border-radius:14px;overflow:hidden;display:flex;flex-direction:column;
+  transition:all 0.3s;
+}
+.element-zone.highlight{border-color:rgba(255,215,0,0.8);box-shadow:0 0 20px rgba(255,215,0,0.15);}
+.element-zone.selectable{border-color:rgba(100,200,255,0.7);box-shadow:0 0 16px rgba(100,200,255,0.2);cursor:pointer;}
+.element-zone.selectable:hover{border-color:rgba(100,220,255,1);box-shadow:0 0 24px rgba(100,220,255,0.35);transform:translateY(-2px);}
+.element-zone.selected-zone{border-color:#ffd700;box-shadow:0 0 20px rgba(255,215,0,0.3);}
+
+.element-header{
+  text-align:center;padding:6px 8px;font-weight:bold;font-size:14px;
+  letter-spacing:1px;display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.element-header .icon{font-size:20px;}
+.elem-wands .element-header{background:rgba(200,80,40,0.25);color:#e8946a;}
+.elem-cups .element-header{background:rgba(60,140,200,0.25);color:#8ab8e0;}
+.elem-swords .element-header{background:rgba(180,180,100,0.25);color:#d8d8a0;}
+.elem-pentacles .element-header{background:rgba(80,160,80,0.25);color:#90c890;}
+
+.player-zone{
+  flex:1;padding:6px 8px;display:flex;flex-direction:column;gap:4px;min-height:90px;position:relative;
+}
+.player-zone.player-b{border-bottom:1px dashed rgba(255,255,255,0.1);}
+.player-zone.player-a{border-top:1px dashed rgba(255,255,255,0.1);}
+.player-label{
+  font-size:11px;color:rgba(255,255,255,0.5);text-align:center;
+  display:flex;align-items:center;justify-content:center;gap:4px;
+}
+.player-label .dot{width:6px;height:6px;border-radius:50%;display:inline-block;}
+.player-label .dot.a{background:#6ab8ff;}
+.player-label .dot.b{background:#ff8866;}
+.score-display{text-align:center;padding:4px 0;font-weight:bold;}
+.score-display .score-num{font-size:20px;color:#e8d5a0;}
+.score-display .score-label{font-size:10px;color:#888;}
+.score-display .score-effects{font-size:10px;color:#c8a860;margin-top:2px;}
+
+.card-mini{
+  display:inline-flex;align-items:center;gap:3px;padding:2px 6px;
+  border-radius:6px;font-size:11px;background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.15);margin:1px 2px;
+  transition:all 0.2s;
+}
+.card-mini.court{border-color:rgba(255,200,100,0.5);background:rgba(255,200,100,0.12);color:#ffcc88;}
+.cards-row{display:flex;flex-wrap:wrap;gap:2px;min-height:22px;}
+
+/* 抽牌展示区 */
+#draw-area{
+  background:rgba(20,15,30,0.9);border:2px solid rgba(180,160,200,0.25);
+  border-radius:16px;padding:14px 20px;margin-bottom:8px;
+  backdrop-filter:blur(10px);display:flex;align-items:center;gap:20px;
+  justify-content:center;min-height:80px;
+}
+#draw-area .placeholder{color:#555;font-size:14px;}
+#draw-area .drawn-card{
+  display:flex;align-items:center;gap:12px;padding:8px 16px;
+  background:rgba(255,255,255,0.06);border-radius:12px;border:1px solid rgba(255,255,255,0.1);
+}
+#draw-area .drawn-card .card-icon{font-size:32px;}
+#draw-area .drawn-card .card-name{font-size:16px;font-weight:bold;color:#e8d5a0;}
+#draw-area .drawn-card .card-detail{font-size:13px;color:#aaa;}
+#draw-area .drawn-card.minor-card{border-color:rgba(150,150,200,0.3);}
+#draw-area .drawn-card.major-card{border-color:rgba(255,215,0,0.4);}
+#draw-area .drawn-card.court-card{border-color:rgba(255,200,100,0.5);}
+
+#action-bar{
+  display:flex;gap:10px;justify-content:center;align-items:center;padding:8px 0;flex-wrap:wrap;
+}
+.btn{
+  padding:10px 24px;border-radius:24px;border:none;cursor:pointer;
+  font-size:15px;font-weight:bold;transition:all 0.2s;
+  font-family:inherit;letter-spacing:0.5px;
+}
+.btn:disabled{opacity:0.35;cursor:not-allowed;transform:none!important;}
+.btn:hover:not(:disabled){transform:translateY(-2px);}
+.btn-primary{background:linear-gradient(135deg,#6a3a9a,#8a5aba);color:#fff;box-shadow:0 4px 15px rgba(120,60,180,0.3);}
+.btn-primary:hover:not(:disabled){box-shadow:0 6px 20px rgba(120,60,180,0.5);}
+.btn-warn{background:linear-gradient(135deg,#9a4a3a,#ba6a5a);color:#fff;box-shadow:0 4px 15px rgba(180,80,60,0.3);}
+.btn-success{background:linear-gradient(135deg,#3a7a3a,#5aaa5a);color:#fff;box-shadow:0 4px 15px rgba(60,160,60,0.3);}
+.btn-info{background:linear-gradient(135deg,#2a5a8a,#3a7aba);color:#fff;box-shadow:0 4px 15px rgba(60,100,180,0.3);}
+.btn-sm{padding:6px 14px;font-size:12px;border-radius:16px;}
+
+.modal-overlay{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;
+  z-index:100;backdrop-filter:blur(4px);
+}
+.modal{
+  background:linear-gradient(160deg,#1a1530,#201835);
+  border:2px solid rgba(200,180,150,0.3);border-radius:20px;
+  padding:24px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;
+  box-shadow:0 20px 60px rgba(0,0,0,0.6);
+}
+.modal h3{color:#e8d5a0;margin-bottom:12px;text-align:center;font-size:20px;}
+.modal .options{display:flex;flex-direction:column;gap:8px;}
+.modal .option{
+  padding:12px 16px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);
+  border-radius:10px;cursor:pointer;transition:all 0.2s;color:#d4c8b8;text-align:center;
+}
+.modal .option:hover{background:rgba(255,255,255,0.14);border-color:rgba(255,215,0,0.5);}
+.modal .option.selected{background:rgba(255,215,0,0.15);border-color:#ffd700;color:#ffd700;}
+.modal .btn-row{display:flex;gap:10px;justify-content:center;margin-top:12px;}
+
+.orientation-choice{display:flex;gap:12px;justify-content:center;}
+.orientation-choice .opt{
+  padding:16px 28px;border-radius:14px;cursor:pointer;transition:all 0.25s;
+  border:2px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.05);text-align:center;
+}
+.orientation-choice .opt:hover{border-color:#ffd700;background:rgba(255,215,0,0.1);}
+.orientation-choice .opt .dir{font-size:28px;display:block;margin-bottom:4px;}
+.orientation-choice .opt .dir-label{font-size:13px;color:#aaa;}
+.orientation-choice .opt .dir-desc{font-size:11px;color:#888;margin-top:4px;max-width:200px;}
+
+.game-over-overlay{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;
+  z-index:200;backdrop-filter:blur(8px);
+}
+.game-over-panel{
+  background:linear-gradient(160deg,#0a0520,#150a30);
+  border:3px solid rgba(255,215,0,0.4);border-radius:24px;
+  padding:32px;text-align:center;max-width:500px;width:90%;
+  box-shadow:0 0 80px rgba(255,215,0,0.2);
+}
+.game-over-panel h2{font-size:28px;margin-bottom:8px;}
+.game-over-panel .winner{font-size:36px;color:#ffd700;margin:12px 0;}
+.game-over-panel .detail{font-size:14px;color:#aaa;margin:8px 0;line-height:1.8;}
+.game-over-panel .score-table{margin:16px auto;border-collapse:collapse;}
+.game-over-panel .score-table td,.game-over-panel .score-table th{
+  padding:6px 16px;border:1px solid rgba(255,255,255,0.1);font-size:13px;
+}
+.game-over-panel .score-table th{color:#e8d5a0;}
+
+.toast{
+  position:fixed;top:20px;left:50%;transform:translateX(-50%);
+  padding:10px 24px;border-radius:20px;color:#fff;font-weight:bold;
+  z-index:300;animation:toastIn 0.3s ease-out,toastOut 0.3s 2.2s ease-in forwards;
+  font-size:14px;pointer-events:none;
+}
+.toast.info{background:rgba(60,100,200,0.9);}
+.toast.warn{background:rgba(200,120,40,0.9);}
+.toast.success{background:rgba(60,160,80,0.9);}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(-20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes toastOut{from{opacity:1}to{opacity:0}}
+
+@media(max-width:900px){#battlefield{grid-template-columns:repeat(2,1fr);}}
+
+.elem-wands .player-zone{background:rgba(200,80,40,0.04);}
+.elem-cups .player-zone{background:rgba(60,140,200,0.04);}
+.elem-swords .player-zone{background:rgba(180,180,100,0.04);}
+.elem-pentacles .player-zone{background:rgba(80,160,80,0.04);}
+
+/* 大牌历史区域 */
+.majors-history{margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,215,0,0.15);}
+.majors-history .mh-title{font-size:10px;color:rgba(255,215,0,0.6);margin-bottom:2px;}
+.majors-history .mh-item{
+  display:inline-block;padding:1px 6px;margin:1px 2px;border-radius:4px;
+  font-size:10px;cursor:pointer;transition:all 0.2s;
+  border:1px solid rgba(255,215,0,0.2);color:#ccc;
+}
+.majors-history .mh-item:hover{background:rgba(255,215,0,0.15);border-color:#ffd700;}
+.majors-history .mh-item.upright{border-left:2px solid #ffd700;}
+.majors-history .mh-item.reversed{border-left:2px solid #999;}
+
+/* 大牌详情弹窗 */
+.major-detail-overlay{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;
+  z-index:120;
+}
+.major-detail-panel{
+  background:linear-gradient(160deg,#1a1530,#201835);
+  border:2px solid rgba(255,215,0,0.3);border-radius:16px;
+  padding:20px 24px;max-width:380px;width:90%;
+  box-shadow:0 10px 40px rgba(0,0,0,0.5);
+}
+.major-detail-panel h4{color:#ffd700;margin-bottom:8px;text-align:center;}
+
+/* 正逆位切换按钮 */
+.toggle-orient{
+  display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+  padding:4px 12px;border-radius:14px;border:1px solid rgba(255,215,0,0.3);
+  background:rgba(255,215,0,0.08);color:#e8d5a0;font-size:13px;
+  transition:all 0.2s;user-select:none;
+}
+.toggle-orient:hover{background:rgba(255,215,0,0.18);}
+.toggle-orient .arrow{font-size:16px;color:#ffd700;}
+.toggle-orient .orient-desc{font-size:11px;color:#aaa;max-width:220px;text-align:left;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// ==================== 塔罗对决 v2 - 重写引擎 ====================
+
+const SUITS = ['wands','cups','swords','pentacles'];
+const SUIT_NAMES = {wands:'权杖',cups:'圣杯',swords:'宝剑',pentacles:'星币'};
+const SUIT_ICONS = {wands:'🪄',cups:'🏆',swords:'⚔️',pentacles:'🪙'};
+const RANK_NAMES = {page:'侍从',knight:'骑士',queen:'皇后',king:'国王'};
+
+// === 小阿尔卡纳牌堆 ===
+function createMinorDeck(){
+  const cards=[];
+  for(const suit of SUITS){
+    for(let i=1;i<=10;i++){
+      cards.push({id:`minor_${suit}_${i}`,type:'minor',subtype:'number',suit,name:`${SUIT_NAMES[suit]}${i}`,points:i,icon:SUIT_ICONS[suit]});
+    }
+    for(const [rank,label] of Object.entries(RANK_NAMES)){
+      cards.push({id:`minor_${suit}_${rank}`,type:'minor',subtype:'court',suit,rank,name:`${label}·${SUIT_NAMES[suit]}`,points:10,icon:SUIT_ICONS[suit]});
+    }
+  }
+  return cards;
+}
+
+// === 大阿尔卡那 ===
+// type: instant(一次性) | persistent(持续性) | trigger(触发性)
+const MAJOR_DEFS = [
+  {id:0,name:'愚人',
+    u:{desc:'选择1个元素阵，阵中双方所有小牌丢弃',type:'instant'},
+    r:{desc:'选择1个元素阵，阵中双方大牌丢弃',type:'instant'}},
+  {id:1,name:'魔术师',
+    u:{desc:'选择1个元素阵，阵中己方所有小牌移至另1元素阵',type:'instant'},
+    r:{desc:'双方后续打出的小牌只能打入其他任意元素阵',type:'persistent'}},
+  {id:2,name:'女祭司',
+    u:{desc:'阻止阵中双方所有大牌对小牌的影响',type:'persistent'},
+    r:{desc:'敌方后续打出的下1张大牌丢弃，并丢弃此牌',type:'trigger'}},
+  {id:3,name:'女皇',
+    u:{desc:'己方抽1张小牌并打出',type:'instant'},
+    r:{desc:'敌方丢弃下1张抽到的小牌',type:'instant'}},
+  {id:4,name:'皇帝',
+    u:{desc:'阵中双方点数锁定（不影响后续打出）',type:'persistent'},
+    r:{desc:'阵中双方结算时胜方计2分',type:'persistent'}},
+  {id:5,name:'教皇',
+    u:{desc:'己方后续出小牌可选打入该阵或对应元素阵',type:'persistent'},
+    r:{desc:'阵中敌方大牌移至己方该元素阵',type:'instant'}},
+  {id:6,name:'恋人',
+    u:{desc:'己方抽2张小牌，选1打入己方，1打入敌方阵',type:'instant'},
+    r:{desc:'己方抽1张小牌，替换双方场上任意1张小牌',type:'instant'}},
+  {id:7,name:'战车',
+    u:{desc:'阵中敌方后续打出的大牌失效',type:'persistent'},
+    r:{desc:'敌方后续出大牌时己方也触发相同效果',type:'persistent'}},
+  {id:8,name:'力量',
+    u:{desc:'己方抽2张小牌并打出',type:'instant'},
+    r:{desc:'阵中≥3小牌时丢弃全部，抽牌打出直到宫廷牌',type:'instant'}},
+  {id:9,name:'隐士',
+    u:{desc:'丢弃小牌堆最上2张，可选弃此大牌或放回大牌堆顶',type:'instant'},
+    r:{desc:'阵中双方后续打出的小牌丢弃',type:'persistent'}},
+  {id:10,name:'命运之轮',
+    u:{desc:'全部阵己方小牌右移一格',type:'instant'},
+    r:{desc:'全部阵己方小牌左移一格',type:'instant'}},
+  {id:11,name:'正义',
+    u:{desc:'高点数方最小牌移至对方阵',type:'instant'},
+    r:{desc:'牌多方最大牌移至对方阵',type:'instant'}},
+  {id:12,name:'倒吊人',
+    u:{desc:'阵中己方大牌丢弃，抽1大牌打出',type:'instant'},
+    r:{desc:'阵中敌方大牌丢弃，敌方抽1大牌打出',type:'instant'}},
+  {id:13,name:'死神',
+    u:{desc:'阵中己方小牌丢弃，抽同数量打出',type:'instant'},
+    r:{desc:'阵中双方后续打出的小牌丢弃',type:'persistent'}},
+  {id:14,name:'节制',
+    u:{desc:'阵中双方小牌洗混，按原数量分配',type:'instant'},
+    r:{desc:'敌方后续出小牌时需弃阵中1小牌',type:'persistent'}},
+  {id:15,name:'恶魔',
+    u:{desc:'敌方后续出小牌时改为打入己方阵',type:'trigger'},
+    r:{desc:'其他阵敌方小牌丢弃；本阵敌方出小牌时己方全弃并弃此牌',type:'persistent'}},
+  {id:16,name:'塔',
+    u:{desc:'该阵点数排名变化时双方小牌丢弃并弃此牌',type:'trigger'},
+    r:{desc:'各自最高分阵双方小牌丢弃',type:'instant'}},
+  {id:17,name:'星星',
+    u:{desc:'己方后续出小牌时抽1小牌打出',type:'persistent'},
+    r:{desc:'阵中双方小牌互换，后续小牌打入敌方阵',type:'persistent'}},
+  {id:18,name:'月亮',
+    u:{desc:'抽2张小牌背朝上打入己方任意阵，终局翻开',type:'instant'},
+    r:{desc:'抽到该阵小牌时互换双方阵小牌再打出',type:'persistent'}},
+  {id:19,name:'太阳',
+    u:{desc:'选择2个阵，己方小牌互换',type:'instant'},
+    r:{desc:'终局未被丢弃则按此阵判定胜负',type:'persistent'}},
+  {id:20,name:'审判',
+    u:{desc:'全部阵双方所有大牌丢弃',type:'instant'},
+    r:{desc:'阵中己方大牌丢弃，抽2小牌打出',type:'instant'}},
+  {id:21,name:'世界',
+    u:{desc:'阵中1~10全打出则终局判己方胜',type:'persistent'},
+    r:{desc:'终局未被丢弃则互换双方小牌',type:'persistent'}},
+];
+
+function createMajorDeck(){
+  return MAJOR_DEFS.map(d=>({
+    id:`major_${d.id}`,type:'major',arcanaId:d.id,name:d.name,
+    effectDesc:d.u.desc, revEffectDesc:d.r.desc,
+    effectType:d.u.type, revEffectType:d.r.type,
+    icon:'🌟'
+  }));
+}
+
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
+}
+
+// ==================== 游戏状态 ====================
+class TarotGame {
+  constructor(){
+    this.reset();
+  }
+
+  reset(){
+    this.minorDeck = shuffle(createMinorDeck());
+    this.majorDeck = shuffle(createMajorDeck());
+    this.minorDiscard = [];
+    this.majorDiscard = [];
+    this.currentPlayer = 'A';
+    this.totalActions = 0;
+    this.phase = 'play_minor';
+    this.drawnMinor = null;
+    this.drawnMajor = null;
+    this.majorOrientation = 'upright';
+    this.gameOver = false;
+    this.logs = [];
+
+    // 玩家数据
+    this.players = { A:{ elements:{}, flags:{} }, B:{ elements:{}, flags:{} } };
+    for(const s of SUITS){
+      this.players.A.elements[s] = {cards:[], activeMajor:null, majorHistory:[], score:0, lockedScore:null};
+      this.players.B.elements[s] = {cards:[], activeMajor:null, majorHistory:[], score:0, lockedScore:null};
+    }
+
+    // 终局效果
+    this.endGameEffects = [];
+    // 触发性检查标记（塔正位排名快照）
+    this._rankSnapshot = null;
+    // 月亮正位——背朝上的小牌
+    this.moonHiddenCards = []; // [{player,element,cards}]
+    // 女皇逆位——敌方下次抽牌丢弃标记
+    this._empressRevFlag = {A:false, B:false};
+    // 战车逆位——己方复制敌方大牌标记
+    this._chariotRevPending = null;
+  }
+
+  addLog(msg){
+    this.logs.push(msg);
+    if(this.logs.length>80) this.logs.shift();
+  }
+
+  // === 主流程 ===
+
+  /** 开始一个玩家的回合 */
+  startTurn(){
+    if(this.gameOver) return;
+    const p = this.currentPlayer;
+    if(this.minorDeck.length === 0){ this.endGame(); return; }
+
+    // 抽小牌
+    this.phase = 'play_minor';
+    this.drawnMinor = this.minorDeck.pop();
+    this.drawnMajor = null;
+    this.majorOrientation = 'upright';
+    this.totalActions++;
+
+    const card = this.drawnMinor;
+    // 女皇逆位：敌方丢弃下次抽到的小牌
+    if(this._empressRevFlag[p]){
+      this._empressRevFlag[p] = false;
+      this.minorDiscard.push(card);
+      this.addLog(`${p==='A'?'🔵 A':'🔴 B'} 女皇逆位：${card.name}被丢弃`);
+      this.drawnMinor = null;
+      this.endTurn();
+      return;
+    }
+
+    this.addLog(`${p==='A'?'🔵 玩家A':'🔴 玩家B'} 抽到: ${card.name} (${card.points}点) ${card.subtype==='court'?'👑':''}`);
+
+    // 宫廷牌：立即预览大牌
+    if(card.subtype === 'court' && this.majorDeck.length > 0){
+      this.drawnMajor = this.majorDeck.pop();
+      this.addLog(`  → 预览大牌：${this.drawnMajor.name}`);
+    }
+
+    // 更新塔正位排名快照
+    this._rankSnapshot = this._getRankSnapshot();
+  }
+
+  /** 宫廷牌选择目标元素后 */
+  courtSelectElement(element){
+    const p = this.currentPlayer;
+    const card = this.drawnMinor;
+    if(!card || card.subtype !== 'court') return false;
+
+    // 打出宫廷牌
+    this.playMinorToElement(p, card, element);
+    this.addLog(`  → 宫廷牌打入 ${SUIT_NAMES[element]}阵 (+10)`);
+
+    // 大牌已在startTurn中预览抽出
+    if(this.drawnMajor){
+      this.phase = 'play_major';
+      this.majorOrientation = 'upright';
+    } else {
+      this.endTurn();
+    }
+    return true;
+  }
+
+  /** 大牌决策：打出或弃掉，按类型分三种处理 */
+  majorDecision(play, element=null, orientation=null){
+    const p = this.currentPlayer;
+    const card = this.drawnMajor;
+    if(!card) return false;
+    const orient = orientation || this.majorOrientation;
+
+    if(!play){
+      this.majorDiscard.push(card);
+      this.addLog(`  → 弃掉大牌：${card.name}`);
+    } else {
+      this._effectDetail = '';
+      const etype = orient==='upright' ? card.effectType : card.revEffectType;
+      this.addLog(`  → 打出大牌：${card.name}(${orient==='upright'?'正位':'逆位'}) → ${SUIT_NAMES[element]}阵 [${etype==='instant'?'一次性':etype==='persistent'?'持续性':'触发性'}]`);
+
+      if(etype === 'instant'){
+        // 一次性：执行效果后弃牌
+        this._execEffect(p, card, element, orient);
+        this.majorDiscard.push(card);
+      } else {
+        // 持续性/触发性：放置在阵中
+        this._setupActiveMajor(p, card, element, orient);
+      }
+
+      // 记录历史
+      const el = this.players[p].elements[element];
+      const desc = orient==='upright' ? card.effectDesc : card.revEffectDesc;
+      el.majorHistory.push({
+        name: card.name, arcanaId: card.arcanaId, orientation: orient,
+        effectDesc: desc, detail: this._effectDetail, turn: this.totalActions, type: etype
+      });
+    }
+    this.endTurn();
+    return true;
+  }
+
+  /** 设置持续性/触发性大牌到阵中 */
+  _setupActiveMajor(p, card, element, orient){
+    const el = this.players[p].elements[element];
+    // 如果已有activeMajor，旧牌被丢弃
+    if(el.activeMajor){
+      this.majorDiscard.push({...el.activeMajor._raw});
+      this.addLog(`  🔄 旧大牌${el.activeMajor.name}被替换丢弃`);
+    }
+    const etype = orient==='upright' ? card.effectType : card.revEffectType;
+    el.activeMajor = {
+      name: card.name, arcanaId: card.arcanaId, orientation: orient,
+      type: etype, active: true, _raw: card,
+      desc: orient==='upright' ? card.effectDesc : card.revEffectDesc
+    };
+    this._effectDetail = `[${etype==='persistent'?'持续':'触发'}] ${card.name}(${orient==='upright'?'正':'逆'}) 置入${SUIT_NAMES[element]}阵`;
+    this.addLog(`  📌 ${this._effectDetail}`);
+  }
+
+  /** 小牌打到元素阵（含持续性效果检查） */
+  playMinorToElement(player, card, element, skipCourtTrigger=false){
+    const el = this.players[player].elements[element];
+    const opp = player==='A'?'B':'A';
+    let actualElem = element;
+
+    // === 持续性效果：出牌前检查 ===
+    // 隐士逆位(9R)：双方后续小牌丢弃
+    if(this._chkPersistent(player, element, 9, 'reversed')){
+      this.addLog(`  🧙 隐士逆位：${card.name}被丢弃`);
+      this.minorDiscard.push(card); return;
+    }
+    // 死神逆位(13R)：双方后续小牌丢弃(宫廷不触发)
+    if(this._chkPersistent(player, element, 13, 'reversed')){
+      if(card.subtype!=='court'){ this.minorDiscard.push(card); this.addLog(`  💀 死神逆位：${card.name}丢弃`); return; }
+    }
+    // 节制逆位(14R)：敌方出小牌需弃阵中1小牌
+    if(this._chkPersistent(opp, element, 14, 'reversed')){
+      const oppEl = this.players[player].elements[element];
+      if(oppEl.cards.length>0){
+        const rm = oppEl.cards.pop(); this.minorDiscard.push(rm);
+        this.addLog(`  ⚖️ 节制逆位：阵中${rm.name}被弃`);
+      }
+    }
+    // 恶魔逆位(15R)：其他阵敌方小牌丢弃
+    for(const s of SUITS){
+      if(s !== element && this._chkPersistent(player, s, 15, 'reversed')){
+        this.minorDiscard.push(card); this.addLog(`  😈 恶魔逆位：${card.name}在${SUIT_NAMES[s]}阵被弃`);
+        return;
+      }
+    }
+    // 恶魔正位(15U) 触发性：敌方出小牌改打入己方阵
+    if(this._chkPersistent(opp, element, 15, 'upright')){
+      actualElem = element; // 仍然打入同元素阵，但属于己方
+      const ownEl = this.players[player].elements[actualElem];
+      ownEl.cards.push(card);
+      // 此处card已打出到己方，跳过敌方阵
+      const pts = card.points;
+      const targetEl = this.players[player].elements[actualElem];
+      targetEl.score += pts;
+      // 触发后丢弃触发牌
+      this.players[opp].elements[element].activeMajor = null;
+      this.addLog(`  😈 恶魔正位触发：${card.name}打入${player}方${SUIT_NAMES[actualElem]}阵(+${pts})，触发牌丢弃`);
+      return;
+    }
+    // 月亮逆位(18R)：抽到该阵小牌时互换双方阵小牌
+    if(this._chkPersistent(player, element, 18, 'reversed') && card.suit === element){
+      const ownCards = [...el.cards];
+      const oppCards = [...this.players[opp].elements[element].cards];
+      el.cards = oppCards; this.players[opp].elements[element].cards = ownCards;
+      // 重新计算分数
+      el.score = el.cards.reduce((s,c)=>s+c.points,0);
+      this.players[opp].elements[element].score = oppCards.reduce((s,c)=>s+c.points,0);
+      this.addLog(`  🌙 月亮逆位：${SUIT_NAMES[element]}阵双方小牌互换`);
+    }
+    // 星星逆位(17R)：后续小牌打入敌方阵
+    if(this._chkPersistent(player, element, 17, 'reversed')){
+      actualElem = element; // 打入敌方同元素阵
+    }
+
+    // === 魔术师逆位(1R)：双方后续小牌只能打入其他阵 ===
+    if(this._chkPersistent(player, element, 1, 'reversed') && card.suit === element){
+      const others = SUITS.filter(s=>s!==element);
+      actualElem = others[Math.floor(Math.random()*others.length)];
+      this.addLog(`  🎩 魔术师逆位：${card.name}被迫打入${SUIT_NAMES[actualElem]}阵`);
+    }
+
+    // === 打出到目标阵 ===
+    const targetEl = this.players[player].elements[actualElem];
+    targetEl.cards.push(card);
+    let pts = card.points;
+
+    // 皇帝正位(4U)：点数锁定（不影响后续）
+    if(this._chkPersistent(player, actualElem, 4, 'upright')){
+      // 锁定初始分数，但后续小牌仍计数（在lockedScore基础上累加）
+      if(targetEl.lockedScore===null) targetEl.lockedScore = targetEl.score;
+    }
+
+    // 女祭司正位(2U)：阻止大牌对小牌影响——在后续大牌解析时检查，此处不处理
+
+    targetEl.score += pts;
+    targetEl.lockedScore = (targetEl.lockedScore!==null) ? targetEl.lockedScore + pts : null;
+    this.addLog(`  → ${card.name}打入${SUIT_NAMES[actualElem]}阵(+${pts})`);
+
+    // === 持续性效果：出牌后检查 ===
+    // 星星正位(17U)：出小牌时抽1小牌打出
+    if(this._chkPersistent(player, actualElem, 17, 'upright')){
+      if(this.minorDeck.length>0){
+        const extra = this.minorDeck.pop();
+        this.playMinorToElement(player, extra, extra.suit, true);
+        this.addLog(`  ⭐ 星星正位：额外抽${extra.name}打出`);
+      }
+    }
+    // 恶魔逆位(15R)本阵触发：己方全弃+弃大牌
+    if(this._chkPersistent(player, actualElem, 15, 'reversed') && element === actualElem){
+      const ownEl = this.players[player].elements[actualElem];
+      while(ownEl.cards.length>0) this.minorDiscard.push(ownEl.cards.pop());
+      ownEl.score = 0;
+      ownEl.activeMajor = null;
+      this.addLog(`  😈 恶魔逆位触发：${player}方${SUIT_NAMES[actualElem]}阵全弃，大牌丢弃`);
+    }
+
+    // 塔正位(16U)触发性：排名变化检查
+    this._checkTowerTrigger(player);
+  }
+
+  /** 结束当前玩家回合，切换到对方 */
+  endTurn(){
+    if(this.gameOver) return;
+
+    if(this.minorDeck.length === 0){
+      this.endGame();
+      return;
+    }
+
+    const prev = this.currentPlayer;
+    this.currentPlayer = (prev === 'A') ? 'B' : 'A';
+    this.phase = 'play_minor';
+    this.drawnMinor = null;
+    this.drawnMajor = null;
+
+    this.cleanupDelayed();
+  }
+
+  // === 延迟效果系统 ===
+  // === 辅助方法 ===
+  _chkPersistent(player, element, arcanaId, orient){
+    return this._chkAnyPersistent(player, element, arcanaId, orient);
+  }
+  _chkAnyPersistent(player, element, arcanaId, orient){
+    // 检查任一方的该阵是否有指定的持续性大牌
+    for(const pl of ['A','B']){
+      const am = this.players[pl].elements[element].activeMajor;
+      if(am && am.arcanaId===arcanaId && am.orientation===orient) return true;
+    }
+    // 如果是检查"敌方"，需要检查对手
+    const opp = player==='A'?'B':'A';
+    const am = this.players[opp].elements[element].activeMajor;
+    if(am && am.arcanaId===arcanaId && am.orientation===orient) return true;
+    return false;
+  }
+
+  _getRankSnapshot(){
+    const ranks = {};
+    for(const s of SUITS){
+      ranks[s] = this.players.A.elements[s].score + this.players.B.elements[s].score;
+    }
+    // 排名: 按总分排序
+    const sorted = Object.entries(ranks).sort((a,b)=>b[1]-a[1]);
+    return sorted.map(([s])=>s); // [最高阵, ..., 最低阵]
+  }
+
+  _checkTowerTrigger(player){
+    for(const s of SUITS){
+      const am = this.players[player].elements[s].activeMajor;
+      if(am && am.type==='trigger' && am.arcanaId===16 && am.orientation==='upright'){
+        const newRank = this._getRankSnapshot();
+        const oldRank = this._rankSnapshot;
+        if(oldRank){
+          // 检查排名是否变化
+          let changed = false;
+          for(let i=0;i<oldRank.length;i++){
+            if(oldRank[i] !== newRank[i]){ changed=true; break; }
+          }
+          if(changed){
+            // 触发：丢弃双方小牌
+            const el = this.players[player].elements[s];
+            while(el.cards.length>0) this.minorDiscard.push(el.cards.pop());
+            el.score = 0;
+            const opp = player==='A'?'B':'A';
+            const oppEl = this.players[opp].elements[s];
+            while(oppEl.cards.length>0) this.minorDiscard.push(oppEl.cards.pop());
+            oppEl.score = 0;
+            el.activeMajor = null;
+            this.addLog(`🗼 塔正位触发：${SUIT_NAMES[s]}阵排名变化，双方小牌全部丢弃！`);
+          }
+        }
+        this._rankSnapshot = newRank;
+      }
+    }
+  }
+
+  // === 一次性大牌效果执行 ===
+  _execEffect(p, card, element, orient){
+    const aId = card.arcanaId;
+    const opp = p==='A'?'B':'A';
+    const isU = orient==='upright';
+
+    // === 0 愚人 ===
+    if(aId===0 && isU){
+      for(const pl of ['A','B']){
+        const el = this.players[pl].elements[element];
+        while(el.cards.length>0) this.minorDiscard.push(el.cards.pop());
+        el.score = 0;
+      }
+      this._effectDetail=`${SUIT_NAMES[element]}阵双方小牌全部丢弃`;
+    }
+    if(aId===0 && !isU){
+      for(const pl of ['A','B']){ this.players[pl].elements[element].activeMajor = null; }
+      this._effectDetail=`${SUIT_NAMES[element]}阵双方大牌丢弃`;
+    }
+
+    // === 1 魔术师正位 ===
+    if(aId===1 && isU){
+      const srcEl = this.players[p].elements[element];
+      if(srcEl.cards.length>0){
+        // 移至另一元素阵，由AI/玩家选择(简化：移至下一个阵)
+        const others = SUITS.filter(s=>s!==element);
+        const target = others[Math.floor(Math.random()*others.length)];
+        const tgtEl = this.players[p].elements[target];
+        while(srcEl.cards.length>0) tgtEl.cards.push(srcEl.cards.shift());
+        tgtEl.score = tgtEl.cards.reduce((s,c)=>s+c.points,0);
+        srcEl.score = 0;
+        this._effectDetail=`${p}方${SUIT_NAMES[element]}阵小牌→${SUIT_NAMES[target]}阵`;
+      } else this._effectDetail=`${p}方${SUIT_NAMES[element]}阵无小牌`;
+    }
+
+    // === 3 女皇正位 ===
+    if(aId===3 && isU){
+      if(this.minorDeck.length>0){
+        const extra = this.minorDeck.pop();
+        this.playMinorToElement(p, extra, extra.suit, true);
+        this._effectDetail=`${p}方抽${extra.name}(${extra.points}点)打出`;
+      } else this._effectDetail=`小牌堆已空`;
+    }
+    if(aId===3 && !isU){
+      this._empressRevFlag[opp] = true;
+      this._effectDetail=`敌方下次抽小牌丢弃`;
+    }
+
+    // === 5 教皇逆位 ===
+    if(aId===5 && !isU){
+      const oppEl = this.players[opp].elements[element];
+      if(oppEl.activeMajor){
+        const ownEl = this.players[p].elements[element];
+        // 替换己方当前持续性大牌
+        if(ownEl.activeMajor) this.majorDiscard.push({...ownEl.activeMajor._raw});
+        ownEl.activeMajor = oppEl.activeMajor;
+        oppEl.activeMajor = null;
+        this._effectDetail=`敌方${ownEl.activeMajor.name}移至${p}方${SUIT_NAMES[element]}阵`;
+      } else this._effectDetail=`敌方${SUIT_NAMES[element]}阵无大牌`;
+    }
+
+    // === 6 恋人 ===
+    if(aId===6 && isU){
+      const drawn=[];
+      for(let i=0;i<2;i++){if(this.minorDeck.length>0) drawn.push(this.minorDeck.pop());}
+      if(drawn.length>=2){
+        drawn.sort((a,b)=>b.points-a.points);
+        const myPick = drawn[0], oppPick = drawn[1];
+        this.playMinorToElement(p, myPick, myPick.suit, true);
+        this.playMinorToElement(opp, oppPick, oppPick.suit, true);
+        this._effectDetail=`抽${myPick.name}(+)和${oppPick.name}(${oppPick.points})，己得${myPick.name}`;
+      } else this._effectDetail=`小牌不够`;
+    }
+    if(aId===6 && !isU){
+      if(this.minorDeck.length>0){
+        const rep = this.minorDeck.pop();
+        // 替换双方场上任意1张小牌(简化：替换各自的第一张)
+        for(const pl of ['A','B']){
+          for(const s of SUITS){
+            const el = this.players[pl].elements[s];
+            if(el.cards.length>0){
+              const old = el.cards.pop();
+              el.score -= old.points;
+              this.minorDiscard.push(old);
+              el.cards.push({...rep, suit: old.suit}); // 简化：保持同花色
+              el.score += rep.points;
+              break;
+            }
+          }
+        }
+        this._effectDetail=`用${rep.name}(${rep.points})替换双方各1小牌`;
+      }
+    }
+
+    // === 8 力量 ===
+    if(aId===8 && isU){
+      for(let i=0;i<2;i++){
+        if(this.minorDeck.length>0){
+          const extra = this.minorDeck.pop();
+          this.playMinorToElement(p, extra, extra.suit, true);
+        }
+      }
+      this._effectDetail=`${p}方抽2张小牌打出`;
+    }
+    if(aId===8 && !isU){
+      const el = this.players[p].elements[element];
+      if(el.cards.length>=3){
+        while(el.cards.length>0) this.minorDiscard.push(el.cards.pop());
+        el.score = 0;
+        // 不断抽牌到宫廷牌
+        let count=0;
+        while(this.minorDeck.length>0){
+          const mc = this.minorDeck.pop(); count++;
+          this.playMinorToElement(p, mc, mc.suit, true);
+          if(mc.subtype==='court') break;
+        }
+        this._effectDetail=`${SUIT_NAMES[element]}阵重置，抽${count}张打出`;
+      } else this._effectDetail=`${SUIT_NAMES[element]}阵不足3张小牌`;
+    }
+
+    // === 9 隐士正位 ===
+    if(aId===9 && isU){
+      for(let i=0;i<2;i++){
+        if(this.minorDeck.length>0){ this.minorDiscard.push(this.minorDeck.pop()); }
+      }
+      // 选弃此牌或放回大牌堆顶(简化：随机)
+      if(Math.random()>0.5){
+        this.majorDiscard.push(card);
+        this._effectDetail=`丢弃小牌堆顶2张，大牌弃掉`;
+      } else {
+        this.majorDeck.push(card);
+        this._effectDetail=`丢弃小牌堆顶2张，大牌放回大牌堆顶`;
+      }
+    }
+
+    // === 10 命运之轮 ===
+    if(aId===10){
+      const dir = isU ? 1 : -1; // 正位右移，逆位左移
+      const ownCards = SUITS.map(s=>[...this.players[p].elements[s].cards]);
+      for(let i=0;i<SUITS.length;i++){
+        const from = SUITS[(i-dir+4)%4];
+        this.players[p].elements[SUITS[i]].cards = ownCards[(i-dir+4)%4];
+        this.players[p].elements[SUITS[i]].score = this.players[p].elements[SUITS[i]].cards.reduce((s,c)=>s+c.points,0);
+      }
+      this._effectDetail=`${p}方小牌全部${isU?'右':'左'}移一格`;
+    }
+
+    // === 11 正义 ===
+    if(aId===11 && isU){
+      for(const s of SUITS){
+        const aCards = this.players.A.elements[s].cards;
+        const bCards = this.players.B.elements[s].cards;
+        const aPts = aCards.reduce((t,c)=>t+c.points,0);
+        const bPts = bCards.reduce((t,c)=>t+c.points,0);
+        if(aPts>bPts && aCards.length>0){
+          aCards.sort((a,b)=>a.points-b.points);
+          bCards.push(aCards.shift());
+        } else if(bPts>aPts && bCards.length>0){
+          bCards.sort((a,b)=>a.points-b.points);
+          aCards.push(bCards.shift());
+        }
+        this.players.A.elements[s].score = aCards.reduce((t,c)=>t+c.points,0);
+        this.players.B.elements[s].score = bCards.reduce((t,c)=>t+c.points,0);
+      }
+      this._effectDetail=`各阵高分方最小牌移至对方`;
+    }
+    if(aId===11 && !isU){
+      for(const s of SUITS){
+        const aCards = this.players.A.elements[s].cards;
+        const bCards = this.players.B.elements[s].cards;
+        if(aCards.length>bCards.length){
+          aCards.sort((a,b)=>b.points-a.points);
+          bCards.push(aCards.shift());
+        } else if(bCards.length>aCards.length){
+          bCards.sort((a,b)=>b.points-a.points);
+          aCards.push(bCards.shift());
+        }
+        this.players.A.elements[s].score = aCards.reduce((t,c)=>t+c.points,0);
+        this.players.B.elements[s].score = bCards.reduce((t,c)=>t+c.points,0);
+      }
+      this._effectDetail=`各阵牌多方最大牌移至对方`;
+    }
+
+    // === 12 倒吊人 ===
+    if(aId===12 && isU){
+      const ownEl = this.players[p].elements[element];
+      if(ownEl.activeMajor){ this.majorDiscard.push({...ownEl.activeMajor._raw}); ownEl.activeMajor=null; }
+      if(this.majorDeck.length>0){
+        const mc = this.majorDeck.pop();
+        this._execEffect(p, mc, element, 'upright');
+        this.majorDiscard.push(mc);
+        this._effectDetail=`${p}方大牌弃，抽${mc.name}打出`;
+      } else this._effectDetail=`${p}方大牌弃，大牌堆空`;
+    }
+    if(aId===12 && !isU){
+      const oppEl = this.players[opp].elements[element];
+      if(oppEl.activeMajor){ this.majorDiscard.push({...oppEl.activeMajor._raw}); oppEl.activeMajor=null; }
+      if(this.majorDeck.length>0){
+        const mc = this.majorDeck.pop();
+        this._execEffect(opp, mc, element, Math.random()>0.5?'upright':'reversed');
+        this.majorDiscard.push(mc);
+        this._effectDetail=`敌方大牌弃，抽${mc.name}由敌方打出`;
+      } else this._effectDetail=`敌方大牌弃，大牌堆空`;
+    }
+
+    // === 13 死神正位 ===
+    if(aId===13 && isU){
+      const ownEl = this.players[p].elements[element];
+      const count = ownEl.cards.length;
+      while(ownEl.cards.length>0) this.minorDiscard.push(ownEl.cards.pop());
+      ownEl.score = 0;
+      for(let i=0;i<count;i++){
+        if(this.minorDeck.length>0){
+          const mc = this.minorDeck.pop();
+          this.playMinorToElement(p, mc, mc.suit, true);
+        }
+      }
+      this._effectDetail=`${SUIT_NAMES[element]}阵${count}张小牌重抽`;
+    }
+
+    // === 14 节制正位 ===
+    if(aId===14 && isU){
+      const aCards = [...this.players.A.elements[element].cards];
+      const bCards = [...this.players.B.elements[element].cards];
+      const pool = shuffle([...aCards, ...bCards]);
+      this.players.A.elements[element].cards = pool.slice(0, aCards.length);
+      this.players.B.elements[element].cards = pool.slice(aCards.length);
+      this.players.A.elements[element].score = this.players.A.elements[element].cards.reduce((s,c)=>s+c.points,0);
+      this.players.B.elements[element].score = this.players.B.elements[element].cards.reduce((s,c)=>s+c.points,0);
+      this._effectDetail=`${SUIT_NAMES[element]}阵小牌洗混(A:${aCards.length}B:${bCards.length})`;
+    }
+
+    // === 16 塔逆位 ===
+    if(aId===16 && !isU){
+      // 各自最高分阵小牌丢弃
+      for(const pl of ['A','B']){
+        let bestS='wands', bestV=-1;
+        for(const s of SUITS){
+          const sc = this.players[pl].elements[s].score;
+          if(sc>bestV){bestV=sc;bestS=s;}
+        }
+        // 所有并列最高都丢弃
+        for(const s of SUITS){
+          if(this.players[pl].elements[s].score===bestV){
+            const el = this.players[pl].elements[s];
+            while(el.cards.length>0) this.minorDiscard.push(el.cards.pop());
+            el.score = 0;
+          }
+        }
+      }
+      this._effectDetail=`双方最高分阵小牌丢弃`;
+    }
+
+    // === 18 月亮正位 ===
+    if(aId===18 && isU){
+      const hidden=[];
+      for(let i=0;i<2;i++){
+        if(this.minorDeck.length>0) hidden.push(this.minorDeck.pop());
+      }
+      if(hidden.length>0){
+        // 背朝上打入任意阵(简化：随机选1阵)
+        const tgt = SUITS[Math.floor(Math.random()*4)];
+        for(const hc of hidden) this.players[p].elements[tgt].cards.push(hc);
+        this.moonHiddenCards.push({player:p, element:tgt, cards:hidden});
+        this._effectDetail=`${hidden.length}张小牌背朝上打入${SUIT_NAMES[tgt]}阵`;
+      }
+    }
+
+    // === 19 太阳正位 ===
+    if(aId===19 && isU){
+      // 选择2个阵互换(简化：当前阵+下一个阵)
+      const other = SUITS[(SUITS.indexOf(element)+1)%4];
+      const tmp = [...this.players[p].elements[element].cards];
+      this.players[p].elements[element].cards = [...this.players[p].elements[other].cards];
+      this.players[p].elements[other].cards = tmp;
+      this.players[p].elements[element].score = this.players[p].elements[element].cards.reduce((s,c)=>s+c.points,0);
+      this.players[p].elements[other].score = this.players[p].elements[other].cards.reduce((s,c)=>s+c.points,0);
+      this._effectDetail=`${p}方${SUIT_NAMES[element]}↔${SUIT_NAMES[other]}阵互换`;
+    }
+
+    // === 20 审判 ===
+    if(aId===20 && isU){
+      for(const pl of ['A','B']){
+        for(const s of SUITS){ this.players[pl].elements[s].activeMajor = null; }
+      }
+      this._effectDetail=`全部阵所有大牌丢弃`;
+    }
+    if(aId===20 && !isU){
+      const ownEl = this.players[p].elements[element];
+      if(ownEl.activeMajor){ this.majorDiscard.push({...ownEl.activeMajor._raw}); ownEl.activeMajor=null; }
+      for(let i=0;i<2;i++){
+        if(this.minorDeck.length>0){
+          const mc = this.minorDeck.pop();
+          this.playMinorToElement(p, mc, mc.subtype==='court'?element:mc.suit, false);
+        }
+      }
+      this._effectDetail=`${p}方大牌弃，抽2小牌打出`;
+    }
+  }
+
+  // === 回合结束（清理） ===
+  endTurn(){
+    if(this.gameOver) return;
+    if(this.minorDeck.length === 0){ this.endGame(); return; }
+    const prev = this.currentPlayer;
+    this.currentPlayer = (prev==='A')?'B':'A';
+    this.phase = 'play_minor';
+    this.drawnMinor = null;
+    this.drawnMajor = null;
+  }
+
+  // === 终局结算 ===
+  endGame(){
+    this.gameOver = true;
+    this.phase = 'game_over';
+    this.addLog(`🏆 小牌堆已空，游戏结束！开始结算...`);
+  }
+
+  finalScore(){
+    const result = {A:0, B:0, totalA:0, totalB:0, details:[]};
+
+    // 世界逆位(21R)：结算前互换双方小牌
+    for(const s of SUITS){
+      for(const pl of ['A','B']){
+        const am = this.players[pl].elements[s].activeMajor;
+        if(am && am.arcanaId===21 && am.orientation==='reversed'){
+          const aCards=[...this.players.A.elements[s].cards];
+          const bCards=[...this.players.B.elements[s].cards];
+          this.players.A.elements[s].cards=bCards;
+          this.players.B.elements[s].cards=aCards;
+          this.players.A.elements[s].score=bCards.reduce((t,c)=>t+c.points,0);
+          this.players.B.elements[s].score=aCards.reduce((t,c)=>t+c.points,0);
+          this.addLog(`🌍 世界逆位：${SUIT_NAMES[s]}阵双方小牌互换`);
+        }
+      }
+    }
+
+    // 月亮正位(18U)：翻开背朝上的小牌，计入分数
+    for(const h of this.moonHiddenCards){
+      for(const hc of h.cards) this.players[h.player].elements[h.element].score += hc.points;
+      this.addLog(`🌙 月亮正位翻开：${h.player}方${SUIT_NAMES[h.element]}阵+${h.cards.reduce((t,c)=>t+c.points,0)}`);
+    }
+
+    // 世界正位(21U)：1-10全打出则判己方胜
+    const worldWinElems = {A:[], B:[]};
+    for(const pl of ['A','B']){
+      for(const s of SUITS){
+        const am = this.players[pl].elements[s].activeMajor;
+        if(am && am.arcanaId===21 && am.orientation==='upright'){
+          const allCards = [...this.players.A.elements[s].cards, ...this.players.B.elements[s].cards];
+          const numbers = new Set(allCards.filter(c=>c.subtype==='number').map(c=>c.points));
+          const hasAll = [1,2,3,4,5,6,7,8,9,10].every(n=>numbers.has(n));
+          if(hasAll) worldWinElems[pl].push(s);
+        }
+      }
+    }
+
+    for(const s of SUITS){
+      let scoreA = this.players.A.elements[s].score;
+      let scoreB = this.players.B.elements[s].score;
+
+      // 皇帝逆位(4R)：结算时胜方计2分
+      const empA = this.players.A.elements[s].activeMajor;
+      const empB = this.players.B.elements[s].activeMajor;
+      const empBonus = (empA && empA.arcanaId===4 && empA.orientation==='reversed') ||
+                       (empB && empB.arcanaId===4 && empB.orientation==='reversed');
+
+      // 太阳逆位(19R)：按此阵胜负判定
+      const sunRev = (empA && empA.arcanaId===19 && empA.orientation==='reversed') ||
+                     (empB && empB.arcanaId===19 && empB.orientation==='reversed');
+
+      result.totalA += scoreA;
+      result.totalB += scoreB;
+
+      let winner = null;
+      if(worldWinElems.A.includes(s)) winner = 'A';
+      else if(worldWinElems.B.includes(s)) winner = 'B';
+      else if(scoreA > scoreB) winner = 'A';
+      else if(scoreB > scoreA) winner = 'B';
+
+      const points = empBonus ? (winner?2:0) : (winner?1:0);
+
+      if(winner==='A') result.A += points;
+      else if(winner==='B') result.B += points;
+
+      result.details.push({element:s, winner, scoreA, scoreB, points});
+    }
+
+    // 太阳逆位(19R)：全局胜负判定
+    let sunWinner = null;
+    for(const pl of ['A','B']){
+      for(const s of SUITS){
+        const am = this.players[pl].elements[s].activeMajor;
+        if(am && am.arcanaId===19 && am.orientation==='reversed'){
+          sunWinner = pl;
+        }
+      }
+    }
+    if(sunWinner){
+      result.A = 0; result.B = 0;
+      // 按当前阵胜负情况
+      for(const d of result.details){
+        if(d.winner==='A') result.A++;
+        else if(d.winner==='B') result.B++;
+      }
+      result.A *= 2; result.B *= 2; // 简化：太阳方得双倍
+    }
+
+    return result;
+  }
+
+  determineWinner(result){
+    if(result.A > result.B) return 'A';
+    if(result.B > result.A) return 'B';
+    if(result.totalA > result.totalB) return 'A';
+    if(result.totalB > result.totalA) return 'B';
+    return 'A';
+  }
+
+  // === AI 逻辑（与人类规则相同） ===
+  aiAct(){
+    const p = 'B';
+    if(this.currentPlayer !== 'B' || this.gameOver) return;
+
+    if(this.phase === 'play_minor'){
+      const card = this.drawnMinor;
+      if(card.subtype === 'number'){
+        let target = card.suit;
+        // 检查隐士逆位/死神逆位等持续性效果，选择不会被丢弃的阵
+        this.playMinorToElement(p, card, target);
+        this.addLog(`🤖 AI: ${card.name}→${SUIT_NAMES[target]}(+${card.points})`);
+        this.endTurn();
+      } else {
+        let target = 'wands', minScore = Infinity;
+        for(const s of SUITS){
+          if(this.players.B.elements[s].score < minScore){
+            minScore = this.players.B.elements[s].score; target = s;
+          }
+        }
+        this.courtSelectElement(target);
+        this.addLog(`🤖 AI: 宫廷牌→${SUIT_NAMES[target]}`);
+      }
+    }
+
+    if(this.phase === 'play_major'){
+      const card = this.drawnMajor;
+      const play = Math.random() > 0.15;
+      if(play){
+        const orient = Math.random() > 0.3 ? 'upright' : 'reversed';
+        let target = 'wands', maxDiff = -Infinity;
+        for(const s of SUITS){
+          const diff = this.players.B.elements[s].score - this.players.A.elements[s].score;
+          if(diff > maxDiff){ maxDiff=diff; target=s; }
+        }
+        if(maxDiff < 0) target = SUITS[Math.floor(Math.random()*4)];
+        this.majorOrientation = orient;
+        this.addLog(`🤖 AI: 打出${card.name}(${orient==='upright'?'正位':'逆位'})→${SUIT_NAMES[target]}`);
+        this.majorDecision(true, target, orient);
+      } else {
+        this.addLog(`🤖 AI: 弃掉${card.name}`);
+        this.majorDecision(false);
+      }
+    }
+  }
+}
+
+// ==================== UI ====================
+let game;
+
+function init(){
+  game = new TarotGame();
+  game.addLog('🎴 游戏开始！点击元素阵出牌，宫廷牌可任选阵');
+  game.addLog('🔵 玩家A先手行动');
+  render();
+  setTimeout(() => {
+    game.startTurn();
+    render();
+    continueFlow();
+  }, 400);
+}
+
+function showToast(msg,type='info'){
+  const existing=document.querySelector('.toast');
+  if(existing)existing.remove();
+  const t=document.createElement('div');
+  t.className=`toast ${type}`;
+  t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),2600);
+}
+
+// ====== 核心渲染 ======
+function render(){
+  const app = document.getElementById('app');
+  const cp = game.currentPlayer;
+  const isHumanTurn = (cp === 'A' && !game.gameOver);
+  const canClick = isHumanTurn && (game.phase==='play_minor' || game.phase==='play_major');
+
+  let html = '';
+
+  // 顶部栏
+  html += `<div id="top-bar">
+    <div id="round-info">🃏 行动 <span>${game.totalActions}</span> 次</div>
+    <div id="phase-info" class="${cp==='A'?'phase-a':'phase-b'}">
+      ${cp==='A'?'🔵 玩家A':'🔴 玩家B'} - ${game.phase==='play_minor'?'出小牌':game.phase==='play_major'?'出大牌':'等待中'}
+    </div>
+    <div id="deck-info">
+      <span class="deck-count minor">小:${game.minorDeck.length}</span>
+      <span class="deck-count major">大:${game.majorDeck.length}</span>
+      <button class="btn btn-sm" style="padding:2px 10px;font-size:11px;background:rgba(255,255,255,0.08);color:#aaa;border:1px solid rgba(255,255,255,0.2);border-radius:8px;" onclick="showLogViewer();event.stopPropagation();">📋 日志</button>
+    </div>
+  </div>`;
+
+  // 日志
+  const recentLogs = game.logs.slice(-3);
+  html += `<div id="log-area">${recentLogs.join(' | ') || '点击元素阵出牌...'}</div>`;
+
+  // 战场
+  html += `<div id="battlefield">`;
+  for(const suit of SUITS){
+    let cls = `element-zone elem-${suit}`;
+    if(canClick) cls += ' selectable';
+    const zoneId = `zone-${suit}`;
+
+    html += `<div class="${cls}" id="${zoneId}" onclick="onElementClick('${suit}')">
+      <div class="element-header"><span class="icon">${SUIT_ICONS[suit]}</span>${SUIT_NAMES[suit]}</div>`;
+
+    // 玩家B
+    html += `<div class="player-zone player-b">
+      <div class="player-label"><span class="dot b"></span>玩家B</div>
+      ${renderElementContent('B',suit)}
+    </div>`;
+
+    // 玩家A
+    html += `<div class="player-zone player-a">
+      ${renderElementContent('A',suit)}
+      <div class="player-label"><span class="dot a"></span>玩家A</div>
+    </div>`;
+
+    html += `</div>`;
+  }
+  html += `</div>`;
+
+  // 抽牌展示区
+  html += renderDrawArea(cp);
+
+  // 按钮区
+  html += `<div id="action-bar">`;
+  if(game.gameOver){
+    html += `<button class="btn btn-primary" onclick="showGameOver()">🏆 查看结算</button>`;
+  } else if(isHumanTurn && game.phase==='play_major'){
+    html += `<button class="btn btn-warn btn-sm" onclick="onDiscardMajor()">🗑️ 弃掉大牌</button>`;
+  }
+  html += `<button class="btn btn-sm" style="background:rgba(255,255,255,0.1);color:#aaa;border:1px solid rgba(255,255,255,0.2);" onclick="init()">🔄 重新开始</button>`;
+  html += `</div>`;
+
+  app.innerHTML = html;
+}
+
+function renderElementContent(player, suit){
+  const el = game.players[player].elements[suit];
+  let html = '';
+
+  // 小牌
+  html += '<div class="cards-row">';
+  for(const c of el.cards.slice(-6)){
+    const isCourt = c.subtype==='court';
+    html += `<span class="card-mini ${isCourt?'court':''}" title="${c.name}(${c.points}点)">${c.icon}${c.points}</span>`;
+  }
+  if(el.cards.length>6) html += `<span style="font-size:10px;color:#666;">+${el.cards.length-6}</span>`;
+  if(el.cards.length===0) html += `<span style="font-size:10px;color:#444;">-</span>`;
+  html += '</div>';
+
+  // 得分
+  html += `<div class="score-display"><span class="score-label">得分</span>
+    <span class="score-num">${el.score}</span></div>`;
+
+  // 大牌（持续性/触发性 + 历史）
+  const activeMajor = el.activeMajor;
+  const hasHistory = el.majorHistory && el.majorHistory.length>0;
+  if(activeMajor || hasHistory){
+    html += `<div class="majors-history"><div class="mh-title">🌟 大牌</div>`;
+    // 当前激活的持续性/触发性
+    if(activeMajor){
+      const orientCls = activeMajor.orientation==='upright'?'upright':'reversed';
+      const typeBadge = activeMajor.type==='persistent'?'[持续]':'[触发]';
+      html += `<span class="mh-item ${orientCls}" style="background:rgba(255,215,0,0.15);border-color:#ffd700;" onclick="event.stopPropagation();showMajorDetail('${player}','${suit}',-1)" title="${activeMajor.name}(${activeMajor.orientation==='upright'?'正':'逆'}位)\\n${typeBadge} ${activeMajor.desc||''}">${activeMajor.name}${typeBadge}</span>`;
+    }
+    // 历史记录
+    if(hasHistory){
+      for(const m of el.majorHistory.slice(-2)){
+        const orientCls = m.orientation==='upright'?'upright':'reversed';
+        html += `<span class="mh-item ${orientCls}" onclick="event.stopPropagation();showMajorDetail('${player}','${suit}',${el.majorHistory.indexOf(m)})" title="${m.name}(${m.orientation==='upright'?'正':'逆'}位)\\n${m.effectDesc}">${m.name}</span>`;
+      }
+      if(el.majorHistory.length>2) html += `<span style="font-size:10px;color:#666;">+${el.majorHistory.length-2}</span>`;
+    }
+    html += `</div>`;
+  }
+
+  return html;
+}
+
+function renderDrawArea(cp){
+  let html = `<div id="draw-area">`;
+
+  if(game.gameOver){
+    html += `<div style="font-size:18px;color:#ffd700;">🏆 游戏结束 - 小牌堆已空</div>`;
+  } else if(cp === 'B'){
+    // AI回合：不展示AI的牌
+    html += `<div class="placeholder">🤖 AI思考中...</div>`;
+  } else if(game.drawnMinor){
+    const card = game.drawnMinor;
+    const isCourt = card.subtype==='court';
+    let cardCls = isCourt?'court-card':'minor-card';
+
+    // 小牌
+    html += `<div class="drawn-card ${cardCls}">
+      <div class="card-icon">${card.icon}</div>
+      <div>
+        <div class="card-name">${card.name}</div>
+        <div class="card-detail">${isCourt?'👑宫廷牌':'数字牌'} · ${card.points}点`;
+    if(!isCourt){
+      html += ` · 仅可打入${SUIT_ICONS[card.suit]}${SUIT_NAMES[card.suit]}阵`;
+    }
+    html += `</div></div>`;
+
+    if(game.phase==='play_minor'){
+      html += `<div style="color:#8ab8e0;font-size:13px;margin-left:8px;">← 点击上方元素阵出牌</div>`;
+    }
+    html += `</div>`;
+
+    // 大牌预览
+    if(game.drawnMajor){
+      const mc = game.drawnMajor;
+      const orient = game.majorOrientation;
+      const desc = orient==='upright' ? mc.effectDesc : mc.revEffectDesc;
+      const isPlayable = game.phase==='play_major' && cp==='A';
+      html += `<div class="drawn-card major-card" style="flex:1;min-width:240px;">
+        <div class="card-icon">🌟</div>
+        <div style="flex:1;">
+          <div class="card-name" style="color:#ffd700;">${mc.name}</div>
+          <div class="card-detail" style="color:#aaa;">${desc}</div>
+        </div>`;
+      if(game.phase==='play_minor' && isCourt){
+        // 宫廷牌还没打出，可预览切换大牌方向
+        html += `<div class="toggle-orient" onclick="event.stopPropagation();toggleOrientation()" title="预览正位/逆位效果">
+          <span class="arrow">${orient==='upright'?'☀️':'🌑'}</span>
+          <span>${orient==='upright'?'正位':'逆位'}</span>
+          <span style="font-size:10px;color:#888;">↔预览</span>
+        </div>`;
+        html += `<div style="color:#ffcc88;font-size:12px;margin-left:4px;">先出宫廷牌→再出大牌</div>`;
+      } else if(isPlayable){
+        html += `<div class="toggle-orient" onclick="event.stopPropagation();toggleOrientation()" title="点击切换正位/逆位">
+          <span class="arrow">${orient==='upright'?'☀️':'🌑'}</span>
+          <span>${orient==='upright'?'正位':'逆位'}</span>
+          <span style="font-size:10px;color:#888;">↔切换</span>
+        </div>`;
+        html += `<div style="color:#ffd700;font-size:12px;margin-left:4px;">← 点击元素阵打出大牌</div>`;
+      }
+      html += `</div>`;
+    }
+  } else {
+    html += `<div class="placeholder">等待抽牌...</div>`;
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+// ====== 交互 ======
+function onElementClick(suit){
+  if(game.gameOver) return;
+  if(game.currentPlayer !== 'A') return;
+
+  if(game.phase === 'play_minor'){
+    // 打出小牌
+    const card = game.drawnMinor;
+    if(!card) return;
+
+    // 数字牌必须打入对应花色阵（除非有魔术师效果）
+    if(card.subtype === 'number'){
+      // 数字牌必须打入对应花色阵（教皇正位5U允许选该阵或对应阵）
+      const popeActive = game.players.A.elements[suit].activeMajor;
+      const popeAllow = popeActive && popeActive.arcanaId===5 && popeActive.orientation==='upright';
+      if(card.suit !== suit && !popeAllow){
+        showToast(`${card.name}只能打入${SUIT_NAMES[card.suit]}阵`,'warn');
+        return;
+      }
+      // 检查魔术师逆位(1R)：必须加到其他阵
+      if(game._chkAnyPersistent('A', suit, 1, 'reversed') && card.suit === suit){
+        showToast(`魔术师逆位：必须打入${SUIT_NAMES[card.suit]}以外的阵`,'warn');
+        return;
+      }
+      game.playMinorToElement('A', card, suit);
+      game.addLog(`  → ${card.name}打入${SUIT_NAMES[suit]}阵(+${card.points})`);
+      game.endTurn();
+      render();
+      setTimeout(() => continueFlow(), 400);
+      return;
+    }
+
+    // 宫廷牌：任意阵
+    if(card.subtype === 'court'){
+      game.courtSelectElement(suit);
+      render();
+      if(game.phase === 'play_major'){
+        // 大牌已抽出，等待大牌决策
+        return;
+      } else {
+        // 大牌堆空，回合结束
+        setTimeout(() => continueFlow(), 400);
+        return;
+      }
+    }
+  }
+
+  if(game.phase === 'play_major'){
+    // 打出大牌到选中阵
+    game.majorDecision(true, suit);
+    render();
+    setTimeout(() => continueFlow(), 400);
+  }
+}
+
+function toggleOrientation(){
+  game.majorOrientation = game.majorOrientation==='upright'?'reversed':'upright';
+  render();
+}
+
+function onDiscardMajor(){
+  if(game.phase !== 'play_major' || game.currentPlayer !== 'A') return;
+  game.majorDecision(false);
+  render();
+  setTimeout(() => continueFlow(), 400);
+}
+
+function showMajorDetail(player, suit, index){
+  const el = game.players[player].elements[suit];
+  let m;
+  if(index === -1){
+    // activeMajor
+    m = el.activeMajor;
+    if(!m) return;
+    m = {name:m.name, orientation:m.orientation, effectDesc:m.desc, detail:`类型：${m.type==='persistent'?'持续性':'触发性'}`, turn:'当前'};
+  } else {
+    const hist = el.majorHistory;
+    if(index<0||index>=hist.length) return;
+    m = hist[index];
+  }
+  const overlay = document.createElement('div');
+  overlay.className = 'major-detail-overlay';
+  overlay.onclick = (e) => { if(e.target===overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div class="major-detail-panel">
+      <h4>🌟 ${m.name} <span style="font-size:12px;color:${m.orientation==='upright'?'#ffd700':'#999'};">${m.orientation==='upright'?'正位':'逆位'}</span></h4>
+      <div style="color:#aaa;font-size:13px;margin-bottom:4px;">${SUIT_ICONS[suit]} ${SUIT_NAMES[suit]}阵 · ${player==='A'?'玩家A':'玩家B'}打出</div>
+      <div style="color:#d4c8b8;font-size:14px;line-height:1.6;">效果：${m.effectDesc}</div>
+      ${m.detail?`<div style="color:#e8d5a0;font-size:13px;margin-top:4px;line-height:1.4;">详情：${m.detail}</div>`:''}
+      <div style="color:#666;font-size:11px;margin-top:8px;">${typeof m.turn==='number'?`第${m.turn}次行动时打出`:m.turn}</div>
+      <button class="btn btn-sm" style="margin-top:8px;background:rgba(255,255,255,0.1);color:#aaa;" onclick="this.closest('.major-detail-overlay').remove()">关闭</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function showLogViewer(){
+  const overlay = document.createElement('div');
+  overlay.className = 'major-detail-overlay';
+  overlay.onclick = (e) => { if(e.target===overlay) overlay.remove(); };
+  let logHTML = '';
+  for(const log of game.logs){
+    logHTML += `<div style="padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:12px;color:#ccc;">${log}</div>`;
+  }
+  overlay.innerHTML = `
+    <div class="major-detail-panel" style="max-width:600px;max-height:70vh;overflow-y:auto;">
+      <h4>📋 出牌日志</h4>
+      <div style="margin-bottom:8px;">${logHTML||'暂无记录'}</div>
+      <button class="btn btn-sm" style="background:rgba(255,255,255,0.1);color:#aaa;" onclick="this.closest('.major-detail-overlay').remove()">关闭</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+// ====== 流程控制 ======
+function continueFlow(){
+  if(game.gameOver) {
+    showGameOver();
+    return;
+  }
+
+  if(game.currentPlayer === 'B'){
+    runAITurn();
+  } else if(game.currentPlayer === 'A'){
+    // A的回合刚开始
+    if(game.phase === 'play_minor' && !game.drawnMinor){
+      game.startTurn();
+    }
+    render();
+    if(game.gameOver){ showGameOver(); return; }
+    // 等待用户点击元素出牌
+  }
+}
+
+function runAITurn(){
+  if(game.gameOver) { showGameOver(); return; }
+
+  game.startTurn();
+  render();
+
+  if(game.gameOver){ showGameOver(); return; }
+
+  setTimeout(() => {
+    // AI出小牌
+    game.aiAct();
+    render();
+
+    if(game.gameOver){ showGameOver(); return; }
+
+    // AI可能需要出大牌
+    if(game.phase === 'play_major' && game.currentPlayer === 'B'){
+      setTimeout(() => {
+        game.aiAct();
+        render();
+
+        if(game.gameOver){ showGameOver(); return; }
+
+        // B回合完成，A开始
+        setTimeout(() => {
+          if(game.gameOver){ showGameOver(); return; }
+          game.startTurn();
+          render();
+
+          if(game.gameOver){ showGameOver(); return; }
+
+          // A等用户操作
+          if(game.currentPlayer === 'A' && game.phase === 'play_minor'){
+            return;
+          }
+          if(game.currentPlayer === 'B'){
+            setTimeout(() => continueFlow(), 400);
+          }
+        }, 500);
+      }, 500);
+      return;
+    }
+
+    // 无大牌（空堆或数字牌），直接到A
+    setTimeout(() => {
+      if(game.gameOver){ showGameOver(); return; }
+      game.startTurn();
+      render();
+
+      if(game.gameOver){ showGameOver(); return; }
+
+      if(game.currentPlayer === 'A' && game.phase === 'play_minor'){
+        return;
+      }
+      if(game.currentPlayer === 'B'){
+        setTimeout(() => continueFlow(), 400);
+      }
+    }, 500);
+  }, 500);
+}
+
+function showGameOver(){
+  const result = game.finalScore();
+  const winner = game.determineWinner(result);
+
+  let detailHTML = '';
+  for(const d of result.details){
+    detailHTML += `<tr>
+      <td>${SUIT_ICONS[d.element]} ${SUIT_NAMES[d.element]}</td>
+      <td>${d.scoreA}</td><td>${d.scoreB}</td>
+      <td>${d.winner==='A'?'🔵A':d.winner==='B'?'🔴B':'平局'}</td>
+      <td>${d.points}分</td>
+    </tr>`;
+  }
+
+  const existOverlay = document.querySelector('.game-over-overlay');
+  if(existOverlay) existOverlay.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'game-over-overlay';
+  overlay.innerHTML = `
+    <div class="game-over-panel">
+      <h2>🏆 游戏结束</h2>
+      <div style="color:#aaa;font-size:13px;">小牌堆已空 · 共${game.totalActions}次行动</div>
+      <div class="winner">${winner==='A'?'🔵 玩家A 获胜！':'🔴 玩家B 获胜！'}</div>
+      <table class="score-table">
+        <tr><th>元素</th><th>A分数</th><th>B分数</th><th>胜者</th><th>得分</th></tr>
+        ${detailHTML}
+        <tr style="font-weight:bold;color:#ffd700;">
+          <td>总计</td><td>${result.totalA}</td><td>${result.totalB}</td>
+          <td colspan="2">A:${result.A}分 | B:${result.B}分</td>
+        </tr>
+      </table>
+      ${result.A===result.B?`<div class="detail">⚖️ 得分平局！${result.totalA>result.totalB?'A总点数领先':result.totalB>result.totalA?'B总点数领先':'先手方A获胜'}</div>`:''}
+      <button class="btn btn-primary" style="margin-top:16px;" onclick="init();this.closest('.game-over-overlay').remove();">🔄 再来一局</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+// ==================== 启动 ====================
+console.log('🃏 塔罗对决 v2 - 引擎已就绪');
+console.log('规则：大小牌独立牌堆 | 手动选阵出牌 | 宫廷牌触发大牌 | 小牌堆空=终局');
+init();
+</script>
+</body>
+</html>
