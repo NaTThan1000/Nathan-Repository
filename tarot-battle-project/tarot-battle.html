@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+·<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -41,17 +41,29 @@ body{
 }
 
 #battlefield{
-  display:grid;grid-template-columns:repeat(4,1fr);gap:10px;
-  margin-bottom:10px;min-height:380px;
+  display:flex;flex-direction:column;gap:6px;
+  margin-bottom:10px;
 }
+.battle-row{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:10px;
+}
+.battle-row-label{
+  font-size:11px;text-align:center;padding:2px 0;letter-spacing:2px;
+  font-weight:bold;user-select:none;
+}
+.battle-row-label.enemy{color:rgba(255,130,100,0.55);}
+.battle-row-label.friendly{color:rgba(100,180,255,0.55);}
 .element-zone{
-  background:rgba(15,10,25,0.8);border:2px solid rgba(100,80,160,0.3);
+  background:rgba(15,10,25,0.85);border:2px solid rgba(100,80,160,0.3);
   border-radius:14px;overflow:hidden;display:flex;flex-direction:column;
-  transition:all 0.3s;
+  transition:all 0.3s;min-height:155px;
 }
 .element-zone.highlight{border-color:rgba(255,215,0,0.8);box-shadow:0 0 20px rgba(255,215,0,0.15);}
-.element-zone.selectable{border-color:rgba(100,200,255,0.7);box-shadow:0 0 16px rgba(100,200,255,0.2);cursor:pointer;}
-.element-zone.selectable:hover{border-color:rgba(100,220,255,1);box-shadow:0 0 24px rgba(100,220,255,0.35);transform:translateY(-2px);}
+.element-zone.selectable{cursor:pointer;}
+.element-zone.selectable.friendly{border-color:rgba(100,180,255,0.55);box-shadow:0 0 12px rgba(100,180,255,0.12);}
+.element-zone.selectable.friendly:hover{border-color:rgba(100,200,255,1);box-shadow:0 0 22px rgba(100,200,255,0.35);transform:translateY(-2px);}
+.element-zone.selectable.enemy{border-color:rgba(255,140,100,0.45);box-shadow:0 0 10px rgba(255,140,100,0.08);}
+.element-zone.selectable.enemy:hover{border-color:rgba(255,150,110,0.9);box-shadow:0 0 20px rgba(255,140,100,0.3);transform:translateY(-2px);}
 .element-zone.selected-zone{border-color:#ffd700;box-shadow:0 0 20px rgba(255,215,0,0.3);}
 
 .element-header{
@@ -65,10 +77,8 @@ body{
 .elem-pentacles .element-header{background:rgba(80,160,80,0.25);color:#90c890;}
 
 .player-zone{
-  flex:1;padding:6px 8px;display:flex;flex-direction:column;gap:4px;min-height:90px;position:relative;
+  flex:1;padding:6px 8px;display:flex;flex-direction:column;gap:4px;min-height:80px;
 }
-.player-zone.player-b{border-bottom:1px dashed rgba(255,255,255,0.1);}
-.player-zone.player-a{border-top:1px dashed rgba(255,255,255,0.1);}
 .player-label{
   font-size:11px;color:rgba(255,255,255,0.5);text-align:center;
   display:flex;align-items:center;justify-content:center;gap:4px;
@@ -89,25 +99,96 @@ body{
 }
 .card-mini.court{border-color:rgba(255,200,100,0.5);background:rgba(255,200,100,0.12);color:#ffcc88;}
 .cards-row{display:flex;flex-wrap:wrap;gap:2px;min-height:22px;}
+.cards-row.card-mode{gap:5px;min-height:42px;align-content:flex-start;}
+
+/* 塔罗卡牌 - 常规卡牌样式 */
+.tarot-card{
+  display:inline-flex;flex-direction:column;align-items:center;justify-content:space-between;
+  width:58px;height:78px;padding:4px 3px 5px;
+  border-radius:8px;margin:1px;
+  background:linear-gradient(165deg,rgba(35,28,50,0.96) 0%,rgba(18,12,32,0.96) 100%);
+  border:2px solid rgba(170,155,200,0.35);
+  box-shadow:2px 3px 8px rgba(0,0,0,0.4);
+  transition:all 0.2s;cursor:default;position:relative;overflow:hidden;
+  user-select:none;
+}
+.tarot-card::before{
+  content:'';position:absolute;top:2px;left:2px;right:2px;bottom:2px;
+  border-radius:5px;border:1px solid rgba(255,255,255,0.05);pointer-events:none;
+}
+.tarot-card:hover{
+  transform:translateY(-4px) scale(1.06);
+  box-shadow:3px 8px 18px rgba(0,0,0,0.55);
+  border-color:rgba(255,215,0,0.55);z-index:3;
+}
+.tarot-card .card-top{
+  display:flex;justify-content:space-between;align-items:center;
+  width:100%;padding:0 2px;
+}
+.tarot-card .card-val{font-size:15px;font-weight:bold;color:#e8d5a0;line-height:1;}
+.tarot-card .card-suit-icon{font-size:26px;line-height:1;margin:0;flex-shrink:0;}
+.tarot-card .card-name{
+  font-size:9px;color:rgba(255,255,255,0.6);text-align:center;
+  width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  line-height:1.2;padding-top:2px;
+}
+/* 数字牌花色色调 */
+.tarot-card.suit-wands .card-val{color:#e8946a;}
+.tarot-card.suit-cups .card-val{color:#8ab8e0;}
+.tarot-card.suit-swords .card-val{color:#d8d8a0;}
+.tarot-card.suit-pentacles .card-val{color:#90c890;}
+/* 宫廷牌 */
+.tarot-card.court-card{
+  border-color:rgba(255,200,100,0.55);
+  background:linear-gradient(165deg,rgba(50,38,20,0.96) 0%,rgba(30,20,12,0.96) 100%);
+  box-shadow:2px 3px 10px rgba(255,180,100,0.15);
+}
+.tarot-card.court-card .card-val{color:#ffcc88;}
+.tarot-card.court-card .card-rank{
+  font-size:10px;color:#ffcc88;font-weight:bold;letter-spacing:1px;
+}
+.tarot-card.court-card .card-suit-icon{font-size:30px;}
+
+/* 已方区域加高加宽 */
+.element-zone.zone-friendly{min-height:275px;}
+.element-zone.zone-friendly .player-zone{padding:8px 10px;min-height:180px;}
+.element-zone.zone-enemy{min-height:275px;}
+.element-zone.zone-enemy .player-zone{padding:8px 10px;min-height:180px;}
 
 /* 抽牌展示区 */
 #draw-area{
   background:rgba(20,15,30,0.9);border:2px solid rgba(180,160,200,0.25);
-  border-radius:16px;padding:14px 20px;margin-bottom:8px;
-  backdrop-filter:blur(10px);display:flex;align-items:center;gap:20px;
-  justify-content:center;min-height:80px;
+  border-radius:16px;padding:18px 24px;margin-bottom:8px;
+  backdrop-filter:blur(10px);display:flex;align-items:center;gap:24px;
+  justify-content:center;min-height:200px;
 }
 #draw-area .placeholder{color:#555;font-size:14px;}
-#draw-area .drawn-card{
-  display:flex;align-items:center;gap:12px;padding:8px 16px;
-  background:rgba(255,255,255,0.06);border-radius:12px;border:1px solid rgba(255,255,255,0.1);
+.draw-preview-card{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding:14px 16px 12px;min-width:130px;min-height:165px;
+  background:linear-gradient(165deg,rgba(35,28,50,0.96),rgba(18,12,32,0.96));
+  border:2px solid rgba(170,155,200,0.35);
+  border-radius:12px;box-shadow:3px 4px 12px rgba(0,0,0,0.5);
+  position:relative;overflow:hidden;
 }
-#draw-area .drawn-card .card-icon{font-size:32px;}
-#draw-area .drawn-card .card-name{font-size:16px;font-weight:bold;color:#e8d5a0;}
-#draw-area .drawn-card .card-detail{font-size:13px;color:#aaa;}
-#draw-area .drawn-card.minor-card{border-color:rgba(150,150,200,0.3);}
-#draw-area .drawn-card.major-card{border-color:rgba(255,215,0,0.4);}
-#draw-area .drawn-card.court-card{border-color:rgba(255,200,100,0.5);}
+.draw-preview-card::before{
+  content:'';position:absolute;top:3px;left:3px;right:3px;bottom:3px;
+  border-radius:9px;border:1px solid rgba(255,255,255,0.05);pointer-events:none;
+}
+.draw-preview-card .pc-icon{font-size:42px;line-height:1;}
+.draw-preview-card .pc-name{font-size:16px;font-weight:bold;color:#e8d5a0;text-align:center;line-height:1.2;}
+.draw-preview-card .pc-detail{font-size:11px;color:#aaa;text-align:center;line-height:1.4;max-width:140px;}
+.draw-preview-card .pc-restrict{font-size:10px;color:#888;text-align:center;}
+.draw-preview-card.court-preview{border-color:rgba(255,200,100,0.55);background:linear-gradient(165deg,rgba(50,38,20,0.96),rgba(30,20,12,0.96));}
+.draw-preview-card.court-preview .pc-name{color:#ffcc88;}
+.draw-preview-card.major-preview{
+  border-color:rgba(255,215,0,0.5);
+  background:linear-gradient(165deg,rgba(40,30,20,0.96),rgba(25,15,10,0.96));
+  min-width:190px;min-height:175px;
+  box-shadow:3px 4px 14px rgba(255,180,50,0.12);
+}
+.draw-preview-card.major-preview .pc-name{color:#ffd700;font-size:18px;}
+.draw-preview-card.major-preview .pc-detail{max-width:240px;font-size:12px;}
 
 #action-bar{
   display:flex;gap:10px;justify-content:center;align-items:center;padding:8px 0;flex-wrap:wrap;
@@ -189,12 +270,9 @@ body{
 @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(-20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 @keyframes toastOut{from{opacity:1}to{opacity:0}}
 
-@media(max-width:900px){#battlefield{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:900px){.battle-row{grid-template-columns:repeat(2,1fr);}}
 
-.elem-wands .player-zone{background:rgba(200,80,40,0.04);}
-.elem-cups .player-zone{background:rgba(60,140,200,0.04);}
-.elem-swords .player-zone{background:rgba(180,180,100,0.04);}
-.elem-pentacles .player-zone{background:rgba(80,160,80,0.04);}
+
 
 /* 大牌历史区域 */
 .majors-history{margin-top:3px;padding-top:3px;border-top:1px dashed rgba(255,215,0,0.15);}
@@ -1202,30 +1280,49 @@ function render(){
   const recentLogs = game.logs.slice(-3);
   html += `<div id="log-area">${recentLogs.join(' | ') || '点击元素阵出牌...'}</div>`;
 
-  // 战场
+  // 战场 - 8个独立区域：上排敌方(B)×4元素，下排己方(A)×4元素
   html += `<div id="battlefield">`;
+
+  // 敌方区域 (B)
+  html += `<div class="battle-row-label enemy">── ⚔️ 敌方区域 ──</div>`;
+  html += `<div class="battle-row">`;
   for(const suit of SUITS){
-    let cls = `element-zone elem-${suit}`;
-    if(canClick) cls += ' selectable';
-    const zoneId = `zone-${suit}`;
+    const zoneId = `zone-B-${suit}`;
+    let cls = `element-zone elem-${suit} zone-enemy`;
+    if(canClick) cls += ' selectable enemy';
+    const preview = buildZonePreview('B', suit);
 
-    html += `<div class="${cls}" id="${zoneId}" onclick="onElementClick('${suit}')">
-      <div class="element-header"><span class="icon">${SUIT_ICONS[suit]}</span>${SUIT_NAMES[suit]}</div>`;
-
-    // 玩家B
-    html += `<div class="player-zone player-b">
-      <div class="player-label"><span class="dot b"></span>玩家B</div>
-      ${renderElementContent('B',suit)}
+    html += `<div class="${cls}" id="${zoneId}" onclick="onElementClick('B','${suit}')" title="${preview}">
+      <div class="element-header"><span class="icon">${SUIT_ICONS[suit]}</span>${SUIT_NAMES[suit]}
+        <span style="font-size:10px;color:rgba(255,130,100,0.6);margin-left:3px;">[敌]</span></div>
+      <div class="player-zone">
+        <div class="player-label"><span class="dot b"></span>玩家B</div>
+        ${renderElementContent('B',suit,true)}
+      </div>
     </div>`;
-
-    // 玩家A
-    html += `<div class="player-zone player-a">
-      ${renderElementContent('A',suit)}
-      <div class="player-label"><span class="dot a"></span>玩家A</div>
-    </div>`;
-
-    html += `</div>`;
   }
+  html += `</div>`;
+
+  // 己方区域 (A) - 卡牌模式
+  html += `<div class="battle-row-label friendly">── 🛡️ 己方区域 ──</div>`;
+  html += `<div class="battle-row">`;
+  for(const suit of SUITS){
+    const zoneId = `zone-A-${suit}`;
+    let cls = `element-zone elem-${suit} zone-friendly`;
+    if(canClick) cls += ' selectable friendly';
+    const preview = buildZonePreview('A', suit);
+
+    html += `<div class="${cls}" id="${zoneId}" onclick="onElementClick('A','${suit}')" title="${preview}">
+      <div class="element-header"><span class="icon">${SUIT_ICONS[suit]}</span>${SUIT_NAMES[suit]}
+        <span style="font-size:10px;color:rgba(100,180,255,0.6);margin-left:3px;">[己]</span></div>
+      <div class="player-zone">
+        ${renderElementContent('A',suit,true)}
+        <div class="player-label"><span class="dot a"></span>玩家A</div>
+      </div>
+    </div>`;
+  }
+  html += `</div>`;
+
   html += `</div>`;
 
   // 抽牌展示区
@@ -1244,19 +1341,46 @@ function render(){
   app.innerHTML = html;
 }
 
-function renderElementContent(player, suit){
+function renderElementContent(player, suit, cardMode = false){
   const el = game.players[player].elements[suit];
   let html = '';
 
-  // 小牌
-  html += '<div class="cards-row">';
-  for(const c of el.cards.slice(-6)){
-    const isCourt = c.subtype==='court';
-    html += `<span class="card-mini ${isCourt?'court':''}" title="${c.name}(${c.points}点)">${c.icon}${c.points}</span>`;
+  if(cardMode){
+    // === 卡牌模式：己方区域，常规卡牌样式展示 ===
+    html += '<div class="cards-row card-mode">';
+    const maxShow = 16;
+    const showCards = el.cards.slice(-maxShow);
+    for(const c of showCards){
+      const isCourt = c.subtype==='court';
+      const suitClass = `suit-${c.suit}`;
+      if(isCourt){
+        html += `<div class="tarot-card court-card ${suitClass}" title="${c.name} · ${c.points}点 · 👑宫廷牌">
+          <div class="card-top"><span class="card-rank">${c.rank?RANK_NAMES[c.rank]:'宫廷'}</span></div>
+          <div class="card-suit-icon">${c.icon}</div>
+          <div class="card-name">${SUIT_NAMES[c.suit]}</div>
+        </div>`;
+      } else {
+        html += `<div class="tarot-card ${suitClass}" title="${c.name} · ${c.points}点">
+          <div class="card-top"><span class="card-val">${c.points}</span></div>
+          <div class="card-suit-icon">${c.icon}</div>
+          <div class="card-name">${c.name}</div>
+        </div>`;
+      }
+    }
+    if(el.cards.length > maxShow) html += `<span style="font-size:10px;color:#666;align-self:flex-end;margin-left:4px;">+${el.cards.length-maxShow}张</span>`;
+    if(el.cards.length===0) html += `<span style="font-size:11px;color:#444;padding:10px 6px;width:100%;text-align:center;">暂无卡牌</span>`;
+    html += '</div>';
+  } else {
+    // === 紧凑模式：敌方区域，迷你徽章 ===
+    html += '<div class="cards-row">';
+    for(const c of el.cards.slice(-6)){
+      const isCourt = c.subtype==='court';
+      html += `<span class="card-mini ${isCourt?'court':''}" title="${c.name}(${c.points}点)">${c.icon}${c.points}</span>`;
+    }
+    if(el.cards.length>6) html += `<span style="font-size:10px;color:#666;">+${el.cards.length-6}</span>`;
+    if(el.cards.length===0) html += `<span style="font-size:10px;color:#444;">-</span>`;
+    html += '</div>';
   }
-  if(el.cards.length>6) html += `<span style="font-size:10px;color:#666;">+${el.cards.length-6}</span>`;
-  if(el.cards.length===0) html += `<span style="font-size:10px;color:#444;">-</span>`;
-  html += '</div>';
 
   // 得分
   html += `<div class="score-display"><span class="score-label">得分</span>
@@ -1298,21 +1422,18 @@ function renderDrawArea(cp){
   } else if(game.drawnMinor){
     const card = game.drawnMinor;
     const isCourt = card.subtype==='court';
-    let cardCls = isCourt?'court-card':'minor-card';
+    let cardCls = isCourt?'court-preview':'';
 
-    // 小牌
-    html += `<div class="drawn-card ${cardCls}">
-      <div class="card-icon">${card.icon}</div>
-      <div>
-        <div class="card-name">${card.name}</div>
-        <div class="card-detail">${isCourt?'👑宫廷牌':'数字牌'} · ${card.points}点`;
+    // 小牌 - 卡片式预览
+    html += `<div class="draw-preview-card ${cardCls}">
+      <div class="pc-icon">${card.icon}</div>
+      <div class="pc-name">${card.name}</div>
+      <div class="pc-detail">${isCourt?'👑宫廷牌':'数字牌'} · ${card.points}点</div>`;
     if(!isCourt){
-      html += ` · 仅可打入${SUIT_ICONS[card.suit]}${SUIT_NAMES[card.suit]}阵`;
+      html += `<div class="pc-restrict">仅可打入${SUIT_ICONS[card.suit]}${SUIT_NAMES[card.suit]}阵</div>`;
     }
-    html += `</div></div>`;
-
     if(game.phase==='play_minor'){
-      html += `<div style="color:#8ab8e0;font-size:13px;margin-left:8px;">← 点击上方元素阵出牌</div>`;
+      html += `<div style="color:#8ab8e0;font-size:11px;margin-top:auto;">← 点击上方出牌</div>`;
     }
     html += `</div>`;
 
@@ -1321,28 +1442,20 @@ function renderDrawArea(cp){
       const mc = game.drawnMajor;
       const orient = game.majorOrientation;
       const desc = orient==='upright' ? mc.effectDesc : mc.revEffectDesc;
-      const isPlayable = game.phase==='play_major' && cp==='A';
-      html += `<div class="drawn-card major-card" style="flex:1;min-width:240px;">
-        <div class="card-icon">🌟</div>
-        <div style="flex:1;">
-          <div class="card-name" style="color:#ffd700;">${mc.name}</div>
-          <div class="card-detail" style="color:#aaa;">${desc}</div>
-        </div>`;
+      const isPlayable = game.phase==='play_major';
+      html += `<div class="draw-preview-card major-preview">
+        <div class="pc-icon">🌟</div>
+        <div class="pc-name">${mc.name}</div>
+        <div class="pc-detail">${orient==='upright'?'☀️正位':'🌑逆位'}：${desc}</div>`;
+      html += `<div class="toggle-orient" style="margin-top:auto;" onclick="event.stopPropagation();toggleOrientation()" title="点击切换正位/逆位">
+        <span class="arrow">${orient==='upright'?'☀️':'🌑'}</span>
+        <span>${orient==='upright'?'正位':'逆位'}</span>
+        <span style="font-size:10px;color:#888;">↔${isPlayable?'切换':'预览'}</span>
+      </div>`;
       if(game.phase==='play_minor' && isCourt){
-        // 宫廷牌还没打出，可预览切换大牌方向
-        html += `<div class="toggle-orient" onclick="event.stopPropagation();toggleOrientation()" title="预览正位/逆位效果">
-          <span class="arrow">${orient==='upright'?'☀️':'🌑'}</span>
-          <span>${orient==='upright'?'正位':'逆位'}</span>
-          <span style="font-size:10px;color:#888;">↔预览</span>
-        </div>`;
-        html += `<div style="color:#ffcc88;font-size:12px;margin-left:4px;">先出宫廷牌→再出大牌</div>`;
+        html += `<div style="color:#ffcc88;font-size:11px;">先出宫廷牌→再出大牌</div>`;
       } else if(isPlayable){
-        html += `<div class="toggle-orient" onclick="event.stopPropagation();toggleOrientation()" title="点击切换正位/逆位">
-          <span class="arrow">${orient==='upright'?'☀️':'🌑'}</span>
-          <span>${orient==='upright'?'正位':'逆位'}</span>
-          <span style="font-size:10px;color:#888;">↔切换</span>
-        </div>`;
-        html += `<div style="color:#ffd700;font-size:12px;margin-left:4px;">← 点击元素阵打出大牌</div>`;
+        html += `<div style="color:#ffd700;font-size:11px;">← 点击元素阵打出大牌</div>`;
       }
       html += `</div>`;
     }
@@ -1355,9 +1468,15 @@ function renderDrawArea(cp){
 }
 
 // ====== 交互 ======
-function onElementClick(suit){
+function onElementClick(targetPlayer, suit){
   if(game.gameOver) return;
   if(game.currentPlayer !== 'A') return;
+
+  // 仅允许操作己方区域（后续扩展时可放开敌方点击逻辑）
+  if(targetPlayer !== 'A'){
+    showToast('当前回合只能操作己方区域','warn');
+    return;
+  }
 
   if(game.phase === 'play_minor'){
     // 打出小牌
@@ -1379,7 +1498,7 @@ function onElementClick(suit){
         return;
       }
       game.playMinorToElement('A', card, suit);
-      game.addLog(`  → ${card.name}打入${SUIT_NAMES[suit]}阵(+${card.points})`);
+      game.addLog(`  → ${card.name}打入己方${SUIT_NAMES[suit]}阵(+${card.points})`);
       game.endTurn();
       render();
       setTimeout(() => continueFlow(), 400);
@@ -1419,6 +1538,16 @@ function onDiscardMajor(){
   game.majorDecision(false);
   render();
   setTimeout(() => continueFlow(), 400);
+}
+
+function buildZonePreview(player, suit){
+  const el = game.players[player].elements[suit];
+  const label = player==='A'?'己方':'敌方';
+  const cardNames = el.cards.map(c=>`${c.icon}${c.name}(${c.points}点)`).join('、') || '空';
+  const activeMajor = el.activeMajor;
+  const majorInfo = activeMajor ? ` | 大牌:${activeMajor.name}(${activeMajor.orientation==='upright'?'正':'逆'})` : '';
+  const lockedInfo = el.lockedScore!==null ? ` [锁定:${el.lockedScore}]` : '';
+  return `${label}${SUIT_NAMES[suit]}阵 | 得分:${el.score}${lockedInfo} | 小牌:${cardNames}${majorInfo}`;
 }
 
 function showMajorDetail(player, suit, index){
