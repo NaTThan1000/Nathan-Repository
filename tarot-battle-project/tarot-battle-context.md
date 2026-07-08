@@ -1,6 +1,6 @@
 # 塔罗对决「桌游原型 v3」— 项目总览
 
-> 文件: `tarot-battle-project/tarot-battle.html` | 单文件 ~68KB / 1720+ 行 | 状态: v3 可玩
+> 文件: `tarot-battle-project/tarot-battle.html` | 单文件 ~85KB / 2180+ 行 | 状态: v3 可玩 + 调试模式
 
 ---
 
@@ -173,8 +173,10 @@
 ```
 
 **卡牌样式**：
-- 己方区域：塔罗牌造型卡片（58×78px），含点数、花色图标、牌名，宫廷牌金黄色边框
-- 敌方区域：紧凑迷你徽章（图标+点数），节省空间
+- 数字牌：左右叠放（-28px 重叠），仅露出左上角数字（10px）和中心元素图标，hover 弹起放大
+- 宫廷牌：融入叠放，左上角统一「10」+ 右上角竖排品级文本（国王/侍从等），金色边框
+- 敌方区域：同样使用卡牌叠放模式
+- 大牌展示：左牌堆 = 生效中大牌（hover 浮层显示效果），右牌堆 = 弃牌堆（点击网格弹窗浏览）
 - 抽牌区：卡片式预览面板，大牌预览支持点击切换正/逆位
 
 ### 4.2 交互流程
@@ -191,8 +193,11 @@
 | 功能 | 操作 |
 |------|------|
 | 日志查看 | 点击顶部 📋 按钮弹窗 |
-| 大牌详情 | 点击阵中的大牌历史标签 |
+| 调试模式 | 点击顶部 🔧 按钮，可自由选牌测试效果 + 立刻结算 |
+| 选发牌 | 调试模式下点击 🃏 按钮，弹窗展示全部 78 张牌，选中后点击任意阵打出 |
+| 大牌详情 | 点击生效牌堆或弃牌堆弹窗中的大牌 |
 | 正逆位预览 | 宫廷牌抽到大牌后，点击☀️/🌑切换预览 |
+| 弃牌堆查看 | 点击阵中右侧弃牌堆，网格弹窗按顺序浏览该阵丢弃的大牌 |
 
 ---
 
@@ -228,6 +233,7 @@ endGame() → finalScore()
 - 效果分发：一次性 → `_execEffect()`，持续性/触发性 → `_setupActiveMajor()` + `_chkPersistent()`
 - 回合驱动：`continueFlow()` → setTimeout 链（异步，非帧循环）
 - UI 渲染：`render()` 全量 innerHTML 重绘
+- 调试模式：`debugMode` / `debugSelectedCard` 全局标志，与正常回合隔离，可自由选牌 + 任意阵打出 + 立刻结算
 
 ## 7. TarotGame 核心属性
 
@@ -292,6 +298,8 @@ UI:
   render / renderElementContent / renderDrawArea
   onElementClick / toggleOrientation / onDiscardMajor
   buildZonePreview / showMajorDetail / showLogViewer / showGameOver
+  showCardSelector / showMajorDiscardPile / showMajorTooltip / forceEndGame
+  debugToggleOrient / endDebugPlay / onDebugSelectCard / toggleDebugMode
   continueFlow / runAITurn
 ```
 
@@ -348,6 +356,7 @@ Workflow/                  ← 工作流文档（项目根）
 
 | 日期 | 分支/提交 | 修改内容 |
 |------|-----------|----------|
-| 2026-07-08 | `dev/tarot-update` → `main` | **UI 双行布局重构**：战场从单排 4 阵改为上下双行分离（敌方上/己方下）；己方卡牌改为塔罗造型卡片（58×78px），敌方改为紧凑徽章；元素阵 UI 信息层级优化（点数→卡牌→得分→大牌状态）；新增 Playwright CLI UI 调整工作流文档 |
+| 2026-07-08 | `dev/tarot-update` → `main` | **调试模式 + 卡牌叠放 + 大牌双牌堆**：新增 🔧 调试模式（选发牌自由测试效果 + 立刻结算）；数字牌左右叠放露出数字和图标（-28px重叠）；宫廷牌融入叠放（左上10点+右上竖排品级）；大牌展示重构为生效牌堆（hover浮层）+弃牌堆（网格弹窗）；上下文文档新增最近更新记录小节 |
+| 2026-07-08 | `dev/tarot-update` | **UI 双行布局重构**：战场从单排 4 阵改为上下双行分离（敌方上/己方下）；己方卡牌改为塔罗造型卡片（58×78px），敌方改为紧凑徽章；元素阵 UI 信息层级优化（点数→卡牌→得分→大牌状态）；新增 Playwright CLI UI 调整工作流文档 |
 | 2026-07-07 | `bf206bf` (主分支重构) | **项目结构重组**：tarot-battle 和 match3-rpg 拆分为独立子目录；GIT-WORKFLOW 移至 Workflow 目录；初始化 .gitignore 与 GitHub 仓库 |
 | 2026-07-06 | `v3.0-csv-rewrite` | **大牌效果引擎 v3 重构**：44 个独立方法 → `MAJOR_DEFS` 内联定义 + 统一分发；新增 instant/persistent/trigger 类型系统；添加 `tarotEffect.csv` 效果参考表；Git 版本管理初始化 |
