@@ -168,7 +168,9 @@
 │  │权杖阵    │    └──────────────────┘       │
 │  └──────────┘                               │
 ├──────────────── 操作栏 ──────────────────────┤
-│       [🗑️弃大牌]    [🔄重新开始]             │
+│               [🗑️弃大牌]  [🔄重新开始]        │
+├─────────── 调试操控台 (🔧模式) ───────────────┤
+│  🃏随机抽小牌 │ ⚡随机抽/出小牌 │ 🌟随机抽大牌 │ 🃏选抽牌  │
 └──────────────────────────────────────────────┘
 ```
 
@@ -193,8 +195,11 @@
 | 功能 | 操作 |
 |------|------|
 | 日志查看 | 点击顶部 📋 按钮弹窗 |
-| 调试模式 | 点击顶部 🔧 按钮，可自由选牌测试效果 + 立刻结算 |
-| 选发牌 | 调试模式下点击 🃏 按钮，弹窗展示全部 78 张牌，选中后点击任意阵打出 |
+| 调试模式 | 点击顶部 🔧 按钮进入，双方均由玩家操控、AI 暂停。进入时自动放回当前 drawnMinor/drawnMajor，退出时清理选中状态并恢复 `continueFlow()` 自动流程 |
+| 调试操控台 | 调试模式开启后，操作栏区域显示调试操控台面板（`#debug-panel`），提供四个按钮：🃏**随机抽小牌**（从牌堆随机抽 1 张小牌选中）、⚡**随机抽/出小牌**（一键随机抽小牌 + 自动打入随机阵，快速测试）、🌟**随机抽大牌**（从牌堆随机抽大牌选中后手动选阵打出）、🃏**选抽牌**（弹出全牌选择器，自由挑选任意牌打出） |
+| 防重复打出 | 调试模式下追踪 `debugUsedCardIds`（Set），已打出/弃掉的牌 ID 不可再次选出；`showCardSelector()` 自动过滤场上牌 + 弃牌堆 + 已用 ID |
+| 牌堆追踪 | `debugDrawnFromDeck` 标记当前选中牌是否从实际牌堆抽出，退出调试或取消时自动放回对应牌堆 |
+| 战区标识 | 调试模式下战区标签显示"🔧 己方区域(可操控)"/"🔧 敌方区域(可操控)"，指示双方阵均可点击操作 |
 | 大牌详情 | 点击生效牌堆或弃牌堆弹窗中的大牌 |
 | 正逆位预览 | 宫廷牌抽到大牌后，点击☀️/🌑切换预览 |
 | 弃牌堆查看 | 点击阵中右侧弃牌堆，网格弹窗按顺序浏览该阵丢弃的大牌 |
@@ -233,7 +238,7 @@ endGame() → finalScore()
 - 效果分发：一次性 → `_execEffect()`，持续性/触发性 → `_setupActiveMajor()` + `_chkPersistent()`
 - 回合驱动：`continueFlow()` → setTimeout 链（异步，非帧循环）
 - UI 渲染：`render()` 全量 innerHTML 重绘
-- 调试模式：`debugMode` / `debugSelectedCard` 全局标志，与正常回合隔离，可自由选牌 + 任意阵打出 + 立刻结算
+- 调试模式：`debugMode` / `debugSelectedCard` / `debugUsedCardIds`(Set) / `debugDrawnFromDeck` 全局标志，与正常回合隔离，提供随机抽牌、一键出牌、选抽牌 + 防重复 + 牌堆回放等完整测试能力
 
 ## 7. TarotGame 核心属性
 
@@ -250,6 +255,8 @@ moonHiddenCards[]              // 月亮正位隐藏牌 [{player, element, cards
 _empressRevFlag{A,B}           // 女皇逆位下次抽牌丢弃
 _rankSnapshot                  // 塔正位排名快照
 _chariotRevPending             // 战车逆位复制标记
+_pendingDrawnMajor             // 倒吊人正位(12U)：当前玩家待选大牌
+_deferredMajor                 // 倒吊人逆位(12R)：敌方待选大牌（延迟至敌方回合）
 ```
 
 ## 8. 效果检查链（playMinorToElement 12 步）
@@ -300,6 +307,7 @@ UI:
   buildZonePreview / showMajorDetail / showLogViewer / showGameOver
   showCardSelector / showMajorDiscardPile / showMajorTooltip / forceEndGame
   debugToggleOrient / endDebugPlay / onDebugSelectCard / toggleDebugMode
+  debugRandomMinor / debugRandomMajor / debugQuickPlayMinor
   continueFlow / runAITurn
 ```
 
@@ -327,7 +335,7 @@ endTurn() → 切换玩家 → 小牌堆空? → endGame → finalScore
 
 ```
 tarot-battle-project/
-├── tarot-battle.html      ← 主游戏 (1720+ 行，~68KB)
+├── tarot-battle.html      ← 主游戏 (~85KB，2180+ 行)
 ├── tarotEffect.csv        ← 大牌效果参考文档 (46 行)
 ├── tarot-battle-context.md ← 项目上下文文档
 └── archive/               ← 旧版备份 (.gitignore)
@@ -356,7 +364,8 @@ Workflow/                  ← 工作流文档（项目根）
 
 | 日期 | 分支/提交 | 修改内容 |
 |------|-----------|----------|
-| 2026-07-09 | `dev/tarot-update` → `main` | **倒吊人(12)大牌选择交互修复**：12U/12R 效果触发的抽大牌不再随机自动打出，改为由对应玩家手动选择正逆位和元素阵（12U 当前玩家立即选择，12R 延迟至敌方回合选择）；新增 `_pendingDrawnMajor` / `_deferredMajor` 机制处理延迟大牌；number card 出牌后检查 drawnMajor 支持自动进入 play_major 阶段 |
+| 2026-07-09 | `dev/tarot-update` → `main` | **倒吊人(12)大牌选择交互修复 + 调试模式增强 + UI优化**：①倒吊人修复：12U/12R 效果触发的抽大牌改为由对应玩家手动选择正逆位和元素阵，新增 `_pendingDrawnMajor` / `_deferredMajor` 机制；②调试模式增强：新增 `debugUsedCardIds`(Set防重复) + `debugDrawnFromDeck`(追踪牌来源)，新增 `debugRandomMinor()`(从牌堆随机抽小牌)、`debugRandomMajor()`(随机抽大牌)、`debugQuickPlayMinor()`(一键随机抽+打) 三个函数，增强 `toggleDebugMode()`(进入/退出清理状态+恢复流程)、`endDebugPlay()`(牌堆抽的牌放回)、`showCardSelector()`(inPlayIds 防重复过滤)、`onElementClick()`(花色校验+教皇/魔术师检查)；③UI优化：新增 `#debug-panel` 调试操控台面板含四个操作按钮，新增 `btn-debug-action` 样式系统(普通/小牌/大牌三变体)，操作栏按钮重构(🃏选发牌+🏆立刻结算 → 🃏随机抽小牌+⚡一键出小牌+🌟随机抽大牌+🃏选抽牌)，调试横幅文案更新，战区标签显示🔧可操控标识 |
+| 2026-07-08 | `dev/tarot-update` | **chore: 清理临时文件 + .gitignore 配置**：将 `.playwright-cli/` 目录（Playwright 浏览器会话缓存）加入 `.gitignore`，清理项目中的临时文件 |
 | 2026-07-08 | `dev/tarot-update` → `main` | **调试模式 + 卡牌叠放 + 大牌双牌堆**：新增 🔧 调试模式（选发牌自由测试效果 + 立刻结算）；数字牌左右叠放露出数字和图标（-28px重叠）；宫廷牌融入叠放（左上10点+右上竖排品级）；大牌展示重构为生效牌堆（hover浮层）+弃牌堆（网格弹窗）；上下文文档新增最近更新记录小节 |
 | 2026-07-08 | `dev/tarot-update` | **UI 双行布局重构**：战场从单排 4 阵改为上下双行分离（敌方上/己方下）；己方卡牌改为塔罗造型卡片（58×78px），敌方改为紧凑徽章；元素阵 UI 信息层级优化（点数→卡牌→得分→大牌状态）；新增 Playwright CLI UI 调整工作流文档 |
 | 2026-07-07 | `bf206bf` (主分支重构) | **项目结构重组**：tarot-battle 和 match3-rpg 拆分为独立子目录；GIT-WORKFLOW 移至 Workflow 目录；初始化 .gitignore 与 GitHub 仓库 |
