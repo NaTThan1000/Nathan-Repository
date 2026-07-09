@@ -341,10 +341,11 @@ endTurn() → 切换玩家 → 小牌堆空? → endGame → finalScore
 
 ```
 tarot-battle-project/
-├── tarot-battle.html      ← 主游戏 (~85KB，2180+ 行)
-├── tarotEffect.csv        ← 大牌效果参考文档 (46 行)
-├── tarot-battle-context.md ← 项目上下文文档
-└── archive/               ← 旧版备份 (.gitignore)
+├── tarot-battle.html             ← 主游戏 (~85KB，2180+ 行)
+├── tarotEffect.csv               ← 大牌效果参考文档 (46 行)
+├── tarot-battle-context.md       ← 项目上下文文档
+├── major-arcana-viewer.html      ← 大牌效果速查工具（手机竖版）
+└── archive/                      ← 旧版备份 (.gitignore)
 ```
 
 ```
@@ -370,6 +371,7 @@ Workflow/                  ← 工作流文档（项目根）
 
 | 日期 | 分支/提交 | 修改内容 |
 |------|-----------|----------|
+| 2026-07-09 | `dev/tarot-update` → `main` | **大牌效果速查工具**：新增 `major-arcana-viewer.html`，竖版手机友好布局，3列网格展示全部22张大牌；点击弹窗查看正逆位效果描述及类型（一次性/持续性/触发性）；内置 `tarotEffect.csv` 数据，类型圆点居中标识（正逆位同类型单点、不同类型双点并排）；点击弹窗外区域关闭 |
 | 2026-07-09 | `dev/tarot-update` → `main` | **三张大牌效果重做 + CSV描述精确化**：①隐士逆位(9R)效果从"丢弃"改为"打入对方当前元素阵"（与死神逆位区分），代码含皇帝正位锁分+塔正位触发联动；②恋人正位(6U)从自动按点数分配改为玩家手动选择保留牌，人类弹窗二选一/AI自动保留高分，新增 `_pendingLoverCards` 状态 + `lover_choice` 阶段 + `handleLoverChoice()` 函数；③太阳正位(19U)从仅相邻阵互换改为支持任意选择2个元素阵互换，新增 `_pendingSunSwap` 状态 + `sun_swap` 阶段 + `_executeSunSwap()` 通用互换方法（含女祭司保护），render中高亮可选阵 + 提示横幅；④新增 CSS 样式（sun-selected/sun-avail/lover-card）；⑤`tarotEffect.csv` 补充女祭司/女皇/皇帝/恋人/隐士的边界规则描述 |
 | 2026-07-09 | `dev/tarot-update` → `main` | **倒吊人(12)大牌选择交互修复 + 调试模式增强 + UI优化**：①倒吊人修复：12U/12R 效果触发的抽大牌改为由对应玩家手动选择正逆位和元素阵，新增 `_pendingDrawnMajor` / `_deferredMajor` 机制；②调试模式增强：新增 `debugUsedCardIds`(Set防重复) + `debugDrawnFromDeck`(追踪牌来源)，新增 `debugRandomMinor()`(从牌堆随机抽小牌)、`debugRandomMajor()`(随机抽大牌)、`debugQuickPlayMinor()`(一键随机抽+打) 三个函数，增强 `toggleDebugMode()`(进入/退出清理状态+恢复流程)、`endDebugPlay()`(牌堆抽的牌放回)、`showCardSelector()`(inPlayIds 防重复过滤)、`onElementClick()`(花色校验+教皇/魔术师检查)；③UI优化：新增 `#debug-panel` 调试操控台面板含四个操作按钮，新增 `btn-debug-action` 样式系统(普通/小牌/大牌三变体)，操作栏按钮重构(🃏选发牌+🏆立刻结算 → 🃏随机抽小牌+⚡一键出小牌+🌟随机抽大牌+🃏选抽牌)，调试横幅文案更新，战区标签显示🔧可操控标识 |
 | 2026-07-08 | `dev/tarot-update` | **chore: 清理临时文件 + .gitignore 配置**：将 `.playwright-cli/` 目录（Playwright 浏览器会话缓存）加入 `.gitignore`，清理项目中的临时文件 |
