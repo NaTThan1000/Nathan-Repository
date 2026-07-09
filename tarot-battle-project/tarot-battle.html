@@ -501,6 +501,20 @@ body{
 .toggle-orient:hover{background:rgba(255,215,0,0.18);}
 .toggle-orient .arrow{font-size:16px;color:#ffd700;}
 .toggle-orient .orient-desc{font-size:11px;color:#aaa;max-width:220px;text-align:left;}
+/* 太阳正位选择阶段 */
+.element-zone.sun-selected{border:2px solid #ffd700;box-shadow:0 0 12px rgba(255,215,0,0.5);}
+.element-zone.sun-avail:hover{border-color:#ff8800;box-shadow:0 0 16px rgba(255,136,0,0.6);cursor:pointer;}
+/* 恋人正位选择 */
+#lover-choice-area{display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px;margin:8px 0;background:rgba(255,182,193,0.06);border:1px solid rgba(255,182,193,0.3);border-radius:12px;}
+.lover-title{color:#ffb6c1;font-size:15px;font-weight:bold;text-align:center;}
+.lover-cards{display:flex;gap:20px;justify-content:center;}
+.lover-card{display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 20px;background:linear-gradient(135deg,rgba(255,182,193,0.1),rgba(255,105,180,0.1));border:2px solid rgba(255,182,193,0.4);border-radius:16px;cursor:pointer;transition:all 0.2s;min-width:120px;}
+.lover-card:hover{background:linear-gradient(135deg,rgba(255,182,193,0.25),rgba(255,105,180,0.25));border-color:#ff69b4;transform:scale(1.05);box-shadow:0 0 20px rgba(255,105,180,0.4);}
+.lover-card-icon{font-size:36px;}
+.lover-card-name{color:#fff;font-size:14px;font-weight:bold;}
+.lover-card-pts{color:#ffd700;font-size:20px;font-weight:bold;}
+.lover-card-suit{color:#ccc;font-size:11px;}
+.lover-card-hint{color:#ffb6c1;font-size:10px;margin-top:4px;opacity:0.8;}
 </style>
 </head>
 <body>
@@ -560,7 +574,7 @@ const MAJOR_DEFS = [
     r:{desc:'阵中≥3小牌时丢弃全部，抽牌打出直到宫廷牌',type:'instant'}},
   {id:9,name:'隐士',
     u:{desc:'丢弃小牌堆最上2张，可选弃此大牌或放回大牌堆顶',type:'instant'},
-    r:{desc:'阵中双方后续打出的小牌丢弃',type:'persistent'}},
+    r:{desc:'阵中双方后续打出的小牌打入对方当前元素阵',type:'persistent'}},
   {id:10,name:'命运之轮',
     u:{desc:'全部阵己方小牌右移一格',type:'instant'},
     r:{desc:'全部阵己方小牌左移一格',type:'instant'}},
@@ -657,6 +671,10 @@ class TarotGame {
     this._pendingDrawnMajor = null;
     // 倒吊人逆位——抽到的新大牌待敌方选择
     this._deferredMajor = null;
+    // 恋人正位(6U)待选择：{player, element, cards:[...]}
+    this._pendingLoverCards = null;
+    // 太阳正位(19U)待选择：{player, element1}
+    this._pendingSunSwap = null;
   }
 
   addLog(msg){
@@ -823,8 +841,67 @@ class TarotGame {
       }
     }
 
+    // === 恋人正位(6U)：等待玩家选择保留牌 ===
+    if(this._pendingLoverCards){
+      const lp = this._pendingLoverCards;
+      if(p==='B'){
+        // AI自动选择点数高的保留
+        lp.cards.sort((a,b)=>b.points-a.points);
+        const keep = lp.cards[0], give = lp.cards[1];
+        this.playMinorToElement(lp.player, keep, keep.suit, true);
+        this.playMinorToElement(lp.player==='A'?'B':'A', give, give.suit, true);
+        this.addLog(`  💕 恋人正位：AI保留${keep.name}(+${keep.points})，${give.name}(${give.points})给对方`);
+        this._pendingLoverCards = null;
+      } else {
+        // 人类玩家：等待点击选择，不调用 endTurn
+        this.addLog(`  💕 恋人正位：请点击选择要保留的牌`);
+        this.phase = 'lover_choice';
+        return true;
+      }
+    }
+
+    // === 太阳正位(19U)：等待选择第二个元素阵 ===
+    if(this._pendingSunSwap){
+      const sp = this._pendingSunSwap;
+      if(p==='B'){
+        // AI随机选element2（不等于element1）
+        const others = SUITS.filter(s=>s!==sp.element1);
+        const e2 = others[Math.floor(Math.random()*others.length)];
+        this._executeSunSwap(sp.player, sp.element1, e2);
+        this._pendingSunSwap = null;
+      } else {
+        // 人类玩家：等待点击第二个阵
+        this.addLog(`  ☀️ 太阳正位：请点击选择第二个元素阵`);
+        this.phase = 'sun_swap';
+        return true;
+      }
+    }
+
     this.endTurn();
     return true;
+  }
+
+  /** 太阳正位：执行两个阵的小牌互换（含女祭司正位保护） */
+  _executeSunSwap(player, e1, e2){
+    const p = player;
+    const aProtect = this._hasPriestessBlock(p, e1);
+    const bProtect = this._hasPriestessBlock(p, e2);
+    const aCards = [...this.players[p].elements[e1].cards];
+    const bCards = [...this.players[p].elements[e2].cards];
+    if(!aProtect && !bProtect){
+      this.players[p].elements[e1].cards = bCards;
+      this.players[p].elements[e2].cards = aCards;
+    } else if(aProtect && !bProtect){
+      this.players[p].elements[e1].cards = bCards;
+      this.players[p].elements[e2].cards = [];
+    } else if(!aProtect && bProtect){
+      this.players[p].elements[e1].cards = [];
+      this.players[p].elements[e2].cards = aCards;
+    }
+    this.players[p].elements[e1].score = this.players[p].elements[e1].cards.reduce((s,c)=>s+c.points,0);
+    this.players[p].elements[e2].score = this.players[p].elements[e2].cards.reduce((s,c)=>s+c.points,0);
+    this.addLog(`  ☀️ 太阳正位：${p}方${SUIT_NAMES[e1]}↔${SUIT_NAMES[e2]}阵互换`);
+    this._effectDetail=`${p}方${SUIT_NAMES[e1]}↔${SUIT_NAMES[e2]}阵互换`;
   }
 
   /** 设置持续性/触发性大牌到阵中 */
@@ -912,10 +989,19 @@ class TarotGame {
     }
 
     // === 持续性效果：出牌前检查 ===
-    // 隐士逆位(9R)：双方后续小牌丢弃（影响新牌，2U不阻止）
+    // 隐士逆位(9R)：双方后续打出的小牌打入对方当前元素阵
     if(this._chkPersistent(player, element, 9, 'reversed')){
-      this.addLog(`  🧙 隐士逆位：${card.name}被丢弃`);
-      this.minorDiscard.push(card); return;
+      const oppEl = this.players[opp].elements[element];
+      oppEl.cards.push(card);
+      const pts = card.points;
+      oppEl.score += pts;
+      if(oppEl.activeMajor && oppEl.activeMajor.arcanaId===4 && oppEl.activeMajor.orientation==='upright'){
+        if(oppEl.lockedScore===null) oppEl.lockedScore = oppEl.score - pts;
+        oppEl.lockedScore += pts;
+      }
+      this.addLog(`  🧙 隐士逆位：${card.name}打入${opp}方${SUIT_NAMES[element]}阵(+${pts})`);
+      this._checkTowerTrigger(opp);
+      return;
     }
     // 死神逆位(13R)：双方后续小牌丢弃(宫廷不触发)（影响新牌）
     if(this._chkPersistent(player, element, 13, 'reversed')){
@@ -1190,11 +1276,8 @@ class TarotGame {
       const drawn=[];
       for(let i=0;i<2;i++){if(this.minorDeck.length>0) drawn.push(this.minorDeck.pop());}
       if(drawn.length>=2){
-        drawn.sort((a,b)=>b.points-a.points);
-        const myPick = drawn[0], oppPick = drawn[1];
-        this.playMinorToElement(p, myPick, myPick.suit, true);
-        this.playMinorToElement(opp, oppPick, oppPick.suit, true);
-        this._effectDetail=`抽${myPick.name}(+)和${oppPick.name}(${oppPick.points})，己得${myPick.name}`;
+        this._pendingLoverCards = {player:p, element, cards:drawn};
+        this._effectDetail=`抽${drawn.map(c=>c.name+'('+c.points+')').join('和')}，等待选择保留牌`;
       } else this._effectDetail=`小牌不够`;
     }
     if(aId===6 && !isU){
@@ -1411,27 +1494,8 @@ class TarotGame {
 
     // === 19 太阳正位 ===
     if(aId===19 && isU){
-      const other = SUITS[(SUITS.indexOf(element)+1)%4];
-      const aProtect = this._hasPriestessBlock(p, element);
-      const bProtect = this._hasPriestessBlock(p, other);
-      const aCards = [...this.players[p].elements[element].cards];
-      const bCards = [...this.players[p].elements[other].cards];
-      if(!aProtect && !bProtect){
-        this.players[p].elements[element].cards = bCards;
-        this.players[p].elements[other].cards = aCards;
-      } else if(aProtect && !bProtect){
-        // element保护 → 只有other的牌移入element，element的牌不动
-        this.players[p].elements[element].cards = bCards;
-        // other保持空（aCards被保护不移动，bCards移到了element）
-        this.players[p].elements[other].cards = [];
-      } else if(!aProtect && bProtect){
-        this.players[p].elements[element].cards = [];
-        this.players[p].elements[other].cards = aCards;
-      }
-      // 双方都保护 → 无变化
-      this.players[p].elements[element].score = this.players[p].elements[element].cards.reduce((s,c)=>s+c.points,0);
-      this.players[p].elements[other].score = this.players[p].elements[other].cards.reduce((s,c)=>s+c.points,0);
-      this._effectDetail=`${p}方${SUIT_NAMES[element]}↔${SUIT_NAMES[other]}阵互换`;
+      this._pendingSunSwap = {player:p, element1:element};
+      this._effectDetail=`${p}方选择2个阵互换小牌，已选第1阵：${SUIT_NAMES[element]}`;
     }
 
     // === 20 审判 ===
@@ -1925,15 +1989,16 @@ function render(){
   const app = document.getElementById('app');
   const cp = game.currentPlayer;
   const isHumanTurn = (cp === 'A' && !game.gameOver);
-  const canClick = isHumanTurn && (game.phase==='play_minor' || game.phase==='play_major');
+  const canClick = isHumanTurn && (game.phase==='play_minor' || game.phase==='play_major' || game.phase==='sun_swap');
 
   let html = '';
 
   // 顶部栏
+  let phaseText = game.phase==='play_minor'?'出小牌':game.phase==='play_major'?'出大牌':game.phase==='sun_swap'?'选择第2阵':game.phase==='lover_choice'?'选择保留牌':'等待中';
   html += `<div id="top-bar">
     <div id="round-info">🃏 行动 <span>${game.totalActions}</span> 次</div>
     <div id="phase-info" class="${debugMode?'phase-a':(cp==='A'?'phase-a':'phase-b')}">
-      ${debugMode?'🔧 调试模式':(cp==='A'?'🔵 玩家A':'🔴 玩家B')} - ${debugMode?'手动操控':(game.phase==='play_minor'?'出小牌':game.phase==='play_major'?'出大牌':'等待中')}
+      ${debugMode?'🔧 调试模式':(cp==='A'?'🔵 玩家A':'🔴 玩家B')} - ${debugMode?'手动操控':phaseText}
     </div>
     <div id="deck-info">
       <span class="deck-count minor">小:${game.minorDeck.length}</span>
@@ -1954,6 +2019,14 @@ function render(){
 
   // 战场 - 8个独立区域：上排敌方(B)×4元素，下排己方(A)×4元素
   html += `<div id="battlefield">`;
+
+  // 太阳正位提示横幅
+  const sunSwapActive = game.phase === 'sun_swap' && game._pendingSunSwap;
+  if(sunSwapActive){
+    html += `<div style="text-align:center;color:#ffd700;padding:4px;font-size:14px;margin-bottom:4px;">
+      ☀️ 已选择 ${SUIT_NAMES[game._pendingSunSwap.element1]} 阵，请点击另一个阵完成互换
+    </div>`;
+  }
 
   // 敌方区域 (B)
   html += `<div class="battle-row-label enemy">── ${debugMode?'🔧 敌方区域(可操控)':'⚔️ 敌方区域'} ──</div>`;
@@ -1981,7 +2054,16 @@ function render(){
   for(const suit of SUITS){
     const zoneId = `zone-A-${suit}`;
     let cls = `element-zone elem-${suit} zone-friendly`;
-    if(canClick) cls += ' selectable friendly';
+    // sun_swap阶段：高亮可选的阵，跳过已选的element1
+    if(sunSwapActive){
+      if(suit !== game._pendingSunSwap.element1){
+        cls += ' selectable friendly sun-avail';
+      } else {
+        cls += ' sun-selected';
+      }
+    } else if(canClick){
+      cls += ' selectable friendly';
+    }
     if(debugSelectedCard) cls += ' selectable friendly';
     const preview = buildZonePreview('A', suit);
 
@@ -2163,6 +2245,23 @@ function renderDrawArea(cp){
       html += `</div>`;
     }
   }
+  else if(game.phase === 'lover_choice' && game._pendingLoverCards){
+    const cards = game._pendingLoverCards.cards;
+    html += `<div id="lover-choice-area">
+      <div class="lover-title">💕 恋人正位：请点击选择要保留的牌（另一张给对方）</div>
+      <div class="lover-cards">`;
+    for(let i=0;i<cards.length;i++){
+      const c = cards[i];
+      html += `<div class="lover-card" onclick="handleLoverChoice(${i})">
+        <div class="lover-card-icon">${c.icon}</div>
+        <div class="lover-card-name">${c.name}</div>
+        <div class="lover-card-pts">${c.points}点</div>
+        <div class="lover-card-suit">${SUIT_ICONS[c.suit]} ${SUIT_NAMES[c.suit]}</div>
+        <div class="lover-card-hint">点击保留</div>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
   else if(cp === 'B'){
     // AI回合：不展示AI的牌
     html += `<div class="placeholder">🤖 AI思考中...</div>`;
@@ -2278,6 +2377,25 @@ function onElementClick(targetPlayer, suit){
   // ===== 正常游戏模式 =====
   if(game.currentPlayer !== 'A') return;
 
+  // 太阳正位：等待选择第二个阵
+  if(game.phase === 'sun_swap' && game._pendingSunSwap){
+    if(targetPlayer !== game._pendingSunSwap.player){
+      showToast('请在己方区域选择第二个阵','warn'); return;
+    }
+    if(suit === game._pendingSunSwap.element1){
+      showToast('请选择不同的元素阵','warn'); return;
+    }
+    game._executeSunSwap(game._pendingSunSwap.player, game._pendingSunSwap.element1, suit);
+    game._pendingSunSwap = null;
+    game.endTurn();
+    render();
+    setTimeout(() => continueFlow(), 400);
+    return;
+  }
+
+  // 恋人正位等待状态时不允许操作元素阵
+  if(game.phase === 'lover_choice') return;
+
   // 仅允许操作己方区域（后续扩展时可放开敌方点击逻辑）
   if(targetPlayer !== 'A'){
     showToast('当前回合只能操作己方区域','warn');
@@ -2354,6 +2472,22 @@ function debugToggleOrient(){
 function onDiscardMajor(){
   if(game.phase !== 'play_major' || game.currentPlayer !== 'A') return;
   game.majorDecision(false);
+  render();
+  setTimeout(() => continueFlow(), 400);
+}
+
+/** 恋人正位(6U)：玩家点击选择保留的牌 */
+function handleLoverChoice(keepIdx){
+  if(game.phase !== 'lover_choice' || !game._pendingLoverCards) return;
+  const lp = game._pendingLoverCards;
+  const keep = lp.cards[keepIdx], give = lp.cards[1-keepIdx];
+  // 保留牌打入己方阵
+  game.playMinorToElement(lp.player, keep, keep.suit, true);
+  // 另一张给对方
+  game.playMinorToElement(lp.player==='A'?'B':'A', give, give.suit, true);
+  game.addLog(`  💕 恋人正位：己方保留${keep.name}(+${keep.points})，${give.name}(${give.points})给对方`);
+  game._pendingLoverCards = null;
+  game.endTurn();
   render();
   setTimeout(() => continueFlow(), 400);
 }
