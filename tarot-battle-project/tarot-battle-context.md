@@ -1,6 +1,6 @@
 # 塔罗对决「桌游原型 v4」— 项目总览
 
-> 文件: `tarot-battle-project/tarot-battle.html` | 单文件 ~70KB / 2300+ 行 | 状态: v4 可玩 + 调试模式
+> 文件: `tarot-battle-project/tarot-battle.html` | 单文件 ~110KB / 3000+ 行 | 状态: v4 可玩 + 调试模式 + 选牌交互
 
 ---
 
@@ -36,8 +36,9 @@
 
 **打出规则**:
 - 数字牌 **必须打入相同花色** 的元素阵
-- 宫廷牌 **也必须打入相同花色** 的元素阵，且立即抽一张大牌预览
+- 宫廷牌 **也必须打入相同花色** 的元素阵，打出时 `playMinorToElement` 内部自动抽一张大牌预览
 - 打出后点数加入该阵己方总分
+- **`skipCourtTrigger`** 参数控制宫廷牌是否触发大牌抽牌：`false`(默认)触发 / `true`跳过（如"宫廷牌不触发抽大牌效果"的效果）
 
 **弃牌堆规则**:
 - 小牌丢弃 → 进入 `minorDiscard`（小牌弃牌堆）
@@ -92,12 +93,13 @@
 
 ```
 当前玩家回合:
-  1. startTurn() → 从小牌堆抽 1 张
-  2. 数字牌 → 玩家/ AI 选择元素阵打出 → endTurn()
-  3. 宫廷牌 → 选阵打出 + 抽大牌预览 → 玩家决定:
+  1. startTurn() → 从小牌堆抽 1 张（不再在抽牌时预览大牌）
+  2. 数字牌 → 玩家/AI 选择元素阵打出 → endTurn()
+  3. 宫廷牌 → 选阵打出 → playMinorToElement 内部自动抽大牌 → 玩家决定:
      - 打出大牌（选正/逆位+目标阵） → endTurn()
      - 弃掉大牌 → endTurn()
-  4. 回合结束 → 切换对手 → 循环
+  4. 大牌效果可能触发选牌模式（select_card）→ 抽牌区交互选牌 → 确认后继续
+  5. 回合结束 → 切换对手 → 循环
 ```
 
 **终局触发**：小牌堆 `minorDeck.length === 0` 时立即进入 `endGame()`。
@@ -219,9 +221,9 @@ endGame() → finalScore()
 
 ```js
 minorDeck / majorDeck          // 牌堆（已洗牌）
-minorDiscard / majorDiscard    // 弃牌堆
+minorDiscard / majorDiscard    // 弃牌堆（智能数组，push 时自动附加元数据）
 currentPlayer                  // 'A' | 'B'
-phase                          // 'play_minor' | 'play_major' | 'game_over'
+phase                          // 'play_minor' | 'play_major' | 'select_card' | 'game_over'
 drawnMinor / drawnMajor        // 当前待处理的牌
 majorOrientation               // 'upright' | 'reversed'
 players.A/B.elements[suit]     // { cards[], score }
@@ -229,6 +231,11 @@ players.A/B.elements[suit]     // { cards[], score }
 moonHiddenCards[]              // 月亮正位隐藏牌 [{player, element, cards}]
 _pendingDrawnMajor             // 倒吊人/教皇逆位：待选大牌
 _deferredMajor                 // 倒吊人逆位(12R)：敌方待选大牌（延迟至敌方回合）
+// 选牌交互模式
+_selMode                       // 'pick1Major' | 'pick1Minor' | 'pick2Minor' | 'pick1MinorOrSkip'
+_selCards[]                    // 候选牌数组
+_selContext{}                  // {effectName, player, element, onConfirm, onSkip}
+_selIndex / _selIndices        // 选中索引（单选/多选）
 ```
 
 ## 8. 关键方法索引
@@ -240,6 +247,11 @@ TarotGame 回合流程:
 效果引擎:
   _execEffect (处理 22×2=44 种一次性效果)
 
+选牌交互:
+  _enterSelectMode / selectCard / confirmSelection / skipSelection
+  _aiSelectCards (AI 自动选牌逻辑)
+  renderSelectionArea (选牌 UI 渲染)
+
 终局:
   finalScore (含月亮翻开→4阵PK)
   determineWinner
@@ -248,6 +260,7 @@ AI:
   aiAct (85%打出大牌 + 分数领先阵选择)
 
 辅助:
+  playMinorToElement (内含宫廷牌触发大牌逻辑，受 skipCourtTrigger 控制)
   createMinorDeck / createMajorDeck / shuffle
   MAJOR_DEFS[22] (大牌定义数组)
 
@@ -265,16 +278,21 @@ UI:
 
 ```
 startTurn()
-  → 小牌堆 pop()
-  → 宫廷牌? → 大牌堆 pop() 预览
-  → AI/玩家选择
+  → 小牌堆 pop()（不再在此处预览大牌）
+  → AI/玩家选择元素阵
 
-playMinorToElement(p, card, element)
-  → 直接推入element.cards[] + 更新score
+playMinorToElement(p, card, element, skipCourtTrigger=false)
+  → 推入 element.cards[] + 更新 score
+  → 宫廷牌且 !skipCourtTrigger → 大牌堆 pop() → 设置 drawnMajor + phase='play_major'
 
 majorDecision(play, element, orientation)
   → _execEffect() + majorDiscard.push(card)
-  → 检测 _pendingDrawnMajor / _deferredMajor
+  → 清除幽灵引用（drawnMajor === card 时置 null）
+  → 检测 _selMode / _pendingDrawnMajor / drawnMajor 决定后续流程
+
+_enterSelectMode(mode, cards, context)
+  → 设置 phase='select_card' → 人类等待点击 / AI 同步 auto-select
+  → confirmSelection() → onConfirm 回调 → 清理状态 → continueFlow
 
 endTurn() → 切换玩家 → 小牌堆空? → endGame → finalScore
 ```
@@ -312,6 +330,7 @@ tarot-battle-project/
 
 | 日期 | 分支/提交 | 修改内容 |
 |------|-----------|----------|
+| 2026-07-10 | `dev/tarot-update` | **选牌交互模式 + 宫廷牌触发机制重构 + 幽灵引用修复**：①新增 `_enterSelectMode` / `confirmSelection` / `selectCard` / `_aiSelectCards` 等选牌框架，支持 `pick1Major`/`pick1Minor`/`pick2Minor`/`pick1MinorOrSkip` 四种选牌模式；②10个大牌效果（12U/12R/6U/2R/5U/9U/17U/19U/20R）从自动选牌改为交互选牌，在抽牌区展示候选牌，玩家点击选择后确认；③`playMinorToElement` 内部接管宫廷牌触发大牌逻辑（受 `skipCourtTrigger` 参数控制），移除 `startTurn` 中的大牌预览；④修复 `majorDecision` 中效果未触发新大牌时旧 `drawnMajor` 幽灵引用导致误判"效果触发新大牌"的 bug；⑤新增 `renderSelectionArea` 选牌 UI 及 `.card-selected` CSS 样式 |
 | 2026-07-10 | `dev/tarot-update` | **弃牌堆规则明确 + 教皇正位修复 + 宫廷牌规则调整**：①明确弃牌堆体系：`minorDiscard`(小牌弃牌堆)与 `majorDiscard`(大牌弃牌堆)分离，弃牌堆抽牌前先洗牌；②修复教皇正位(5U)与审判正位效果重复：教皇正位改为"弃牌堆抽3张选1张打出"；③宫廷牌规则改为必须在相同花色元素阵打出（与数字牌规则一致），修改 `onElementClick`、`aiAct`、`renderDrawArea` 等处代码 |
 | 2026-07-10 | `dev/tarot-update` | **v4 大牌效果全面重做**：①全部44个大牌效果替换为新版（基于 `tarotEffect.csv`）；②所有效果统一为一次性(instant)，彻底移除持续性/触发性机制；③删除 `_setupActiveMajor`、`_chkPersistent`、`_hasPriestessBlock`、`_checkTowerTrigger` 等旧辅助方法；④元素阵数据简化为 `{cards,score}`；⑤简化终局结算；⑥移除大牌双牌堆显示 |
 | 2026-07-10 | `dev/tarot-update` → `main` | **元素阵空阵对齐修复**：修复 `renderElementContent()` 中元素阵为空时「—— 暂无卡牌 ——」占位区域的 `min-height` 从 `50px` 调整为 `74px` |新增 `major-arcana-viewer.html` |

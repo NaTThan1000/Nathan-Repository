@@ -316,6 +316,29 @@ body{
   border-radius:8px;font-size:12px;color:#e8a840;letter-spacing:1px;
 }
 
+/* 选牌模式 - 选中牌高亮 */
+.draw-preview-card.selectable-card{
+  cursor:pointer;
+  transition:all 0.2s;
+}
+.draw-preview-card.selectable-card:hover{
+  border-color:rgba(255,215,0,0.7)!important;
+  box-shadow:0 0 20px rgba(255,215,0,0.3)!important;
+  transform:translateY(-4px);
+}
+.draw-preview-card.card-selected{
+  border-color:#ffd700!important;
+  box-shadow:0 0 28px rgba(255,215,0,0.55)!important;
+  transform:scale(1.06);
+}
+.draw-preview-card.card-selected::after{
+  content:'✅';
+  position:absolute;
+  top:6px;
+  right:6px;
+  font-size:16px;
+}
+
 /* 卡牌选择器弹窗 */
 .card-selector-overlay{
   position:fixed;top:0;left:0;right:0;bottom:0;
@@ -458,6 +481,48 @@ body{
 .discard-grid-card .dgc-name{font-size:13px;font-weight:bold;color:#e8d5a0;margin-bottom:2px;}
 .discard-grid-card .dgc-ori{font-size:10px;margin-bottom:2px;}
 .discard-grid-card .dgc-desc{font-size:10px;color:#888;line-height:1.3;}
+
+/* 抽牌堆/弃牌堆查看入口 */
+.btn-deck-view{
+  padding:2px 10px;font-size:11px;border-radius:8px;cursor:pointer;
+  font-family:inherit;transition:all 0.2s;border:1px solid rgba(150,150,200,0.3);
+  background:rgba(150,150,200,0.1);color:#c8c8e0;margin-left:4px;
+}
+.btn-deck-view.major{border-color:rgba(255,215,0,0.3);background:rgba(255,215,0,0.1);color:#e8d5a0;}
+.btn-deck-view:hover{background:rgba(255,255,255,0.18);border-color:rgba(255,215,0,0.5);}
+
+#discard-bar{display:flex;justify-content:flex-end;gap:10px;margin:4px 0 8px;padding-right:4px;}
+.btn-discard-view{
+  padding:8px 18px;border-radius:18px;cursor:pointer;font-size:13px;font-weight:bold;
+  font-family:inherit;transition:all 0.2s;border:1px solid rgba(255,140,140,0.3);
+  background:rgba(255,140,140,0.1);color:#ffaa99;
+}
+.btn-discard-view.major{border-color:rgba(255,215,0,0.35);background:rgba(255,215,0,0.1);color:#e8d5a0;}
+.btn-discard-view:hover{transform:translateY(-2px);background:rgba(255,140,140,0.2);box-shadow:0 4px 14px rgba(255,120,120,0.15);}
+.btn-discard-view.major:hover{background:rgba(255,215,0,0.2);box-shadow:0 4px 14px rgba(255,215,0,0.15);}
+.btn-discard-view .dc-count{font-size:11px;opacity:0.8;}
+
+/* 抽牌堆/弃牌堆详细列表查看器 */
+.pile-list{display:flex;flex-direction:column;gap:8px;max-height:56vh;overflow-y:auto;margin-top:6px;}
+.pile-row{display:flex;align-items:center;gap:12px;padding:8px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:10px;}
+.pile-row .pr-idx{font-size:11px;color:#666;min-width:22px;text-align:right;}
+.pile-row .pr-card{min-width:118px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px;border-radius:8px;background:linear-gradient(165deg,rgba(35,28,50,0.96),rgba(18,12,32,0.96));border:1px solid rgba(170,155,200,0.35);}
+.pile-row .pr-card.major{border-color:rgba(255,215,0,0.5);}
+.pile-row .pr-card.suit-wands{border-color:rgba(232,148,106,0.5);}
+.pile-row .pr-card.suit-cups{border-color:rgba(138,184,224,0.5);}
+.pile-row .pr-card.suit-swords{border-color:rgba(216,216,160,0.5);}
+.pile-row .pr-card.suit-pentacles{border-color:rgba(144,200,144,0.5);}
+.pile-row .pr-card .pr-icon{font-size:26px;line-height:1;}
+.pile-row .pr-card .pr-name{font-size:13px;font-weight:bold;color:#e8d5a0;text-align:center;}
+.pile-row .pr-card .pr-ori{font-size:10px;color:#c8a860;}
+.pile-row .pr-card .pr-sub{font-size:10px;color:#999;}
+.pile-row .pr-info{flex:1;font-size:12px;color:#ccc;line-height:1.7;}
+.pile-row .pr-info .pr-effect{color:#ffd700;font-weight:bold;}
+.pile-row .pr-info .pr-impact{color:#9cc;}
+.pile-empty{text-align:center;color:#666;padding:24px;font-size:14px;}
+.pile-note{font-size:11px;color:#888;text-align:center;margin:4px 0;}
+
+
 
 
 
@@ -631,6 +696,32 @@ function shuffle(arr){
   return arr;
 }
 
+// ==================== 弃牌堆智能数组 ====================
+// 重写 push：每次弃牌时，自动在该卡牌上附加"什么效果 / 正逆位 / 谁 / 哪个元素阵"的元数据，
+// 供弃牌堆查看器展示"什么牌 + 具体什么效果 + 对什么产生影响"。
+function makeDiscardArray(kind, gameRef){
+  const arr = [];
+  const basePush = Array.prototype.push;
+  arr.push = function(...items){
+    for(const card of items){
+      if(card && typeof card === 'object'){
+        const g = gameRef;
+        const label = g._curEffectLabel || (kind === 'major' ? '大牌·未知来源' : '小牌·未知来源');
+        card._discardMeta = {
+          effect: label,
+          orient: kind === 'major' ? (g._curEffectOrient || '') : '',
+          player: g._curEffectPlayer || '',
+          element: g._curEffectElement || '',
+          played: false,
+          turn: g.totalActions
+        };
+      }
+    }
+    return basePush.apply(this, items);
+  };
+  return arr;
+}
+
 // ==================== 游戏状态 ====================
 class TarotGame {
   constructor(){
@@ -640,8 +731,14 @@ class TarotGame {
   reset(){
     this.minorDeck = shuffle(createMinorDeck());
     this.majorDeck = shuffle(createMajorDeck());
-    this.minorDiscard = [];
-    this.majorDiscard = [];
+    // 弃牌堆：智能数组，push时自动附加"效果来源/正逆位/玩家/元素阵"元数据
+    this.minorDiscard = makeDiscardArray('minor', this);
+    this.majorDiscard = makeDiscardArray('major', this);
+    // 当前正在执行的大牌效果上下文（用于弃牌记录）
+    this._curEffectLabel = null;
+    this._curEffectOrient = null;
+    this._curEffectPlayer = null;
+    this._curEffectElement = null;
     this.currentPlayer = 'A';
     this.totalActions = 0;
     this.phase = 'play_minor';
@@ -664,6 +761,13 @@ class TarotGame {
     this._pendingDrawnMajor = null;
     // 倒吊人逆位——抽到的新大牌待敌方选择
     this._deferredMajor = null;
+
+    // 选牌模式
+    this._selMode = null;       // 'pick1Major' | 'pick1Minor' | 'pick2Minor' | 'pick1MinorOrSkip'
+    this._selCards = [];        // 候选牌数组
+    this._selContext = {};      // {effectName, player, element, orient, onConfirm}
+    this._selIndex = -1;        // 单选模式选中索引
+    this._selIndices = new Set(); // 多选模式选中索引集合
   }
 
   addLog(msg){
@@ -689,12 +793,6 @@ class TarotGame {
     const card = this.drawnMinor;
     this.addLog(`${p==='A'?'🔵 玩家A':'🔴 玩家B'} 抽到: ${card.name} (${card.points}点) ${card.subtype==='court'?'👑':''}`);
 
-    // 宫廷牌：立即预览大牌
-    if(card.subtype === 'court' && this.majorDeck.length > 0){
-      this.drawnMajor = this.majorDeck.pop();
-      this.addLog(`  → 预览大牌：${this.drawnMajor.name}`);
-    }
-
     // 倒吊人逆位(12R)延迟大牌：敌方抽到的大牌等待处理
     if(this._deferredMajor){
       if(this.drawnMajor){
@@ -714,14 +812,12 @@ class TarotGame {
     const card = this.drawnMinor;
     if(!card || card.subtype !== 'court') return false;
 
-    // 打出宫廷牌
+    // 打出宫廷牌（playMinorToElement 内部会触发大牌抽牌）
     this.playMinorToElement(p, card, element);
     this.addLog(`  → 宫廷牌打入 ${SUIT_NAMES[element]}阵 (+10)`);
 
-    // 大牌已在startTurn中预览抽出
     if(this.drawnMajor){
-      this.phase = 'play_major';
-      this.majorOrientation = 'upright';
+      // 大牌已由 playMinorToElement 中宫廷牌触发机制抽出
     } else {
       this.endTurn();
     }
@@ -737,6 +833,14 @@ class TarotGame {
 
     if(!play){
       this.majorDiscard.push(card);
+      card._discardMeta = {
+        effect: '弃掉大牌(未打出)',
+        orient: orient,
+        player: p,
+        element: '',
+        played: false,
+        turn: this.totalActions
+      };
       this.addLog(`  → 弃掉大牌：${card.name}`);
       this.endTurn();
       return true;
@@ -748,6 +852,18 @@ class TarotGame {
     // 执行一次性效果
     this._execEffect(p, card, element, orient);
     this.majorDiscard.push(card);
+    // 如果效果没有替换 drawnMajor（即没有触发新大牌），清除幽灵引用
+    if(this.drawnMajor === card){
+      this.drawnMajor = null;
+    }
+    card._discardMeta = {
+      effect: `${card.name}(${orient==='upright'?'正位':'逆位'})已打出`,
+      orient: orient,
+      player: p,
+      element: SUIT_NAMES[element] || '',
+      played: true,
+      turn: this.totalActions
+    };
 
     // 倒吊人正位(12U)：抽到新大牌，由玩家选择正逆位和元素阵
     if(this._pendingDrawnMajor){
@@ -755,12 +871,24 @@ class TarotGame {
       this._pendingDrawnMajor = null;
       this.majorOrientation = 'upright';
       this.phase = 'play_major';
-      this.addLog(`  → 倒吊人效果：请为${this.drawnMajor.name}选择正逆位和元素阵`);
+      this.addLog(`  → 效果触发新大牌：${this.drawnMajor.name}，等待选择正逆位和元素阵`);
       return true;
     }
     // 倒吊人逆位(12R)：敌方抽到新大牌，存入延迟队列等待敌方回合处理
     if(this._deferredMajor){
       this._deferredMajor = this._deferredMajor;
+    }
+
+    // 选牌模式激活：等待玩家在抽牌区选择
+    if(this._selMode){
+      this.addLog(`  → 等待选牌确认...`);
+      return true;
+    }
+
+    // 效果直接设了 drawnMajor + phase='play_major'（如2R宫廷触发、6U、12U）
+    if(this.phase === 'play_major' && this.drawnMajor && !this._pendingDrawnMajor && !this._selMode){
+      this.addLog(`  → 效果触发新大牌：${this.drawnMajor.name}，等待选择正逆位和元素阵`);
+      return true;
     }
 
     // 世界正位检查：如果游戏已结束
@@ -779,6 +907,20 @@ class TarotGame {
     const pts = card.points;
     el.score += pts;
     this.addLog(`  → ${card.name}打入${SUIT_NAMES[element]}阵(+${pts})`);
+
+    // 宫廷牌触发抽大牌（除非明确跳过）
+    if(card.subtype === 'court' && !skipCourtTrigger && this.majorDeck.length > 0){
+      const majorCard = this.majorDeck.pop();
+      if(this.drawnMajor){
+        // 已有大牌在预览中，放回刚抽的
+        this.majorDeck.push(majorCard);
+      } else {
+        this.drawnMajor = majorCard;
+        this.majorOrientation = 'upright';
+        this.phase = 'play_major';
+        this.addLog(`  → 宫廷牌${card.name}触发大牌预览：${majorCard.name}`);
+      }
+    }
   }
 
   /** 结束当前玩家回合，切换到对方 */
@@ -795,6 +937,191 @@ class TarotGame {
     this.drawnMajor = null;
   }
 
+  // === 选牌模式 ===
+  _enterSelectMode(mode, cards, context){
+    this._selMode = mode;
+    this._selCards = cards;
+    this._selContext = context;
+    this._selIndex = -1;
+    this._selIndices = new Set();
+    this.phase = 'select_card';
+
+    const label = context.effectName || '选牌';
+    this.addLog(`  → ${label}：请从${cards.length}张牌中选择`);
+
+    // AI 自动选择（同步执行，避免时序问题）
+    if(this.currentPlayer === 'B'){
+      this._aiSelectCards();
+    }
+  }
+
+  selectCard(idx){
+    if(this._selMode === 'pick1Major' || this._selMode === 'pick1Minor'){
+      this._selIndex = idx;
+    } else if(this._selMode === 'pick2Minor'){
+      if(this._selIndices.has(idx)){
+        this._selIndices.delete(idx);
+      } else {
+        if(this._selIndices.size >= 2){
+          // 取消最早选中
+          const first = [...this._selIndices][0];
+          this._selIndices.delete(first);
+        }
+        this._selIndices.add(idx);
+      }
+    } else if(this._selMode === 'pick1MinorOrSkip'){
+      // 单选或跳过
+      if(this._selIndex === idx){
+        this._selIndex = -1; // 取消选择
+      } else {
+        this._selIndex = idx;
+      }
+    }
+    render();
+  }
+
+  confirmSelection(){
+    const ctx = this._selContext;
+    const mode = this._selMode;
+
+    if(mode === 'pick1Major' || mode === 'pick1Minor'){
+      if(this._selIndex < 0 || this._selIndex >= this._selCards.length) return false;
+      const pick = this._selCards[this._selIndex];
+      const others = this._selCards.filter((_,i) => i !== this._selIndex);
+      ctx.onConfirm(pick, others);
+    } else if(mode === 'pick2Minor'){
+      if(this._selIndices.size < 1) return false;
+      const picks = [...this._selIndices].map(i => this._selCards[i]);
+      const others = this._selCards.filter((_,i) => !this._selIndices.has(i));
+      ctx.onConfirm(picks, others);
+    } else if(mode === 'pick1MinorOrSkip'){
+      this._selIndices = this._selIndex >= 0 ? new Set([this._selIndex]) : new Set();
+      ctx.onConfirm(this._selIndex, this._selCards);
+    }
+
+    this._selMode = null;
+    this._selCards = [];
+    this._selContext = {};
+    this._selIndex = -1;
+    this._selIndices = new Set();
+
+    if(this.gameOver){
+      render();
+      showGameOver();
+      return true;
+    }
+
+    // 人类玩家：需要根据当前状态处理后续流程
+    if(this.currentPlayer === 'A'){
+      // 如果触发了新大牌，等待用户选择
+      if(this.phase === 'play_major' && this.drawnMajor){
+        render();
+        return true;
+      }
+      // 如果 phase 仍是 select_card，说明效果不触发新大牌，正常结束回合
+      if(this.phase === 'select_card'){
+        this.endTurn();
+        render();
+        setTimeout(() => continueFlow(), 400);
+        return true;
+      }
+      render();
+      setTimeout(() => continueFlow(), 400);
+    }
+    return true;
+  }
+
+  skipSelection(){
+    const ctx = this._selContext;
+    if(this._selMode === 'pick1MinorOrSkip' && ctx.onSkip){
+      ctx.onSkip();
+    }
+    this._selMode = null;
+    this._selCards = [];
+    this._selContext = {};
+    this._selIndex = -1;
+    this._selIndices = new Set();
+
+    if(this.gameOver){
+      render();
+      showGameOver();
+      return;
+    }
+
+    // 人类玩家：处理后续流程
+    if(this.currentPlayer === 'A'){
+      // 如果触发了新大牌（_pendingDrawnMajor 已在 onSkip 中处理）
+      if(this._pendingDrawnMajor){
+        this.drawnMajor = this._pendingDrawnMajor;
+        this._pendingDrawnMajor = null;
+        this.majorOrientation = 'upright';
+        this.phase = 'play_major';
+        this.addLog(`  → 抽到大牌：${this.drawnMajor.name}，等待选择正逆位和元素阵`);
+        render();
+        return;
+      }
+      if(this.phase === 'select_card'){
+        this.endTurn();
+        render();
+        setTimeout(() => continueFlow(), 400);
+        return;
+      }
+      render();
+      setTimeout(() => continueFlow(), 400);
+    }
+  }
+
+  _aiSelectCards(){
+    const mode = this._selMode;
+    const cards = this._selCards;
+
+    if(mode === 'pick1Major'){
+      // AI 选 arcanaId 最高的
+      let bestIdx = 0;
+      for(let i=1; i<cards.length; i++){
+        if(cards[i].arcanaId > cards[bestIdx].arcanaId) bestIdx = i;
+      }
+      this._selIndex = bestIdx;
+    } else if(mode === 'pick1Minor'){
+      // AI 选点数最高的
+      let bestIdx = 0;
+      for(let i=1; i<cards.length; i++){
+        if(cards[i].points > cards[bestIdx].points) bestIdx = i;
+        else if(cards[i].points === cards[bestIdx].points && cards[i].subtype==='court' && cards[bestIdx].subtype!=='court') bestIdx = i;
+      }
+      this._selIndex = bestIdx;
+    } else if(mode === 'pick2Minor'){
+      // AI 选点数最高的2张
+      const indexed = cards.map((c,i)=>({c,i}));
+      indexed.sort((a,b)=>{
+        if(b.c.points !== a.c.points) return b.c.points - a.c.points;
+        return (b.c.subtype==='court'?1:0) - (a.c.subtype==='court'?1:0);
+      });
+      this._selIndices = new Set();
+      for(let i=0; i<Math.min(2, indexed.length); i++){
+        this._selIndices.add(indexed[i].i);
+      }
+    } else if(mode === 'pick1MinorOrSkip'){
+      // AI 检查是否有宫廷牌，有则选点数最高的，没有则选是否抽大牌
+      const hasCourt = cards.some(c=>c.subtype==='court');
+      if(hasCourt){
+        let bestIdx = 0;
+        for(let i=1; i<cards.length; i++){
+          if(cards[i].points > cards[bestIdx].points) bestIdx = i;
+          else if(cards[i].points === cards[bestIdx].points && cards[i].subtype==='court' && cards[bestIdx].subtype!=='court') bestIdx = i;
+        }
+        this._selIndex = bestIdx;
+      } else {
+        // 无宫廷：全部弃掉，抽1大牌（skip模式）
+        this._selIndex = -1;
+      }
+    }
+
+    // AI 确认选择（同步执行）
+    this.addLog(`🤖 AI: 选牌完成`);
+    this.confirmSelection();
+  }
+
   // === 辅助方法 ===
   // === v4 一次性大牌效果执行（全部 44 效果） ===
   _execEffect(p, card, element, orient){
@@ -803,6 +1130,12 @@ class TarotGame {
     const isU = orient==='upright';
     const el = this.players[p].elements[element];
     const oppEl = this.players[opp].elements[element];
+
+    // 记录当前效果上下文，供弃牌堆元数据使用
+    this._curEffectLabel = `${MAJOR_DEFS[aId].name}${isU?'正位':'逆位'}`;
+    this._curEffectOrient = orient;
+    this._curEffectPlayer = p;
+    this._curEffectElement = SUIT_NAMES[element] || '';
 
     // === 0 愚人正位：选阵双方小牌全弃 + 双方各抽2张小牌打出 ===
     if(aId===0 && isU){
@@ -890,22 +1223,16 @@ class TarotGame {
       const drawn=[];
       for(let i=0;i<3;i++){if(this.minorDeck.length>0) drawn.push(this.minorDeck.pop());}
       if(drawn.length>0){
-        // 选点数最高打出
-        drawn.sort((a,b)=>b.points-a.points);
-        const pick=drawn.shift();
-        this.playMinorToElement(p, pick, pick.suit, false);
-        // 宫廷牌触发大牌预览
-        if(pick.subtype==='court' && this.majorDeck.length>0){
-          this.drawnMajor=this.majorDeck.pop();
-          this.phase='play_major';
-          this.majorOrientation='upright';
-          this._effectDetail=`查看顶3张，选${pick.name}(+${pick.points})打出，触发大牌预览${this.drawnMajor.name}`;
-          // 其余放回牌堆底
-          for(const c of drawn) this.minorDeck.unshift(c);
-          return;
-        }
-        for(const c of drawn) this.minorDeck.unshift(c);
-        this._effectDetail=`查看顶3张，选${pick.name}(+${pick.points})打出，其余放回牌堆底`;
+        this._enterSelectMode('pick1Minor', drawn, {
+          effectName: '女祭司逆位 - 选择1张小牌打出，其余放回牌堆底',
+          player: p,
+          element: element,
+          onConfirm: (pick, others) => {
+            this.playMinorToElement(p, pick, pick.suit, false);
+            for(const c of others) this.minorDeck.unshift(c);
+            this._effectDetail=`查看顶3张，选${pick.name}(+${pick.points})打出，其余放回牌堆底`;
+          }
+        });
       } else {this._effectDetail=`小牌堆已空`;}
     }
 
@@ -979,12 +1306,17 @@ class TarotGame {
         const pool=shuffle([...this.minorDiscard]);
         const drawn=pool.slice(0,Math.min(3,pool.length));
         if(drawn.length>0){
-          drawn.sort((a,b)=>b.points-a.points);
-          const pick=drawn.shift();
-          const idx=this.minorDiscard.indexOf(pick);
-          if(idx>=0) this.minorDiscard.splice(idx,1);
-          this.playMinorToElement(p, pick, pick.subtype==='court'?element:pick.suit, true);
-          this._effectDetail=`弃牌堆洗牌，抽3张选${pick.name}(+${pick.points})打出`;
+          this._enterSelectMode('pick1Minor', drawn, {
+            effectName: '教皇正位 - 弃牌堆中选1张打出',
+            player: p,
+            element: element,
+            onConfirm: (pick, others) => {
+              const idx=this.minorDiscard.indexOf(pick);
+              if(idx>=0) this.minorDiscard.splice(idx,1);
+              this.playMinorToElement(p, pick, pick.subtype==='court'?element:pick.suit, true);
+              this._effectDetail=`弃牌堆洗牌，选${pick.name}(+${pick.points})打出`;
+            }
+          });
         } else {this._effectDetail=`小牌弃牌堆为空`;}
       } else {this._effectDetail=`小牌弃牌堆为空`;}
     }
@@ -1012,15 +1344,18 @@ class TarotGame {
       const drawn=[];
       for(let i=0;i<2;i++){if(this.majorDeck.length>0) drawn.push(this.majorDeck.pop());}
       if(drawn.length>=2){
-        // AI/玩家选择点数高者打出，AI选正位
-        drawn.sort((a,b)=>(b.arcanaId)-(a.arcanaId)); // 按序号简化
-        const pick=drawn.shift(), discard=drawn.shift();
-        this.drawnMajor=pick;
-        this.majorOrientation='upright';
-        this.phase='play_major';
-        this.majorDiscard.push(discard);
-        this._effectDetail=`抽${pick.name}和${discard.name}，待选择${pick.name}正逆位和元素阵打出`;
-        return;
+        this._enterSelectMode('pick1Major', drawn, {
+          effectName: '恋人正位 - 选择1张大牌打出，另1张丢弃',
+          player: p,
+          element: element,
+          onConfirm: (pick, others) => {
+            this.drawnMajor = pick;
+            this.majorOrientation = 'upright';
+            this.phase = 'play_major';
+            for(const c of others) this.majorDiscard.push(c);
+            this.addLog(`  → 恋人：选择${pick.name}打出，${others.map(c=>c.name).join('和')}丢弃`);
+          }
+        });
       } else {this._effectDetail=`大牌不够2张`;}
     }
     // === 6 恋人逆位：选阵，己方选敌方1张小牌→移己方任意阵 ===
@@ -1100,13 +1435,16 @@ class TarotGame {
       const drawn=[];
       for(let i=0;i<2;i++){if(this.minorDeck.length>0) drawn.push(this.minorDeck.pop());}
       if(drawn.length>=2){
-        // 点数高打出
-        drawn.sort((a,b)=>b.points-a.points);
-        const pick=drawn.shift(), other=drawn.shift();
-        this.playMinorToElement(p, pick, pick.subtype==='court'?element:pick.suit, true);
-        // 选择丢或放回牌堆顶(简化：放回)
-        this.minorDeck.push(other);
-        this._effectDetail=`选${pick.name}(+${pick.points})打出，${other.name}放回牌堆顶`;
+        this._enterSelectMode('pick1Minor', drawn, {
+          effectName: '隐士正位 - 选择1张小牌打出，另1张放回牌堆顶',
+          player: p,
+          element: element,
+          onConfirm: (pick, others) => {
+            this.playMinorToElement(p, pick, pick.subtype==='court'?element:pick.suit, true);
+            for(const c of others) this.minorDeck.push(c);
+            this._effectDetail=`选${pick.name}(+${pick.points})打出，${others.map(c=>c.name).join('和')}放回牌堆顶`;
+          }
+        });
       } else if(drawn.length===1){
         this.playMinorToElement(p, drawn[0], drawn[0].subtype==='court'?element:drawn[0].suit, true);
         this._effectDetail=`仅抽到${drawn[0].name}，直接打出`;
@@ -1198,13 +1536,18 @@ class TarotGame {
       const drawn=[];
       for(let i=0;i<2;i++){if(this.majorDeck.length>0) drawn.push(this.majorDeck.pop());}
       if(drawn.length>=2){
-        drawn.sort((a,b)=>(b.arcanaId)-(a.arcanaId));
-        const pick=drawn.shift(), discard=drawn.shift();
-        this.drawnMajor=pick;
-        this.majorOrientation='upright';
-        this.phase='play_major';
-        this.majorDiscard.push(discard);
-        this._effectDetail+=`，抽${pick.name}和${discard.name}，待选择${pick.name}打出`;
+        this._enterSelectMode('pick1Major', drawn, {
+          effectName: '倒吊人正位 - 选择1张大牌打出，另1张丢弃',
+          player: p,
+          element: element,
+          onConfirm: (pick, others) => {
+            this.drawnMajor = pick;
+            this.majorOrientation = 'upright';
+            this.phase = 'play_major';
+            for(const c of others) this.majorDiscard.push(c);
+            this.addLog(`  → 倒吊人：选择${pick.name}打出，${others.map(c=>c.name).join('和')}丢弃`);
+          }
+        });
       } else {this._effectDetail+=`，大牌不够2张`;}
     }
     // === 12 倒吊人逆位：选阵敌方小牌全弃，敌抽2大牌选1打出 ===
@@ -1216,11 +1559,16 @@ class TarotGame {
       const drawn=[];
       for(let i=0;i<2;i++){if(this.majorDeck.length>0) drawn.push(this.majorDeck.pop());}
       if(drawn.length>=2){
-        drawn.sort((a,b)=>(b.arcanaId)-(a.arcanaId));
-        const pick=drawn.shift(), discard=drawn.shift();
-        this._deferredMajor=pick;
-        this.majorDiscard.push(discard);
-        this._effectDetail+=`，敌方抽${pick.name}和${discard.name}，待敌方选择${pick.name}打出`;
+        this._enterSelectMode('pick1Major', drawn, {
+          effectName: '倒吊人逆位 - 敌方选择1张大牌打出，另1张丢弃',
+          player: opp,
+          element: element,
+          onConfirm: (pick, others) => {
+            this._deferredMajor = pick;
+            for(const c of others) this.majorDiscard.push(c);
+            this.addLog(`  → 倒吊人逆位：敌方选择${pick.name}待打出，${others.map(c=>c.name).join('和')}丢弃`);
+          }
+        });
       } else {this._effectDetail+=`，大牌不够2张`;}
     }
 
@@ -1365,11 +1713,16 @@ class TarotGame {
       const drawn=[];
       for(let i=0;i<5;i++){if(this.minorDeck.length>0) drawn.push(this.minorDeck.pop());}
       if(drawn.length>0){
-        drawn.sort((a,b)=>b.points-a.points);
-        const picks=drawn.splice(0,Math.min(2,drawn.length));
-        for(const c of picks) this.playMinorToElement(p, c, c.subtype==='court'?element:c.suit, true);
-        for(const c of drawn) this.minorDiscard.push(c); // 其余丢弃
-        this._effectDetail=`查看顶5张，选${picks.map(c=>c.name).join('和')}打出，其余丢弃`;
+        this._enterSelectMode('pick2Minor', drawn, {
+          effectName: '星星正位 - 选择2张小牌打出，其余丢弃',
+          player: p,
+          element: element,
+          onConfirm: (picks, others) => {
+            for(const c of picks) this.playMinorToElement(p, c, c.subtype==='court'?element:c.suit, true);
+            for(const c of others) this.minorDiscard.push(c);
+            this._effectDetail=`查看顶${drawn.length}张，选${picks.map(c=>c.name).join('和')}打出，其余${others.length}张丢弃`;
+          }
+        });
       } else {this._effectDetail=`小牌堆空`;}
     }
     // === 17 星星逆位：选阵双方小牌互换+敌方抽2小牌打出(宫廷不触发大牌) ===
@@ -1420,11 +1773,16 @@ class TarotGame {
       const drawn=[];
       for(let i=0;i<4;i++){if(this.minorDeck.length>0) drawn.push(this.minorDeck.pop());}
       if(drawn.length>0){
-        drawn.sort((a,b)=>b.points-a.points);
-        const keep=drawn.splice(0,Math.min(2,drawn.length));
-        for(const c of keep) this.playMinorToElement(p, c, c.subtype==='court'?element:c.suit, true);
-        for(const c of drawn) this.playMinorToElement(opp, c, c.subtype==='court'?element:c.suit, true);
-        this._effectDetail=`抽4张，己方留${keep.map(c=>c.name).join('和')}，其余给敌方`;
+        this._enterSelectMode('pick2Minor', drawn, {
+          effectName: '太阳正位 - 选择2张小牌留给自己打出，其余交给敌方打出',
+          player: p,
+          element: element,
+          onConfirm: (picks, others) => {
+            for(const c of picks) this.playMinorToElement(p, c, c.subtype==='court'?element:c.suit, true);
+            for(const c of others) this.playMinorToElement(opp, c, c.subtype==='court'?element:c.suit, true);
+            this._effectDetail=`抽${drawn.length}张，己方留${picks.map(c=>c.name).join('和')}，其余${others.length}张给敌方`;
+          }
+        });
       } else {this._effectDetail=`小牌堆空`;}
     }
     // === 19 太阳逆位：抽3小牌，有宫廷全打出，无宫廷全弃(宫廷不触发大牌) ===
@@ -1461,38 +1819,33 @@ class TarotGame {
       const drawn=[];
       for(let i=0;i<3;i++){if(this.minorDeck.length>0) drawn.push(this.minorDeck.pop());}
       if(drawn.length>0){
-        // 检查是否有宫廷牌
-        const hasCourt=drawn.some(c=>c.subtype==='court');
-        if(hasCourt){
-          // 有宫廷：选点数最高的打出(宫廷触发大牌效果)
-          drawn.sort((a,b)=>b.points-a.points);
-          const pick=drawn.shift();
-          this.playMinorToElement(p, pick, pick.suit, false);
-          // 宫廷牌触发大牌预览
-          if(pick.subtype==='court' && this.majorDeck.length>0){
-            this.drawnMajor=this.majorDeck.pop();
-            this.phase='play_major';
-            this.majorOrientation='upright';
-            this._effectDetail=`抽3张(有宫廷)，选${pick.name}打出，触发大牌预览${this.drawnMajor.name}`;
+        this._enterSelectMode('pick1MinorOrSkip', drawn, {
+          effectName: '审判逆位 - 选择1张小牌打出，或全部弃掉并抽1张大牌打出',
+          skipLabel: '并抽大牌',
+          player: p,
+          element: element,
+          onConfirm: (selIdx, allCards) => {
+            if(selIdx >= 0){
+              // 选了1张打出
+              const pick = allCards[selIdx];
+              const others = allCards.filter((_,i) => i !== selIdx);
+              this.playMinorToElement(p, pick, pick.suit, false);
+              for(const c of others) this.minorDiscard.push(c);
+              this._effectDetail=`审判逆位：选${pick.name}打出，${others.length}张弃掉`;
+            }
+          },
+          onSkip: () => {
+            // 全部弃掉，抽1大牌打出
             for(const c of drawn) this.minorDiscard.push(c);
-            return;
+            if(this.majorDeck.length>0){
+              const mc = this.majorDeck.pop();
+              this._pendingDrawnMajor = mc;
+              this._effectDetail=`审判逆位：${drawn.length}张全部弃掉，抽大牌${mc.name}待打出`;
+            } else {
+              this._effectDetail=`审判逆位：${drawn.length}张全部弃掉（大牌堆空）`;
+            }
           }
-          for(const c of drawn) this.minorDiscard.push(c);
-          this._effectDetail=`抽3张(有宫廷)，选${pick.name}打出`;
-        } else if(this.majorDeck.length>0){
-          // 无宫廷：全部弃掉，抽1大牌打出
-          for(const c of drawn) this.minorDiscard.push(c);
-          const mc=this.majorDeck.pop();
-          this._pendingDrawnMajor=mc;
-          this._effectDetail=`抽3张(无宫廷)，全部弃掉，抽大牌${mc.name}待打出`;
-        } else {
-          // 无宫廷且无大牌
-          drawn.sort((a,b)=>b.points-a.points);
-          const pick=drawn.shift();
-          this.playMinorToElement(p, pick, pick.suit, false);
-          for(const c of drawn) this.minorDiscard.push(c);
-          this._effectDetail=`抽3张(无宫廷无大牌)，选${pick.name}打出`;
-        }
+        });
       } else {this._effectDetail=`小牌堆空`;}
     }
 
@@ -1890,7 +2243,7 @@ function render(){
   let html = '';
 
   // 顶部栏
-  let phaseText = game.phase==='play_minor'?'出小牌':game.phase==='play_major'?'出大牌':'等待中';
+  let phaseText = game.phase==='play_minor'?'出小牌':game.phase==='play_major'?'出大牌':game.phase==='select_card'?'选牌中':'等待中';
   html += `<div id="top-bar">
     <div id="round-info">🃏 行动 <span>${game.totalActions}</span> 次</div>
     <div id="phase-info" class="${debugMode?'phase-a':(cp==='A'?'phase-a':'phase-b')}">
@@ -1899,6 +2252,8 @@ function render(){
     <div id="deck-info">
       <span class="deck-count minor">小:${game.minorDeck.length}</span>
       <span class="deck-count major">大:${game.majorDeck.length}</span>
+      <button class="btn-deck-view" onclick="showDrawPileViewer('minor');event.stopPropagation();" title="查看小牌抽牌堆">🃏 小抽牌堆</button>
+      <button class="btn-deck-view major" onclick="showDrawPileViewer('major');event.stopPropagation();" title="查看大牌抽牌堆">🌟 大抽牌堆</button>
       <button class="btn btn-sm" style="padding:2px 10px;font-size:11px;background:rgba(255,255,255,0.08);color:#aaa;border:1px solid rgba(255,255,255,0.2);border-radius:8px;" onclick="showLogViewer();event.stopPropagation();">📋 日志</button>
       <button class="btn-debug${debugMode?' active':''}" onclick="toggleDebugMode();event.stopPropagation();">🔧 调试</button>
     </div>
@@ -1980,6 +2335,12 @@ function render(){
   html += `<button class="btn btn-sm" style="background:rgba(255,255,255,0.1);color:#aaa;border:1px solid rgba(255,255,255,0.2);" onclick="init()">🔄 重新开始</button>`;
   html += `</div>`;
 
+  // 弃牌堆查看入口（最下方出牌区右侧）
+  html += `<div id="discard-bar">
+    <button class="btn-discard-view" onclick="showDiscardViewer('minor');event.stopPropagation();">🗑️ 小牌弃牌堆 <span class="dc-count">(${game.minorDiscard.length})</span></button>
+    <button class="btn-discard-view major" onclick="showDiscardViewer('major');event.stopPropagation();">🌟 大牌弃牌堆 <span class="dc-count">(${game.majorDiscard.length})</span></button>
+  </div>`;
+
   app.innerHTML = html;
 }
 
@@ -2038,11 +2399,88 @@ function renderElementContent(player, suit, cardMode = false){
   return html;
 }
 
+function renderSelectionArea(cp){
+  const mode = game._selMode;
+  const cards = game._selCards;
+  const ctx = game._selContext;
+  const isMajor = mode === 'pick1Major';
+  const isMinorSingle = mode === 'pick1Minor';
+  const isMinorDouble = mode === 'pick2Minor';
+  const isMinorOrSkip = mode === 'pick1MinorOrSkip';
+  const maxPick = isMinorDouble ? 2 : 1;
+
+  let html = `<div style="display:flex;flex-direction:column;align-items:center;gap:10px;width:100%;">`;
+  html += `<div style="color:#ffd700;font-size:16px;font-weight:bold;">${ctx.effectName || '选牌'}</div>`;
+
+  if(isMinorDouble){
+    html += `<div style="color:#888;font-size:12px;">点击牌选择（最多选${maxPick}张），再次点击取消，然后点确认</div>`;
+  } else if(isMinorOrSkip){
+    html += `<div style="color:#888;font-size:12px;">点击牌选择1张打出，或点"全部弃掉"跳过</div>`;
+  } else {
+    html += `<div style="color:#888;font-size:12px;">点击牌选择，然后点确认</div>`;
+  }
+
+  html += `<div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;">`;
+
+  for(let i=0; i<cards.length; i++){
+    const c = cards[i];
+    let isSelected = false;
+    if(isMinorDouble){
+      isSelected = game._selIndices.has(i);
+    } else {
+      isSelected = game._selIndex === i;
+    }
+
+    let cardCls = '';
+    if(isMajor){
+      cardCls = 'major-preview';
+    } else if(c && c.subtype==='court'){
+      cardCls = 'court-preview';
+    }
+
+    if(isMajor){
+      html += `<div class="draw-preview-card ${cardCls} selectable-card${isSelected?' card-selected':''}" onclick="game.selectCard(${i})">
+        <div class="pc-icon">🌟</div>
+        <div class="pc-name">${c.name}</div>
+        <div class="pc-detail">大阿尔卡纳 #${c.arcanaId}</div>
+        <div style="font-size:10px;color:#888;">正位：${(c.effectDesc||'').substring(0,25)}...</div>
+        <div style="font-size:10px;color:#666;">逆位：${(c.revEffectDesc||'').substring(0,25)}...</div>
+      </div>`;
+    } else {
+      const isCourt = c.subtype==='court';
+      html += `<div class="draw-preview-card ${cardCls} selectable-card${isSelected?' card-selected':''}" onclick="game.selectCard(${i})">
+        <div class="pc-icon">${c.icon}</div>
+        <div class="pc-name">${c.name}</div>
+        <div class="pc-detail">${isCourt?'👑宫廷牌':'数字牌'} · ${c.points}点 · ${SUIT_ICONS[c.suit]}${SUIT_NAMES[c.suit]}</div>
+      </div>`;
+    }
+  }
+
+  html += `</div>`;
+
+  // 按钮
+  html += `<div style="display:flex;gap:10px;">`;
+  const canConfirm = isMinorDouble ? (game._selIndices.size >= 1) : (game._selIndex >= 0);
+  const btnDisabled = !canConfirm || cp === 'B';
+  html += `<button class="btn btn-success" ${btnDisabled?'disabled':''} onclick="event.stopPropagation();game.confirmSelection()">✅ 确认选择</button>`;
+  if(isMinorOrSkip){
+    html += `<button class="btn btn-warn" ${cp==='B'?'disabled':''} onclick="event.stopPropagation();game.skipSelection()">🗑️ 全部弃掉${ctx.skipLabel||'并抽大牌'}</button>`;
+  }
+  html += `</div>`;
+
+  html += `</div>`;
+  return html;
+}
+
 function renderDrawArea(cp){
   let html = `<div id="draw-area">`;
 
   if(game.gameOver){
     html += `<div style="font-size:18px;color:#ffd700;">🏆 游戏结束 - 小牌堆已空</div>`;
+  }
+  // === 选牌模式 ===
+  else if(game._selMode){
+    html += renderSelectionArea(cp);
   }
   // === 调试模式：显示调试面板（默认）或选中卡牌预览 ===
   else if(debugMode && !debugSelectedCard){
@@ -2183,6 +2621,11 @@ function onElementClick(targetPlayer, suit){
   // ===== 正常游戏模式 =====
   if(game.currentPlayer !== 'A') return;
 
+  // 选牌模式下不允许操作元素阵
+  if(game._selMode){
+    return;
+  }
+
   // 仅允许操作己方区域
   if(targetPlayer !== 'A'){
     showToast('当前回合只能操作己方区域','warn');
@@ -2275,11 +2718,137 @@ function showLogViewer(){
   document.body.appendChild(overlay);
 }
 
+// ====== 抽牌堆查看器 ======
+function showDrawPileViewer(kind){
+  const isMajor = kind==='major';
+  const deck = isMajor ? game.majorDeck : game.minorDeck;
+  const title = isMajor ? '🌟 大牌抽牌堆' : '🃏 小牌抽牌堆';
+  const total = deck.length;
+  let body = '';
+  if(total===0){
+    body = `<div class="pile-empty">🂠 ${title}已空</div>`;
+  } else {
+    body += `<div class="pile-note">共 ${total} 张${isMajor?'（大牌无正逆位区分，顺序随机）':'（含数字牌与宫廷牌，顺序随机）'} · 列表自牌堆顶向下</div>`;
+    body += `<div class="pile-list">`;
+    deck.forEach((c,i)=>{
+      if(isMajor){
+        body += `<div class="pile-row">
+          <span class="pr-idx">#${i+1}</span>
+          <div class="pr-card major">
+            <span class="pr-icon">🌟</span>
+            <span class="pr-name">${c.name}</span>
+            <span class="pr-sub">#${c.arcanaId}</span>
+          </div>
+          <div class="pr-info">
+            <div>☀️正位：${c.effectDesc}</div>
+            <div>🌑逆位：${c.revEffectDesc}</div>
+          </div>
+        </div>`;
+      } else {
+        const isCourt = c.subtype==='court';
+        body += `<div class="pile-row">
+          <span class="pr-idx">#${i+1}</span>
+          <div class="pr-card suit-${c.suit}">
+            <span class="pr-icon">${c.icon}</span>
+            <span class="pr-name">${c.name}</span>
+            <span class="pr-sub">${isCourt?'👑宫廷牌 · 10点':c.points+'点'}</span>
+          </div>
+          <div class="pr-info">
+            <div>花色：${SUIT_ICONS[c.suit]}${SUIT_NAMES[c.suit]}阵</div>
+            <div>${isCourt?'打入对应花色阵并触发大牌预览':'打入对应花色阵'}</div>
+          </div>
+        </div>`;
+      }
+    });
+    body += `</div>`;
+  }
+  const overlay = document.createElement('div');
+  overlay.className = 'discard-grid-overlay';
+  overlay.onclick = (e) => { if(e.target===overlay) overlay.remove(); };
+  overlay.innerHTML = `<div class="discard-grid-panel">
+    <h4>${title}（剩余 ${total}）</h4>
+    <div class="dg-sub">查看抽牌堆内容（不影响游戏进行）</div>
+    ${body}
+    <div style="text-align:center;margin-top:12px;"><button class="btn btn-sm" style="background:rgba(255,255,255,0.1);color:#aaa;border:1px solid rgba(255,255,255,0.2);" onclick="this.closest('.discard-grid-overlay').remove()">关闭</button></div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+// ====== 弃牌堆查看器（详细记录：什么牌 / 什么效果 / 对什么产生影响） ======
+function showDiscardViewer(kind){
+  const isMajor = kind==='major';
+  const arr = isMajor ? game.majorDiscard : game.minorDiscard;
+  const title = isMajor ? '🌟 大牌弃牌堆' : '🃏 小牌弃牌堆';
+  const total = arr.length;
+  let body = '';
+  if(total===0){
+    body = `<div class="pile-empty">🗑️ ${title}为空</div>`;
+  } else {
+    body += `<div class="pile-note">共 ${total} 张 · 自最新到最旧排列</div>`;
+    body += `<div class="pile-list">`;
+    for(let i=arr.length-1;i>=0;i--){
+      const c = arr[i];
+      const m = c._discardMeta || {};
+      const playerLabel = m.player==='A'?'🔵玩家A':m.player==='B'?'🔴玩家B':'';
+      if(isMajor){
+        const ori = m.orient==='reversed'?'🌑逆位':m.orient==='upright'?'☀️正位':'';
+        body += `<div class="pile-row">
+          <span class="pr-idx">#${i+1}</span>
+          <div class="pr-card major">
+            <span class="pr-icon">🌟</span>
+            <span class="pr-name">${c.name}</span>
+            <span class="pr-ori">${ori||'—'}</span>
+          </div>
+          <div class="pr-info">
+            <div>效果来源：<span class="pr-effect">${m.effect||'未知'}</span>${m.played?'（已打出）':'（未打出/被弃）'}</div>
+            <div class="pr-impact">影响：${m.element?m.element+'阵':''}${playerLabel?(' · '+playerLabel):''}${m.turn?' · 第'+m.turn+'行动':''}</div>
+          </div>
+        </div>`;
+      } else {
+        const isCourt = c.subtype==='court';
+        body += `<div class="pile-row">
+          <span class="pr-idx">#${i+1}</span>
+          <div class="pr-card suit-${c.suit}">
+            <span class="pr-icon">${c.icon}</span>
+            <span class="pr-name">${c.name}</span>
+            <span class="pr-sub">${isCourt?'👑宫廷牌':'数字牌'} · ${c.points}点</span>
+          </div>
+          <div class="pr-info">
+            <div>效果来源：<span class="pr-effect">${m.effect||'未知'}</span></div>
+            <div class="pr-impact">影响：${m.element?m.element+'阵':''}${playerLabel?(' · '+playerLabel):''}${m.turn?' · 第'+m.turn+'行动':''}</div>
+          </div>
+        </div>`;
+      }
+    }
+    body += `</div>`;
+  }
+  const overlay = document.createElement('div');
+  overlay.className = 'discard-grid-overlay';
+  overlay.onclick = (e) => { if(e.target===overlay) overlay.remove(); };
+  overlay.innerHTML = `<div class="discard-grid-panel">
+    <h4>${title}（${total} 张）</h4>
+    <div class="dg-sub">详细记录：什么牌 / 具体什么效果 / 对什么产生影响</div>
+    ${body}
+    <div style="text-align:center;margin-top:12px;"><button class="btn btn-sm" style="background:rgba(255,255,255,0.1);color:#aaa;border:1px solid rgba(255,255,255,0.2);" onclick="this.closest('.discard-grid-overlay').remove()">关闭</button></div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
 // ====== 流程控制 ======
 function continueFlow(){
   if(debugMode) return; // 调试模式下暂停自动流程
   if(game.gameOver) {
     showGameOver();
+    return;
+  }
+
+  // 选牌模式：暂停自动流程，等用户点击
+  if(game._selMode){
+    if(game.currentPlayer === 'B'){
+      // AI 已经自动选择了，不需要额外处理
+      return;
+    }
+    render();
     return;
   }
 
@@ -2299,6 +2868,62 @@ function continueFlow(){
 function runAITurn(){
   if(debugMode) return; // 调试模式下暂停AI
   if(game.gameOver) { showGameOver(); return; }
+
+  // 检查是否已在 B 回合中（例如选牌后触发的新大牌）
+  if(game.phase === 'play_major' && game.drawnMajor && game.currentPlayer === 'B'){
+    // B 已有待打出的新大牌，直接处理
+    render();
+    setTimeout(() => {
+      game.aiAct();
+      render();
+      if(game.gameOver){ showGameOver(); return; }
+      // AI 打出大牌后可能还有连锁
+      setTimeout(() => {
+        if(game.gameOver){ showGameOver(); return; }
+        if(game._selMode && game.currentPlayer === 'B'){
+          render();
+          return;
+        }
+        if(game.phase === 'play_major' && game.drawnMajor && game.currentPlayer === 'B'){
+          game.aiAct();
+          render();
+          if(game.gameOver){ showGameOver(); return; }
+          setTimeout(() => continueFlow(), 400);
+          return;
+        }
+        if(game.currentPlayer === 'B'){
+          // B 回合仍活跃
+          if(game.phase === 'play_minor' && !game.drawnMinor){
+            game.startTurn();
+            render();
+            setTimeout(() => {
+              game.aiAct();
+              render();
+              setTimeout(() => continueFlow(), 400);
+            }, 500);
+          } else {
+            setTimeout(() => continueFlow(), 400);
+          }
+        } else {
+          setTimeout(() => continueFlow(), 400);
+        }
+      }, 500);
+    }, 500);
+    return;
+  }
+
+  // 检查是否在 B 回合并已抽牌
+  if(game.drawnMinor && game.currentPlayer === 'B'){
+    // 已有一张牌，直接 AI 操作
+    render();
+    setTimeout(() => {
+      game.aiAct();
+      render();
+      if(game.gameOver){ showGameOver(); return; }
+      setTimeout(() => continueFlow(), 400);
+    }, 500);
+    return;
+  }
 
   game.startTurn();
   render();
