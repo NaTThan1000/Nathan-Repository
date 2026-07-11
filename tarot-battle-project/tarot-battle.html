@@ -901,7 +901,12 @@ class TarotGame {
   }
 
   /** 小牌打到元素阵（v4: 简化版，无持续性效果检查） */
-  playMinorToElement(player, card, element, skipCourtTrigger=false){
+  playMinorToElement(player, card, element, skipCourtTrigger=false, ignoreElementRestriction=false){
+    // 宫廷牌默认只能在对应花色阵打出（除非特殊效果明确允许无视元素限制）
+    if(card.subtype === 'court' && !ignoreElementRestriction && card.suit !== element){
+      this.addLog(`  → ⚠️ 宫廷牌${card.name}只能打入${SUIT_NAMES[card.suit]}阵，已自动修正目标`);
+      element = card.suit;
+    }
     const el = this.players[player].elements[element];
     el.cards.push(card);
     const pts = card.points;
@@ -1169,7 +1174,7 @@ class TarotGame {
       for(let i=0;i<2;i++){
         if(this.minorDeck.length>0){
           const mc=this.minorDeck.pop();
-          this.playMinorToElement(p, mc, element, true);
+          this.playMinorToElement(p, mc, element, true, true); // 无视元素限制
         }
       }
       this._effectDetail+=`，抽2张小牌打入${SUIT_NAMES[element]}阵(无视元素限制)`;
@@ -1757,10 +1762,10 @@ class TarotGame {
       while(this.minorDeck.length>0){
         const mc=this.minorDeck.pop();cnt++;
         if(mc.suit !== element){
-          this.playMinorToElement(p, mc, 'wands'===element?'cups':'wands', true); // 打入非当前元素阵(简化)
+          this.playMinorToElement(p, mc, 'wands'===element?'cups':'wands', true, true); // 无视元素限制
           this.addLog(`  🌙 月亮逆位：${mc.name}非${SUIT_NAMES[element]}，${p}方打出，继续`);
         } else {
-          this.playMinorToElement(opp, mc, element, true);
+          this.playMinorToElement(opp, mc, element, true, true); // 无视元素限制
           this.addLog(`  🌙 月亮逆位：${mc.name}是${SUIT_NAMES[element]}，${opp}方打出，停止`);
           break;
         }
@@ -2157,8 +2162,8 @@ function debugQuickPlayMinor(){
 
   let targetSuit;
   if(isCourt){
-    // 宫廷牌：8选1（4花色 × 2玩家）
-    targetSuit = SUITS[Math.floor(Math.random() * 4)];
+    // 宫廷牌：必须打入对应花色阵
+    targetSuit = card.suit;
   } else {
     // 数字牌：只能打对应花色阵，2选1（己方或敌方该花色阵）
     targetSuit = card.suit;
@@ -2600,6 +2605,11 @@ function onElementClick(targetPlayer, suit){
     if(card.type === 'minor'){
       if(card.subtype === 'number' && card.suit !== suit){
         showToast(`🔧 [调试] ${card.name}只能打入${SUIT_NAMES[card.suit]}阵`,'warn');
+        return;
+      }
+      // 宫廷牌在调试模式下也必须打入对应花色阵
+      if(card.subtype === 'court' && card.suit !== suit){
+        showToast(`🔧 [调试] 👑${card.name}是${SUIT_NAMES[card.suit]}宫廷牌，只能打入${SUIT_NAMES[card.suit]}阵`,'warn');
         return;
       }
       game.addLog(`🔧 [调试] ${targetPlayer==='A'?'🔵A':'🔴B'} 手动打出小牌 ${card.name}`);
