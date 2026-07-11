@@ -190,6 +190,35 @@ body{
 .draw-preview-card.major-preview .pc-name{color:#ffd700;font-size:18px;}
 .draw-preview-card.major-preview .pc-detail{max-width:240px;font-size:12px;}
 
+/* 宫廷牌双选模式 */
+.draw-preview-card.dual-select-card{
+  cursor:pointer;
+  transition:all 0.25s;
+}
+.draw-preview-card.dual-select-card:hover{
+  border-color:rgba(255,215,0,0.65)!important;
+  box-shadow:0 0 22px rgba(255,215,0,0.25)!important;
+  transform:translateY(-4px);
+}
+.draw-preview-card.court-dual-selected{
+  border-color:#ffd700!important;
+  box-shadow:0 0 32px rgba(255,215,0,0.55),0 0 60px rgba(255,215,0,0.15)!important;
+  transform:scale(1.05);
+  animation:dualPulse 1.8s ease-in-out infinite;
+}
+@keyframes dualPulse{
+  0%,100%{box-shadow:0 0 32px rgba(255,215,0,0.55),0 0 60px rgba(255,215,0,0.15)}
+  50%{box-shadow:0 0 42px rgba(255,215,0,0.75),0 0 80px rgba(255,215,0,0.25)}
+}
+.draw-preview-card .dual-active-tag{
+  color:#ffd700;font-size:12px;font-weight:bold;
+  margin-top:auto;animation:fadeInOut 1.2s ease-in-out infinite;
+}
+@keyframes fadeInOut{0%,100%{opacity:1}50%{opacity:0.4}}
+.draw-preview-card .dual-select-hint{
+  color:#666;font-size:10px;margin-top:auto;
+}
+
 #action-bar{
   display:flex;gap:10px;justify-content:center;align-items:center;padding:8px 0;flex-wrap:wrap;
 }
@@ -745,6 +774,9 @@ class TarotGame {
     this.drawnMinor = null;
     this.drawnMajor = null;
     this.majorOrientation = 'upright';
+    this._courtDualActive = null; // 宫廷牌出牌选择：null=未选择 'minor'=先打宫廷牌 'major'=先打大牌
+    this._courtPendingMinor = null; // 先打大牌时暂存宫廷牌，大牌效果执行后补打
+    this._courtSkipTrigger = false; // 先打大牌后补打宫廷牌时，跳过大牌触发
     this.gameOver = false;
     this.logs = [];
 
@@ -788,10 +820,19 @@ class TarotGame {
     this.drawnMinor = this.minorDeck.pop();
     this.drawnMajor = null;
     this.majorOrientation = 'upright';
+    this._courtDualActive = null;
     this.totalActions++;
 
     const card = this.drawnMinor;
     this.addLog(`${p==='A'?'🔵 玩家A':'🔴 玩家B'} 抽到: ${card.name} (${card.points}点) ${card.subtype==='court'?'👑':''}`);
+
+    // 宫廷牌：立刻抽大牌预览，进入双选模式（可先打宫廷牌或大牌）
+    if(card.subtype === 'court' && this.majorDeck.length > 0){
+      this.drawnMajor = this.majorDeck.pop();
+      this.majorOrientation = 'upright';
+      this._courtDualActive = null; // 等待玩家选择先打哪张
+      this.addLog(`  → 宫廷牌触发大牌预览：${this.drawnMajor.name}（可先打宫廷牌或大牌）`);
+    }
 
     // 倒吊人逆位(12R)延迟大牌：敌方抽到的大牌等待处理
     if(this._deferredMajor){
@@ -806,18 +847,23 @@ class TarotGame {
     }
   }
 
-  /** 宫廷牌选择目标元素后 */
+  /** 宫廷牌选择目标元素后（大牌已在 startTurn 中提前抽取） */
   courtSelectElement(element){
     const p = this.currentPlayer;
     const card = this.drawnMinor;
     if(!card || card.subtype !== 'court') return false;
 
-    // 打出宫廷牌（playMinorToElement 内部会触发大牌抽牌）
-    this.playMinorToElement(p, card, element);
+    // 先打大牌后打宫廷牌时，跳过 playMinorToElement 内部的大牌触发
+    const skipTrigger = this._courtSkipTrigger;
+    this._courtSkipTrigger = false;
+
+    this.playMinorToElement(p, card, element, skipTrigger);
     this.addLog(`  → 宫廷牌打入 ${SUIT_NAMES[element]}阵 (+10)`);
 
     if(this.drawnMajor){
-      // 大牌已由 playMinorToElement 中宫廷牌触发机制抽出
+      // 大牌已在 startTurn 中提前抽取，清除宫廷牌引用，进入大牌阶段
+      this.drawnMinor = null;
+      this.phase = 'play_major';
     } else {
       this.endTurn();
     }
@@ -913,11 +959,11 @@ class TarotGame {
     el.score += pts;
     this.addLog(`  → ${card.name}打入${SUIT_NAMES[element]}阵(+${pts})`);
 
-    // 宫廷牌触发抽大牌（除非明确跳过）
+    // 宫廷牌触发抽大牌（安全网：大牌通常已在 startTurn 中提前抽取，此处在 drawnMajor 为空时兜底）
     if(card.subtype === 'court' && !skipCourtTrigger && this.majorDeck.length > 0){
       const majorCard = this.majorDeck.pop();
       if(this.drawnMajor){
-        // 已有大牌在预览中，放回刚抽的
+        // 已有大牌在预览中，放回刚抽的（避免浪费牌）
         this.majorDeck.push(majorCard);
       } else {
         this.drawnMajor = majorCard;
@@ -936,6 +982,15 @@ class TarotGame {
       return;
     }
     const prev = this.currentPlayer;
+    // 双选模式先打大牌后还有宫廷牌待打：不清除宫廷牌，不切换玩家
+    if(this._courtPendingMinor){
+      this.drawnMinor = this._courtPendingMinor;
+      this.drawnMajor = null;
+      this.phase = 'play_minor';
+      this._courtPendingMinor = null;
+      // 不切换玩家，保持当前玩家继续打宫廷牌
+      return;
+    }
     this.currentPlayer = (prev === 'A') ? 'B' : 'A';
     this.phase = 'play_minor';
     this.drawnMinor = null;
@@ -2551,6 +2606,42 @@ function renderDrawArea(cp){
     const card = game.drawnMinor;
     const isCourt = card.subtype==='court';
     let cardCls = isCourt?'court-preview':'';
+    const isDualMode = isCourt && game.drawnMajor && cp === 'A';
+
+    // === 宫廷牌双选模式：两张牌均可选择先打出 ===
+    if(isDualMode){
+      const activeTarget = game._courtDualActive;
+      const mc = game.drawnMajor;
+      const orient = game.majorOrientation;
+      const desc = orient==='upright' ? mc.effectDesc : mc.revEffectDesc;
+
+      // 宫廷牌卡片（可选）
+      const minorSelected = activeTarget === 'minor';
+      html += `<div class="draw-preview-card court-preview dual-select-card${minorSelected?' court-dual-selected':''}" onclick="onDualSelectCard('minor')" title="点击选择先打宫廷牌">
+        <div class="pc-icon">${card.icon}</div>
+        <div class="pc-name">${card.name}</div>
+        <div class="pc-detail">👑宫廷牌 · ${card.points}点</div>
+        <div class="pc-restrict">仅可打入${SUIT_ICONS[card.suit]}${SUIT_NAMES[card.suit]}阵</div>
+        ${minorSelected?`<div class="dual-active-tag">← 当前选中</div>`:`<div class="dual-select-hint">点击选择</div>`}
+      </div>`;
+
+      // 大牌卡片（可选）
+      const majorSelected = activeTarget === 'major';
+      html += `<div class="draw-preview-card major-preview dual-select-card${majorSelected?' court-dual-selected':''}" onclick="onDualSelectCard('major')" title="点击选择先打大牌">
+        <div class="pc-icon">🌟</div>
+        <div class="pc-name">${mc.name}</div>
+        <div class="pc-detail">${orient==='upright'?'☀️正位':'🌑逆位'}：${desc}</div>
+        <div class="toggle-orient" style="margin-top:auto;" onclick="event.stopPropagation();onDualToggleOrient()" title="点击切换正位/逆位">
+          <span class="arrow">${orient==='upright'?'☀️':'🌑'}</span>
+          <span>${orient==='upright'?'正位':'逆位'}</span>
+          <span style="font-size:10px;color:#888;">↔切换</span>
+        </div>
+        ${majorSelected?`<div class="dual-active-tag">← 当前选中</div>`:`<div class="dual-select-hint">点击选择</div>`}
+      </div>`;
+
+      html += `</div>`;
+      return html;
+    }
 
     // 小牌 - 卡片式预览
     html += `<div class="draw-preview-card ${cardCls}">
@@ -2654,10 +2745,64 @@ function onElementClick(targetPlayer, suit){
 
     // 宫廷牌：也必须打入对应花色阵
     if(card.subtype === 'court'){
+
+      // === 宫廷牌双选模式：drawnMajor已存在，可先打宫廷牌或大牌 ===
+      if(game.drawnMajor && game._courtDualActive !== undefined){
+        if(game._courtDualActive === null){
+          showToast('请先在下方点击选择要打出的牌（宫廷牌或大牌）','warn');
+          return;
+        }
+        if(game._courtDualActive === 'minor'){
+          // 先打宫廷牌：需检查花色
+          if(card.suit !== suit){
+            showToast(`${card.name}只能打入${SUIT_NAMES[card.suit]}阵`,'warn');
+            return;
+          }
+          game.playMinorToElement('A', card, suit);
+          game.addLog(`  → ${card.name}打入己方${SUIT_NAMES[suit]}阵(+${card.points})`);
+          game.drawnMinor = null;
+          game._courtDualActive = null;
+          // 大牌仍在 drawnMajor，进入 play_major 阶段
+          game.phase = 'play_major';
+          render();
+          return;
+        }
+        if(game._courtDualActive === 'major'){
+          // 先打大牌：大牌无元素限制，不检查宫廷牌花色
+          const savedMinor = card;
+          game._courtPendingMinor = savedMinor;
+          game._courtSkipTrigger = true; // 后续打宫廷牌时不重复触发抽大牌
+          game.majorDecision(true, suit);
+
+          if(game._selMode){
+            game._courtDualActive = null;
+            render();
+            return;
+          }
+
+          if(!game._selMode){
+            game._courtPendingMinor = null;
+            if(!game.drawnMinor && savedMinor && game.phase !== 'play_major'){
+              game.drawnMinor = savedMinor;
+              game.phase = 'play_minor';
+            }
+          }
+          game._courtDualActive = null;
+          render();
+          if(game.phase === 'play_major' && game.drawnMajor){
+            return;
+          }
+          setTimeout(() => continueFlow(), 400);
+          return;
+        }
+      }
+
+      // 宫廷牌打出（无待处理大牌，或先打大牌后补打宫廷牌）
       if(card.suit !== suit){
         showToast(`${card.name}只能打入${SUIT_NAMES[card.suit]}阵`,'warn');
         return;
       }
+
       game.courtSelectElement(suit);
       render();
       if(game.phase === 'play_major'){ return; }
@@ -2688,6 +2833,20 @@ function onElementClick(targetPlayer, suit){
 }
 
 function toggleOrientation(){
+  game.majorOrientation = game.majorOrientation==='upright'?'reversed':'upright';
+  render();
+}
+
+function onDualSelectCard(target){
+  // 宫廷牌双选模式：点击选择先打哪张
+  if(game.drawnMinor?.subtype !== 'court' || !game.drawnMajor) return;
+  game._courtDualActive = target; // 'minor' 或 'major'
+  render();
+}
+
+function onDualToggleOrient(){
+  // 双选模式下切换大牌正逆位
+  if(game.drawnMinor?.subtype !== 'court' || !game.drawnMajor) return;
   game.majorOrientation = game.majorOrientation==='upright'?'reversed':'upright';
   render();
 }

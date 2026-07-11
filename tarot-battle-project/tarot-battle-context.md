@@ -36,9 +36,9 @@
 
 **打出规则**:
 - 数字牌 **必须打入相同花色** 的元素阵
-- 宫廷牌 **也必须打入相同花色** 的元素阵，打出时 `playMinorToElement` 内部自动抽一张大牌预览
+- 宫廷牌 **也必须打入相同花色** 的元素阵，**`startTurn()` 中确认是宫廷牌后立即从大牌堆抽一张大牌预览**（双牌并行展示）
 - 打出后点数加入该阵己方总分
-- **`skipCourtTrigger`** 参数控制宫廷牌是否触发大牌抽牌：`false`(默认)触发 / `true`跳过（如"宫廷牌不触发抽大牌效果"的效果）
+- **`skipCourtTrigger`** 参数控制 `playMinorToElement` 内部是否额外触发大牌抽牌：`false`(默认)触发 / `true`跳过（如"先打大牌后补打宫廷牌"的场景）
 
 **弃牌堆规则**:
 - 小牌丢弃 → 进入 `minorDiscard`（小牌弃牌堆）
@@ -93,13 +93,14 @@
 
 ```
 当前玩家回合:
-  1. startTurn() → 从小牌堆抽 1 张（不再在抽牌时预览大牌）
-  2. 数字牌 → 玩家/AI 选择元素阵打出 → endTurn()
-  3. 宫廷牌 → 选阵打出 → playMinorToElement 内部自动抽大牌 → 玩家决定:
-     - 打出大牌（选正/逆位+目标阵） → endTurn()
-     - 弃掉大牌 → endTurn()
-  4. 大牌效果可能触发选牌模式（select_card）→ 抽牌区交互选牌 → 确认后继续
-  5. 回合结束 → 切换对手 → 循环
+  1. startTurn() → 从小牌堆抽 1 张
+  2. 若是宫廷牌 → 立即从大牌堆再抽 1 张大牌预览（双牌并行，玩家可任选先打哪张）
+  3. 数字牌 → 玩家/AI 选择元素阵打出 → endTurn()
+  4. 宫廷牌 → 选阵打出（宫廷牌+大牌双牌展示，可先打宫廷牌或大牌）:
+     - 先打宫廷牌 → 打出小牌 → 保留大牌 → phase='play_major' → 决定大牌打出/弃掉
+     - 先打大牌 → 打出大牌执行效果 → _courtPendingMinor 暂存宫廷牌 → 补打宫廷牌
+  5. 大牌效果可能触发选牌模式（select_card）→ 抽牌区交互选牌 → 确认后继续
+  6. 回合结束 → 切换对手 → 循环
 ```
 
 **终局触发**：小牌堆 `minorDeck.length === 0` 时立即进入 `endGame()`。
@@ -171,7 +172,9 @@
 1. 启动 → A 自动抽第一张小牌
 2. 玩家仅可点击**己方(A)**元素阵（下排蓝色高亮区域）
 3. 数字牌必须打入对应花色阵，禁用阵灰色不可点
-4. 宫廷牌 → 选阵打出 → 自动预览大牌 → 可点击☀️/🌑切换正逆位 → 再点元素阵打出大牌
+4. 宫廷牌 → 双牌并行展示（宫廷牌 + 大牌）→ 点击选择先打哪张 → 再点元素阵出牌
+   - 先打宫廷牌：选阵打出 → 保留大牌 → 可点击☀️/🌑切换正逆位 → 再点元素阵打出大牌
+   - 先打大牌：选阵打出大牌（执行效果） → 自动回到宫廷牌阶段 → 选阵打出宫廷牌
 5. AI 回合自动执行（setTimeout 链），抽牌区显示"AI思考中"
 6. 终局 → 弹窗展示 4 阵对决结果 → 宣布胜者
 
@@ -194,8 +197,9 @@ init() → TarotGame.reset() → 洗牌两副牌堆
 
 ┌─ 回合循环 ──────────────────────────────────┐
 │ startTurn() → 抽小牌                         │
-│   ├─ 数字牌: 点击阵出牌 → playMinorToElement  │
-│   └─ 宫廷牌: courtSelectElement → 抽大牌       │
+│   ├─ 宫廷牌: 立即再抽大牌（双牌并行）           │
+│   ├─ 数字牌: 点击阵出牌 → playMinorToElement    │
+│   └─ 宫廷牌: 选先打哪张 → courtSelectElement    │
 │       └─ majorDecision(打出/弃牌)             │
 │ endTurn() → 切换玩家 (A↔B)                    │
 │ 小牌堆空? → endGame()                        │
@@ -236,6 +240,10 @@ _selMode                       // 'pick1Major' | 'pick1Minor' | 'pick2Minor' | '
 _selCards[]                    // 候选牌数组
 _selContext{}                  // {effectName, player, element, onConfirm, onSkip}
 _selIndex / _selIndices        // 选中索引（单选/多选）
+// 宫廷牌双牌出牌
+_courtDualActive               // 玩家选择：null=待选择 'minor'=先打宫廷牌 'major'=先打大牌
+_courtPendingMinor             // 先打大牌时暂存宫廷牌
+_courtSkipTrigger              // 补打宫廷牌时跳过 playMinorToElement 内部大牌触发
 ```
 
 ## 8. 关键方法索引
@@ -330,6 +338,7 @@ tarot-battle-project/
 
 | 日期 | 分支/提交 | 修改内容 |
 |------|-----------|----------|
+| 2026-07-11 | `dev/tarot-update` | **宫廷牌双牌出牌流程统一**：①简化 `courtSelectElement()`，移除冗余的双选/正常双模式分支，统一为单一流程：`startTurn()` 中宫廷牌立即抽大牌预览，玩家可任选先打宫廷牌或大牌；②`playMinorToElement` 中的大牌触发逻辑降级为安全网兜底；③`_courtDualActive` / `_courtPendingMinor` / `_courtSkipTrigger` 三个状态变量配合"先打大牌后补打宫廷牌"流程；④清理过时注释，删除"正常模式""非双选模式"等误导性描述 |
 | 2026-07-10 | `dev/tarot-update` | **选牌交互模式 + 宫廷牌触发机制重构 + 幽灵引用修复**：①新增 `_enterSelectMode` / `confirmSelection` / `selectCard` / `_aiSelectCards` 等选牌框架，支持 `pick1Major`/`pick1Minor`/`pick2Minor`/`pick1MinorOrSkip` 四种选牌模式；②10个大牌效果（12U/12R/6U/2R/5U/9U/17U/19U/20R）从自动选牌改为交互选牌，在抽牌区展示候选牌，玩家点击选择后确认；③`playMinorToElement` 内部接管宫廷牌触发大牌逻辑（受 `skipCourtTrigger` 参数控制），移除 `startTurn` 中的大牌预览；④修复 `majorDecision` 中效果未触发新大牌时旧 `drawnMajor` 幽灵引用导致误判"效果触发新大牌"的 bug；⑤新增 `renderSelectionArea` 选牌 UI 及 `.card-selected` CSS 样式 |
 | 2026-07-10 | `dev/tarot-update` | **弃牌堆规则明确 + 教皇正位修复 + 宫廷牌规则调整**：①明确弃牌堆体系：`minorDiscard`(小牌弃牌堆)与 `majorDiscard`(大牌弃牌堆)分离，弃牌堆抽牌前先洗牌；②修复教皇正位(5U)与审判正位效果重复：教皇正位改为"弃牌堆抽3张选1张打出"；③宫廷牌规则改为必须在相同花色元素阵打出（与数字牌规则一致），修改 `onElementClick`、`aiAct`、`renderDrawArea` 等处代码 |
 | 2026-07-10 | `dev/tarot-update` | **v4 大牌效果全面重做**：①全部44个大牌效果替换为新版（基于 `tarotEffect.csv`）；②所有效果统一为一次性(instant)，彻底移除持续性/触发性机制；③删除 `_setupActiveMajor`、`_chkPersistent`、`_hasPriestessBlock`、`_checkTowerTrigger` 等旧辅助方法；④元素阵数据简化为 `{cards,score}`；⑤简化终局结算；⑥移除大牌双牌堆显示 |
