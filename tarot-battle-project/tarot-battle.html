@@ -299,6 +299,21 @@ body{
 @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(-20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 @keyframes toastOut{from{opacity:1}to{opacity:0}}
 
+/* 卡牌飞行动效 */
+.card-fly{
+  position:fixed;z-index:10000;pointer-events:none;
+  background:linear-gradient(165deg,rgba(35,28,50,0.96),rgba(18,12,32,0.96));
+  border:2px solid rgba(255,215,0,0.55);border-radius:10px;
+  box-shadow:0 6px 28px rgba(255,200,50,0.3);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  padding:8px;min-width:70px;min-height:95px;
+}
+.card-fly.major-fly{border-color:rgba(255,215,0,0.7);background:linear-gradient(165deg,rgba(40,30,20,0.96),rgba(25,15,10,0.96));}
+.card-fly .cf-icon{font-size:28px;line-height:1;}
+.card-fly .cf-name{font-weight:bold;color:#ffd700;font-size:11px;text-align:center;line-height:1.2;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.card-fly .cf-detail{font-size:9px;color:#999;text-align:center;}
+@keyframes cardFlyOut{to{opacity:0;transform:scale(0.5);}}
+
 @media(max-width:900px){.battle-row{grid-template-columns:repeat(2,1fr);}}
 
 /* 调试模式按钮 */
@@ -777,6 +792,7 @@ class TarotGame {
     this._courtDualActive = null; // 宫廷牌出牌选择：null=未选择 'minor'=先打宫廷牌 'major'=先打大牌
     this._courtPendingMinor = null; // 先打大牌时暂存宫廷牌，大牌效果执行后补打
     this._courtSkipTrigger = false; // 先打大牌后补打宫廷牌时，跳过大牌触发
+    this._flyAnimations = []; // 卡牌飞行动效队列
     this.gameOver = false;
     this.logs = [];
 
@@ -825,6 +841,9 @@ class TarotGame {
 
     const card = this.drawnMinor;
     this.addLog(`${p==='A'?'🔵 玩家A':'🔴 玩家B'} 抽到: ${card.name} (${card.points}点) ${card.subtype==='court'?'👑':''}`);
+
+    // 动效：小牌从牌堆飞到抽牌区
+    this._flyAnimations.push({ type:'draw', card:{icon:card.icon, name:card.name, points:card.points} });
 
     // 宫廷牌：立刻抽大牌预览，进入双选模式（可先打宫廷牌或大牌）
     if(card.subtype === 'court' && this.majorDeck.length > 0){
@@ -895,6 +914,9 @@ class TarotGame {
     this._effectDetail = '';
     this.addLog(`  → 打出大牌：${card.name}(${orient==='upright'?'正位':'逆位'}) → ${SUIT_NAMES[element]}阵`);
 
+    // 动效：大牌飞到目标元素阵
+    this._flyAnimations.push({ type:'play_major', card:{icon:'🌟', name:card.name, type:'major'}, targetPlayer:p, targetSuit:element });
+
     // 执行一次性效果
     this._execEffect(p, card, element, orient);
     this.majorDiscard.push(card);
@@ -958,6 +980,9 @@ class TarotGame {
     const pts = card.points;
     el.score += pts;
     this.addLog(`  → ${card.name}打入${SUIT_NAMES[element]}阵(+${pts})`);
+
+    // 动效：小牌飞到目标元素阵
+    this._flyAnimations.push({ type:'play_minor', card:{icon:card.icon, name:card.name, points:pts}, targetPlayer:player, targetSuit:element });
 
     // 宫廷牌触发抽大牌（安全网：大牌通常已在 startTurn 中提前抽取，此处在 drawnMajor 为空时兜底）
     if(card.subtype === 'court' && !skipCourtTrigger && this.majorDeck.length > 0){
@@ -2036,6 +2061,104 @@ class TarotGame {
   }
 }
 
+// ==================== 卡牌飞行动效 ====================
+/**
+ * 处理动效队列——在 render() 末尾调用，使用双重 RAF 等 DOM 渲染完成后执行
+ */
+function processFlyAnimations(){
+  if(!game._flyAnimations || game._flyAnimations.length === 0) return;
+  const anims = [...game._flyAnimations];
+  game._flyAnimations = [];
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      for(let i = 0; i < anims.length; i++){
+        setTimeout(() => executeFlyAnimation(anims[i]), i * 80);
+      }
+    });
+  });
+}
+
+function executeFlyAnimation(anim){
+  let sourceEl, targetEl, isMajor;
+
+  if(anim.type === 'draw'){
+    // 从小牌堆飞到抽牌区
+    sourceEl = document.querySelector('#deck-info .deck-count.minor');
+    targetEl = document.querySelector('#draw-area');
+    isMajor = false;
+  } else {
+    // play_minor / play_major: 从抽牌区飞到目标元素阵
+    sourceEl = document.querySelector('#draw-area');
+    targetEl = document.querySelector(`#zone-${anim.targetPlayer}-${anim.targetSuit}`);
+    isMajor = anim.type === 'play_major';
+  }
+
+  if(!sourceEl || !targetEl) return;
+
+  const sr = sourceEl.getBoundingClientRect();
+  const tr = targetEl.getBoundingClientRect();
+
+  const flyEl = document.createElement('div');
+  flyEl.className = `card-fly${isMajor?' major-fly':''}`;
+
+  const icon = anim.card.icon || '🃏';
+  const name = anim.card.name || '';
+  const detail = isMajor ? '大牌' : (anim.card.points ? anim.card.points + '点' : '');
+
+  flyEl.innerHTML = `
+    <div class="cf-icon">${icon}</div>
+    <div class="cf-name">${name}</div>
+    ${detail ? `<div class="cf-detail">${detail}</div>` : ''}
+  `;
+
+  // 初始位置：源元素中心
+  const w0 = Math.min(Math.max(sr.width, 70), 120);
+  const h0 = Math.min(Math.max(sr.height, 90), 150);
+  flyEl.style.cssText = `
+    position:fixed; z-index:10000; pointer-events:none;
+    left:${sr.left + sr.width/2 - w0/2}px;
+    top:${sr.top + sr.height/2 - h0/2}px;
+    width:${w0}px; height:${h0}px;
+    opacity:0.95;
+  `;
+
+  document.body.appendChild(flyEl);
+
+  // 触发飞行动画
+  flyEl.offsetHeight; // force layout
+
+  const scale = anim.type === 'draw' ? 1 : 0.55;
+  const tw = Math.min(48, tr.width * 0.4);
+  const th = Math.min(66, tr.height * 0.35);
+  flyEl.style.transition = 'all 0.52s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+  flyEl.style.left = `${tr.left + tr.width/2 - tw/2}px`;
+  flyEl.style.top = `${tr.top + tr.height/2 - th/2}px`;
+  flyEl.style.width = `${tw}px`;
+  flyEl.style.height = `${th}px`;
+  flyEl.style.opacity = '0.65';
+  flyEl.style.transform = `scale(${scale})`;
+
+  // 到达目标后高亮闪烁目标阵
+  highlightTargetZone(targetEl);
+
+  // 清理
+  setTimeout(() => {
+    flyEl.style.transition = 'opacity 0.15s';
+    flyEl.style.opacity = '0';
+    setTimeout(() => flyEl.remove(), 160);
+  }, 520);
+}
+
+function highlightTargetZone(el){
+  el.style.transition = 'box-shadow 0.15s';
+  el.style.boxShadow = '0 0 28px rgba(255,215,0,0.6), 0 0 60px rgba(255,215,0,0.2)';
+  setTimeout(() => {
+    el.style.boxShadow = '';
+    setTimeout(() => { el.style.transition = ''; }, 400);
+  }, 400);
+}
+
 // ==================== UI ====================
 let game;
 
@@ -2402,6 +2525,7 @@ function render(){
   </div>`;
 
   app.innerHTML = html;
+  processFlyAnimations();
 }
 
 function renderElementContent(player, suit, cardMode = false){
@@ -2676,6 +2800,22 @@ function renderDrawArea(cp){
       }
       html += `</div>`;
     }
+  } else if(game.drawnMajor && game.phase === 'play_major'){
+    // 宫廷牌已打出，仅剩大牌需要处理
+    const mc = game.drawnMajor;
+    const orient = game.majorOrientation;
+    const desc = orient==='upright' ? mc.effectDesc : mc.revEffectDesc;
+    html += `<div class="draw-preview-card major-preview">
+      <div class="pc-icon">🌟</div>
+      <div class="pc-name">${mc.name}</div>
+      <div class="pc-detail">${orient==='upright'?'☀️正位':'🌑逆位'}：${desc}</div>
+      <div class="toggle-orient" style="margin-top:auto;" onclick="event.stopPropagation();toggleOrientation()" title="点击切换正位/逆位">
+        <span class="arrow">${orient==='upright'?'☀️':'🌑'}</span>
+        <span>${orient==='upright'?'正位':'逆位'}</span>
+        <span style="font-size:10px;color:#888;">↔切换</span>
+      </div>
+      <div style="color:#ffd700;font-size:11px;">← 点击元素阵打出大牌</div>
+    </div>`;
   } else {
     html += `<div class="placeholder">等待抽牌...</div>`;
   }
