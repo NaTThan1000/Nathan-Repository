@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>走路动画预览 - issac-idle</title>
+<style>
+  body { background: #1a1a1a; color: #ddd; font-family: monospace; padding: 20px; }
+  h2 { margin: 8px 0 4px; font-size: 16px; }
+  canvas { border: 1px solid #555; image-rendering: pixelated; image-rendering: crisp-edges; margin: 6px; }
+  .row { display: flex; align-items: flex-start; gap: 20px; flex-wrap: wrap; }
+  .card { background: #222; padding: 10px 14px; border-radius: 8px; }
+  .label { color: #ff0; font-size: 13px; margin-bottom: 4px; }
+  button { margin: 4px; padding: 4px 14px; cursor: pointer; }
+  .speed { margin: 8px 0; }
+  input[type=range] { width: 120px; vertical-align: middle; }
+</style>
+</head>
+<body>
+<h1>走路动画预览</h1>
+<p style="color:#aaa;">同时播放 4 组候选动画，哪组是正面走路、哪组是背面走路一目了然</p>
+<div class="speed">
+  播放速度: <input id="speed" type="range" min="60" max="300" value="150"> <span id="speedVal">150ms/帧</span>
+</div>
+<div class="row" id="container"></div>
+
+<script>
+const FRAME_SIZE = 32;
+const DISPLAY_SCALE = 4;
+
+const img = new Image();
+img.src = 'issac-idle.png';
+
+img.onload = () => {
+  // 假设左上区: 4行8列，每列 8*32=256, 每行 4*32=128
+  // 左上区的 offset
+  const offsetX = 0;
+  const offsetY = 0;
+
+  const tests = [
+    {
+      title: 'A: 第0行 列6-7 (2帧)',
+      frames: [[0,6], [0,7]],
+    },
+    {
+      title: 'B: 第1行 列0-7 (8帧)',
+      frames: Array.from({length:8}, (_,i) => [1, i]),
+    },
+    {
+      title: 'C: 第2行 列0-7 (8帧)',
+      frames: Array.from({length:8}, (_,i) => [2, i]),
+    },
+    {
+      title: 'D: 第3行 列0-1 (2帧)',
+      frames: [[3,0], [3,1]],
+    },
+    {
+      title: 'A+B 拼接 (10帧)',
+      frames: [[0,6],[0,7], ...[...Array(8)].map((_,i)=>[1,i])],
+    },
+    {
+      title: 'C+D 拼接 (10帧)',
+      frames: [...[...Array(8)].map((_,i)=>[2,i]), [3,0],[3,1]],
+    },
+  ];
+
+  const container = document.getElementById('container');
+
+  tests.forEach((t, idx) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+
+    const title = document.createElement('div');
+    title.textContent = t.title;
+    title.style.color = '#fff';
+    title.style.fontWeight = 'bold';
+    title.style.marginBottom = '4px';
+    card.appendChild(title);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = FRAME_SIZE * DISPLAY_SCALE;
+    canvas.height = FRAME_SIZE * DISPLAY_SCALE;
+    canvas.id = 'c' + idx;
+    card.appendChild(canvas);
+
+    const pauseBtn = document.createElement('button');
+    pauseBtn.textContent = '暂停';
+    pauseBtn.dataset.running = '1';
+    pauseBtn.onclick = () => {
+      const running = pauseBtn.dataset.running === '1';
+      pauseBtn.dataset.running = running ? '0' : '1';
+      pauseBtn.textContent = running ? '播放' : '暂停';
+    };
+    card.appendChild(pauseBtn);
+
+    container.appendChild(card);
+
+    // 存数据
+    canvas._frames = t.frames;
+  });
+
+  let tick = 0;
+  const speedSlider = document.getElementById('speed');
+  const speedVal = document.getElementById('speedVal');
+  let interval = parseInt(speedSlider.value);
+  let lastTime = 0;
+
+  speedSlider.oninput = () => {
+    interval = parseInt(speedSlider.value);
+    speedVal.textContent = interval + 'ms/帧';
+  };
+
+  function animate(timestamp) {
+    if (timestamp - lastTime >= interval) {
+      lastTime = timestamp;
+      tick++;
+
+      tests.forEach((t, idx) => {
+        const canvas = document.getElementById('c' + idx);
+        const pauseBtn = canvas.parentElement.querySelector('button');
+        if (pauseBtn.dataset.running !== '1') return;
+
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const fi = tick % t.frames.length;
+        const [row, col] = t.frames[fi];
+
+        ctx.drawImage(img,
+          col * FRAME_SIZE, row * FRAME_SIZE,   // 源坐标 (左上区 offset 0,0)
+          FRAME_SIZE, FRAME_SIZE,
+          0, 0,
+          FRAME_SIZE * DISPLAY_SCALE, FRAME_SIZE * DISPLAY_SCALE
+        );
+
+        // 背景格
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, 0, canvas.width, canvas.height);
+      });
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  requestAnimationFrame(animate);
+};
+</script>
+</body>
+</html>

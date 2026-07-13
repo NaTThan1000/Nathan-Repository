@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Sprite Sheet 调试器 - issac-idle</title>
+<style>
+  body { background: #1a1a1a; color: #ddd; font-family: monospace; padding: 20px; }
+  canvas { border: 2px solid #444; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .info { margin: 10px 0; }
+  label { display: inline-block; width: 50px; }
+  input { width: 55px; margin-right: 12px; }
+  button { margin-right: 15px; padding: 4px 16px; cursor: pointer; }
+  #coords { color: #ff0; margin: 8px 0; font-size: 14px; min-height: 20px; }
+  #summary { color: #0f0; font-size: 13px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<h1>Sprite Sheet 调试 — issac-idle.png</h1>
+<div class="info">
+  <label>列数:</label><input id="cols" type="number" value="8" min="1" max="20">
+  <label>行数:</label><input id="rows" type="number" value="4" min="1" max="20">
+  <button id="apply">应用网格</button>
+  <label>缩放:</label><input id="scale" type="number" value="3" min="1" max="10">
+  <button id="btnGrid">切换网格</button>
+  <button id="btnNum">切换编号</button>
+</div>
+<div id="coords">鼠标移到图片上查看坐标</div>
+<div id="summary"></div>
+<canvas id="c"></canvas>
+
+<script>
+const img = new Image();
+img.src = 'issac-idle.png';
+
+let showGrid = true;
+let showNum  = true;
+
+img.onload = () => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  function draw() {
+    const cols  = parseInt(document.getElementById('cols').value);
+    const rows  = parseInt(document.getElementById('rows').value);
+    const scale = parseInt(document.getElementById('scale').value);
+    const fw = Math.floor(img.width / cols);
+    const fh = Math.floor(img.height / rows);
+
+    canvas.width  = img.width * scale;
+    canvas.height = img.height * scale;
+
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    if (showGrid) {
+      ctx.strokeStyle = 'rgba(255,0,0,0.75)';
+      ctx.lineWidth = 1;
+      for (let col = 0; col <= cols; col++) {
+        ctx.beginPath();
+        ctx.moveTo(col * fw * scale, 0);
+        ctx.lineTo(col * fw * scale, canvas.height);
+        ctx.stroke();
+      }
+      for (let row = 0; row <= rows; row++) {
+        ctx.beginPath();
+        ctx.moveTo(0, row * fh * scale);
+        ctx.lineTo(canvas.width, row * fh * scale);
+        ctx.stroke();
+      }
+    }
+
+    if (showNum) {
+      ctx.fillStyle = 'rgba(255,255,0,0.85)';
+      ctx.font = `bold ${Math.max(8, 9 * scale)}px monospace`;
+      ctx.textBaseline = 'top';
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const label = `${row},${col}`;
+          ctx.fillText(label, col * fw * scale + 2, row * fh * scale + 2);
+        }
+      }
+    }
+
+    document.getElementById('summary').innerHTML =
+      `总尺寸: <b>${img.width}×${img.height}</b> px | 每帧: <b>${fw}×${fh}</b> px | 网格: ${cols}列 × ${rows}行`;
+  }
+
+  canvas.addEventListener('mousemove', (e) => {
+    const scale = parseInt(document.getElementById('scale').value);
+    const cols  = parseInt(document.getElementById('cols').value);
+    const rows  = parseInt(document.getElementById('rows').value);
+    const fw = Math.floor(img.width / cols);
+    const fh = Math.floor(img.height / rows);
+
+    const rect = canvas.getBoundingClientRect();
+    const mx = Math.floor((e.clientX - rect.left) / scale);
+    const my = Math.floor((e.clientY - rect.top) / scale);
+    const col = Math.min(cols - 1, Math.max(0, Math.floor(mx / fw)));
+    const row = Math.min(rows - 1, Math.max(0, Math.floor(my / fh)));
+
+    document.getElementById('coords').innerHTML =
+      `像素: (${mx}, ${my}) | 格子: <b>[行${row}, 列${col}]</b> | 源坐标范围: sx=${col*fw}~${(col+1)*fw}, sy=${row*fh}~${(row+1)*fh}`;
+  });
+
+  document.getElementById('apply').addEventListener('click', draw);
+  document.getElementById('scale').addEventListener('change', draw);
+
+  document.getElementById('btnGrid').addEventListener('click', () => {
+    showGrid = !showGrid;
+    document.getElementById('btnGrid').textContent = showGrid ? '切换网格' : '切换网格';
+    draw();
+  });
+  document.getElementById('btnNum').addEventListener('click', () => {
+    showNum = !showNum;
+    document.getElementById('btnNum').textContent = showNum ? '切换编号' : '切换编号';
+    draw();
+  });
+
+  draw();
+};
+</script>
+</body>
+</html>

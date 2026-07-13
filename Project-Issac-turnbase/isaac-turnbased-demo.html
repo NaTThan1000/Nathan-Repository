@@ -148,6 +148,45 @@ canvas.style.height = (GAME_H * DISPLAY_SCALE) + 'px';
 // 关闭抗锯齿，保持像素锐利
 ctx.imageSmoothingEnabled = false;
 
+// ==================== 精灵图集加载 ====================
+const SPRITE = {
+  FW: 32, FH: 32,            // 每帧像素尺寸
+  img: new Image(),
+  loaded: false,
+  BASE_SIZE: 24,             // 角色基础渲染尺寸 (游戏像素)
+  ANIM_SPEED: 0.08,          // 走路动画帧间隔 (秒)
+
+  // 头像帧: 第0行, 列0-5
+  // 正面普通 / 正面射击 / 侧面普通 / 侧面射击 / 背面普通 / 背面射击
+  HEAD: {
+    down:  { normal: [0,0], shooting: [0,1] },
+    right: { normal: [0,2], shooting: [0,3] },
+    left:  { normal: [0,2], shooting: [0,3] },  // 复用侧面, 水平翻转
+    up:    { normal: [0,4], shooting: [0,5] },
+  },
+
+  // 走路帧 (完整角色): 正面=第0行6-7+第1行0-7, 侧面=第2行0-7+第3行0-1
+  WALK: {
+    down:  [[0,6],[0,7],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7]],
+    right: [[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[2,6],[2,7],[3,0],[3,1]],
+  },
+
+  maxFrame(dir) { return (this.WALK[dir] || this.WALK.down).length; },
+
+  needsFlipX(dir) { return dir === 'left'; },
+  // 背面缺失, 暂时复用正面
+  getWalkDir(dir) {
+    if (dir === 'down')  return 'down';
+    if (dir === 'right') return 'right';
+    if (dir === 'left')  return 'right';  // 复用侧面 + 水平翻转
+    if (dir === 'up')    return 'down';   // 背面缺失, 复用正面
+    return 'down';
+  },
+};
+
+SPRITE.img.onload = () => { SPRITE.loaded = true; };
+SPRITE.img.src = 'issac-idle.png';
+
 // ==================== 游戏常量 ====================
 const CFG = {
   WALL: 16,             // 墙壁厚度 (游戏像素)
@@ -159,7 +198,7 @@ const CFG = {
   DECAY_START_BEFORE: 0.2, // 提前多少格开始下落
   DECAY_SPEED_RATIO: 0.07, // 下落阶段水平速度比例
   DECAY_GRAVITY: 550,      // 下落阶段重力加速度
-  MOVE_SPEED:  280,        // 移动动画速度 (游戏像素/秒)
+  MOVE_SPEED:  70,         // 移动动画速度 (游戏像素/秒)
   GRAVITY: 180,            // 粒子重力加速度 (游戏像素/秒²)
   SHATTER_PARTICLES: 10,   // 碎裂粒子数
   SHATTER_DURATION: 0.25,  // 粒子持续时间 (秒)
@@ -217,6 +256,9 @@ const player = {
   py: WALL + 3 * CELL + CELL / 2,
   targetPx: null,
   targetPy: null,
+  walkFrame: 0,       // 当前走路动画帧索引
+  animTime: 0,        // 动画累计时间
+  shootTimer: 0,      // 射击表情计时器
 };
 
 let gamePhase  = 'idle';
@@ -273,6 +315,7 @@ function startMove(dir) {
   const t = gridToPixel(nc, nr);
   player.targetPx = t.x;
   player.targetPy = t.y;
+  player.animTime = 0;
   gamePhase = 'moving';
   updateUI();
 }
@@ -287,9 +330,16 @@ function updateMove(dt) {
     player.py = player.targetPy;
     player.targetPx = null;
     player.targetPy = null;
+    player.walkFrame = 0;
+    player.animTime = 0;
     gamePhase = 'idle';
     return;
   }
+  // 推进走路动画
+  player.animTime += dt;
+  const fd = SPRITE.maxFrame(SPRITE.getWalkDir(player.facing));
+  player.walkFrame = Math.floor(player.animTime / SPRITE.ANIM_SPEED) % fd;
+  // 移动
   const step = CFG.MOVE_SPEED * dt;
   const r = Math.min(step / dist, 1);
   player.px += dx * r;
@@ -300,6 +350,7 @@ function updateMove(dt) {
 function spawnBullet(dir) {
   if (gamePhase !== 'idle') return;
   player.facing = dir;
+  player.shootTimer = 0.4; // 射击表情持续 0.4 秒
   const vec = DIR_VEC[dir];
   const bx = player.px;
   const by = player.py;
@@ -590,73 +641,68 @@ function drawGridHighlight() {
   prect(Math.round(br.x - 1), Math.round(br.y - 1), 1, cSize, c);
 }
 
-// --- 像素风角色 (以撒风格) ---
+// --- 精灵图集渲染角色 (以撒风格) ---
 function drawPlayer() {
   const pp = project(player.px, player.py);
   const cx = Math.round(pp.x);
   const cy = Math.round(pp.y);
   const s = pp.s;
-
-  // 角色像素尺寸 (随透视缩放)
-  const cw = Math.max(5, Math.round(12 * s));  // 宽
-  const ch = Math.max(6, Math.round(14 * s));  // 高
-  const hw = Math.floor(cw / 2);
-  const hh = Math.floor(ch / 2);
-
   const vec = DIR_VEC[player.facing];
 
+  // 渲染尺寸 (随透视缩放)
+  const size = Math.round(SPRITE.BASE_SIZE * s);
+  const half = Math.floor(size / 2);
+  const drawX = cx - half;
+  const drawY = cy - half;
+
   // --- 阴影 (脚下) ---
-  const shadowW = Math.round(cw * 0.7);
+  const shadowW = Math.round(size * 0.7);
   const shadowH = Math.max(1, Math.round(3 * s));
-  prect(cx - Math.floor(shadowW / 2), cy + hh - 2, shadowW, shadowH, 'rgba(0,0,0,0.55)');
+  prect(cx - Math.floor(shadowW / 2), cy + half - 2, shadowW, shadowH, 'rgba(0,0,0,0.55)');
 
-  // --- 身体 ---
-  // 身体主体 (浅蓝灰)
-  prect(cx - hw + 1, cy - hh + 2, cw - 2, ch - 4, '#5a8a9e');
-  // 头部 (稍浅)
-  prect(cx - hw + 1, cy - hh, cw - 2, Math.round(ch * 0.38), '#7aaab8');
-  // 身体轮廓 (底部深色线)
-  prect(cx - hw + 1, cy - hh, cw - 2, 1, '#2a4048');
-  prect(cx - hw + 1, cy + hh - 1, cw - 2, 1, '#2a4048');
-  prect(cx - hw, cy - hh, 1, ch, '#2a4048');
-  prect(cx + hw - 1, cy - hh, 1, ch, '#2a4048');
+  if (!SPRITE.loaded) {
+    // 精灵未加载: 简易方块占位
+    prect(cx - half + 1, cy - half + 2, size - 2, size - 4, '#5a8a9e');
+    prect(cx - half + 1, cy - half, size - 2, Math.round(size * 0.38), '#7aaab8');
+  } else {
+    // --- 获取身体帧 ---
+    const walkDir = SPRITE.getWalkDir(player.facing);
+    const frames = SPRITE.WALK[walkDir];
+    const fi = Math.min(player.walkFrame, frames.length - 1);
+    const [bodyRow, bodyCol] = frames[fi];
+    const bodySX = bodyCol * SPRITE.FW;
+    const bodySY = bodyRow * SPRITE.FH;
 
-  // --- 眼睛 ---
-  const eyeSize = Math.max(2, Math.round(3 * s));
-  const eyeGap  = Math.max(2, Math.round(3 * s));
-  const eyeY    = cy - hh + Math.round(ch * 0.15);
+    // --- 获取头帧 ---
+    const headInfo = SPRITE.HEAD[player.facing];
+    const headState = player.shootTimer > 0 ? 'shooting' : 'normal';
+    const [headRow, headCol] = headInfo[headState];
+    const headSX = headCol * SPRITE.FW;
+    const headSY = headRow * SPRITE.FH;
+    const headY = drawY - Math.round(size * 0.30); // 头往上偏移, 露出身体
 
-  // 眼白
-  prect(cx - eyeGap - eyeSize, eyeY, eyeSize, eyeSize, '#ffffff');
-  prect(cx + eyeGap, eyeY, eyeSize, eyeSize, '#ffffff');
-
-  // 瞳孔 (朝向)
-  const pupilOff = Math.max(1, Math.round(1 * s));
-  prect(cx - eyeGap - eyeSize + vec.dx * pupilOff, eyeY + vec.dy * pupilOff, eyeSize - 1, eyeSize - 1, '#111111');
-
-  // --- 泪滴/嘴巴 (根据方向) ---
-  if (vec.dy === 1) {
-    // 朝下: 张嘴
-    const mouthW = Math.max(2, Math.round(4 * s));
-    prect(cx - Math.floor(mouthW / 2), cy - Math.round(1 * s), mouthW, Math.max(1, Math.round(2 * s)), '#3a2020');
-  } else if (vec.dy === -1) {
-    // 朝上: 不画嘴
+    if (SPRITE.needsFlipX(player.facing)) {
+      // 左朝向: 身体+头一起水平翻转
+      ctx.save();
+      ctx.translate(cx + half, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(SPRITE.img, bodySX, bodySY, SPRITE.FW, SPRITE.FH, 0, drawY, size, size);
+      ctx.drawImage(SPRITE.img, headSX, headSY, SPRITE.FW, SPRITE.FH, 0, headY, size, size);
+      ctx.restore();
+    } else {
+      // 身体 (底层)
+      ctx.drawImage(SPRITE.img, bodySX, bodySY, SPRITE.FW, SPRITE.FH, drawX, drawY, size, size);
+      // 头部 (上层叠加, 往上偏移露出身体)
+      ctx.drawImage(SPRITE.img, headSX, headSY, SPRITE.FW, SPRITE.FH, drawX, headY, size, size);
+    }
   }
-
-  // --- 小脚 ---
-  const footW = Math.max(1, Math.round(2 * s));
-  const footH = Math.max(1, Math.round(2 * s));
-  const footY = cy + hh - footH;
-  prect(cx - hw + Math.round(2 * s), footY, footW, footH, '#2a4048');
-  prect(cx + hw - Math.round(4 * s), footY, footW, footH, '#2a4048');
 
   // --- 方向指示三角 ---
   const triSize = Math.max(2, Math.round(3 * s));
-  const triDist = Math.round(hw * 1.1);
+  const triDist = Math.round(half * 1.1);
   const tx = cx + vec.dx * triDist;
   const ty = cy + vec.dy * triDist;
 
-  // 用像素方块拼出三角
   prect(tx, ty, 1, 1, '#ffcc88');
   for (let i = 1; i <= triSize; i++) {
     const px1 = tx + vec.dx * (-i) + vec.dy * i;
@@ -768,6 +814,7 @@ function gameLoop(timestamp) {
   updateMove(dt);
   updateBullets(dt);
   updateParticles(dt);
+  player.shootTimer = Math.max(0, player.shootTimer - dt);
   render();
   requestAnimationFrame(gameLoop);
 }
