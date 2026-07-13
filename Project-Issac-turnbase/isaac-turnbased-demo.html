@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>以撒半回合制 Demo — 透视像素风</title>
+<title>以撒半回合制 Demo — AP 行动点数系统</title>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -24,9 +24,9 @@
 
   h1 {
     color: #c9a96e;
-    font-size: 12px;
+    font-size: 11px;
     letter-spacing: 2px;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
     text-shadow: 2px 2px 0 #000, 0 0 12px rgba(201,169,110,0.4);
     text-align: center;
     line-height: 1.6;
@@ -48,9 +48,9 @@
   }
 
   #ui-panel {
-    margin-top: 14px;
+    margin-top: 12px;
     display: flex;
-    gap: 20px;
+    gap: 12px;
     flex-wrap: wrap;
     justify-content: center;
     color: #998866;
@@ -61,10 +61,10 @@
     background: #15151a;
     border: 2px solid #2a2520;
     border-radius: 0;
-    padding: 8px 12px;
+    padding: 8px 10px;
     text-align: center;
-    min-width: 90px;
-    min-height: 52px;
+    min-width: 70px;
+    min-height: 48px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -72,23 +72,26 @@
   }
 
   .ui-box .label {
-    font-size: 7px;
+    font-size: 6px;
     color: #6b5e44;
     letter-spacing: 1px;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
     white-space: nowrap;
   }
 
   .ui-box .value {
-    font-size: 10px;
+    font-size: 9px;
     color: #d4b87a;
     font-weight: normal;
-    min-height: 14px;
-    min-width: 60px;
+    min-height: 12px;
+    min-width: 50px;
     display: flex;
     align-items: center;
     justify-content: center;
   }
+
+  .ap-highlight { color: #ffcc44; }
+  .ap-dim { color: #554422; }
 
   .key-hint {
     color: #c9a96e;
@@ -97,150 +100,183 @@
     border-radius: 0;
     font-size: 7px;
     border: 1px solid #3a3020;
-    line-height: 2;
+    line-height: 1.8;
+  }
+
+  #ui-phase {
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+
+  .phase-player { color: #88ccff; }
+  .phase-shoot  { color: #ff8866; }
+  .phase-exec   { color: #ffcc44; }
+  .phase-monster { color: #ff4444; }
+
+  #action-bar {
+    margin-top: 8px;
+    min-height: 28px;
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    max-width: 960px;
+  }
+  .action-block {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 7px;
+    border: 2px solid #2a2520;
+    background: #15151a;
+    min-width: 26px;
+    height: 24px;
+    font-size: 8px;
+    font-family: 'Press Start 2P', monospace;
+  }
+  .action-block.move { border-color: #337799; color: #55aacc; background: #0f1618; }
+  .action-block.shoot { border-color: #993333; color: #ee6655; background: #180f0f; }
+  .action-block.step-num {
+    position: absolute;
+    font-size: 5px;
+    color: #555;
+    margin-top: -10px;
+  }
+  .action-bar-placeholder {
+    color: #332211;
+    font-size: 7px;
+    padding: 4px 10px;
   }
 </style>
 </head>
 <body>
 
-<h1>⚔ 以撒 · 半回合制战斗原型<br><span style="font-size:8px;color:#887755;">— 透视视角 · 像素风格 —</span></h1>
+<h1>⚔ 以撒 · 半回合制战斗原型<br><span style="font-size:7px;color:#887755;">— AP 行动点数系统 · 透视像素风格 —</span></h1>
 
 <div id="game-container">
   <canvas id="game"></canvas>
 </div>
 
+<div id="action-bar">
+  <span class="action-bar-placeholder">行为序列</span>
+</div>
+
 <div id="ui-panel">
   <div class="ui-box">
-    <div class="label">面朝方向</div>
-    <div class="value" id="ui-facing">↓</div>
+    <div class="label">HP</div>
+    <div class="value" id="ui-hp">6/6</div>
   </div>
   <div class="ui-box">
-    <div class="label">网格坐标</div>
-    <div class="value" id="ui-pos">(6, 3)</div>
+    <div class="label">A-AP</div>
+    <div class="value" id="ui-aap">2/2</div>
   </div>
   <div class="ui-box">
-    <div class="label">已发射子弹</div>
-    <div class="value" id="ui-shots">0</div>
+    <div class="label">M-AP</div>
+    <div class="value" id="ui-map">2/2</div>
+  </div>
+  <div class="ui-box">
+    <div class="label">阶段</div>
+    <div class="value" id="ui-phase">行为选择</div>
+  </div>
+  <div class="ui-box">
+    <div class="label">回合</div>
+    <div class="value" id="ui-turn">1</div>
   </div>
   <div class="ui-box">
     <span class="key-hint">WASD</span> 移动 &nbsp;
-    <span class="key-hint">↑↓←→</span> 射击
+    <span class="key-hint">J</span> 射击 &nbsp;
+    <span class="key-hint">K</span> 确认
+  </div>
+  <div class="ui-box">
+    <span class="key-hint">L</span> 取消 &nbsp;
+    <span class="key-hint">空格</span> 执行
+  </div>
+  <div class="ui-box">
+    <div class="label">属性</div>
+    <div class="value" style="font-size:7px;">攻3.5 射6 运0</div>
   </div>
 </div>
 
 <script>
 // ==================== 渲染配置 ====================
-const GAME_W  = 318;   // 游戏画布宽度 (低分辨率)
-const GAME_H  = 186;   // 游戏画布高度
-const DISPLAY_SCALE = 3; // CSS 放大倍数
+const GAME_W  = 318;
+const GAME_H  = 186;
+const DISPLAY_SCALE = 3;
 
 // ==================== 画布初始化 ====================
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-
-// 实际像素分辨率
 canvas.width  = GAME_W;
 canvas.height = GAME_H;
-// CSS 显示尺寸
 canvas.style.width  = (GAME_W * DISPLAY_SCALE) + 'px';
 canvas.style.height = (GAME_H * DISPLAY_SCALE) + 'px';
-
-// 关闭抗锯齿，保持像素锐利
 ctx.imageSmoothingEnabled = false;
 
 // ==================== 精灵图集加载 ====================
 const SPRITE = {
-  FW: 32, FH: 32,            // 每帧像素尺寸
+  FW: 32, FH: 32,
   img: new Image(),
   loaded: false,
-  BASE_SIZE: 24,             // 角色基础渲染尺寸 (游戏像素)
-  ANIM_SPEED: 0.08,          // 走路动画帧间隔 (秒)
-
-  // 头像帧: 第0行, 列0-5
-  // 正面普通 / 正面射击 / 侧面普通 / 侧面射击 / 背面普通 / 背面射击
+  BASE_SIZE: 24,
+  ANIM_SPEED: 0.08,
   HEAD: {
     down:  { normal: [0,0], shooting: [0,1] },
     right: { normal: [0,2], shooting: [0,3] },
-    left:  { normal: [0,2], shooting: [0,3] },  // 复用侧面, 水平翻转
+    left:  { normal: [0,2], shooting: [0,3] },
     up:    { normal: [0,4], shooting: [0,5] },
   },
-
-  // 走路帧 (完整角色): 正面=第0行6-7+第1行0-7, 侧面=第2行0-7+第3行0-1
   WALK: {
     down:  [[0,6],[0,7],[1,0],[1,1],[1,2],[1,3],[1,4],[1,5],[1,6],[1,7]],
     right: [[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[2,6],[2,7],[3,0],[3,1]],
   },
-
   maxFrame(dir) { return (this.WALK[dir] || this.WALK.down).length; },
-
   needsFlipX(dir) { return dir === 'left'; },
-  // 背面缺失, 暂时复用正面
   getWalkDir(dir) {
     if (dir === 'down')  return 'down';
     if (dir === 'right') return 'right';
-    if (dir === 'left')  return 'right';  // 复用侧面 + 水平翻转
-    if (dir === 'up')    return 'down';   // 背面缺失, 复用正面
+    if (dir === 'left')  return 'right';
+    if (dir === 'up')    return 'down';
     return 'down';
   },
 };
-
 SPRITE.img.onload = () => { SPRITE.loaded = true; };
 SPRITE.img.src = 'issac-idle.png';
 
 // ==================== 游戏常量 ====================
 const CFG = {
-  WALL: 16,             // 墙壁厚度 (游戏像素)
-  CELL: 22,             // 每格大小 (游戏像素)
-  COLS: 13,             // 房间宽度 (格)
-  ROWS: 7,              // 房间高度 (格)
-  BULLET_MAX_DIST: 3.0,    // 子弹最大飞行距离 (格)
-  BULLET_SPEED: 280,       // 子弹飞行速度 (游戏像素/秒)
-  DECAY_START_BEFORE: 0.2, // 提前多少格开始下落
-  DECAY_SPEED_RATIO: 0.07, // 下落阶段水平速度比例
-  DECAY_GRAVITY: 550,      // 下落阶段重力加速度
-  MOVE_SPEED:  70,         // 移动动画速度 (游戏像素/秒)
-  GRAVITY: 180,            // 粒子重力加速度 (游戏像素/秒²)
-  SHATTER_PARTICLES: 10,   // 碎裂粒子数
-  SHATTER_DURATION: 0.25,  // 粒子持续时间 (秒)
-  // 透视参数
-  VP_SCALE_TOP: 0.90,   // 画面上端缩放 (远 = 小)
-  VP_SCALE_BOT: 1.00,   // 画面下端缩放 (近 = 大)
+  WALL: 16,
+  CELL: 22,
+  COLS: 13,
+  ROWS: 7,
+  BULLET_MAX_DIST: 6.0,    // 射程=6
+  BULLET_SPEED: 280,
+  DECAY_START_BEFORE: 0.2,
+  DECAY_SPEED_RATIO: 0.07,
+  DECAY_GRAVITY: 550,
+  MOVE_SPEED: 70,
+  GRAVITY: 180,
+  SHATTER_PARTICLES: 10,
+  SHATTER_DURATION: 0.25,
+  VP_SCALE_TOP: 0.90,
+  VP_SCALE_BOT: 1.00,
+  GHOST_ALPHA: 0.4,        // 幽灵复制体透明度
+  EXEC_MOVE_SPEED: 85,     // 执行阶段移动速度 (稍快)
 };
 
 const WALL  = CFG.WALL;
 const CELL  = CFG.CELL;
 const COLS  = CFG.COLS;
 const ROWS  = CFG.ROWS;
-
-// 地板区域 (世界坐标)
 const FLOOR_L = WALL;
 const FLOOR_T = WALL;
-const FLOOR_R = WALL + COLS * CELL;  // 16 + 286 = 302
-const FLOOR_B = WALL + ROWS * CELL;  // 16 + 154 = 170
-
-// 透视中心
-const VP_CX = (FLOOR_L + FLOOR_R) / 2;   // = 159
+const FLOOR_R = WALL + COLS * CELL;
+const FLOOR_B = WALL + ROWS * CELL;
+const VP_CX = (FLOOR_L + FLOOR_R) / 2;
 const VP_S  = CFG.VP_SCALE_TOP;
 const VP_E  = CFG.VP_SCALE_BOT;
 
-// ==================== 透视投影 ====================
-// 根据世界 Y 坐标返回透视缩放因子 (0=顶部/远, 1=底部/近)
-function vpScale(wy) {
-  const t = Math.max(0, Math.min(1, (wy - FLOOR_T) / (FLOOR_B - FLOOR_T)));
-  return VP_S + t * (VP_E - VP_S);
-}
-
-// 将世界坐标投影到屏幕坐标 (透视)
-function project(wx, wy) {
-  const s = vpScale(wy);
-  return {
-    x: VP_CX + (wx - VP_CX) * s,
-    y: wy,
-    s: s,
-  };
-}
-
-// ==================== 游戏状态 ====================
+// ==================== 方向常量 ====================
 const DIR_VEC = {
   up:    { dx:  0, dy: -1, symbol: '↑' },
   down:  { dx:  0, dy:  1, symbol: '↓' },
@@ -248,47 +284,32 @@ const DIR_VEC = {
   right: { dx:  1, dy:  0, symbol: '→' },
 };
 
-const player = {
-  col: 6,
-  row: 3,
-  facing: 'down',
-  px: WALL + 6 * CELL + CELL / 2,
-  py: WALL + 3 * CELL + CELL / 2,
-  targetPx: null,
-  targetPy: null,
-  walkFrame: 0,       // 当前走路动画帧索引
-  animTime: 0,        // 动画累计时间
-  shootTimer: 0,      // 射击表情计时器
-};
-
-let gamePhase  = 'idle';
-let bullets    = [];
-let particles  = [];
-let totalShots = 0;
+// ==================== 透视投影 ====================
+function vpScale(wy) {
+  const t = Math.max(0, Math.min(1, (wy - FLOOR_T) / (FLOOR_B - FLOOR_T)));
+  return VP_S + t * (VP_E - VP_S);
+}
+function project(wx, wy) {
+  const s = vpScale(wy);
+  return { x: VP_CX + (wx - VP_CX) * s, y: wy, s };
+}
 
 // ==================== 坐标转换 ====================
 function gridToPixel(col, row) {
-  return {
-    x: WALL + col * CELL + CELL / 2,
-    y: WALL + row * CELL + CELL / 2,
-  };
+  return { x: WALL + col * CELL + CELL / 2, y: WALL + row * CELL + CELL / 2 };
 }
-
 function pixelToGrid(px, py) {
   return {
     col: Math.round((px - WALL - CELL / 2) / CELL),
     row: Math.round((py - WALL - CELL / 2) / CELL),
   };
 }
-
 function isWall(col, row) {
   return col < 0 || col >= COLS || row < 0 || row >= ROWS;
 }
-
 function bulletHitWall(bx, by) {
   const r = 2;
-  return bx - r < FLOOR_L || bx + r > FLOOR_R ||
-         by - r < FLOOR_T || by + r > FLOOR_B;
+  return bx - r < FLOOR_L || bx + r > FLOOR_R || by - r < FLOOR_T || by + r > FLOOR_B;
 }
 
 // ==================== 像素绘制辅助 ====================
@@ -296,173 +317,112 @@ function pset(x, y, c) {
   ctx.fillStyle = c;
   ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
 }
-
 function prect(x, y, w, h, c) {
   ctx.fillStyle = c;
   ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
 }
 
-// ==================== 移动系统 ====================
-function startMove(dir) {
-  if (gamePhase !== 'idle') return;
-  const vec = DIR_VEC[dir];
-  const nc = player.col + vec.dx;
-  const nr = player.row + vec.dy;
-  if (isWall(nc, nr)) return;
-  player.facing = dir;
-  player.col = nc;
-  player.row = nr;
-  const t = gridToPixel(nc, nr);
-  player.targetPx = t.x;
-  player.targetPy = t.y;
-  player.animTime = 0;
-  gamePhase = 'moving';
-  updateUI();
+// ==================== 玩家属性 ====================
+const playerStats = {
+  hp: 6,        maxHp: 6,
+  moveSpeed: 1,    // 移速 → M-AP上限 = moveSpeed * 2
+  fireRate: 2,     // 射速 → A-AP上限 = fireRate
+  attack: 3.5,
+  range: 6,
+  luck: 0,
+};
+
+// ==================== 玩家运行时状态 ====================
+const player = {
+  col: 6, row: 3,
+  facing: 'down',
+  px: WALL + 6 * CELL + CELL / 2,
+  py: WALL + 3 * CELL + CELL / 2,
+  targetPx: null, targetPy: null,
+  walkFrame: 0, animTime: 0,
+  shootTimer: 0,
+};
+
+// ==================== AP 与回合状态 ====================
+let turnState = {
+  phase: 'player_select',     // player_select | player_shoot_dir | player_execute | monster_turn
+  mAP: 0, maxMAP: 0,          // 移动行动点数
+  aAP: 0, maxAAP: 0,          // 攻击行动点数
+  actionQueue: [],            // [{type:'move'|'shoot', dir}]
+  pendingShootDir: null,      // 射击方向选择中暂存的方向
+  turnNumber: 1,
+  lastCheckpointIndex: -1,    // 最后一个射击行为在队列中的索引 (-1 = 无checkpoint)
+
+  // 执行状态
+  execIndex: 0,               // 当前正在执行第几个行为
+  execActive: false,          // 是否在执行队列中
+};
+
+let bullets    = [];
+let particles  = [];
+let totalShots = 0;
+
+// 初始化回合 AP
+function resetTurnAP() {
+  turnState.maxMAP = playerStats.moveSpeed * 2;
+  turnState.maxAAP = playerStats.fireRate;
+  turnState.mAP = turnState.maxMAP;
+  turnState.aAP = turnState.maxAAP;
+  turnState.actionQueue = [];
+  turnState.pendingShootDir = null;
+  turnState.phase = 'player_select';
+  turnState.execIndex = 0;
+  turnState.execActive = false;
+  turnState.lastCheckpointIndex = -1;
+  updateActionBar();
 }
 
-function updateMove(dt) {
-  if (gamePhase !== 'moving') return;
-  const dx = player.targetPx - player.px;
-  const dy = player.targetPy - player.py;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  if (dist < 1) {
-    player.px = player.targetPx;
-    player.py = player.targetPy;
-    player.targetPx = null;
-    player.targetPy = null;
-    player.walkFrame = 0;
-    player.animTime = 0;
-    gamePhase = 'idle';
-    return;
-  }
-  // 推进走路动画
-  player.animTime += dt;
-  const fd = SPRITE.maxFrame(SPRITE.getWalkDir(player.facing));
-  player.walkFrame = Math.floor(player.animTime / SPRITE.ANIM_SPEED) % fd;
-  // 移动
-  const step = CFG.MOVE_SPEED * dt;
-  const r = Math.min(step / dist, 1);
-  player.px += dx * r;
-  player.py += dy * r;
-}
-
-// ==================== 子弹系统 ====================
-function spawnBullet(dir) {
-  if (gamePhase !== 'idle') return;
-  player.facing = dir;
-  player.shootTimer = 0.4; // 射击表情持续 0.4 秒
-  const vec = DIR_VEC[dir];
-  const bx = player.px;
-  const by = player.py;
-  bullets.push({
-    x: bx, y: by,
-    dirX: vec.dx, dirY: vec.dy,
-    speed: CFG.BULLET_SPEED,
-    distTraveled: 0,
-    phase: 'flying',
-    decayTimer: 0,
-    vOff: 0, vVel: 0,
-    maxDist: CFG.BULLET_MAX_DIST * CELL,
-  });
-  totalShots++;
-  gamePhase = 'shooting';
-  updateUI();
-}
-
-function updateBullets(dt) {
-  for (let i = bullets.length - 1; i >= 0; i--) {
-    const b = bullets[i];
-    if (b.phase === 'flying') {
-      const s = b.speed * dt;
-      b.x += b.dirX * s;
-      b.y += b.dirY * s;
-      b.distTraveled += s;
-      if (bulletHitWall(b.x, b.y)) { shatterBullet(b); continue; }
-      // 距最大距离还剩 DECAY_START_BEFORE 格时开始下落
-      const decayDist = b.maxDist - CFG.DECAY_START_BEFORE * CELL;
-      if (b.distTraveled >= decayDist) {
-        b.phase = 'decaying';
-        b.speed = CFG.BULLET_SPEED * CFG.DECAY_SPEED_RATIO;
-        b.vVel = 0;
-        b.decayTimer = 0;
-      }
-    } else if (b.phase === 'decaying') {
-      b.decayTimer += dt;
-      const s = b.speed * dt;
-      b.x += b.dirX * s;
-      b.y += b.dirY * s;
-      b.distTraveled += s;
-      b.vVel += CFG.DECAY_GRAVITY * dt;
-      b.vOff += b.vVel * dt;
-      if (bulletHitWall(b.x, b.y)) { shatterBullet(b); continue; }
-      // 到达最大距离或落地 → 碎裂
-      if (b.distTraveled >= b.maxDist || b.vOff > CELL * 0.6) {
-        if (b.distTraveled >= b.maxDist) b.distTraveled = b.maxDist;
-        shatterBullet(b);
-      }
-    } else if (b.phase === 'dying') {
-      b.shatterTimer -= dt;
-      if (b.shatterTimer <= 0) {
-        bullets.splice(i, 1);
-        if (bullets.length === 0) gamePhase = 'idle';
-      }
+// 计算队列中所有移动后的幽灵位置
+function calcGhostPos() {
+  let col = player.col;
+  let row = player.row;
+  for (const act of turnState.actionQueue) {
+    if (act.type === 'move') {
+      const v = DIR_VEC[act.dir];
+      col += v.dx;
+      row += v.dy;
     }
   }
+  return { col, row };
 }
 
-function shatterBullet(b) {
-  b.phase = 'dying';
-  b.shatterTimer = CFG.SHATTER_DURATION;
-  const n = CFG.SHATTER_PARTICLES;
-  for (let j = 0; j < n; j++) {
-    const angle = (Math.PI * 2 * j) / n + (Math.random() - 0.5) * 0.8;
-    const spd = 30 + Math.random() * 60;
-    particles.push({
-      x: b.x, y: b.y + b.vOff,
-      vx: Math.cos(angle) * spd,
-      vy: Math.sin(angle) * spd - 15,
-      life: CFG.SHATTER_DURATION + Math.random() * 0.25,
-      maxLife: CFG.SHATTER_DURATION + Math.random() * 0.25,
-      size: 1,
-      color: Math.random() < 0.5 ? '#ffdd88' : '#ff9944',
-    });
+// 生成移动箭头列表
+function calcMoveArrows() {
+  const arrows = [];
+  let col = player.col;
+  let row = player.row;
+  for (const act of turnState.actionQueue) {
+    if (act.type === 'move') {
+      const v = DIR_VEC[act.dir];
+      const nc = col + v.dx;
+      const nr = row + v.dy;
+      arrows.push({ fromCol: col, fromRow: row, toCol: nc, toRow: nr });
+      col = nc;
+      row = nr;
+    }
   }
-}
-
-function updateParticles(dt) {
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    p.vy += CFG.GRAVITY * 0.5 * dt;
-    p.life -= dt;
-    if (p.life <= 0) particles.splice(i, 1);
-  }
-  if (gamePhase === 'shooting' && bullets.length === 0 && particles.length === 0) {
-    gamePhase = 'idle';
-  }
+  return arrows;
 }
 
 // ==================== 渲染系统 ====================
 
 // --- 墙壁 ---
 function drawWalls() {
-  // 全背景填充
   prect(0, 0, GAME_W, GAME_H, '#1a1815');
-
-  // 墙壁石头纹理 (像素风)
   const stones = ['#343028', '#383226', '#302c24', '#362e24', '#3a3228', '#2e2a22'];
-  // 上墙区域
   for (let rx = 0; rx < GAME_W; rx += 4) {
     for (let ry = 0; ry < WALL; ry += 4) {
       const ci = (Math.floor(rx / 4) + Math.floor(ry / 4)) % stones.length;
       prect(rx, ry, 4, 4, stones[ci]);
-      // 石缝
       if (Math.floor(rx / 4) % 3 === 0) prect(rx, ry, 1, 4, '#1a1612');
       if (Math.floor(ry / 4) % 3 === 0) prect(rx, ry, 4, 1, '#1a1612');
     }
   }
-  // 下墙区域
   for (let rx = 0; rx < GAME_W; rx += 4) {
     for (let ry = FLOOR_B; ry < GAME_H; ry += 4) {
       const ci = (Math.floor(rx / 4) + Math.floor(ry / 4) + 3) % stones.length;
@@ -471,7 +431,6 @@ function drawWalls() {
       if (Math.floor(ry / 4) % 3 === 0) prect(rx, ry, 4, 1, '#1a1612');
     }
   }
-  // 左墙区域
   for (let rx = 0; rx < WALL; rx += 4) {
     for (let ry = 0; ry < GAME_H; ry += 4) {
       const ci = (Math.floor(rx / 4) + Math.floor(ry / 4) + 1) % stones.length;
@@ -480,7 +439,6 @@ function drawWalls() {
       if (Math.floor(ry / 4) % 3 === 0) prect(rx, ry, 4, 1, '#1a1612');
     }
   }
-  // 右墙区域
   for (let rx = FLOOR_R; rx < GAME_W; rx += 4) {
     for (let ry = 0; ry < GAME_H; ry += 4) {
       const ci = (Math.floor(rx / 4) + Math.floor(ry / 4) + 2) % stones.length;
@@ -489,60 +447,36 @@ function drawWalls() {
       if (Math.floor(ry / 4) % 3 === 0) prect(rx, ry, 4, 1, '#1a1612');
     }
   }
-
-  // 墙壁内缘高光线 (透视)
   const ptTL = project(FLOOR_L, FLOOR_T);
   const ptTR = project(FLOOR_R, FLOOR_T);
   const ptBL = project(FLOOR_L, FLOOR_B);
   const ptBR = project(FLOOR_R, FLOOR_B);
-
-  ctx.strokeStyle = '#5a4d3a';
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = '#5a4d3a'; ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(ptTL.x, ptTL.y);
-  ctx.lineTo(ptTR.x, ptTR.y);
-  ctx.lineTo(ptBR.x, ptBR.y);
-  ctx.lineTo(ptBL.x, ptBL.y);
-  ctx.closePath();
-  ctx.stroke();
-
-  // 内缘阴影
+  ctx.moveTo(ptTL.x, ptTL.y); ctx.lineTo(ptTR.x, ptTR.y);
+  ctx.lineTo(ptBR.x, ptBR.y); ctx.lineTo(ptBL.x, ptBL.y);
+  ctx.closePath(); ctx.stroke();
   ctx.strokeStyle = '#1a1510';
-  ctx.lineWidth = 1;
   ctx.strokeRect(FLOOR_L + 1, FLOOR_T + 1, FLOOR_R - FLOOR_L - 2, FLOOR_B - FLOOR_T - 2);
 }
 
-// --- 地板: 透视梯形瓷砖 ---
+// --- 地板 ---
 function drawFloor() {
-  // 底色
   prect(FLOOR_L, FLOOR_T, FLOOR_R - FLOOR_L, FLOOR_B - FLOOR_T, '#2a2520');
-
-  // 每块地砖绘制为梯形 (透视)
   for (let row = 0; row < ROWS; row++) {
     const yTop = FLOOR_T + row * CELL;
     const yBot = FLOOR_T + (row + 1) * CELL;
-
     for (let col = 0; col < COLS; col++) {
       const xL = FLOOR_L + col * CELL;
       const xR = FLOOR_L + (col + 1) * CELL;
-
-      const tl = project(xL, yTop);
-      const tr = project(xR, yTop);
-      const bl = project(xL, yBot);
-      const br = project(xR, yBot);
-
-      // 交替颜色
+      const tl = project(xL, yTop); const tr = project(xR, yTop);
+      const bl = project(xL, yBot); const br = project(xR, yBot);
       const shade = ((col + row) % 2 === 0) ? '#2e2822' : '#27231e';
       ctx.fillStyle = shade;
       ctx.beginPath();
-      ctx.moveTo(tl.x, tl.y);
-      ctx.lineTo(tr.x, tr.y);
-      ctx.lineTo(br.x, br.y);
-      ctx.lineTo(bl.x, bl.y);
-      ctx.closePath();
-      ctx.fill();
-
-      // 地砖内部纹理
+      ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+      ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+      ctx.closePath(); ctx.fill();
       const shade2 = ((col + row) % 2 === 0) ? '#322c26' : '#2b2620';
       const inset = 3;
       const itl = project(xL + inset, yTop + inset);
@@ -551,45 +485,24 @@ function drawFloor() {
       const ibr = project(xR - inset, yBot - inset);
       ctx.fillStyle = shade2;
       ctx.beginPath();
-      ctx.moveTo(itl.x, itl.y);
-      ctx.lineTo(itr.x, itr.y);
-      ctx.lineTo(ibr.x, ibr.y);
-      ctx.lineTo(ibl.x, ibl.y);
-      ctx.closePath();
-      ctx.fill();
+      ctx.moveTo(itl.x, itl.y); ctx.lineTo(itr.x, itr.y);
+      ctx.lineTo(ibr.x, ibr.y); ctx.lineTo(ibl.x, ibl.y);
+      ctx.closePath(); ctx.fill();
     }
   }
-
-  // 透视网格线
-  ctx.strokeStyle = '#1f1b17';
-  ctx.lineWidth = 1;
-
-  // 竖线 (透视: 往上方汇聚)
+  ctx.strokeStyle = '#1f1b17'; ctx.lineWidth = 1;
   for (let col = 1; col < COLS; col++) {
     const x = FLOOR_L + col * CELL;
-    const ptTop = project(x, FLOOR_T);
-    const ptBot = project(x, FLOOR_B);
-    ctx.beginPath();
-    ctx.moveTo(ptTop.x, ptTop.y);
-    ctx.lineTo(ptBot.x, ptBot.y);
-    ctx.stroke();
+    const ptTop = project(x, FLOOR_T); const ptBot = project(x, FLOOR_B);
+    ctx.beginPath(); ctx.moveTo(ptTop.x, ptTop.y); ctx.lineTo(ptBot.x, ptBot.y); ctx.stroke();
   }
-
-  // 横线
   for (let row = 1; row < ROWS; row++) {
     const y = FLOOR_T + row * CELL;
-    const ptL = project(FLOOR_L, y);
-    const ptR = project(FLOOR_R, y);
-    ctx.beginPath();
-    ctx.moveTo(ptL.x, ptL.y);
-    ctx.lineTo(ptR.x, ptR.y);
-    ctx.stroke();
+    const ptL = project(FLOOR_L, y); const ptR = project(FLOOR_R, y);
+    ctx.beginPath(); ctx.moveTo(ptL.x, ptL.y); ctx.lineTo(ptR.x, ptR.y); ctx.stroke();
   }
-
-  // 墙角四个小箭头标记 (透视)
   const cornerMark = (wx, wy, dx, dy) => {
-    const p = project(wx, wy);
-    const s = p.s;
+    const p = project(wx, wy); const s = p.s;
     const len = Math.round(4 * s);
     prect(p.x + dx, p.y + dy, len, 1, 'rgba(255,200,100,0.6)');
     prect(p.x + dx, p.y + dy, 1, len, 'rgba(255,200,100,0.6)');
@@ -603,86 +516,152 @@ function drawFloor() {
 // --- 网格高亮 ---
 function drawGridHighlight() {
   const { col, row } = player;
-  const xL = FLOOR_L + col * CELL;
-  const xR = FLOOR_L + (col + 1) * CELL;
-  const yT = FLOOR_T + row * CELL;
-  const yB = FLOOR_T + (row + 1) * CELL;
-
-  const tl = project(xL, yT);
-  const tr = project(xR, yT);
-  const bl = project(xL, yB);
-  const br = project(xR, yB);
-
-  ctx.strokeStyle = 'rgba(255,200,100,0.45)';
-  ctx.lineWidth = 1;
+  const xL = FLOOR_L + col * CELL, xR = FLOOR_L + (col + 1) * CELL;
+  const yT = FLOOR_T + row * CELL, yB = FLOOR_T + (row + 1) * CELL;
+  const tl = project(xL, yT), tr = project(xR, yT);
+  const bl = project(xL, yB), br = project(xR, yB);
+  ctx.strokeStyle = 'rgba(255,200,100,0.45)'; ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(tl.x, tl.y);
-  ctx.lineTo(tr.x, tr.y);
-  ctx.lineTo(br.x, br.y);
-  ctx.lineTo(bl.x, bl.y);
-  ctx.closePath();
-  ctx.stroke();
-
-  // 四角高亮 L 形标记 (透视)
+  ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+  ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+  ctx.closePath(); ctx.stroke();
   const s = vpScale((yT + yB) / 2);
   const cSize = Math.max(2, Math.round(3 * s));
   const c = 'rgba(255,200,100,0.6)';
-  // 左上: 向右 + 向下
   prect(Math.round(tl.x + 1), Math.round(tl.y + 1), cSize, 1, c);
   prect(Math.round(tl.x + 1), Math.round(tl.y + 1), 1, cSize, c);
-  // 右上: 向左 + 向下
   prect(Math.round(tr.x - 1 - cSize), Math.round(tr.y + 1), cSize, 1, c);
   prect(Math.round(tr.x - 1), Math.round(tr.y + 1), 1, cSize, c);
-  // 左下: 向右 + 向上
   prect(Math.round(bl.x + 1), Math.round(bl.y - 1 - cSize), cSize, 1, c);
   prect(Math.round(bl.x + 1), Math.round(bl.y - 1), 1, cSize, c);
-  // 右下: 向左 + 向上
   prect(Math.round(br.x - 1 - cSize), Math.round(br.y - 1 - cSize), cSize, 1, c);
   prect(Math.round(br.x - 1), Math.round(br.y - 1), 1, cSize, c);
 }
 
-// --- 精灵图集渲染角色 (以撒风格) ---
-function drawPlayer() {
-  const pp = project(player.px, player.py);
-  const cx = Math.round(pp.x);
-  const cy = Math.round(pp.y);
-  const s = pp.s;
-  const vec = DIR_VEC[player.facing];
+// --- 地面移动箭头 (40%透明度) ---
+function drawMoveArrows() {
+  if (turnState.phase !== 'player_select' && turnState.phase !== 'player_shoot_dir') return;
+  const arrows = calcMoveArrows();
+  if (arrows.length === 0) return;
+  ctx.save();
+  ctx.globalAlpha = CFG.GHOST_ALPHA;
 
-  // 渲染尺寸 (随透视缩放)
+  for (const arr of arrows) {
+    const fromPx = gridToPixel(arr.fromCol, arr.fromRow);
+    const toPx   = gridToPixel(arr.toCol, arr.toRow);
+    const fp = project(fromPx.x, fromPx.y);
+    const tp = project(toPx.x, toPx.y);
+    const dx = tp.x - fp.x;
+    const dy = tp.y - fp.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1) continue;
+    const ux = dx / len, uy = dy / len;
+
+    // 画箭头线 (粗像素)
+    const s = fp.s;
+    const thick = Math.max(2, Math.round(3 * s));
+    const headLen = Math.max(4, Math.round(5 * s));
+
+    // 主线
+    const startX = fp.x + ux * (CELL * 0.18 * fp.s);
+    const endX = tp.x - ux * (headLen);
+    const startY = fp.y + uy * (CELL * 0.18 * fp.s);
+    const endY = tp.y - uy * (headLen);
+
+    // 粗线
+    for (let i = -Math.floor(thick / 2); i <= Math.floor(thick / 2); i++) {
+      const px = uy * i;
+      const py = -ux * i;
+      ctx.strokeStyle = '#ffcc44';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(Math.round(startX + px), Math.round(startY + py));
+      ctx.lineTo(Math.round(endX + px), Math.round(endY + py));
+      ctx.stroke();
+    }
+
+    // 箭头尖端 (三角)
+    ctx.fillStyle = '#ffcc44';
+    const tipX = tp.x - ux * (CELL * 0.06 * fp.s);
+    const tipY = tp.y - uy * (CELL * 0.06 * fp.s);
+    ctx.beginPath();
+    ctx.moveTo(Math.round(tipX), Math.round(tipY));
+    ctx.lineTo(Math.round(endX + uy * headLen * 0.5), Math.round(endY - ux * headLen * 0.5));
+    ctx.lineTo(Math.round(endX - uy * headLen * 0.5), Math.round(endY + ux * headLen * 0.5));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+// --- 射击方向预览线 (在射击方向选择阶段，从幽灵位置出发) ---
+function drawShootPreview() {
+  if (turnState.phase !== 'player_shoot_dir' || !turnState.pendingShootDir) return;
+  const dir = turnState.pendingShootDir;
+  const vec = DIR_VEC[dir];
+  // 从幽灵复制体位置出发
+  const ghost = calcGhostPos();
+  const gp = gridToPixel(ghost.col, ghost.row);
+  const pp = project(gp.x, gp.y);
+  const s = pp.s;
+  const lineLen = CFG.BULLET_MAX_DIST * CELL * s;
+
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = '#ff6644';
+  ctx.lineWidth = Math.max(1, Math.round(1.5 * s));
+  ctx.setLineDash([4 * s, 3 * s]);
+  ctx.beginPath();
+  ctx.moveTo(Math.round(pp.x), Math.round(pp.y));
+  ctx.lineTo(Math.round(pp.x + vec.dx * lineLen), Math.round(pp.y + vec.dy * lineLen));
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+// --- 角色渲染 (通用，支持透明度参数) ---
+function drawCharacterAt(px, py, facing, walkFrame, shootTimer, alpha) {
+  if (alpha === undefined) alpha = 1;
+
+  const pp = project(px, py);
+  const cx = Math.round(pp.x), cy = Math.round(pp.y);
+  const s = pp.s;
+  const vec = DIR_VEC[facing];
   const size = Math.round(SPRITE.BASE_SIZE * s);
   const half = Math.floor(size / 2);
-  const drawX = cx - half;
-  const drawY = cy - half;
+  const drawX = cx - half, drawY = cy - half;
 
-  // --- 阴影 (脚下) ---
+  // 阴影
   const shadowW = Math.round(size * 0.7);
   const shadowH = Math.max(1, Math.round(3 * s));
+  ctx.save();
+  ctx.globalAlpha = alpha * 0.55;
   prect(cx - Math.floor(shadowW / 2), cy + half - 2, shadowW, shadowH, 'rgba(0,0,0,0.55)');
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
 
   if (!SPRITE.loaded) {
-    // 精灵未加载: 简易方块占位
     prect(cx - half + 1, cy - half + 2, size - 2, size - 4, '#5a8a9e');
     prect(cx - half + 1, cy - half, size - 2, Math.round(size * 0.38), '#7aaab8');
   } else {
-    // --- 获取身体帧 ---
-    const walkDir = SPRITE.getWalkDir(player.facing);
+    const walkDir = SPRITE.getWalkDir(facing);
     const frames = SPRITE.WALK[walkDir];
-    const fi = Math.min(player.walkFrame, frames.length - 1);
+    const fi = Math.min(walkFrame, frames.length - 1);
     const [bodyRow, bodyCol] = frames[fi];
     const bodySX = bodyCol * SPRITE.FW;
     const bodySY = bodyRow * SPRITE.FH;
 
-    // --- 获取头帧 ---
-    const headInfo = SPRITE.HEAD[player.facing];
-    const headState = player.shootTimer > 0 ? 'shooting' : 'normal';
+    const headInfo = SPRITE.HEAD[facing];
+    const headState = shootTimer > 0 ? 'shooting' : 'normal';
     const [headRow, headCol] = headInfo[headState];
     const headSX = headCol * SPRITE.FW;
     const headSY = headRow * SPRITE.FH;
-    const headY = drawY - Math.round(size * 0.30); // 头往上偏移, 露出身体
+    const headY = drawY - Math.round(size * 0.30);
 
-    if (SPRITE.needsFlipX(player.facing)) {
-      // 左朝向: 身体+头一起水平翻转
+    if (SPRITE.needsFlipX(facing)) {
       ctx.save();
       ctx.translate(cx + half, 0);
       ctx.scale(-1, 1);
@@ -690,52 +669,66 @@ function drawPlayer() {
       ctx.drawImage(SPRITE.img, headSX, headSY, SPRITE.FW, SPRITE.FH, 0, headY, size, size);
       ctx.restore();
     } else {
-      // 身体 (底层)
       ctx.drawImage(SPRITE.img, bodySX, bodySY, SPRITE.FW, SPRITE.FH, drawX, drawY, size, size);
-      // 头部 (上层叠加, 往上偏移露出身体)
       ctx.drawImage(SPRITE.img, headSX, headSY, SPRITE.FW, SPRITE.FH, drawX, headY, size, size);
     }
   }
 
-  // --- 方向指示三角 ---
+  // 方向三角
   const triSize = Math.max(2, Math.round(3 * s));
   const triDist = Math.round(half * 1.1);
   const tx = cx + vec.dx * triDist;
   const ty = cy + vec.dy * triDist;
-
   prect(tx, ty, 1, 1, '#ffcc88');
   for (let i = 1; i <= triSize; i++) {
-    const px1 = tx + vec.dx * (-i) + vec.dy * i;
-    const py1 = ty + vec.dy * (-i) - vec.dx * i;
-    const px2 = tx + vec.dx * (-i) - vec.dy * i;
-    const py2 = ty + vec.dy * (-i) + vec.dx * i;
-    prect(px1, py1, 1, 1, '#ffcc88');
-    prect(px2, py2, 1, 1, '#ffcc88');
+    prect(tx + vec.dx * (-i) + vec.dy * i, ty + vec.dy * (-i) - vec.dx * i, 1, 1, '#ffcc88');
+    prect(tx + vec.dx * (-i) - vec.dy * i, ty + vec.dy * (-i) + vec.dx * i, 1, 1, '#ffcc88');
   }
+
+  ctx.restore();
+}
+
+// --- 幽灵复制体 (40%透明度) ---
+function drawGhost() {
+  if (turnState.phase !== 'player_select' && turnState.phase !== 'player_shoot_dir') return;
+  const ghost = calcGhostPos();
+  if (ghost.col === player.col && ghost.row === player.row) return;
+  const gp = gridToPixel(ghost.col, ghost.row);
+  // 幽灵朝向：最后一个行为的方向，或保持玩家朝向
+  let ghostFacing = player.facing;
+  const lastMove = [...turnState.actionQueue].reverse().find(a => a.type === 'move');
+  if (lastMove) ghostFacing = lastMove.dir;
+  drawCharacterAt(gp.x, gp.y, ghostFacing, 0, 0, CFG.GHOST_ALPHA);
+
+  // 幽灵坐标标签
+  const gpp = project(gp.x, gp.y);
+  const s = gpp.s;
+  ctx.save();
+  ctx.globalAlpha = CFG.GHOST_ALPHA;
+  ctx.fillStyle = '#ffcc88';
+  ctx.font = `${Math.max(5, Math.round(6 * s))}px 'Press Start 2P'`;
+  ctx.textAlign = 'center';
+  ctx.fillText(`(${ghost.col},${ghost.row})`, Math.round(gpp.x), Math.round(gpp.y - SPRITE.BASE_SIZE * s * 0.5 - 6 * s));
+  ctx.restore();
+}
+
+// --- 玩家渲染 ---
+function drawPlayer() {
+  drawCharacterAt(player.px, player.py, player.facing, player.walkFrame, player.shootTimer);
 }
 
 // --- 像素风子弹 ---
 function drawBullets() {
   for (const b of bullets) {
     if (b.phase === 'dying') continue;
-
     const bp = project(b.x, b.y);
-    const bx = Math.round(bp.x);
-    const by = Math.round(bp.y + b.vOff);
+    const bx = Math.round(bp.x), by = Math.round(bp.y + b.vOff);
     const s = bp.s;
-
     const size = Math.max(1, Math.round(2 * s));
-
-    // 光晕 (像素方块)
     prect(bx - size * 2, by - size * 2, size * 4, size * 4, 'rgba(255,200,60,0.35)');
     prect(bx - size, by - size, size * 2, size * 2, 'rgba(255,220,100,0.55)');
-
-    // 子弹核心
     prect(bx - Math.floor(size / 2), by - Math.floor(size / 2), size, size, '#ffeebb');
-    // 高亮点
     prect(bx - Math.floor(size / 2), by - Math.floor(size / 2), 1, 1, '#ffffff');
-
-    // 拖尾 (几个像素)
     if (b.distTraveled > 2) {
       const tx = bx - b.dirX * Math.round(3 * s);
       const ty = by - b.dirY * Math.round(3 * s);
@@ -754,11 +747,8 @@ function drawParticles() {
     const alpha = Math.max(0, p.life / p.maxLife);
     const s = pp.s;
     const sz = Math.max(1, Math.round(p.size * alpha * s));
-
     ctx.globalAlpha = alpha;
     prect(Math.round(pp.x) - sz, Math.round(pp.y) - sz, sz * 2, sz * 2, p.color);
-
-    // 发光小点
     if (alpha > 0.4) {
       ctx.globalAlpha = alpha * 0.6;
       prect(Math.round(pp.x), Math.round(pp.y), 1, 1,
@@ -774,34 +764,365 @@ function render() {
   drawWalls();
   drawFloor();
   drawGridHighlight();
+  drawMoveArrows();
+  drawShootPreview();
   drawBullets();
   drawParticles();
+  drawGhost();
   drawPlayer();
 }
 
 // ==================== UI 更新 ====================
+function updateActionBar() {
+  const bar = document.getElementById('action-bar');
+  bar.innerHTML = '';
+
+  if (turnState.actionQueue.length === 0) {
+    bar.innerHTML = '<span class="action-bar-placeholder">行为序列</span>';
+    return;
+  }
+
+  const dirIcons = { up:'↑', down:'↓', left:'←', right:'→' };
+
+  for (let i = 0; i < turnState.actionQueue.length; i++) {
+    const act = turnState.actionQueue[i];
+    const block = document.createElement('span');
+    block.className = 'action-block ' + act.type;
+
+    if (act.type === 'move') {
+      block.textContent = dirIcons[act.dir] || act.dir;
+    } else if (act.type === 'shoot') {
+      block.textContent = '⊕' + (dirIcons[act.dir] || '');
+    }
+
+    // checkpoint 标记：shoot块后面加上锁定图标
+    if (act.type === 'shoot' && i === turnState.lastCheckpointIndex) {
+      block.style.borderColor = '#cc6644';
+    }
+
+    bar.appendChild(block);
+  }
+}
+
 function updateUI() {
-  document.getElementById('ui-facing').textContent = DIR_VEC[player.facing].symbol;
-  document.getElementById('ui-pos').textContent = `(${player.col}, ${player.row})`;
-  document.getElementById('ui-shots').textContent = totalShots;
+  document.getElementById('ui-hp').textContent = `${playerStats.hp}/${playerStats.maxHp}`;
+  document.getElementById('ui-aap').innerHTML =
+    `<span class="ap-highlight">${turnState.aAP}</span>/<span class="ap-dim">${turnState.maxAAP}</span>`;
+  document.getElementById('ui-map').innerHTML =
+    `<span class="ap-highlight">${turnState.mAP}</span>/<span class="ap-dim">${turnState.maxMAP}</span>`;
+  document.getElementById('ui-turn').textContent = turnState.turnNumber;
+
+  const phaseEl = document.getElementById('ui-phase');
+  phaseEl.className = 'value';
+  switch (turnState.phase) {
+    case 'player_select':    phaseEl.textContent = '行为选择'; phaseEl.classList.add('phase-player'); break;
+    case 'player_shoot_dir': phaseEl.textContent = '选择方向'; phaseEl.classList.add('phase-shoot'); break;
+    case 'player_execute':   phaseEl.textContent = '执行中';   phaseEl.classList.add('phase-exec'); break;
+    case 'monster_turn':     phaseEl.textContent = '怪物行动'; phaseEl.classList.add('phase-monster'); break;
+  }
+}
+
+// ==================== 移动系统 ====================
+function startMove(dir, speedOverride) {
+  const spd = speedOverride || CFG.MOVE_SPEED;
+  player.facing = dir;
+  const vec = DIR_VEC[dir];
+  const nc = player.col + vec.dx;
+  const nr = player.row + vec.dy;
+  if (isWall(nc, nr)) return false;
+  player.col = nc;
+  player.row = nr;
+  const t = gridToPixel(nc, nr);
+  player.targetPx = t.x;
+  player.targetPy = t.y;
+  player.animTime = 0;
+  return true;
+}
+
+function updateMove(dt) {
+  if (player.targetPx === null) return;
+  const dx = player.targetPx - player.px;
+  const dy = player.targetPy - player.py;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 1) {
+    player.px = player.targetPx;
+    player.py = player.targetPy;
+    player.targetPx = null;
+    player.targetPy = null;
+    player.walkFrame = 0;
+    player.animTime = 0;
+    return true; // 移动完成
+  }
+  player.animTime += dt;
+  const fd = SPRITE.maxFrame(SPRITE.getWalkDir(player.facing));
+  player.walkFrame = Math.floor(player.animTime / SPRITE.ANIM_SPEED) % fd;
+  const step = CFG.EXEC_MOVE_SPEED * dt;
+  const r = Math.min(step / dist, 1);
+  player.px += dx * r;
+  player.py += dy * r;
+  return false; // 移动中
+}
+
+// ==================== 子弹系统 ====================
+function spawnBullet(dir, fromPx, fromPy) {
+  const vec = DIR_VEC[dir];
+  bullets.push({
+    x: fromPx, y: fromPy,
+    dirX: vec.dx, dirY: vec.dy,
+    speed: CFG.BULLET_SPEED,
+    distTraveled: 0,
+    phase: 'flying',
+    decayTimer: 0, vOff: 0, vVel: 0,
+    maxDist: CFG.BULLET_MAX_DIST * CELL,
+  });
+  totalShots++;
+}
+
+function updateBullets(dt) {
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    if (b.phase === 'flying') {
+      const s = b.speed * dt;
+      b.x += b.dirX * s; b.y += b.dirY * s;
+      b.distTraveled += s;
+      if (bulletHitWall(b.x, b.y)) { shatterBullet(b); continue; }
+      const decayDist = b.maxDist - CFG.DECAY_START_BEFORE * CELL;
+      if (b.distTraveled >= decayDist) {
+        b.phase = 'decaying'; b.speed = CFG.BULLET_SPEED * CFG.DECAY_SPEED_RATIO;
+        b.vVel = 0; b.decayTimer = 0;
+      }
+    } else if (b.phase === 'decaying') {
+      b.decayTimer += dt;
+      const s = b.speed * dt;
+      b.x += b.dirX * s; b.y += b.dirY * s;
+      b.distTraveled += s;
+      b.vVel += CFG.DECAY_GRAVITY * dt;
+      b.vOff += b.vVel * dt;
+      if (bulletHitWall(b.x, b.y)) { shatterBullet(b); continue; }
+      if (b.distTraveled >= b.maxDist || b.vOff > CELL * 0.6) {
+        if (b.distTraveled >= b.maxDist) b.distTraveled = b.maxDist;
+        shatterBullet(b);
+      }
+    } else if (b.phase === 'dying') {
+      b.shatterTimer -= dt;
+      if (b.shatterTimer <= 0) bullets.splice(i, 1);
+    }
+  }
+}
+
+function shatterBullet(b) {
+  b.phase = 'dying'; b.shatterTimer = CFG.SHATTER_DURATION;
+  const n = CFG.SHATTER_PARTICLES;
+  for (let j = 0; j < n; j++) {
+    const angle = (Math.PI * 2 * j) / n + (Math.random() - 0.5) * 0.8;
+    const spd = 30 + Math.random() * 60;
+    particles.push({
+      x: b.x, y: b.y + b.vOff,
+      vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd - 15,
+      life: CFG.SHATTER_DURATION + Math.random() * 0.25,
+      maxLife: CFG.SHATTER_DURATION + Math.random() * 0.25,
+      size: 1, color: Math.random() < 0.5 ? '#ffdd88' : '#ff9944',
+    });
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vy += CFG.GRAVITY * 0.5 * dt;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+// ==================== 行为队列执行系统 ====================
+function isExecIdle() {
+  return bullets.length === 0 && particles.length === 0 && player.targetPx === null;
+}
+
+function startExecuteQueue() {
+  if (turnState.actionQueue.length === 0) {
+    endPlayerTurn();
+    return;
+  }
+  turnState.phase = 'player_execute';
+  turnState.execIndex = 0;
+  turnState.execActive = true;
+  // 执行开始，清空行为块区域
+  document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">执行中...</span>';
+  updateUI();
+}
+
+function executeNextAction() {
+  if (!turnState.execActive) return;
+  if (turnState.execIndex >= turnState.actionQueue.length) {
+    // 全部执行完毕
+    turnState.execActive = false;
+    endPlayerTurn();
+    return;
+  }
+
+  const action = turnState.actionQueue[turnState.execIndex];
+  if (action.type === 'move') {
+    player.facing = action.dir;
+    const vec = DIR_VEC[action.dir];
+    const nc = player.col + vec.dx;
+    const nr = player.row + vec.dy;
+    if (isWall(nc, nr)) {
+      // 遇到墙壁，跳过 (防御性检查)
+      turnState.execIndex++;
+      return;
+    }
+    player.col = nc;
+    player.row = nr;
+    const t = gridToPixel(nc, nr);
+    player.targetPx = t.x;
+    player.targetPy = t.y;
+    player.animTime = 0;
+  } else if (action.type === 'shoot') {
+    player.facing = action.dir;
+    player.shootTimer = 0.4;
+    spawnBullet(action.dir, player.px, player.py);
+    // 射击立即开始，等子弹+粒子结束后才处理下一个
+    turnState.execIndex++;
+  }
+}
+
+function endPlayerTurn() {
+  turnState.phase = 'monster_turn';
+  turnState.execActive = false;
+  document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">行为序列</span>';
+  updateUI();
+
+  // 怪物回合占位：短暂延迟后回到玩家回合
+  setTimeout(() => {
+    turnState.turnNumber++;
+    resetTurnAP();
+    updateUI();
+  }, 600);
 }
 
 // ==================== 输入处理 ====================
 document.addEventListener('keydown', (e) => {
-  const actionKeys = ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
+  const actionKeys = ['KeyW','KeyA','KeyS','KeyD','KeyJ','KeyK','KeyL','Space'];
   if (actionKeys.includes(e.code)) e.preventDefault();
-  if (gamePhase !== 'idle') return;
-  switch (e.code) {
-    case 'KeyW': startMove('up');    break;
-    case 'KeyS': startMove('down');  break;
-    case 'KeyA': startMove('left');  break;
-    case 'KeyD': startMove('right'); break;
-    case 'ArrowUp':    spawnBullet('up');    break;
-    case 'ArrowDown':  spawnBullet('down');  break;
-    case 'ArrowLeft':  spawnBullet('left');  break;
-    case 'ArrowRight': spawnBullet('right'); break;
+
+  // ---- 阶段：行为选择 ----
+  if (turnState.phase === 'player_select') {
+    switch (e.code) {
+      case 'KeyW': case 'KeyS': case 'KeyA': case 'KeyD': {
+        // 移动 (智能M-AP管理)
+        const dirMap = { KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right' };
+        const dir = dirMap[e.code];
+        if (!dir) return;
+
+        const ghost = calcGhostPos();
+        const vec = DIR_VEC[dir];
+        const newCol = ghost.col + vec.dx;
+        const newRow = ghost.row + vec.dy;
+
+        // 检查目标格是否在地图内
+        if (isWall(newCol, newRow)) return;
+
+        // 智能M-AP：检查最后一步是否是可自动撤销的自由移动
+        const lastIdx = turnState.actionQueue.length - 1;
+        const oppDir = { up: 'down', down: 'up', left: 'right', right: 'left' };
+        const isFreeMove = lastIdx >= 0
+          && lastIdx > turnState.lastCheckpointIndex
+          && turnState.actionQueue[lastIdx].type === 'move';
+
+        if (isFreeMove && turnState.actionQueue[lastIdx].dir === oppDir[dir]) {
+          // 自动撤销折返：取消上一步自由移动，返还M-AP
+          turnState.actionQueue.pop();
+          turnState.mAP++;
+          updateActionBar();
+          updateUI();
+          return;
+        }
+
+        // 无法自动撤销，需正常消耗M-AP
+        if (turnState.mAP <= 0) return;
+        turnState.mAP--;
+        turnState.actionQueue.push({ type: 'move', dir });
+        updateActionBar();
+        updateUI();
+        return;
+      }
+      case 'KeyJ': {
+        // 进入射击选择
+        if (turnState.aAP <= 0) return;
+        turnState.phase = 'player_shoot_dir';
+        turnState.pendingShootDir = null;
+        updateUI();
+        break;
+      }
+      case 'KeyL': {
+        // 取消最后一个预行为 (可通过 checkpoint)
+        undoLastAction();
+        break;
+      }
+      case 'Space': {
+        // 执行所有行为
+        startExecuteQueue();
+        break;
+      }
+    }
+    return;
+  }
+
+  // ---- 阶段：射击方向选择 ----
+  if (turnState.phase === 'player_shoot_dir') {
+    switch (e.code) {
+      case 'KeyW': turnState.pendingShootDir = 'up'; break;
+      case 'KeyS': turnState.pendingShootDir = 'down'; break;
+      case 'KeyA': turnState.pendingShootDir = 'left'; break;
+      case 'KeyD': turnState.pendingShootDir = 'right'; break;
+      case 'KeyK': {
+        // 确认射击 → 设为 checkpoint，锁定之前的移动行为
+        if (!turnState.pendingShootDir) return;
+        turnState.aAP--;
+        turnState.actionQueue.push({ type: 'shoot', dir: turnState.pendingShootDir });
+        turnState.lastCheckpointIndex = turnState.actionQueue.length - 1;
+        turnState.pendingShootDir = null;
+        turnState.phase = 'player_select';
+        updateActionBar();
+        updateUI();
+        break;
+      }
+      case 'KeyL': {
+        // 取消射击行为
+        turnState.pendingShootDir = null;
+        turnState.phase = 'player_select';
+        updateUI();
+        break;
+      }
+    }
+    return;
   }
 });
+
+function undoLastAction() {
+  if (turnState.phase !== 'player_select') return;
+  if (turnState.actionQueue.length === 0) return;
+  const last = turnState.actionQueue.pop();
+  if (last.type === 'move') {
+    turnState.mAP++;
+  } else if (last.type === 'shoot') {
+    turnState.aAP++;
+    // shoot被撤销，需要回退lastCheckpointIndex到前一个shoot（或-1）
+    let prevCP = -1;
+    for (let i = turnState.actionQueue.length - 1; i >= 0; i--) {
+      if (turnState.actionQueue[i].type === 'shoot') {
+        prevCP = i;
+        break;
+      }
+    }
+    turnState.lastCheckpointIndex = prevCP;
+  }
+  updateActionBar();
+  updateUI();
+}
 
 // ==================== 游戏循环 ====================
 let lastTime = performance.now();
@@ -811,10 +1132,29 @@ function gameLoop(timestamp) {
   lastTime = timestamp;
   if (dt > 0.1) dt = 0.1;
 
-  updateMove(dt);
+  // 更新移动动画
+  if (player.targetPx !== null) {
+    const done = updateMove(dt);
+    if (done && turnState.phase === 'player_execute') {
+      turnState.execIndex++;
+      updateUI();
+    }
+  }
+
+  // 更新子弹 & 粒子
   updateBullets(dt);
   updateParticles(dt);
+
+  // 执行阶段：检查是否可以进行下一个行为
+  if (turnState.phase === 'player_execute' && turnState.execActive) {
+    if (isExecIdle()) {
+      executeNextAction();
+    }
+  }
+
+  // 射击表情倒计时
   player.shootTimer = Math.max(0, player.shootTimer - dt);
+
   render();
   requestAnimationFrame(gameLoop);
 }
@@ -823,14 +1163,15 @@ function gameLoop(timestamp) {
 const startPos = gridToPixel(player.col, player.row);
 player.px = startPos.x;
 player.py = startPos.y;
+resetTurnAP();
 updateUI();
 lastTime = performance.now();
 requestAnimationFrame(gameLoop);
 
-console.log('⚔ 以撒半回合制 Demo — 透视像素风 已就绪');
-console.log('  WASD = 移动  |  方向键 = 射击');
-console.log(`  房间: ${COLS}×${ROWS} 格子  |  子弹最远: ${CFG.BULLET_MAX_DIST} 格`);
-console.log(`  渲染分辨率: ${GAME_W}×${GAME_H} → 显示 ${GAME_W*DISPLAY_SCALE}×${GAME_H*DISPLAY_SCALE}`);
+console.log('⚔ 以撒半回合制 Demo — AP 行动点数系统 已就绪');
+console.log('  WASD = 预移动  |  J = 射击  |  K = 确认  |  L = 取消  |  空格 = 执行');
+console.log(`  房间: ${COLS}×${ROWS} 格子  |  射程: ${CFG.BULLET_MAX_DIST} 格`);
+console.log(`  A-AP=${playerStats.fireRate}  M-AP=${playerStats.moveSpeed * 2}  HP=${playerStats.hp}/${playerStats.maxHp}`);
 </script>
 </body>
 </html>
