@@ -359,6 +359,7 @@ function project(wx, wy) {
 | `isaac-turnbase-context.md` | 文档 | 本文档：策划+技术架构速查 |
 | `isaac-asset-desc.md` | 文档 | 资源替换步骤指南 |
 | `godot-setup-checklist.md` | 文档 | Godot 引擎安装与上手清单 |
+| `isaac-roommonster-plan.md` | 文档 | 多房间地图+怪物配置+掉落系统设计方案 |
 
 ---
 
@@ -366,7 +367,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
-| 2026-07-14 | **地面指示系统**：怪物路径红色呼吸方格(内浅外深呼吸闪烁)；射击弹道蓝色呼吸方格(命中怪物/墙壁停止)。**怪物AI优化**：优先走横纵坐标差绝对值大的方向，相等时随机。红蓝方格呼吸统一频率。 |
+| 2026-07-14 | **多房间地图设计方案**：创建 `isaac-roommonster-plan.md`，包含楼层生成算法（随机图生成 + BFS 全连通检查，采用以撒模式无走廊）、房间类型分配（start/normal/treasure/shop/boss）、模板法内部布局、怪物配置表（MONSTER_DB 内联 JS 对象）、掉落系统（权重随机 + DROP_TABLES）、AI 行为类型枚举、道具被动能力提升。方案基于现有 13×7 单房间框架扩充为 Roguelike 多房间系统。 |
 | 2026-07-13 | 集成精灵图集渲染：使用 `issac-idle.png`（32×32 每帧）替代程序化像素角色。实现头身分离叠加（头偏移 body 30%）、4 方向 × 10 帧走路动画、射击表情切换（0.4s 持续）。背面缺失方向暂复用正面帧。移动速度从 280 → 70 px/s 以适配动画播放。新增 `sprite-debug.html` 和 `walk-preview.html` 调试工具。更新文档各节编号，修正函数索引、数据流和文件清单。 |
 | 2026-07-13 | 首次创建项目上下文文档（isaac-turnbase-context.md），记录 HTML Canvas 原型的技术架构、核心系统、关键函数索引与数据流。 |
 
