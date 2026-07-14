@@ -788,48 +788,36 @@ function calcMonsterPath(monster, targetCol, targetRow) {
   for (let step = 0; step < monster.moveSpeed; step++) {
     const dx = targetCol - col;
     const dy = targetRow - row;
+    const adx = Math.abs(dx), ady = Math.abs(dy);
 
-    // 尝试水平移动 (优先)
-    let nextCol = col, nextRow = row;
+    if (adx === 0 && ady === 0) break;
+
+    // 优先走差值绝对值大的方向; 相等时随机
+    let firstDir, secondDir;
+    if (adx > ady || (adx === ady && Math.random() < 0.5)) {
+      firstDir  = { type:'h', sign:Math.sign(dx), testCol:col+Math.sign(dx), testRow:row };
+      secondDir = { type:'v', sign:Math.sign(dy), testCol:col, testRow:row+Math.sign(dy) };
+    } else {
+      firstDir  = { type:'v', sign:Math.sign(dy), testCol:col, testRow:row+Math.sign(dy) };
+      secondDir = { type:'h', sign:Math.sign(dx), testCol:col+Math.sign(dx), testRow:row };
+    }
+
     let moved = false;
+    let nc = col, nr = row;
 
-    if (dx !== 0) {
-      nextCol = col + Math.sign(dx);
-      if (!isWall(nextCol, nextRow) && !isMonsterAt(nextCol, nextRow, monster.id)) {
-        moved = true;
-      } else {
-        nextCol = col;
-      }
-    }
+    // 尝试优先方向
+    const tryDir = (d) => {
+      if (d.sign === 0) return false;
+      if (isWall(d.testCol, d.testRow) || isMonsterAt(d.testCol, d.testRow, monster.id)) return false;
+      nc = d.testCol; nr = d.testRow; return true;
+    };
 
-    if (!moved && dy !== 0) {
-      nextRow = row + Math.sign(dy);
-      if (isWall(nextCol, nextRow) || isMonsterAt(nextCol, nextRow, monster.id)) {
-        nextRow = row;
-      } else {
-        moved = true;
-      }
-    }
+    if (!tryDir(firstDir)) tryDir(secondDir);
 
-    if (!moved) {
-      // 尝试垂直 (如果水平优先没试过)
-      nextCol = col;
-      nextRow = row;
-      if (dy !== 0) {
-        nextRow = row + Math.sign(dy);
-        if (isWall(nextCol, nextRow) || isMonsterAt(nextCol, nextRow, monster.id)) {
-          nextRow = row;
-        } else {
-          moved = true;
-        }
-      }
-    }
+    if (nc === col && nr === row) break; // 无法移动
 
-    if (!moved) break; // 无法移动
-
-    path.push({ fromCol: col, fromRow: row, toCol: nextCol, toRow: nextRow });
-    col = nextCol;
-    row = nextRow;
+    path.push({ fromCol: col, fromRow: row, toCol: nc, toRow: nr });
+    col = nc; row = nr;
   }
   return path;
 }
@@ -1402,6 +1390,8 @@ function render() {
   drawWalls();
   drawFloor();
   drawGridHighlight();
+  drawMonsterDangerZones();  // 怪物路径红色呼吸方格
+  drawShootGridHighlights(); // 射击弹道蓝色呼吸方格
   drawMoveArrows();
   drawShootPreview();
   drawMonsterPaths();     // 怪物路径预览 (红色闪烁)
@@ -1565,6 +1555,62 @@ function drawMonsters() {
         }
       }
     }
+  }
+}
+
+// --- 地面方格高亮辅助 ---
+function drawGridOverlay(col, row, innerColor, innerAlpha, borderAlpha) {
+  const xL = FLOOR_L + col * CELL, xR = FLOOR_L + (col + 1) * CELL;
+  const yT = FLOOR_T + row * CELL, yB = FLOOR_T + (row + 1) * CELL;
+  const tl = project(xL, yT), tr = project(xR, yT);
+  const bl = project(xL, yB), br = project(xR, yB);
+  ctx.save();
+  ctx.globalAlpha = innerAlpha;
+  ctx.fillStyle = innerColor;
+  ctx.beginPath();
+  ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+  ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+  ctx.closePath(); ctx.fill();
+  ctx.globalAlpha = borderAlpha;
+  ctx.strokeStyle = innerColor;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+}
+
+// --- 怪物路径危险方格 (红色呼吸) ---
+function drawMonsterDangerZones() {
+  if (turnState.phase === 'monster_turn' || turnState.phase === 'player_execute') return;
+  const breath = 0.15 + 0.1 * Math.sin(monsterFlashTimer * 5);
+  for (const m of monsters) {
+    if (!m.predictedPath) continue;
+    for (const step of m.predictedPath) {
+      drawGridOverlay(step.toCol, step.toRow, '#ff3333', breath * 1.5, breath * 0.8);
+    }
+  }
+}
+
+// --- 射击弹道方格 (蓝色呼吸) ---
+function drawShootGridHighlights() {
+  if (turnState.phase === 'player_execute' || turnState.phase === 'monster_turn') return;
+  const breath = 0.12 + 0.08 * Math.sin(monsterFlashTimer * 5);
+  // 队列中所有射击
+  const previews = getShootPreviews();
+  for (const pv of previews) traceBulletCells(pv.origin.col, pv.origin.row, pv.dir, breath);
+  // 当前方向选择
+  if (turnState.phase === 'player_shoot_dir' && turnState.pendingShootDir) {
+    const ghost = calcGhostPos();
+    traceBulletCells(ghost.col, ghost.row, turnState.pendingShootDir, breath);
+  }
+}
+function traceBulletCells(originCol, originRow, dir, breath) {
+  const vec = DIR_VEC[dir];
+  let cx = originCol, cy = originRow;
+  for (let step = 0; step < CFG.BULLET_MAX_DIST; step++) {
+    cx += vec.dx; cy += vec.dy;
+    if (isWall(cx, cy)) break;
+    drawGridOverlay(cx, cy, '#4488ff', breath * 1.3, breath * 0.6);
+    if (monsters.some(m => m.col === cx && m.row === cy)) break; // 命中怪物停止
   }
 }
 
