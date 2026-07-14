@@ -4,33 +4,102 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>以撒半回合制 Demo — AP 行动点数系统</title>
-<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=VT323&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --font-cn: 'ZCOOL KuaiLe', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    --font-mono: 'VT323', 'Courier New', monospace;
+  }
 
   body {
     background: #0a0a0f;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     min-height: 100vh;
-    font-family: 'Press Start 2P', 'Courier New', monospace;
+    font-family: var(--font-cn);
     overflow-y: auto;
-    padding: 20px;
+    padding: 16px 16px 24px;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
+    color: #d4b87a;
+  }
+
+  /* ===== 顶部标题栏 ===== */
+  #top-bar {
+    width: 100%;
+    max-width: 1000px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
   }
 
   h1 {
     color: #c9a96e;
-    font-size: 11px;
+    font-size: 22px;
     letter-spacing: 2px;
-    margin-bottom: 12px;
     text-shadow: 2px 2px 0 #000, 0 0 12px rgba(201,169,110,0.4);
-    text-align: center;
-    line-height: 1.6;
+    line-height: 1;
+    margin: 0;
   }
+
+  #top-status {
+    display: flex;
+    gap: 8px;
+    flex: 1;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .status-pill {
+    background: #15151a;
+    border: 2px solid #3a3020;
+    padding: 6px 14px;
+    font-size: 16px;
+    color: #998866;
+    letter-spacing: 1px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .status-pill .pill-label {
+    color: #6b5e44;
+    font-size: 13px;
+  }
+  .status-pill .pill-value { color: #d4b87a; font-size: 16px; }
+  #status-phase .pill-value.phase-player  { color: #88ccff; }
+  #status-phase .pill-value.phase-shoot   { color: #ff8866; }
+  #status-phase .pill-value.phase-exec    { color: #ffcc44; }
+  #status-phase .pill-value.phase-monster { color: #ff4444; }
+
+  /* ===== 右上角按钮区 ===== */
+  #top-right {
+    display: flex;
+    gap: 8px;
+  }
+  .corner-btn {
+    background: #15151a;
+    border: 2px solid #3a3020;
+    color: #998866;
+    font-family: var(--font-cn);
+    font-size: 14px;
+    padding: 6px 12px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+  }
+  .corner-btn:hover { border-color: #6b5e44; color: #d4b87a; }
+  #debug-btn.active {
+    border-color: #ee6644;
+    color: #ff8866;
+    box-shadow: 0 0 10px rgba(255,100,60,0.25);
+  }
+  #help-btn:hover { border-color: #88aaff; color: #aaccff; }
 
   #game-container {
     position: relative;
@@ -47,154 +116,386 @@
     image-rendering: crisp-edges;
   }
 
-  #ui-panel {
-    margin-top: 12px;
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    justify-content: center;
-    color: #998866;
-    font-size: 8px;
-  }
-
-  .ui-box {
-    background: #15151a;
-    border: 2px solid #2a2520;
-    border-radius: 0;
-    padding: 8px 10px;
+  /* ===== 调试信息 ===== */
+  #debug-info {
+    margin-top: 6px;
+    min-height: 18px;
     text-align: center;
-    min-width: 70px;
-    min-height: 48px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-  }
-
-  .ui-box .label {
-    font-size: 6px;
-    color: #6b5e44;
-    letter-spacing: 1px;
-    margin-bottom: 3px;
-    white-space: nowrap;
-  }
-
-  .ui-box .value {
-    font-size: 9px;
-    color: #d4b87a;
-    font-weight: normal;
-    min-height: 12px;
-    min-width: 50px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .ap-highlight { color: #ffcc44; }
-  .ap-dim { color: #554422; }
-
-  .key-hint {
-    color: #c9a96e;
-    background: #1a1a1f;
-    padding: 2px 5px;
-    border-radius: 0;
-    font-size: 7px;
-    border: 1px solid #3a3020;
-    line-height: 1.8;
-  }
-
-  #ui-phase {
-    font-size: 8px;
+    font-family: var(--font-mono);
+    font-size: 16px;
+    color: #ffcc44;
+    opacity: 0;
+    pointer-events: none;
     letter-spacing: 1px;
   }
+  #debug-info.visible { opacity: 1; }
 
-  .phase-player { color: #88ccff; }
-  .phase-shoot  { color: #ff8866; }
-  .phase-exec   { color: #ffcc44; }
-  .phase-monster { color: #ff4444; }
-
+  /* ===== 行为序列栏 ===== */
   #action-bar {
-    margin-top: 8px;
-    min-height: 28px;
+    margin-top: 10px;
+    min-height: 32px;
     display: flex;
-    gap: 4px;
+    gap: 6px;
     flex-wrap: wrap;
     justify-content: center;
     align-items: center;
-    max-width: 960px;
+    max-width: 1000px;
   }
   .action-block {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 2px 7px;
+    padding: 4px 10px;
     border: 2px solid #2a2520;
     background: #15151a;
-    min-width: 26px;
-    height: 24px;
-    font-size: 8px;
-    font-family: 'Press Start 2P', monospace;
+    min-width: 32px;
+    height: 30px;
+    font-size: 14px;
+    font-family: var(--font-cn);
   }
   .action-block.move { border-color: #337799; color: #55aacc; background: #0f1618; }
   .action-block.shoot { border-color: #993333; color: #ee6655; background: #180f0f; }
-  .action-block.step-num {
-    position: absolute;
-    font-size: 5px;
-    color: #555;
-    margin-top: -10px;
-  }
   .action-bar-placeholder {
     color: #332211;
-    font-size: 7px;
-    padding: 4px 10px;
+    font-size: 13px;
+    padding: 6px 12px;
   }
+
+  /* ===== 状态面板 (HP/AP/属性) ===== */
+  #status-panel {
+    margin-top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+  }
+  #status-row-1, #status-row-2 {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .stat-card {
+    background: #1a1410;
+    border: 3px solid #5a3a18;
+    border-radius: 4px;
+    padding: 10px 18px;
+    min-width: 180px;
+    text-align: center;
+  }
+  .stat-card .card-label {
+    font-size: 14px;
+    color: #887755;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+  }
+
+  /* HP 心形 */
+  .hearts {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    align-items: center;
+  }
+  .heart {
+    width: 22px; height: 22px;
+    position: relative;
+  }
+  .heart::before, .heart::after {
+    content: '';
+    position: absolute;
+    left: 11px; top: 0;
+    width: 11px; height: 16px;
+    background: #d43a3a;
+    border-radius: 11px 11px 0 0;
+    transform: rotate(-45deg);
+    transform-origin: 0 100%;
+    box-shadow: inset 0 -2px 0 #8a1f1f;
+  }
+  .heart::after {
+    left: 0;
+    transform: rotate(45deg);
+    transform-origin: 100% 100%;
+  }
+  .heart.empty::before, .heart.empty::after {
+    background: #3a2020;
+    box-shadow: inset 0 -2px 0 #2a1414;
+  }
+  .heart::after {
+    /* 高光点 */
+    border-top: 4px solid rgba(255,255,255,0.3);
+    border-radius: 11px 11px 0 0;
+  }
+  .heart .shine {
+    position: absolute;
+    top: 4px; left: 6px;
+    width: 3px; height: 3px;
+    background: rgba(255,255,255,0.7);
+    border-radius: 50%;
+    z-index: 2;
+  }
+
+  /* AP 圆点 */
+  .ap-dots {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    align-items: center;
+  }
+  .ap-dot {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 2px solid #443322;
+  }
+  .ap-dot.full-aap { background: #ff9933; border-color: #aa6622; box-shadow: 0 0 6px rgba(255,153,51,0.4); }
+  .ap-dot.full-map { background: #3399ff; border-color: #2266aa; box-shadow: 0 0 6px rgba(51,153,255,0.4); }
+  .ap-dot.empty    { background: #1a1410; border-color: #2a2520; box-shadow: none; }
+
+  /* 攻击/射程/运气 三列 */
+  .stats-card {
+    display: flex;
+    gap: 28px;
+    align-items: center;
+    padding: 10px 28px;
+  }
+  .stat-cell {
+    text-align: center;
+    min-width: 60px;
+  }
+  .stat-cell .cell-label {
+    font-size: 14px;
+    color: #887755;
+    margin-bottom: 6px;
+  }
+  .stat-cell .cell-value {
+    font-size: 22px;
+    color: #d4b87a;
+    font-family: var(--font-mono);
+    line-height: 1;
+  }
+
+  /* ===== 操作弹窗 ===== */
+  #help-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+  #help-modal.open { display: flex; }
+  #help-box {
+    background: #1a1410;
+    border: 4px solid #5a3a18;
+    border-radius: 6px;
+    padding: 24px 32px;
+    max-width: 520px;
+    width: 100%;
+    color: #d4b87a;
+    font-family: var(--font-cn);
+    box-shadow: 0 0 30px rgba(0,0,0,0.8);
+  }
+  #help-box h2 {
+    color: #ffcc44;
+    font-size: 22px;
+    margin-bottom: 16px;
+    text-align: center;
+    letter-spacing: 2px;
+  }
+  .help-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 4px;
+    border-bottom: 1px dashed #2a2520;
+    font-size: 16px;
+  }
+  .help-row:last-child { border-bottom: none; }
+  .help-keys {
+    display: flex;
+    gap: 4px;
+    min-width: 120px;
+  }
+  .help-key {
+    display: inline-block;
+    background: #0a0a0f;
+    border: 2px solid #5a3a18;
+    color: #ffcc44;
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 18px;
+    line-height: 1;
+    min-width: 28px;
+    text-align: center;
+  }
+  .help-desc { color: #998866; }
+  .help-note {
+    margin-top: 14px;
+    padding: 10px 12px;
+    background: #0a0a0f;
+    border-left: 3px solid #ee6644;
+    font-size: 13px;
+    color: #998866;
+    line-height: 1.6;
+  }
+  #help-close {
+    margin-top: 16px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    background: #5a3a18;
+    color: #ffcc44;
+    border: 2px solid #ffcc44;
+    padding: 6px 22px;
+    font-size: 16px;
+    font-family: var(--font-cn);
+    cursor: pointer;
+    letter-spacing: 2px;
+  }
+  #help-close:hover { background: #ffcc44; color: #1a1410; }
+
+  /* 回合结束确认弹窗 */
+  #end-turn-modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 100; padding: 20px;
+  }
+  #end-turn-modal.open { display: flex; }
+  #end-turn-box {
+    background: #1a1410;
+    border: 4px solid #5a3a18;
+    border-radius: 6px;
+    padding: 28px 36px;
+    max-width: 480px; width: 100%;
+    color: #d4b87a;
+    font-family: var(--font-cn);
+    box-shadow: 0 0 30px rgba(0,0,0,0.8);
+    text-align: center;
+  }
+  #end-turn-box h2 { color: #ffcc44; font-size: 20px; margin-bottom: 20px; letter-spacing: 2px; }
+  #end-turn-confirm, #end-turn-cancel {
+    background: #15151a;
+    border: 2px solid #3a3020;
+    color: #d4b87a;
+    font-family: var(--font-cn);
+    font-size: 16px;
+    padding: 8px 20px;
+    cursor: pointer;
+    letter-spacing: 1px;
+  }
+  #end-turn-confirm:hover { border-color: #88ff66; color: #aaff88; }
+  #end-turn-cancel:hover { border-color: #ee6644; color: #ff8866; }
+
+  #spawn-monster-btn { border-color: #aa4444; color: #ff7766; }
+  #spawn-monster-btn:hover { border-color: #ff6644; color: #ffaa88; background: #1a1010; }
 </style>
 </head>
 <body>
 
-<h1>⚔ 以撒 · 半回合制战斗原型<br><span style="font-size:7px;color:#887755;">— AP 行动点数系统 · 透视像素风格 —</span></h1>
+<div id="top-bar">
+  <h1>⚔ 以撒 · 半回合制战斗</h1>
+  <div id="top-status">
+    <div class="status-pill" id="status-phase">
+      <span class="pill-label">阶段</span>
+      <span class="pill-value phase-player" id="ui-phase">行为选择</span>
+    </div>
+    <div class="status-pill" id="status-turn">
+      <span class="pill-label">回合</span>
+      <span class="pill-value" id="ui-turn">1</span>
+    </div>
+  </div>
+  <div id="top-right">
+    <button class="corner-btn" id="debug-btn" title="切换调试模式">调试:关</button>
+    <button class="corner-btn" id="help-btn" title="查看操作说明">操作?</button>
+    <button class="corner-btn" id="spawn-monster-btn" title="生成怪物">生怪</button>
+  </div>
+</div>
 
 <div id="game-container">
   <canvas id="game"></canvas>
+</div>
+
+<div id="debug-info">
+  像素: (<span id="debug-px">0</span>, <span id="debug-py">0</span>)
+  &nbsp;网格: (<span id="debug-col">0</span>, <span id="debug-row">0</span>)
 </div>
 
 <div id="action-bar">
   <span class="action-bar-placeholder">行为序列</span>
 </div>
 
-<div id="ui-panel">
-  <div class="ui-box">
-    <div class="label">HP</div>
-    <div class="value" id="ui-hp">6/6</div>
+<div id="status-panel">
+  <div id="status-row-1">
+    <div class="stat-card">
+      <div class="card-label">HP</div>
+      <div class="hearts" id="ui-hearts"></div>
+    </div>
+    <div class="stat-card">
+      <div class="card-label">攻击 A-AP</div>
+      <div class="ap-dots" id="ui-aap-dots"></div>
+    </div>
+    <div class="stat-card">
+      <div class="card-label">移动 M-AP</div>
+      <div class="ap-dots" id="ui-map-dots"></div>
+    </div>
   </div>
-  <div class="ui-box">
-    <div class="label">A-AP</div>
-    <div class="value" id="ui-aap">2/2</div>
+  <div id="status-row-2">
+    <div class="stat-card stats-card">
+      <div class="stat-cell">
+        <div class="cell-label">攻击力</div>
+        <div class="cell-value" id="ui-attack">3.5</div>
+      </div>
+      <div class="stat-cell">
+        <div class="cell-label">射程</div>
+        <div class="cell-value" id="ui-range">6</div>
+      </div>
+      <div class="stat-cell">
+        <div class="cell-label">运气</div>
+        <div class="cell-value" id="ui-luck">0</div>
+      </div>
+    </div>
   </div>
-  <div class="ui-box">
-    <div class="label">M-AP</div>
-    <div class="value" id="ui-map">2/2</div>
+</div>
+
+<div id="help-modal">
+  <div id="help-box">
+    <h2>操作说明</h2>
+    <div class="help-row">
+      <div class="help-keys"><span class="help-key">W</span><span class="help-key">A</span><span class="help-key">S</span><span class="help-key">D</span></div>
+      <div class="help-desc">幽灵预览移动 (消耗 M-AP)</div>
+    </div>
+    <div class="help-row">
+      <div class="help-keys"><span class="help-key">Space</span></div>
+      <div class="help-desc">确认移动/射击, 无操作时结束回合</div>
+    </div>
+    <div class="help-row">
+      <div class="help-keys"><span class="help-key">↑</span><span class="help-key">↓</span><span class="help-key">←</span><span class="help-key">→</span></div>
+      <div class="help-desc">进入射击选择; 方向选择时也用它改方向</div>
+    </div>
+    <div class="help-row">
+      <div class="help-keys"><span class="help-key">Esc</span></div>
+      <div class="help-desc">撤销幽灵预览 / 取消射击选择</div>
+    </div>
+    <div class="help-note">
+      M-AP范围内可自由移动, 自动计算最短路径.<br>
+      射击方向预览线从幽灵复制体位置出发.
+    </div>
+    <button id="help-close">关闭</button>
   </div>
-  <div class="ui-box">
-    <div class="label">阶段</div>
-    <div class="value" id="ui-phase">行为选择</div>
-  </div>
-  <div class="ui-box">
-    <div class="label">回合</div>
-    <div class="value" id="ui-turn">1</div>
-  </div>
-  <div class="ui-box">
-    <span class="key-hint">WASD</span> 移动 &nbsp;
-    <span class="key-hint">J</span> 射击 &nbsp;
-    <span class="key-hint">K</span> 确认
-  </div>
-  <div class="ui-box">
-    <span class="key-hint">L</span> 取消 &nbsp;
-    <span class="key-hint">空格</span> 执行
-  </div>
-  <div class="ui-box">
-    <div class="label">属性</div>
-    <div class="value" style="font-size:7px;">攻3.5 射6 运0</div>
+</div>
+
+<div id="end-turn-modal">
+  <div id="end-turn-box">
+    <h2 id="end-turn-msg" style="text-align:center;font-size:20px;color:#ffcc44;margin-bottom:20px;">是否结束回合？</h2>
+    <div style="display:flex;gap:20px;justify-content:center;">
+      <button id="end-turn-confirm">Space 确认</button>
+      <button id="end-turn-cancel">Esc 取消</button>
+    </div>
   </div>
 </div>
 
@@ -250,18 +551,18 @@ const CFG = {
   COLS: 13,
   ROWS: 7,
   BULLET_MAX_DIST: 6.0,    // 射程=6
-  BULLET_SPEED: 280,
+  BULLET_SPEED: 560,       // 翻倍: 280→560
   DECAY_START_BEFORE: 0.2,
   DECAY_SPEED_RATIO: 0.07,
-  DECAY_GRAVITY: 550,
-  MOVE_SPEED: 70,
-  GRAVITY: 180,
+  DECAY_GRAVITY: 1100,     // 翻倍配合子弹速度
+  MOVE_SPEED: 140,         // 翻倍: 70→140
+  GRAVITY: 360,            // 翻倍配合粒子速度
   SHATTER_PARTICLES: 10,
   SHATTER_DURATION: 0.25,
   VP_SCALE_TOP: 0.90,
   VP_SCALE_BOT: 1.00,
-  GHOST_ALPHA: 0.4,        // 幽灵复制体透明度
-  EXEC_MOVE_SPEED: 85,     // 执行阶段移动速度 (稍快)
+  GHOST_ALPHA: 0.4,
+  EXEC_MOVE_SPEED: 170,    // 翻倍: 85→170
 };
 
 const WALL  = CFG.WALL;
@@ -341,26 +642,45 @@ const player = {
   targetPx: null, targetPy: null,
   walkFrame: 0, animTime: 0,
   shootTimer: 0,
+  hitFlash: 0,         // 受击白闪
+  shakeX: 0, shakeY: 0, // 受击抖动
+  invincibleTurns: 0,  // 无敌回合计数
 };
 
 // ==================== AP 与回合状态 ====================
 let turnState = {
-  phase: 'player_select',     // player_select | player_shoot_dir | player_execute | monster_turn
-  mAP: 0, maxMAP: 0,          // 移动行动点数
-  aAP: 0, maxAAP: 0,          // 攻击行动点数
-  actionQueue: [],            // [{type:'move'|'shoot', dir}]
-  pendingShootDir: null,      // 射击方向选择中暂存的方向
+  phase: 'player_select',     // player_select | player_shoot_dir | player_execute | turn_end_confirm | monster_turn
+  mAP: 0, maxMAP: 0,          // 移动行动点数 (剩余, 含队列预扣除)
+  aAP: 0, maxAAP: 0,          // 攻击行动点数 (剩余, 含队列预扣除)
+  actionQueue: [],            // [{type:'move'|'shoot', dir}] 统一行为队列
+  pendingShootDir: null,      // 射击方向选择中暂存
+  previewHits: [],             // 射击预览命中 [{monster, dmg, lethal}]
   turnNumber: 1,
-  lastCheckpointIndex: -1,    // 最后一个射击行为在队列中的索引 (-1 = 无checkpoint)
-
-  // 执行状态
-  execIndex: 0,               // 当前正在执行第几个行为
-  execActive: false,          // 是否在执行队列中
+  execIndex: 0,               // 空格执行时的当前行为索引
+  monsterTurnCounter: 0,      // 怪物回合计数 (交替2/1格)
 };
 
 let bullets    = [];
 let particles  = [];
+let damageNumbers = [];  // [{x, y, text, life, maxLife, vy}]
 let totalShots = 0;
+
+// ==================== 怪物系统 ====================
+const MONSTER_CFG = {
+  name: '裂口尸',
+  hp: 10,
+  SPEED_CYCLE: [2, 1],    // 两回合交替: 2格, 1格
+};
+
+let monsters = [];  // [{id, name, col, row, hp, maxHp, predictedPath, moveSpeed}]
+let monsterIdCounter = 0;
+let monsterFlashTimer = 0;  // 路径箭头闪烁计时器
+
+// ==================== 调试模式 ====================
+let debugMode     = false;
+let debugMouseX   = -1;       // 鼠标在游戏像素坐标中的 X
+let debugMouseY   = -1;       // 鼠标在游戏像素坐标中的 Y
+let debugMouseIn  = false;    // 鼠标是否在 canvas 内
 
 // 初始化回合 AP
 function resetTurnAP() {
@@ -372,41 +692,291 @@ function resetTurnAP() {
   turnState.pendingShootDir = null;
   turnState.phase = 'player_select';
   turnState.execIndex = 0;
-  turnState.execActive = false;
-  turnState.lastCheckpointIndex = -1;
+  calcAllMonsterPaths();
+  // 无敌回合递减
+  if (player.invincibleTurns > 0) player.invincibleTurns--;
   updateActionBar();
 }
 
-// 计算队列中所有移动后的幽灵位置
+// 计算幽灵位置 (从玩家回合起始 + 队列中所有移动)
 function calcGhostPos() {
-  let col = player.col;
-  let row = player.row;
+  let col = player.col, row = player.row;
   for (const act of turnState.actionQueue) {
-    if (act.type === 'move') {
-      const v = DIR_VEC[act.dir];
-      col += v.dx;
-      row += v.dy;
-    }
+    if (act.type === 'move') { col += DIR_VEC[act.dir].dx; row += DIR_VEC[act.dir].dy; }
   }
   return { col, row };
 }
 
-// 生成移动箭头列表
+// 生成移动箭头 (从队列中的移动)
 function calcMoveArrows() {
   const arrows = [];
-  let col = player.col;
-  let row = player.row;
+  let col = player.col, row = player.row;
   for (const act of turnState.actionQueue) {
     if (act.type === 'move') {
       const v = DIR_VEC[act.dir];
-      const nc = col + v.dx;
-      const nr = row + v.dy;
+      const nc = col + v.dx, nr = row + v.dy;
       arrows.push({ fromCol: col, fromRow: row, toCol: nc, toRow: nr });
-      col = nc;
-      row = nr;
+      col = nc; row = nr;
     }
   }
   return arrows;
+}
+
+// 计算某次射击在队列中的执行位置 (遍历之前的移动)
+function getShootOriginPos(shootIdx) {
+  let col = player.col, row = player.row;
+  for (let i = 0; i < shootIdx && i < turnState.actionQueue.length; i++) {
+    const act = turnState.actionQueue[i];
+    if (act.type === 'move') { col += DIR_VEC[act.dir].dx; row += DIR_VEC[act.dir].dy; }
+  }
+  return { col, row };
+}
+
+// 计算队列中所有射击的预览信息: [{origin:{col,row}, dir}]
+function getShootPreviews() {
+  const previews = [];
+  let col = player.col, row = player.row;
+  for (const act of turnState.actionQueue) {
+    if (act.type === 'move') {
+      col += DIR_VEC[act.dir].dx; row += DIR_VEC[act.dir].dy;
+    } else if (act.type === 'shoot') {
+      previews.push({ origin: { col, row }, dir: act.dir });
+    }
+  }
+  return previews;
+}
+
+// 统计队列层级中移动的比例（结尾连续移动数 / 曼哈顿距离可用于缩短判断）
+function getMovableTail() {
+  let idx = turnState.actionQueue.length - 1;
+  while (idx >= 0 && turnState.actionQueue[idx].type === 'move') idx--;
+  return turnState.actionQueue.slice(idx + 1);
+}
+
+// 从 origin 到 target 构建最短移动路径
+function buildFreeMoves(originCol, originRow, targetCol, targetRow) {
+  const moves = [];
+  const dx = targetCol - originCol, dy = targetRow - originRow;
+  const hDir = dx > 0 ? 'right' : 'left';
+  const vDir = dy > 0 ? 'down' : 'up';
+  for (let i = 0; i < Math.abs(dx); i++) moves.push({ type: 'move', dir: hDir });
+  for (let i = 0; i < Math.abs(dy); i++) moves.push({ type: 'move', dir: vDir });
+  return moves;
+}
+
+// ==================== 怪物系统辅助 ====================
+function isMonsterAt(col, row, excludeId = -1) {
+  return monsters.some(m => m.col === col && m.row === row && m.id !== excludeId);
+}
+
+// 玩家回合开始时: 所有怪物计算下回合移动路径
+function calcAllMonsterPaths() {
+  const turnIdx = turnState.monsterTurnCounter;
+  const speed = MONSTER_CFG.SPEED_CYCLE[turnIdx % 2];
+
+  for (const m of monsters) {
+    m.moveSpeed = speed;
+    m.predictedPath = calcMonsterPath(m, player.col, player.row);
+  }
+}
+
+// 计算怪物向目标移动 speed 格的路径
+function calcMonsterPath(monster, targetCol, targetRow) {
+  const path = [];
+  let col = monster.col, row = monster.row;
+
+  for (let step = 0; step < monster.moveSpeed; step++) {
+    const dx = targetCol - col;
+    const dy = targetRow - row;
+
+    // 尝试水平移动 (优先)
+    let nextCol = col, nextRow = row;
+    let moved = false;
+
+    if (dx !== 0) {
+      nextCol = col + Math.sign(dx);
+      if (!isWall(nextCol, nextRow) && !isMonsterAt(nextCol, nextRow, monster.id)) {
+        moved = true;
+      } else {
+        nextCol = col;
+      }
+    }
+
+    if (!moved && dy !== 0) {
+      nextRow = row + Math.sign(dy);
+      if (isWall(nextCol, nextRow) || isMonsterAt(nextCol, nextRow, monster.id)) {
+        nextRow = row;
+      } else {
+        moved = true;
+      }
+    }
+
+    if (!moved) {
+      // 尝试垂直 (如果水平优先没试过)
+      nextCol = col;
+      nextRow = row;
+      if (dy !== 0) {
+        nextRow = row + Math.sign(dy);
+        if (isWall(nextCol, nextRow) || isMonsterAt(nextCol, nextRow, monster.id)) {
+          nextRow = row;
+        } else {
+          moved = true;
+        }
+      }
+    }
+
+    if (!moved) break; // 无法移动
+
+    path.push({ fromCol: col, fromRow: row, toCol: nextCol, toRow: nextRow });
+    col = nextCol;
+    row = nextRow;
+  }
+  return path;
+}
+
+// ==================== 玩家受伤系统 ====================
+function damagePlayer(amount) {
+  if (player.invincibleTurns > 0) return; // 无敌中
+  playerStats.hp = Math.max(0, playerStats.hp - amount);
+  player.hitFlash = 0.12;
+  player.shakeX = (Math.random() - 0.5) * 5;
+  player.shakeY = (Math.random() - 0.5) * 4;
+  player.invincibleTurns = 3;
+  updateHearts();
+  updateUI();
+}
+
+// ==================== 击退/反弹系统 ====================
+// 尝试将玩家向 (dx,dy) 方向推1格, 返回是否成功
+function tryPushPlayer(pushDx, pushDy) {
+  const nx = player.col + pushDx, ny = player.row + pushDy;
+  if (!isWall(nx, ny) && !isMonsterAt(nx, ny)) {
+    player.col = nx; player.row = ny;
+    const t = gridToPixel(nx, ny);
+    player.targetPx = t.x; player.targetPy = t.y; player.animTime = 0;
+    return true;
+  }
+  // 主力向不通→尝试两个垂直方向
+  const perps = pushDx !== 0
+    ? [{dx:0, dy:1}, {dx:0, dy:-1}]
+    : [{dx:1, dy:0}, {dx:-1, dy:0}];
+  if (Math.random() < 0.5) [perps[0], perps[1]] = [perps[1], perps[0]];
+  for (const p of perps) {
+    const nx2 = player.col + p.dx, ny2 = player.row + p.dy;
+    if (!isWall(nx2, ny2) && !isMonsterAt(nx2, ny2)) {
+      player.col = nx2; player.row = ny2;
+      const t = gridToPixel(nx2, ny2);
+      player.targetPx = t.x; player.targetPy = t.y; player.animTime = 0;
+      return true;
+    }
+  }
+  return false; // 所有方向不通
+}
+
+// 尝试将怪物向 (dx,dy) 方向推1格, 返回是否成功
+function tryPushMonster(monster, pushDx, pushDy) {
+  const nx = monster.col + pushDx, ny = monster.row + pushDy;
+  if (!isWall(nx, ny) && !isMonsterAt(nx, ny, monster.id) && !(nx === player.col && ny === player.row)) {
+    monster.col = nx; monster.row = ny;
+    return true;
+  }
+  const perps = pushDx !== 0
+    ? [{dx:0, dy:1}, {dx:0, dy:-1}]
+    : [{dx:1, dy:0}, {dx:-1, dy:0}];
+  if (Math.random() < 0.5) [perps[0], perps[1]] = [perps[1], perps[0]];
+  for (const p of perps) {
+    const nx2 = monster.col + p.dx, ny2 = monster.row + p.dy;
+    if (!isWall(nx2, ny2) && !isMonsterAt(nx2, ny2, monster.id) && !(nx2 === player.col && ny2 === player.row)) {
+      monster.col = nx2; monster.row = ny2;
+      return true;
+    }
+  }
+  return false;
+}
+
+// 怪物回合执行
+let monsterExecTimer = 0;
+let monsterExecStepIdx = 0;
+
+function startMonsterTurn() {
+  monsterExecStepIdx = 0;
+  monsterExecTimer = 0;
+  // 保留 predictedPath 用于实际移动执行
+}
+
+function updateMonsterTurn(dt) {
+  if (monsters.length === 0) { finishMonsterTurn(); return; }
+
+  monsterExecTimer += dt;
+  if (monsterExecTimer < 0.15) return; // 加速: 0.25→0.15
+  monsterExecTimer = 0;
+
+  // ===== 所有怪物同时执行当前步骤 =====
+  // 第一遍：计算所有怪物拟移动的目标位置，检测冲突
+  const planned = []; // [{monster, toCol, toRow}]
+  let anyStepLeft = false;
+
+  for (const m of monsters) {
+    if (!m.predictedPath || monsterExecStepIdx >= m.predictedPath.length) continue;
+    anyStepLeft = true;
+    const step = m.predictedPath[monsterExecStepIdx];
+    planned.push({ monster: m, toCol: step.toCol, toRow: step.toRow });
+  }
+
+  if (!anyStepLeft) { finishMonsterTurn(); return; }
+
+  // 第二遍：应用移动 (已占用的格子不能再被其他怪物占据)
+  const occupied = new Set();
+  // 把玩家和静止怪物当前位置标记为占用(移动后腾出)
+  for (const m of monsters) occupied.add(`${m.col},${m.row}`);
+
+  // 先标记起始位置 (避免怪物踩到另一个怪物的起点)
+
+  for (const p of planned) {
+    const key = `${p.toCol},${p.toRow}`;
+    const m = p.monster;
+
+    // 检查目标格是否有其他怪物(也在本步移动中)早到
+    if (occupied.has(key)) {
+      continue; // 被挡住, 不动
+    }
+
+    // 检查玩家位置 (碰撞 → 伤害, 按怪物移动方向击退玩家, 失败则怪物反弹)
+    if (p.toCol === player.col && p.toRow === player.row) {
+      damagePlayer(1);
+      const step = m.predictedPath[monsterExecStepIdx];
+      const pushDx = step.toCol - step.fromCol;
+      const pushDy = step.toRow - step.fromRow;
+      if (!tryPushPlayer(pushDx, pushDy)) {
+        m.col = step.fromCol; m.row = step.toRow;
+      }
+      continue;
+    }
+
+    // 可以移动
+    m.col = p.toCol;
+    m.row = p.toRow;
+    occupied.add(key);
+  }
+
+  monsterExecStepIdx++;
+
+  // 检查是否全部完成
+  let maxSteps = 0;
+  for (const m of monsters) {
+    if (m.predictedPath) maxSteps = Math.max(maxSteps, m.predictedPath.length);
+  }
+  if (monsterExecStepIdx >= maxSteps) finishMonsterTurn();
+}
+
+function finishMonsterTurn() {
+  for (const m of monsters) m.predictedPath = [];
+  turnState.monsterTurnCounter++;
+  turnState.turnNumber++;
+  monsterExecTimer = 0;
+  monsterExecStepIdx = 0;
+  resetTurnAP();
+  updateUI();
 }
 
 // ==================== 渲染系统 ====================
@@ -595,20 +1165,58 @@ function drawMoveArrows() {
   ctx.restore();
 }
 
-// --- 射击方向预览线 (在射击方向选择阶段，从幽灵位置出发) ---
+// --- 射击预览 (队列所有射击 + 当前方向选择) ---
 function drawShootPreview() {
-  if (turnState.phase !== 'player_shoot_dir' || !turnState.pendingShootDir) return;
-  const dir = turnState.pendingShootDir;
+  // 执行阶段不显示预览线
+  if (turnState.phase === 'player_execute' || turnState.phase === 'monster_turn') return;
+  turnState.previewHits = [];
+  // 累计：先算队列中所有射击的命中
+  const previews = getShootPreviews();
+  for (const pv of previews) {
+    drawShootLine(pv.origin.col, pv.origin.row, pv.dir, 0.3);
+    accumulateHits(pv.origin.col, pv.origin.row, pv.dir);
+  }
+
+  // 当前方向选择
+  if (turnState.phase === 'player_shoot_dir' && turnState.pendingShootDir) {
+    const ghost = calcGhostPos();
+    drawShootLine(ghost.col, ghost.row, turnState.pendingShootDir, 0.5);
+    accumulateHits(ghost.col, ghost.row, turnState.pendingShootDir);
+  }
+}
+
+// 累加子弹命中结果到 turnState.previewHits
+function accumulateHits(originCol, originRow, dir) {
   const vec = DIR_VEC[dir];
-  // 从幽灵复制体位置出发
-  const ghost = calcGhostPos();
-  const gp = gridToPixel(ghost.col, ghost.row);
+  let cx = originCol, cy = originRow;
+  for (let step = 0; step < CFG.BULLET_MAX_DIST; step++) {
+    cx += vec.dx; cy += vec.dy;
+    if (isWall(cx, cy)) break;
+    for (const m of monsters) {
+      if (m.col === cx && m.row === cy) {
+        const existing = turnState.previewHits.find(h => h.monster.id === m.id);
+        const dmg = playerStats.attack;
+        if (existing) {
+          existing.dmg += dmg;
+          existing.lethal = m.hp <= existing.dmg;
+        } else {
+          turnState.previewHits.push({ monster: m, dmg, lethal: m.hp <= dmg });
+        }
+        return; // 子弹被怪物阻挡
+      }
+    }
+  }
+}
+
+function drawShootLine(originCol, originRow, dir, alpha) {
+  const vec = DIR_VEC[dir];
+  const gp = gridToPixel(originCol, originRow);
   const pp = project(gp.x, gp.y);
   const s = pp.s;
   const lineLen = CFG.BULLET_MAX_DIST * CELL * s;
 
   ctx.save();
-  ctx.globalAlpha = 0.5;
+  ctx.globalAlpha = alpha;
   ctx.strokeStyle = '#ff6644';
   ctx.lineWidth = Math.max(1, Math.round(1.5 * s));
   ctx.setLineDash([4 * s, 3 * s]);
@@ -617,6 +1225,13 @@ function drawShootPreview() {
   ctx.lineTo(Math.round(pp.x + vec.dx * lineLen), Math.round(pp.y + vec.dy * lineLen));
   ctx.stroke();
   ctx.setLineDash([]);
+
+  // 终点碎裂光点 (半透明)
+  const endPx = pp.x + vec.dx * lineLen;
+  const endPy = pp.y + vec.dy * lineLen;
+  ctx.fillStyle = '#ff6644';
+  prect(Math.round(endPx) - 2, Math.round(endPy) - 2, 5, 5, 'rgba(255,100,60,0.5)');
+  prect(Math.round(endPx) - 1, Math.round(endPy) - 1, 3, 3, 'rgba(255,180,100,0.7)');
   ctx.restore();
 }
 
@@ -694,7 +1309,7 @@ function drawGhost() {
   const ghost = calcGhostPos();
   if (ghost.col === player.col && ghost.row === player.row) return;
   const gp = gridToPixel(ghost.col, ghost.row);
-  // 幽灵朝向：最后一个行为的方向，或保持玩家朝向
+  // 幽灵朝向：队列最后一个移动的方向
   let ghostFacing = player.facing;
   const lastMove = [...turnState.actionQueue].reverse().find(a => a.type === 'move');
   if (lastMove) ghostFacing = lastMove.dir;
@@ -714,7 +1329,30 @@ function drawGhost() {
 
 // --- 玩家渲染 ---
 function drawPlayer() {
-  drawCharacterAt(player.px, player.py, player.facing, player.walkFrame, player.shootTimer);
+  // 无敌闪烁
+  let alpha = 1;
+  if (player.invincibleTurns > 0) {
+    alpha = 0.3 + 0.35 * Math.sin(performance.now() * 0.015);
+  }
+  // 抖动偏移
+  const sx = player.hitFlash > 0 ? player.shakeX : 0;
+  const sy = player.hitFlash > 0 ? player.shakeY : 0;
+
+  if (alpha < 0.05) return; // 闪烁全透明时跳过渲染
+
+  drawCharacterAt(player.px + sx, player.py + sy, player.facing, player.walkFrame, player.shootTimer, alpha);
+
+  // 受击白闪
+  if (player.hitFlash > 0 && player.invincibleTurns <= 0) {
+    const pp = project(player.px + sx, player.py + sy);
+    const s = pp.s;
+    const size = Math.round(SPRITE.BASE_SIZE * s);
+    const half = Math.floor(size / 2);
+    ctx.save();
+    ctx.globalAlpha = player.hitFlash * 5;
+    prect(Math.round(pp.x) - half, Math.round(pp.y) - half, size, size, '#ffffff');
+    ctx.restore();
+  }
 }
 
 // --- 像素风子弹 ---
@@ -766,60 +1404,389 @@ function render() {
   drawGridHighlight();
   drawMoveArrows();
   drawShootPreview();
+  drawMonsterPaths();     // 怪物路径预览 (红色闪烁)
   drawBullets();
   drawParticles();
+  drawMonsters();          // 怪物绘制
   drawGhost();
   drawPlayer();
+  drawDamageNumbers();     // 伤害飘字 (最前层)
+  drawDebugOverlay();
+}
+
+// ==================== 怪物渲染 ====================
+// 怪物平滑动画插值
+const MONSTER_ANIM_SPEED = 170; // px/s
+function animateMonsters(dt) {
+  for (const m of monsters) {
+    const target = gridToPixel(m.col, m.row);
+    const dx = target.x - m.px, dy = target.y - m.py;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 1) {
+      m.px = target.x; m.py = target.y;
+    } else {
+      const step = MONSTER_ANIM_SPEED * dt;
+      const r = Math.min(step / dist, 1);
+      m.px += dx * r; m.py += dy * r;
+    }
+  }
+}
+
+// 伤害飘字
+function updateDamageNumbers(dt) {
+  for (let i = damageNumbers.length - 1; i >= 0; i--) {
+    const d = damageNumbers[i];
+    d.x += d.vx * dt;
+    d.y += d.vy * dt;
+    d.life -= dt;
+    if (d.life <= 0) damageNumbers.splice(i, 1);
+  }
+}
+function drawDamageNumbers() {
+  for (const d of damageNumbers) {
+    const pp = project(d.x, d.y);
+    const alpha = Math.max(0, d.life / d.maxLife);
+    const s = pp.s;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#ffdd44';
+    ctx.font = `bold ${Math.max(8, Math.round(10 * s))}px VT323, monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText(d.text, Math.round(pp.x), Math.round(pp.y));
+    ctx.restore();
+  }
+}
+function drawMonsters() {
+  for (const m of monsters) {
+    // 血条动画: displayHp 平滑追赶真实 hp
+    if (m.displayHp !== m.hp) {
+      const diff = m.hp - m.displayHp;
+      if (Math.abs(diff) < 0.05) { m.displayHp = m.hp; }
+      else { m.displayHp += diff * 0.08; }
+    }
+
+    // 抖动偏移 (渐弱)
+    if (m.hitFlash > 0) {
+      m.shakeX *= 0.85; m.shakeY *= 0.85;
+    }
+
+    const pp = project(m.px + m.shakeX, m.py + m.shakeY);
+    const cx = Math.round(pp.x), cy = Math.round(pp.y);
+    const s = pp.s;
+    const size = Math.round(SPRITE.BASE_SIZE * s * 1.1);
+    const half = Math.floor(size / 2);
+
+    // --- HP 条 ---
+    const barW = Math.max(16, Math.round(size * 1.0));
+    const barH = Math.max(3, Math.round(5 * s));
+    const barY = cy - half - Math.round(9 * s);
+    const barX = cx - Math.floor(barW / 2);
+    const displayRatio = Math.max(0, m.displayHp / m.maxHp);
+    const realRatio = Math.max(0, m.hp / m.maxHp);
+    // 黑色槽
+    prect(barX, barY, barW, barH, '#111');
+    prect(barX + 1, barY + 1, barW - 2, barH - 2, '#222');
+    // 红色填充 (displayHp)
+    const fillW = Math.max(0, Math.round((barW - 2) * displayRatio));
+    if (fillW > 0) {
+      prect(barX + 1, barY + 1, fillW, barH - 2, '#cc3333');
+      prect(barX + 1, barY + 1, fillW, Math.max(1, Math.floor(barH * 0.35)), 'rgba(255,150,150,0.4)');
+    }
+    // 白色延迟扣除段 (displayHp > hp 时)
+    const realFill = Math.round((barW - 2) * realRatio);
+    if (fillW > realFill) {
+      prect(barX + 1 + realFill, barY + 1, fillW - realFill, barH - 2, 'rgba(255,255,255,0.7)');
+    }
+
+    // 阴影
+    const shadowW = Math.round(size * 0.9);
+    const shadowH = Math.max(1, Math.round(4 * s));
+    prect(cx - Math.floor(shadowW / 2), cy + half - 1, shadowW, shadowH, 'rgba(0,0,0,0.5)');
+
+    // --- 角色精灵(浅黄色版) ---
+    let facing = 'down';
+    if (m.predictedPath && m.predictedPath.length > 0) {
+      const last = m.predictedPath[m.predictedPath.length - 1];
+      const ldx = last.toCol - last.fromCol, ldy = last.toRow - last.fromRow;
+      if (ldy > 0) facing = 'down'; else if (ldy < 0) facing = 'up';
+      else if (ldx > 0) facing = 'right'; else if (ldx < 0) facing = 'left';
+    }
+    const sx2 = m.hitFlash > 0 ? m.shakeX : 0;
+    const sy2 = m.hitFlash > 0 ? m.shakeY : 0;
+    drawCharacterAt(m.px + sx2, m.py + sy2, facing, 0, 0, 1);
+
+    // 白闪覆盖 (受击瞬间)
+    if (m.hitFlash > 0) {
+      ctx.save();
+      ctx.globalAlpha = m.hitFlash * 4;
+      prect(cx - half, cy - half, size, size, '#ffffff');
+      ctx.restore();
+    }
+
+    // 射击预览命中效果 (常驻显示, 所有预览阶段)
+    if (turnState.phase === 'player_select' || turnState.phase === 'player_shoot_dir') {
+      const hit = turnState.previewHits.find(h => h.monster.id === m.id);
+      if (hit) {
+        // 血条预伤害闪烁 (白色闪烁段)
+        const previewW = Math.min(barW - 2, Math.round((barW - 2) * Math.min(1, hit.dmg / m.maxHp)));
+        const flashA = 0.3 + 0.2 * Math.sin(monsterFlashTimer * 8);
+        ctx.save();
+        ctx.globalAlpha = flashA;
+        prect(barX + 1 + Math.max(0, fillW - previewW), barY + 1, previewW, barH - 2, '#ffffff');
+        ctx.restore();
+
+        // 骷髅头 (致死判定) — 重新设计
+        if (hit.lethal) {
+          const skFlash = 0.35 + 0.25 * Math.sin(monsterFlashTimer * 6);
+          ctx.save();
+          ctx.globalAlpha = skFlash;
+          const skX = cx - Math.round(10 * s), skY = cy - half - Math.round(18 * s);
+          const S = Math.max(1, Math.round(1.5 * s));
+          // 颅骨主体 (上宽下窄)
+          prect(skX, skY, Math.round(20 * s), Math.round(18 * s), '#e8e8e0');
+          prect(skX + S, skY + S, Math.round(18 * s), Math.round(16 * s), '#1a1a1a');
+          // 颅骨顶部圆弧 (近似)
+          prect(skX + Math.round(3 * s), skY - S, Math.round(14 * s), S, '#e8e8e0');
+          // 颧骨 (两侧突出)
+          prect(skX - S, skY + Math.round(10 * s), S * 2, Math.round(4 * s), '#e8e8e0');
+          prect(skX + Math.round(18 * s), skY + Math.round(10 * s), S * 2, Math.round(4 * s), '#e8e8e0');
+          // 眼洞 (大黑洞)
+          prect(skX + Math.round(3 * s), skY + Math.round(4 * s), Math.round(5 * s), Math.round(4 * s), '#e8e8e0');
+          prect(skX + Math.round(12 * s), skY + Math.round(4 * s), Math.round(5 * s), Math.round(4 * s), '#e8e8e0');
+          // 鼻洞
+          prect(skX + Math.round(9 * s), skY + Math.round(9 * s), Math.round(2 * s), Math.round(2 * s), '#e8e8e0');
+          // 牙齿 (上排)
+          for (let t = 0; t < 4; t++) {
+            prect(skX + Math.round((3 + t * 4) * s), skY + Math.round(12 * s), Math.round(3 * s), Math.round(3 * s), '#e8e8e0');
+          }
+          // 下颌骨
+          prect(skX + Math.round(4 * s), skY + Math.round(15 * s), Math.round(12 * s), Math.round(2 * s), '#ccc8c0');
+          ctx.restore();
+        }
+      }
+    }
+  }
+}
+
+// 怪物路径预览 (红色闪烁箭头, 回合开始时计算)
+function drawMonsterPaths() {
+  // 怪物回合 / 执行阶段不显示箭头
+  if (turnState.phase === 'monster_turn' || turnState.phase === 'player_execute') return;
+  // 闪烁透明度
+  const flash = 0.35 + 0.25 * Math.sin(monsterFlashTimer * 6);
+
+  ctx.save();
+  ctx.globalAlpha = flash;
+
+  for (const m of monsters) {
+    if (!m.predictedPath || m.predictedPath.length === 0) continue;
+
+    for (const step of m.predictedPath) {
+      const fromPx = gridToPixel(step.fromCol, step.fromRow);
+      const toPx   = gridToPixel(step.toCol, step.toRow);
+      const fp = project(fromPx.x, fromPx.y);
+      const tp = project(toPx.x, toPx.y);
+      const dx = tp.x - fp.x, dy = tp.y - fp.y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len < 1) continue;
+      const ux = dx / len, uy = dy / len;
+      const s = fp.s;
+      const thick = Math.max(2, Math.round(3.5 * s));
+      const headLen = Math.max(5, Math.round(5.5 * s));
+
+      const startX = fp.x + ux * (CELL * 0.18 * s);
+      const endX   = tp.x - ux * headLen;
+      const startY = fp.y + uy * (CELL * 0.18 * s);
+      const endY   = tp.y - uy * headLen;
+
+      // 光晕 (外圈淡色)
+      for (let i = -Math.floor(thick / 2) - 1; i <= Math.floor(thick / 2) + 1; i++) {
+        const px = uy * i, py = -ux * i;
+        ctx.strokeStyle = 'rgba(255,40,40,0.3)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(Math.round(startX + px), Math.round(startY + py));
+        ctx.lineTo(Math.round(endX + px), Math.round(endY + py));
+        ctx.stroke();
+      }
+
+      // 主线 (粗红色实线)
+      for (let i = -Math.floor(thick / 2); i <= Math.floor(thick / 2); i++) {
+        const px = uy * i, py = -ux * i;
+        ctx.strokeStyle = '#ff4444';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(Math.round(startX + px), Math.round(startY + py));
+        ctx.lineTo(Math.round(endX + px), Math.round(endY + py));
+        ctx.stroke();
+      }
+
+      // 箭头三角 (填充)
+      ctx.fillStyle = '#ff3333';
+      const tipX = tp.x - ux * (CELL * 0.06 * s);
+      const tipY = tp.y - uy * (CELL * 0.06 * s);
+      ctx.beginPath();
+      ctx.moveTo(Math.round(tipX), Math.round(tipY));
+      ctx.lineTo(Math.round(endX + uy * headLen * 0.5), Math.round(endY - ux * headLen * 0.5));
+      ctx.lineTo(Math.round(endX - uy * headLen * 0.5), Math.round(endY + ux * headLen * 0.5));
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  ctx.restore();
+}
+
+// --- 调试渲染 ---
+function drawDebugOverlay() {
+  if (!debugMode) return;
+
+  const STEP = 10; // 像素网格步长
+
+  ctx.save();
+
+  // --- 像素网格线 (淡色) ---
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 0.5;
+  for (let x = STEP; x < GAME_W; x += STEP) {
+    ctx.beginPath();
+    ctx.moveTo(x + 0.5, 0);
+    ctx.lineTo(x + 0.5, GAME_H);
+    ctx.stroke();
+  }
+  for (let y = STEP; y < GAME_H; y += STEP) {
+    ctx.beginPath();
+    ctx.moveTo(0, y + 0.5);
+    ctx.lineTo(GAME_W, y + 0.5);
+    ctx.stroke();
+  }
+
+  // --- 坐标数字标注 (每 20px) ---
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.font = '4px monospace';
+  ctx.textBaseline = 'top';
+  for (let x = 0; x < GAME_W; x += 20) {
+    ctx.fillText(x, x + 1, 1);
+  }
+  for (let y = 20; y < GAME_H; y += 20) {
+    ctx.fillText(y, 1, y + 1);
+  }
+
+  // --- 鼠标十字线 ---
+  if (debugMouseIn && debugMouseX >= 0 && debugMouseX < GAME_W && debugMouseY >= 0 && debugMouseY < GAME_H) {
+    const mx = Math.round(debugMouseX);
+    const my = Math.round(debugMouseY);
+
+    // 垂直虚线
+    ctx.strokeStyle = 'rgba(255,200,80,0.55)';
+    ctx.lineWidth = 0.5;
+    ctx.setLineDash([4, 2]);
+    ctx.beginPath();
+    ctx.moveTo(mx + 0.5, 0);
+    ctx.lineTo(mx + 0.5, GAME_H);
+    ctx.stroke();
+
+    // 水平虚线
+    ctx.beginPath();
+    ctx.moveTo(0, my + 0.5);
+    ctx.lineTo(GAME_W, my + 0.5);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 交叉点小方块
+    ctx.fillStyle = '#ffcc44';
+    ctx.fillRect(mx - 2, my - 2, 5, 5);
+    ctx.fillStyle = '#ff6644';
+    ctx.fillRect(mx - 1, my - 1, 3, 3);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(mx, my, 1, 1);
+  }
+
+  ctx.restore();
 }
 
 // ==================== UI 更新 ====================
 function updateActionBar() {
   const bar = document.getElementById('action-bar');
   bar.innerHTML = '';
-
   if (turnState.actionQueue.length === 0) {
     bar.innerHTML = '<span class="action-bar-placeholder">行为序列</span>';
     return;
   }
-
   const dirIcons = { up:'↑', down:'↓', left:'←', right:'→' };
-
-  for (let i = 0; i < turnState.actionQueue.length; i++) {
-    const act = turnState.actionQueue[i];
+  for (const act of turnState.actionQueue) {
     const block = document.createElement('span');
     block.className = 'action-block ' + act.type;
-
-    if (act.type === 'move') {
-      block.textContent = dirIcons[act.dir] || act.dir;
-    } else if (act.type === 'shoot') {
-      block.textContent = '⊕' + (dirIcons[act.dir] || '');
-    }
-
-    // checkpoint 标记：shoot块后面加上锁定图标
-    if (act.type === 'shoot' && i === turnState.lastCheckpointIndex) {
-      block.style.borderColor = '#cc6644';
-    }
-
+    block.textContent = act.type === 'move' ? (dirIcons[act.dir] || '') : ('⊕' + (dirIcons[act.dir] || ''));
     bar.appendChild(block);
   }
 }
 
+// 心形图标辅助
+function buildHearts(maxHp) {
+  const container = document.getElementById('ui-hearts');
+  container.innerHTML = '';
+  for (let i = 0; i < maxHp; i++) {
+    const h = document.createElement('div');
+    h.className = 'heart';
+    const shine = document.createElement('div');
+    shine.className = 'shine';
+    h.appendChild(shine);
+    container.appendChild(h);
+  }
+  updateHearts();
+}
+function updateHearts() {
+  const hearts = document.querySelectorAll('#ui-hearts .heart');
+  hearts.forEach((h, i) => {
+    h.classList.toggle('empty', i >= playerStats.hp);
+  });
+}
+
+// AP 圆点辅助
+function buildApDots(elementId, max) {
+  const container = document.getElementById(elementId);
+  container.innerHTML = '';
+  for (let i = 0; i < max; i++) {
+    const d = document.createElement('div');
+    d.className = 'ap-dot';
+    container.appendChild(d);
+  }
+}
+function updateApDots(elementId, current, max, type) {
+  // type: 'aap' (orange) or 'map' (blue)
+  const dots = document.querySelectorAll(`#${elementId} .ap-dot`);
+  dots.forEach((d, i) => {
+    d.classList.remove('full-aap', 'full-map', 'empty');
+    if (i < current) {
+      d.classList.add(type === 'aap' ? 'full-aap' : 'full-map');
+    } else {
+      d.classList.add('empty');
+    }
+  });
+}
+
 function updateUI() {
-  document.getElementById('ui-hp').textContent = `${playerStats.hp}/${playerStats.maxHp}`;
-  document.getElementById('ui-aap').innerHTML =
-    `<span class="ap-highlight">${turnState.aAP}</span>/<span class="ap-dim">${turnState.maxAAP}</span>`;
-  document.getElementById('ui-map').innerHTML =
-    `<span class="ap-highlight">${turnState.mAP}</span>/<span class="ap-dim">${turnState.maxMAP}</span>`;
+  // 回合数
   document.getElementById('ui-turn').textContent = turnState.turnNumber;
 
+  // 阶段
   const phaseEl = document.getElementById('ui-phase');
-  phaseEl.className = 'value';
+  phaseEl.className = 'pill-value';
   switch (turnState.phase) {
     case 'player_select':    phaseEl.textContent = '行为选择'; phaseEl.classList.add('phase-player'); break;
     case 'player_shoot_dir': phaseEl.textContent = '选择方向'; phaseEl.classList.add('phase-shoot'); break;
-    case 'player_execute':   phaseEl.textContent = '执行中';   phaseEl.classList.add('phase-exec'); break;
+    case 'player_execute': phaseEl.textContent = '执行中'; phaseEl.classList.add('phase-exec'); break;
+    case 'turn_end_confirm': phaseEl.textContent = '确认结束'; phaseEl.classList.add('phase-monster'); break;
     case 'monster_turn':     phaseEl.textContent = '怪物行动'; phaseEl.classList.add('phase-monster'); break;
   }
+
+  // HP 心形
+  updateHearts();
+
+  // AP 圆点 (mAP 已含队列预扣除)
+  updateApDots('ui-aap-dots', turnState.aAP, turnState.maxAAP, 'aap');
+  updateApDots('ui-map-dots', turnState.mAP, turnState.maxMAP, 'map');
 }
 
 // ==================== 移动系统 ====================
@@ -878,6 +1845,58 @@ function spawnBullet(dir, fromPx, fromPy) {
   totalShots++;
 }
 
+function bulletHitMonster(bx, by) {
+  const g = pixelToGrid(bx, by);
+  for (const m of monsters) {
+    if (m.col === g.col && m.row === g.row) return m;
+  }
+  return null;
+}
+
+function damageMonster(m, dmg) {
+  m.hp = Math.max(0, m.hp - dmg);
+  // 受击闪烁 + 抖动
+  m.hitFlash = 0.12;
+  m.shakeX = (Math.random() - 0.5) * 4;
+  m.shakeY = (Math.random() - 0.5) * 3;
+
+  // 伤害飘字 (黄色)
+  damageNumbers.push({
+    x: m.px, y: m.py - 5,
+    text: '-' + dmg,
+    life: 0.65, maxLife: 0.65,
+    vy: -35 - Math.random() * 25,
+    vx: (Math.random() - 0.5) * 20,
+  });
+
+  // 受击血雾粒子
+  spawnBloodParticles(m.px, m.py, 3);
+
+  if (m.hp <= 0) {
+    // 死亡爆浆
+    spawnBloodParticles(m.px, m.py, 18);
+    const idx = monsters.indexOf(m);
+    if (idx !== -1) monsters.splice(idx, 1);
+  }
+}
+
+// 血雾粒子
+function spawnBloodParticles(cx, cy, count) {
+  for (let j = 0; j < count; j++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd = 40 + Math.random() * 80;
+    particles.push({
+      x: cx, y: cy,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd - 20,
+      life: 0.3 + Math.random() * 0.35,
+      maxLife: 0.3 + Math.random() * 0.35,
+      size: 1 + Math.random() * 2,
+      color: Math.random() < 0.6 ? '#cc2222' : '#881111',
+    });
+  }
+}
+
 function updateBullets(dt) {
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
@@ -886,6 +1905,9 @@ function updateBullets(dt) {
       b.x += b.dirX * s; b.y += b.dirY * s;
       b.distTraveled += s;
       if (bulletHitWall(b.x, b.y)) { shatterBullet(b); continue; }
+      // 子弹碰撞怪物
+      const hitMon = bulletHitMonster(b.x, b.y);
+      if (hitMon) { damageMonster(hitMon, playerStats.attack); shatterBullet(b); continue; }
       const decayDist = b.maxDist - CFG.DECAY_START_BEFORE * CELL;
       if (b.distTraveled >= decayDist) {
         b.phase = 'decaying'; b.speed = CFG.BULLET_SPEED * CFG.DECAY_SPEED_RATIO;
@@ -899,6 +1921,9 @@ function updateBullets(dt) {
       b.vVel += CFG.DECAY_GRAVITY * dt;
       b.vOff += b.vVel * dt;
       if (bulletHitWall(b.x, b.y)) { shatterBullet(b); continue; }
+      // 下落阶段也可命中
+      const hitMon = bulletHitMonster(b.x, b.y);
+      if (hitMon) { damageMonster(hitMon, playerStats.attack); shatterBullet(b); continue; }
       if (b.distTraveled >= b.maxDist || b.vOff > CELL * 0.6) {
         if (b.distTraveled >= b.maxDist) b.distTraveled = b.maxDist;
         shatterBullet(b);
@@ -936,83 +1961,90 @@ function updateParticles(dt) {
   }
 }
 
-// ==================== 行为队列执行系统 ====================
-function isExecIdle() {
-  return bullets.length === 0 && particles.length === 0 && player.targetPx === null;
-}
 
+
+// ==================== 空格执行系统 ====================
 function startExecuteQueue() {
-  if (turnState.actionQueue.length === 0) {
-    endPlayerTurn();
-    return;
-  }
+  if (turnState.actionQueue.length === 0) return;
   turnState.phase = 'player_execute';
   turnState.execIndex = 0;
-  turnState.execActive = true;
-  // 执行开始，清空行为块区域
-  document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">执行中...</span>';
-  updateUI();
+  executeNextAction();
 }
 
 function executeNextAction() {
-  if (!turnState.execActive) return;
-  if (turnState.execIndex >= turnState.actionQueue.length) {
-    // 全部执行完毕
-    turnState.execActive = false;
-    endPlayerTurn();
-    return;
-  }
+  if (turnState.execIndex >= turnState.actionQueue.length) return; // 等待游戏循环检测完成
 
-  const action = turnState.actionQueue[turnState.execIndex];
-  if (action.type === 'move') {
-    player.facing = action.dir;
-    const vec = DIR_VEC[action.dir];
-    const nc = player.col + vec.dx;
-    const nr = player.row + vec.dy;
-    if (isWall(nc, nr)) {
-      // 遇到墙壁，跳过 (防御性检查)
-      turnState.execIndex++;
-      return;
+  const act = turnState.actionQueue[turnState.execIndex];
+  if (act.type === 'move') {
+    player.facing = act.dir;
+    const vec = DIR_VEC[act.dir];
+    const nc = player.col + vec.dx, nr = player.row + vec.dy;
+    if (isWall(nc, nr)) { turnState.execIndex++; return; }
+    // 玩家→怪物碰撞
+    const hitMon = monsters.find(m => m.col === nc && m.row === nr);
+    if (hitMon && player.invincibleTurns <= 0) {
+      damagePlayer(1);
+      if (!tryPushMonster(hitMon, vec.dx, vec.dy)) {
+        turnState.execIndex++;
+        return;
+      }
     }
-    player.col = nc;
-    player.row = nr;
+    player.col = nc; player.row = nr;
     const t = gridToPixel(nc, nr);
-    player.targetPx = t.x;
-    player.targetPy = t.y;
+    player.targetPx = t.x; player.targetPy = t.y;
     player.animTime = 0;
-  } else if (action.type === 'shoot') {
-    player.facing = action.dir;
+  } else if (act.type === 'shoot') {
+    player.facing = act.dir;
     player.shootTimer = 0.4;
-    spawnBullet(action.dir, player.px, player.py);
-    // 射击立即开始，等子弹+粒子结束后才处理下一个
-    turnState.execIndex++;
+    spawnBullet(act.dir, player.px, player.py);
+    turnState.execIndex++; // 射击即增量 → 等子弹特效结束后处理下一个
   }
 }
 
-function endPlayerTurn() {
-  turnState.phase = 'monster_turn';
-  turnState.execActive = false;
-  document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">行为序列</span>';
-  updateUI();
+// ==================== 回合结束确认弹窗 ====================
+function showEndTurnConfirm() {
+  turnState.phase = 'turn_end_confirm';
+  const modal = document.getElementById('end-turn-modal');
+  const msg = document.getElementById('end-turn-msg');
+  const hasRemaining = turnState.mAP > 0 || turnState.aAP > 0;
+  if (hasRemaining) {
+    msg.innerHTML = '还有未使用点数<br><span style="color:#ffcc44;font-size:18px;">M-AP:' + turnState.mAP + ' A-AP:' + turnState.aAP + '</span><br>是否结束回合？';
+  } else {
+    msg.innerHTML = '是否结束回合？';
+  }
+  modal.classList.add('open');
+}
 
-  // 怪物回合占位：短暂延迟后回到玩家回合
-  setTimeout(() => {
-    turnState.turnNumber++;
-    resetTurnAP();
-    updateUI();
-  }, 600);
+function confirmEndTurn() {
+  document.getElementById('end-turn-modal').classList.remove('open');
+  turnState.phase = 'monster_turn';
+  document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">行为序列</span>';
+  startMonsterTurn();
+  updateUI();
+}
+
+function cancelEndTurn() {
+  document.getElementById('end-turn-modal').classList.remove('open');
+  turnState.phase = 'player_select';
+  updateUI();
 }
 
 // ==================== 输入处理 ====================
 document.addEventListener('keydown', (e) => {
-  const actionKeys = ['KeyW','KeyA','KeyS','KeyD','KeyJ','KeyK','KeyL','Space'];
+  const actionKeys = ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','Escape','KeyC'];
   if (actionKeys.includes(e.code)) e.preventDefault();
 
-  // ---- 阶段：行为选择 ----
+  // ---- 阶段：回合结束确认弹窗 ----
+  if (turnState.phase === 'turn_end_confirm') {
+    if (e.code === 'Space') { confirmEndTurn(); }
+    else if (e.code === 'Escape') { cancelEndTurn(); }
+    return;
+  }
+
+  // ---- 阶段：行为选择 (预览模式) ----
   if (turnState.phase === 'player_select') {
     switch (e.code) {
       case 'KeyW': case 'KeyS': case 'KeyA': case 'KeyD': {
-        // 移动 (智能M-AP管理)
         const dirMap = { KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right' };
         const dir = dirMap[e.code];
         if (!dir) return;
@@ -1021,77 +2053,101 @@ document.addEventListener('keydown', (e) => {
         const vec = DIR_VEC[dir];
         const newCol = ghost.col + vec.dx;
         const newRow = ghost.row + vec.dy;
-
-        // 检查目标格是否在地图内
         if (isWall(newCol, newRow)) return;
 
-        // 智能M-AP：检查最后一步是否是可自动撤销的自由移动
-        const lastIdx = turnState.actionQueue.length - 1;
-        const oppDir = { up: 'down', down: 'up', left: 'right', right: 'left' };
-        const isFreeMove = lastIdx >= 0
-          && lastIdx > turnState.lastCheckpointIndex
-          && turnState.actionQueue[lastIdx].type === 'move';
+        // 曼哈顿距离智能 M-AP 模型
+        const tail = getMovableTail();
+        const tailLen = tail.length;
+        const lockedPart = turnState.actionQueue.slice(0, turnState.actionQueue.length - tailLen);
+        const lockedMoves = lockedPart.filter(a => a.type === 'move').length;
 
-        if (isFreeMove && turnState.actionQueue[lastIdx].dir === oppDir[dir]) {
-          // 自动撤销折返：取消上一步自由移动，返还M-AP
-          turnState.actionQueue.pop();
-          turnState.mAP++;
-          updateActionBar();
-          updateUI();
-          return;
+        // 自由区起始位置
+        let originCol = player.col, originRow = player.row;
+        for (const act of lockedPart) {
+          if (act.type === 'move') { originCol += DIR_VEC[act.dir].dx; originRow += DIR_VEC[act.dir].dy; }
         }
 
-        // 无法自动撤销，需正常消耗M-AP
-        if (turnState.mAP <= 0) return;
-        turnState.mAP--;
-        turnState.actionQueue.push({ type: 'move', dir });
+        const freeDistNew = Math.abs(newCol - originCol) + Math.abs(newRow - originRow);
+        const totalCost = lockedMoves + freeDistNew;
+
+        if (totalCost > turnState.maxMAP) return; // 新位置消耗超出M-AP上限
+
+        if (freeDistNew < tailLen) {
+          // 路径缩短 → 用最短路径重建尾部
+          turnState.actionQueue = [
+            ...lockedPart,
+            ...buildFreeMoves(originCol, originRow, newCol, newRow)
+          ];
+        } else {
+          turnState.actionQueue.push({ type: 'move', dir });
+        }
+        turnState.mAP = turnState.maxMAP - totalCost;
         updateActionBar();
         updateUI();
         return;
       }
-      case 'KeyJ': {
-        // 进入射击选择
+      case 'Space': {
+        // 有队列则执行, 否则弹出回合结束确认
+        if (turnState.actionQueue.length > 0) {
+          startExecuteQueue();
+        } else {
+          showEndTurnConfirm();
+        }
+        return;
+      }
+      case 'ArrowUp': case 'ArrowDown': case 'ArrowLeft': case 'ArrowRight': {
         if (turnState.aAP <= 0) return;
+        const dirMap = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+        const dir = dirMap[e.code];
         turnState.phase = 'player_shoot_dir';
-        turnState.pendingShootDir = null;
+        turnState.pendingShootDir = dir;
         updateUI();
         break;
       }
-      case 'KeyL': {
-        // 取消最后一个预行为 (可通过 checkpoint)
-        undoLastAction();
+      case 'KeyC': {
+        spawnMonster();
         break;
       }
-      case 'Space': {
-        // 执行所有行为
-        startExecuteQueue();
+      case 'Escape': {
+        // 倒序撤销
+        if (turnState.actionQueue.length > 0) {
+          const last = turnState.actionQueue.pop();
+          if (last.type === 'move') turnState.mAP++;
+          else if (last.type === 'shoot') turnState.aAP++;
+          updateActionBar();
+          updateUI();
+        }
         break;
       }
     }
     return;
   }
 
-  // ---- 阶段：射击方向选择 ----
+  // ---- 阶段：射击方向选择 (选方向并入队列) ----
   if (turnState.phase === 'player_shoot_dir') {
     switch (e.code) {
-      case 'KeyW': turnState.pendingShootDir = 'up'; break;
-      case 'KeyS': turnState.pendingShootDir = 'down'; break;
-      case 'KeyA': turnState.pendingShootDir = 'left'; break;
-      case 'KeyD': turnState.pendingShootDir = 'right'; break;
-      case 'KeyK': {
-        // 确认射击 → 设为 checkpoint，锁定之前的移动行为
-        if (!turnState.pendingShootDir) return;
-        turnState.aAP--;
-        turnState.actionQueue.push({ type: 'shoot', dir: turnState.pendingShootDir });
-        turnState.lastCheckpointIndex = turnState.actionQueue.length - 1;
-        turnState.pendingShootDir = null;
-        turnState.phase = 'player_select';
-        updateActionBar();
+      case 'ArrowUp': case 'ArrowDown': case 'ArrowLeft': case 'ArrowRight': {
+        const dirMap = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+        const dir = dirMap[e.code];
+        if (!dir) return;
+        turnState.pendingShootDir = dir;
         updateUI();
         break;
       }
-      case 'KeyL': {
-        // 取消射击行为
+      case 'Space': {
+        if (turnState.pendingShootDir) {
+          turnState.aAP--;
+          turnState.actionQueue.push({ type: 'shoot', dir: turnState.pendingShootDir });
+          turnState.pendingShootDir = null;
+          turnState.phase = 'player_select';
+          updateActionBar();
+          updateUI();
+        } else {
+          showEndTurnConfirm();
+        }
+        break;
+      }
+      case 'Escape': {
         turnState.pendingShootDir = null;
         turnState.phase = 'player_select';
         updateUI();
@@ -1101,28 +2157,54 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 });
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const cssX = e.clientX - rect.left;
+  const cssY = e.clientY - rect.top;
+  // 将 CSS 坐标换算为游戏像素坐标
+  debugMouseX = cssX / DISPLAY_SCALE;
+  debugMouseY = cssY / DISPLAY_SCALE;
+  debugMouseIn = true;
 
-function undoLastAction() {
-  if (turnState.phase !== 'player_select') return;
-  if (turnState.actionQueue.length === 0) return;
-  const last = turnState.actionQueue.pop();
-  if (last.type === 'move') {
-    turnState.mAP++;
-  } else if (last.type === 'shoot') {
-    turnState.aAP++;
-    // shoot被撤销，需要回退lastCheckpointIndex到前一个shoot（或-1）
-    let prevCP = -1;
-    for (let i = turnState.actionQueue.length - 1; i >= 0; i--) {
-      if (turnState.actionQueue[i].type === 'shoot') {
-        prevCP = i;
-        break;
-      }
-    }
-    turnState.lastCheckpointIndex = prevCP;
+  if (debugMode) {
+    // 更新调试信息面板
+    const gx = Math.floor(debugMouseX);
+    const gy = Math.floor(debugMouseY);
+    document.getElementById('debug-px').textContent = gx;
+    document.getElementById('debug-py').textContent = gy;
+    // 计算网格坐标
+    const col = Math.max(0, Math.min(COLS - 1, Math.floor((gx - WALL) / CELL)));
+    const row = Math.max(0, Math.min(ROWS - 1, Math.floor((gy - WALL) / CELL)));
+    document.getElementById('debug-col').textContent = col;
+    document.getElementById('debug-row').textContent = row;
   }
-  updateActionBar();
-  updateUI();
-}
+});
+
+canvas.addEventListener('mouseleave', () => {
+  debugMouseIn = false;
+});
+
+canvas.addEventListener('mouseenter', () => {
+  debugMouseIn = true;
+});
+
+// ==================== 调试按钮 ====================
+document.getElementById('debug-btn').addEventListener('click', () => {
+  debugMode = !debugMode;
+  const btn = document.getElementById('debug-btn');
+  const info = document.getElementById('debug-info');
+  if (debugMode) {
+    btn.textContent = '调试:开';
+    btn.classList.add('active');
+    info.classList.add('visible');
+  } else {
+    btn.textContent = '调试:关';
+    btn.classList.remove('active');
+    info.classList.remove('visible');
+    debugMouseX = -1;
+    debugMouseY = -1;
+  }
+});
 
 // ==================== 游戏循环 ====================
 let lastTime = performance.now();
@@ -1132,12 +2214,12 @@ function gameLoop(timestamp) {
   lastTime = timestamp;
   if (dt > 0.1) dt = 0.1;
 
-  // 更新移动动画
+  // 更新移动动画 (空格执行阶段)
   if (player.targetPx !== null) {
     const done = updateMove(dt);
     if (done && turnState.phase === 'player_execute') {
       turnState.execIndex++;
-      updateUI();
+      executeNextAction();
     }
   }
 
@@ -1145,15 +2227,53 @@ function gameLoop(timestamp) {
   updateBullets(dt);
   updateParticles(dt);
 
-  // 执行阶段：检查是否可以进行下一个行为
-  if (turnState.phase === 'player_execute' && turnState.execActive) {
-    if (isExecIdle()) {
-      executeNextAction();
+  // 空格执行阶段：检查是否可继续 / 完成
+  if (turnState.phase === 'player_execute') {
+    if (player.targetPx === null && bullets.length === 0 && particles.length === 0) {
+      if (turnState.execIndex < turnState.actionQueue.length) {
+        executeNextAction();
+      } else {
+        // 队列全部执行完毕 → 回到行为选择
+        turnState.execIndex = 0;
+        turnState.actionQueue = [];
+        turnState.phase = 'player_select';
+        updateActionBar();
+        updateUI();
+        // 实际执行完后若 AP 全空 → 直接结束回合, 不弹窗
+        if (turnState.mAP === 0 && turnState.aAP === 0) {
+          confirmEndTurn();
+        }
+      }
     }
   }
 
   // 射击表情倒计时
   player.shootTimer = Math.max(0, player.shootTimer - dt);
+  // 玩家受击效果衰减
+  if (player.hitFlash > 0) {
+    player.hitFlash = Math.max(0, player.hitFlash - dt);
+    player.shakeX *= 0.85; player.shakeY *= 0.85;
+  }
+
+  // 怪物平滑动画 (插值 px/py → 网格坐标)
+  animateMonsters(dt);
+  // 怪物受击效果衰减
+  for (const m of monsters) {
+    if (m.hitFlash > 0) m.hitFlash = Math.max(0, m.hitFlash - dt);
+  }
+
+  // 怪物回合执行
+  if (turnState.phase === 'monster_turn') {
+    updateMonsterTurn(dt);
+  }
+
+  // 怪物路径闪烁计时
+  if (turnState.phase === 'player_select' || turnState.phase === 'player_shoot_dir') {
+    monsterFlashTimer += dt;
+  }
+
+  // 伤害飘字更新
+  updateDamageNumbers(dt);
 
   render();
   requestAnimationFrame(gameLoop);
@@ -1164,12 +2284,61 @@ const startPos = gridToPixel(player.col, player.row);
 player.px = startPos.x;
 player.py = startPos.y;
 resetTurnAP();
+buildHearts(playerStats.maxHp);
+buildApDots('ui-aap-dots', turnState.maxAAP);
+buildApDots('ui-map-dots', turnState.maxMAP);
 updateUI();
 lastTime = performance.now();
 requestAnimationFrame(gameLoop);
 
+// ==================== 生怪 ====================
+function spawnMonster() {
+  const occupied = new Set();
+  occupied.add(`${player.col},${player.row}`);
+  for (const m of monsters) occupied.add(`${m.col},${m.row}`);
+  const candidates = [];
+  for (let c = 0; c < COLS; c++)
+    for (let r = 0; r < ROWS; r++)
+      if (!occupied.has(`${c},${r}`)) candidates.push({ col: c, row: r });
+  if (candidates.length === 0) return;
+  const pos = candidates[Math.floor(Math.random() * candidates.length)];
+  const pix = gridToPixel(pos.col, pos.row);
+  monsters.push({
+    id: ++monsterIdCounter, name: MONSTER_CFG.name,
+    col: pos.col, row: pos.row,
+    px: pix.x, py: pix.y,
+    hp: MONSTER_CFG.hp, maxHp: MONSTER_CFG.hp,
+    displayHp: MONSTER_CFG.hp,
+    predictedPath: [], moveSpeed: 2,
+    hitFlash: 0, shakeX: 0, shakeY: 0,
+  });
+  calcAllMonsterPaths();
+}
+document.getElementById('spawn-monster-btn').addEventListener('click', spawnMonster);
+
+// ==================== 操作弹窗 ====================
+document.getElementById('help-btn').addEventListener('click', () => {
+  document.getElementById('help-modal').classList.add('open');
+});
+document.getElementById('help-close').addEventListener('click', () => {
+  document.getElementById('help-modal').classList.remove('open');
+});
+// 点击弹窗外区域也关闭
+document.getElementById('help-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'help-modal') {
+    document.getElementById('help-modal').classList.remove('open');
+  }
+});
+
+// ==================== 回合结束确认弹窗按钮 ====================
+document.getElementById('end-turn-confirm').addEventListener('click', confirmEndTurn);
+document.getElementById('end-turn-cancel').addEventListener('click', cancelEndTurn);
+document.getElementById('end-turn-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'end-turn-modal') cancelEndTurn();
+});
+
 console.log('⚔ 以撒半回合制 Demo — AP 行动点数系统 已就绪');
-console.log('  WASD = 预移动  |  J = 射击  |  K = 确认  |  L = 取消  |  空格 = 执行');
+console.log('  WASD = 幽灵预览  |  ↑↓←→ = 射击  |  Space = 确认  |  Esc = 撤销');
 console.log(`  房间: ${COLS}×${ROWS} 格子  |  射程: ${CFG.BULLET_MAX_DIST} 格`);
 console.log(`  A-AP=${playerStats.fireRate}  M-AP=${playerStats.moveSpeed * 2}  HP=${playerStats.hp}/${playerStats.maxHp}`);
 </script>
