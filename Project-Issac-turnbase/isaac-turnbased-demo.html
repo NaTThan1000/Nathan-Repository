@@ -665,6 +665,7 @@ let damageNumbers = [];  // [{x, y, text, life, maxLife, vy}]
 let totalShots    = 0;
 let checkpointPos = null;       // {col, row} 射击后checkpoint位置
 let turnSnapshot  = null;       // 回合开始时完整快照
+let pendingReachableRefresh = false;  // 怪物死亡后需刷新可移动范围
 
 // ==================== 怪物系统 ====================
 const MONSTER_CFG = {
@@ -800,7 +801,6 @@ function resetTurnAP() {
   turnState.phase = 'player_select';
   checkpointPos = null;
   turnSnapshot = null;
-  calcAllMonsterPaths();
   if (player.invincibleTurns > 0) player.invincibleTurns--;
   turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
   saveTurnSnapshot();
@@ -812,7 +812,7 @@ function isMonsterAt(col, row, excludeId = -1) {
   return monsters.some(m => m.col === col && m.row === row && m.id !== excludeId);
 }
 
-// 玩家回合开始时: 所有怪物计算下回合移动路径
+// 怪物回合开始时: 所有怪物计算向玩家实时位置的移动路径
 function calcAllMonsterPaths() {
   const turnIdx = turnState.monsterTurnCounter;
   const speed = MONSTER_CFG.SPEED_CYCLE[turnIdx % 2];
@@ -932,7 +932,7 @@ let monsterExecStepIdx = 0;
 function startMonsterTurn() {
   monsterExecStepIdx = 0;
   monsterExecTimer = 0;
-  // 保留 predictedPath 用于实际移动执行
+  calcAllMonsterPaths();  // 怪物回合开始时计算路径, 追踪玩家实时位置
 }
 
 function updateMonsterTurn(dt) {
@@ -1434,8 +1434,6 @@ function render() {
   drawFloor();
   drawGridHighlight();
   drawReachableOverlay();   // 可移动方格 (浅蓝呼吸)
-  drawMonsterDangerZones(); // 怪物路径红色呼吸方格
-  drawMonsterPaths();       // 怪物路径预览 (红色闪烁)
   drawBullets();
   drawParticles();
   drawMonsters();
@@ -1993,6 +1991,7 @@ function damageMonster(m, dmg) {
   if (m.hp <= 0) {
     // 死亡爆浆
     spawnBloodParticles(m.px, m.py, 18);
+    if (turnState.phase === 'player_select') pendingReachableRefresh = true;
     const idx = monsters.indexOf(m);
     if (idx !== -1) monsters.splice(idx, 1);
   }
@@ -2337,6 +2336,17 @@ function gameLoop(timestamp) {
   // 更新子弹 & 粒子
   updateBullets(dt);
   updateParticles(dt);
+
+  // 怪物死亡后刷新可移动范围 (新增空白格)
+  if (turnState.phase === 'player_select' && pendingReachableRefresh) {
+    if (!turnState.hasShot) {
+      const oCol = turnSnapshot.playerCol, oRow = turnSnapshot.playerRow;
+      turnState.reachableTiles = calcReachableTiles(oCol, oRow, turnState.maxMAP);
+    } else {
+      turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
+    }
+    pendingReachableRefresh = false;
+  }
 
   // 射击表情倒计时
   player.shootTimer = Math.max(0, player.shootTimer - dt);

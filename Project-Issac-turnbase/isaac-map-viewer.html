@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>以撒 · 房间模板编辑器</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root { --font-cn: 'ZCOOL KuaiLe', 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+  body {
+    background: #0a0a0f; font-family: var(--font-cn); color: #d4b87a;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 10px;
+  }
+  h1 { color: #c9a96e; font-size: 18px; letter-spacing: 2px; text-shadow: 2px 2px 0 #000, 0 0 12px rgba(201,169,110,0.4); margin-bottom: 6px; }
+
+  /* ---- 标签导航 ---- */
+  #tab-nav { display: flex; gap: 4px; margin-bottom: 6px; }
+  .tab-btn {
+    background: #15151a; border: 2px solid #3a3020; color: #998866;
+    font-family: var(--font-cn); font-size: 13px; padding: 5px 14px; cursor: pointer;
+    letter-spacing: 1px; transition: all 0.15s;
+  }
+  .tab-btn.active { border-color: #c9a96e; color: #c9a96e; background: #1a1810; box-shadow: 0 0 8px rgba(201,169,110,0.2); }
+  .tab-btn:hover { border-color: #6b5e44; color: #d4b87a; }
+
+  /* ==== 模板列表 ==== */
+  #list-view { display: block; }
+  #list-toolbar { display: flex; gap: 8px; margin-bottom: 8px; justify-content: center; flex-wrap: wrap; align-items: center; }
+  .tool-btn {
+    background: #15151a; border: 2px solid #3a3020; color: #998866;
+    font-family: var(--font-cn); font-size: 13px; padding: 5px 14px; cursor: pointer;
+    letter-spacing: 1px; transition: all 0.15s;
+  }
+  .tool-btn:hover { border-color: #c9a96e; color: #c9a96e; }
+  .tool-btn.gen { border-color: #448866; color: #66cc88; }
+  .tool-btn.gen:hover { border-color: #66cc88; color: #88eebb; background: #0f1a12; }
+  .tool-btn.danger { border-color: #883333; color: #ee6655; }
+  .tool-btn.danger:hover { border-color: #cc4444; background: #1a0f0f; }
+  .tool-status {
+    color: #66cc88; font-size: 12px; min-width: 160px; text-align: center;
+    transition: opacity 0.3s;
+  }
+  .tool-status.error { color: #ff6666; }
+
+  #template-grid {
+    display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 1400px;
+  }
+  .tpl-card {
+    background: #111118; border: 2px solid #2a2520; padding: 8px; position: relative;
+    cursor: pointer; transition: border-color 0.15s;
+  }
+  .tpl-card:hover { border-color: #c9a96e; }
+  .tpl-card.fail { border-color: #aa3333; }
+  .tpl-card.pass { border-color: #335533; }
+  .tpl-card.custom { border-color: #446688; }
+
+  .tpl-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 3px; font-size: 13px; padding: 0 2px;
+  }
+  .tpl-name { color: #d4b87a; font-weight: bold; }
+  .tpl-types { color: #665544; font-size: 11px; }
+
+  .tpl-canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+
+  .badge {
+    display: inline-block; font-size: 10px; padding: 2px 8px; font-weight: bold; letter-spacing: 1px;
+  }
+  .badge-pass { background: #1a3a1a; color: #66cc66; border: 1px solid #335533; }
+  .badge-fail { background: #3a1a1a; color: #ff6666; border: 1px solid #553333; }
+
+  .tpl-actions {
+    display: flex; gap: 4px; margin-top: 4px; justify-content: center;
+  }
+  .tpl-act-btn {
+    background: #15151a; border: 1px solid #3a3020; color: #998866;
+    font-family: var(--font-cn); font-size: 11px; padding: 2px 8px; cursor: pointer;
+  }
+  .tpl-act-btn:hover { border-color: #c9a96e; color: #c9a96e; }
+  .tpl-act-btn.del:hover { border-color: #cc4444; color: #ff6666; }
+  .tpl-act-btn:disabled { opacity: 0.3; cursor: not-allowed; border-color: #2a2520 !important; color: #554433 !important; }
+
+  /* ==== 编辑器 ==== */
+  #editor-view { display: none; }
+  #editor-view.active { display: flex; flex-direction: column; align-items: center; }
+
+  #editor-toolbar {
+    display: flex; gap: 8px; margin-bottom: 8px; align-items: center; flex-wrap: wrap; justify-content: center;
+  }
+  #editor-main {
+    display: flex; gap: 16px; align-items: flex-start;
+    background: #111118; border: 2px solid #3a3020; padding: 12px;
+  }
+  #editor-canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; cursor: crosshair; }
+
+  #editor-sidebar {
+    display: flex; flex-direction: column; gap: 10px; min-width: 140px;
+  }
+  .palette-title { font-size: 12px; color: #887755; letter-spacing: 1px; }
+  .palette-grid { display: flex; flex-wrap: wrap; gap: 4px; }
+  .palette-btn {
+    width: 28px; height: 28px; border: 2px solid #3a3020; cursor: pointer; position: relative;
+  }
+  .palette-btn:hover { border-color: #c9a96e; }
+  .palette-btn.selected { border-color: #ffcc44; box-shadow: 0 0 8px rgba(255,200,80,0.5); }
+  .palette-btn.selected::after {
+    content: '✓'; position: absolute; top: 1px; right: 3px;
+    font-size: 10px; color: #fff; font-weight: bold;
+  }
+
+  .side-btn {
+    background: #15151a; border: 2px solid #3a3020; color: #998866;
+    font-family: var(--font-cn); font-size: 12px; padding: 5px 10px; cursor: pointer;
+    letter-spacing: 1px; width: 100%; text-align: center;
+  }
+  .side-btn:hover { border-color: #c9a96e; color: #c9a96e; }
+  .side-btn.save { border-color: #448866; color: #66cc88; }
+  .side-btn.save:hover { border-color: #66cc88; }
+  .side-btn.cancel { border-color: #883333; color: #ee6655; }
+  .side-btn.cancel:hover { border-color: #cc4444; }
+
+  #editor-status { font-size: 12px; color: #887755; text-align: center; min-height: 20px; }
+  #editor-status.pass { color: #66cc66; }
+  #editor-status.fail { color: #ff6666; }
+
+  .check-row {
+    display: flex; align-items: center; gap: 4px; font-size: 12px; color: #887755;
+  }
+  .check-row input { accent-color: #c9a96e; }
+
+  /* ==== 楼层预览 ==== */
+  #floor-panel { display: none; flex-direction: column; align-items: center; }
+  #floor-panel.active { display: flex; }
+  #floor-nav { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; justify-content: center; }
+  .floor-btn {
+    background: #15151a; border: 2px solid #3a3020; color: #998866;
+    font-family: var(--font-cn); font-size: 12px; padding: 4px 10px; cursor: pointer;
+  }
+  .floor-btn.active { border-color: #c9a96e; color: #c9a96e; background: #1a1810; }
+  .floor-btn:hover { border-color: #6b5e44; color: #d4b87a; }
+  #canvas-wrapper {
+    border: 3px solid #3a3020; background: #0d0d12;
+    box-shadow: 0 0 30px rgba(0,0,0,0.6);
+    overflow: auto; max-width: 96vw; max-height: 65vh;
+  }
+  canvas#map { display: block; }
+
+  /* ==== 底部 ==== */
+  #bottom-bar {
+    display: flex; gap: 12px; margin-top: 6px; flex-wrap: wrap; justify-content: center; align-items: flex-start;
+  }
+  #legend {
+    display: flex; gap: 10px; flex-wrap: wrap; padding: 6px 14px;
+    background: #15151a; border: 2px solid #3a3020; align-items: center;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 4px; font-size: 11px; color: #998866;
+  }
+  .legend-swatch { width: 13px; height: 13px; border: 1px solid #5a4d3a; }
+  .sw-floor { background: #3a342a; } .sw-rock { background: #6e665e; }
+  .sw-poop { background: #7a5a10; } .sw-pit { background: #181838; }
+  .sw-spike { background: #aa2222; } .sw-door { background: #559944; }
+  .sw-bad { background: #ff3333; }
+
+  #info-panel {
+    padding: 6px 12px; background: #15151a; border: 2px solid #3a3020;
+    font-size: 12px; color: #998866; text-align: center; line-height: 1.6;
+  }
+  #info-panel .iv { color: #d4b87a; }
+
+  .btn-row { display: flex; gap: 4px; }
+  .action-btn {
+    background: #15151a; border: 2px solid #3a3020; color: #998866;
+    font-family: var(--font-cn); font-size: 11px; padding: 3px 8px; cursor: pointer;
+  }
+  .action-btn:hover { border-color: #c9a96e; color: #c9a96e; }
+
+  /* 输入框 */
+  .text-input {
+    background: #0a0a0f; border: 2px solid #3a3020; color: #d4b87a;
+    font-family: var(--font-cn); font-size: 13px; padding: 4px 8px;
+    outline: none; width: 140px;
+  }
+  .text-input:focus { border-color: #c9a96e; }
+
+  /* 自定义确认弹窗 */
+  #confirm-modal {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    z-index: 999; align-items: center; justify-content: center;
+  }
+  #confirm-modal.show { display: flex; }
+  #confirm-box {
+    background: #1a1410; border: 3px solid #5a3a18; padding: 24px 32px;
+    max-width: 400px; text-align: center; color: #d4b87a;
+    font-family: var(--font-cn); box-shadow: 0 0 30px rgba(0,0,0,0.8);
+  }
+  #confirm-msg { font-size: 16px; margin-bottom: 18px; }
+  #confirm-btns { display: flex; gap: 12px; justify-content: center; }
+  #confirm-ok, #confirm-cancel {
+    background: #15151a; border: 2px solid #3a3020; color: #d4b87a;
+    font-family: var(--font-cn); font-size: 14px; padding: 6px 22px; cursor: pointer;
+  }
+  #confirm-ok:hover { border-color: #cc4444; color: #ff6666; }
+  #confirm-cancel:hover { border-color: #c9a96e; color: #c9a96e; }
+
+</style>
+</head>
+<body>
+
+<h1>地牢房间模板 · 编辑器</h1>
+
+<div id="tab-nav">
+  <button class="tab-btn active" id="tab-templates">模板列表</button>
+  <button class="tab-btn" id="tab-floor">楼层生成预览</button>
+</div>
+
+<div id="list-view">
+  <div id="list-toolbar">
+    <button class="tool-btn" id="btn-pick-file">📂 选择 pool.json</button>
+    <button class="tool-btn gen" id="btn-autogen">+ 自动生成模板</button>
+    <button class="tool-btn" id="btn-sync" title="保存当前关卡池到 pool.json" disabled>💾 同步到文件</button>
+    <span class="tool-status" id="tool-status"></span>
+  </div>
+  <div id="template-grid"></div>
+</div>
+
+<div id="editor-view">
+  <div id="editor-toolbar">
+    <input class="text-input" id="edit-name" value="" placeholder="模板名称">
+    <span style="font-size:12px;color:#887755;">适用类型:</span>
+    <label class="check-row"><input type="checkbox" class="edit-type" value="start">起点</label>
+    <label class="check-row"><input type="checkbox" class="edit-type" value="normal" checked>普通</label>
+    <label class="check-row"><input type="checkbox" class="edit-type" value="treasure">宝箱</label>
+    <label class="check-row"><input type="checkbox" class="edit-type" value="boss">Boss</label>
+    <label class="check-row"><input type="checkbox" class="edit-type" value="shop">商店</label>
+    <div id="editor-status">点击方格绘制</div>
+  </div>
+  <div id="editor-main">
+    <canvas id="editor-canvas"></canvas>
+    <div id="editor-sidebar">
+      <div class="palette-title">方格类型</div>
+      <div class="palette-grid" id="palette"></div>
+      <button class="side-btn" id="btn-check">检查连通性</button>
+      <button class="side-btn" id="btn-clear">清空全部</button>
+      <button class="side-btn" id="btn-undo">撤销一步</button>
+      <div style="height:8px;"></div>
+      <button class="side-btn save" id="btn-save">保存</button>
+      <button class="side-btn cancel" id="btn-cancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<div id="floor-panel">
+  <div id="floor-nav"></div>
+  <div id="canvas-wrapper"><canvas id="map"></canvas></div>
+</div>
+
+<div id="confirm-modal">
+  <div id="confirm-box">
+    <div id="confirm-msg"></div>
+    <div id="confirm-btns">
+      <button id="confirm-ok">确认删除</button>
+      <button id="confirm-cancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<div id="bottom-bar">
+  <div id="legend">
+    <span class="legend-item"><span class="legend-swatch sw-floor"></span>地面</span>
+    <span class="legend-item"><span class="legend-swatch sw-rock"></span>岩石</span>
+    <span class="legend-item"><span class="legend-swatch sw-poop"></span>便便</span>
+    <span class="legend-item"><span class="legend-swatch sw-pit"></span>深坑</span>
+    <span class="legend-item"><span class="legend-swatch sw-spike"></span>尖刺</span>
+    <span class="legend-item"><span class="legend-swatch sw-door"></span>门前格</span>
+    <span class="legend-item"><span class="legend-swatch sw-bad"></span>阻塞门</span>
+  </div>
+  <div id="info-panel">
+    <div id="info-text">点击模板卡片进行编辑</div>
+  </div>
+  <div class="btn-row" id="floor-btns" style="display:none;">
+    <button class="action-btn" id="btn-regen">重新生成</button>
+    <button class="action-btn" id="btn-regen-all">全部重生成</button>
+  </div>
+</div>
+
+<script>
+// ================================================================
+//  TILE 枚举
+// ================================================================
+const TILE = { FLOOR: 0, ROCK: 1, POOP: 2, PIT: 3, SPIKE: 4 };
+const TILE_PROPS = {
+  [TILE.FLOOR]: { name:'普通地面', walkable:true,  blocksBullet:false, sym:'.', color:'#3a342a', vc:'#3a342a' },
+  [TILE.ROCK]:  { name:'岩石',     walkable:false, blocksBullet:true,  sym:'#', color:'#6e665e', vc:'#6e665e' },
+  [TILE.POOP]:  { name:'便便',     walkable:false, blocksBullet:true,  sym:'P', color:'#7a5a10', vc:'#7a5a10' },
+  [TILE.PIT]:   { name:'深坑',     walkable:false, blocksBullet:false, sym:'O', color:'#181838', vc:'#181838' },
+  [TILE.SPIKE]: { name:'尖刺地面', walkable:true,  blocksBullet:false, sym:'^', color:'#aa2222', vc:'#aa2222' },
+};
+const TILE_KEYS = [TILE.FLOOR, TILE.ROCK, TILE.POOP, TILE.PIT, TILE.SPIKE];
+
+const COLS = 13, ROWS = 7;
+const DOOR_POS = {
+  up:    { col: 6, row: 0 },
+  down:  { col: 6, row: 6 },
+  left:  { col: 0, row: 3 },
+  right: { col: 12, row: 3 },
+};
+
+// ================================================================
+//  内置模板
+// ================================================================
+const BUILTIN_TEMPLATES = {
+  'open': { name:'空旷大厅', types:['start','normal','treasure','shop'],
+    tiles: ['.............','.............','.............','.............','.............','.............','.............'] },
+  'cross_rocks': { name:'十字岩石', types:['normal','treasure'],
+    tiles: ['.............','.....##......','.....##......','..#######....','.....##......','.....##......','.............'] },
+  'four_corners': { name:'四角岩石', types:['normal','treasure'],
+    tiles: ['.##.......##.','.##.......##.','.............','.............','.............','.##.......##.','.##.......##.'] },
+  'pillars': { name:'四柱大厅', types:['normal','treasure'],
+    tiles: ['.............','...#P....#...','.............','.......#.....','.............','...#P....#...','.............'] },
+  'corridor': { name:'横向窄道', types:['normal'],
+    tiles: ['..###...###..','..###...###..','.............','.............','.............','..###...###..','..###...###..'] },
+  'corridor_v': { name:'纵向窄道', types:['normal'],
+    tiles: ['....##..##...','....##..##...','....#....#...','......##.....','....#....#...','....##..##...','....##..##...'] },
+  'scattered': { name:'散落岩石', types:['normal'],
+    tiles: ['...........#.','.....#.......','.......#.....','..#..........','.........#...','......#......','...#.........'] },
+  'ring': { name:'环形壁垒', types:['normal','treasure'],
+    tiles: ['..###...###..','..#.......##.','..#........#.','.............','..#........#.','..#.......##.','..###...###..'] },
+  'room_split': { name:'裂半之室', types:['normal'],
+    tiles: ['.............','.....#^#.....','....#...^....','...##...##...','....^...#....','.....#^#.....','.............'] },
+  'alcoves': { name:'壁龛石室', types:['normal','treasure'],
+    tiles: ['.###P....##..','.#.........#.','.#.........#.','.............','.#.........#.','.#.........#.','.###P....##..'] },
+  'diagonal': { name:'斜岩通道', types:['normal'],
+    tiles: ['##...........','.##..........','..##.........','...##........','....##.......','.....##......','.............'] },
+  'boss_arena': { name:'Boss竞技场', types:['boss'],
+    tiles: ['.............','...#.....#...','.............','.......#.....','.............','...#.....#...','.............'] },
+};
+
+// ================================================================
+//  localStorage 持久化
+// ================================================================
+const STORAGE_KEY = 'isaac-room-templates-v2';
+
+function loadCustomTemplates() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch(e) { return {}; }
+}
+
+function saveCustomTemplates(custom) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(custom));
+  } catch(e) { console.warn('localStorage 写入失败', e); }
+}
+
+function getMergedTemplates() {
+  const custom = loadCustomTemplates();
+  const merged = {};
+  // 1. 内置模板打底
+  for (const [k, v] of Object.entries(BUILTIN_TEMPLATES)) {
+    merged[k] = JSON.parse(JSON.stringify(v));
+  }
+  // 2. 关卡池 JSON 覆盖（从 pool.json 加载）
+  for (const [k, v] of Object.entries(poolFromJson)) {
+    merged[k] = JSON.parse(JSON.stringify(v));
+  }
+  // 3. localStorage 本地未同步修改覆盖（最高优先级）
+  for (const [k, v] of Object.entries(custom)) {
+    merged[k] = JSON.parse(JSON.stringify(v));
+  }
+  return merged;
+}
+
+function isCustomKey(key) {
+  return !(key in BUILTIN_TEMPLATES);
+}
+
+// 从 pool.json 加载的关卡池（启动时 fetch）
+let poolFromJson = {};
+
+// ================================================================
+//  IndexedDB 存储文件句柄（File System Access API）
+// ================================================================
+function openHandleDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('isaac-editor-db', 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore('handles'); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function getStoredHandle() {
+  try {
+    const db = await openHandleDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction('handles', 'readonly');
+      const req = tx.objectStore('handles').get('pool-file');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    });
+  } catch(e) { return null; }
+}
+
+async function storeHandle(handle) {
+  try {
+    const db = await openHandleDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction('handles', 'readwrite');
+      tx.objectStore('handles').put(handle, 'pool-file');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    });
+  } catch(e) {}
+}
+
+async function readPoolFromHandle(handle) {
+  const file = await handle.getFile();
+  const text = await file.text();
+  return JSON.parse(text);
+}
+
+async function writePoolToHandle(handle, data) {
+  const writable = await handle.createWritable();
+  await writable.write(JSON.stringify(data, null, 2));
+  await writable.close();
+}
+
+// ================================================================
+//  选择/同步 文件操作
+//  优先 File System Access API（直读直写），不可用时回退到文件选择+下载
+// ================================================================
+const hasFileAPI = typeof window.showOpenFilePicker === 'function';
+let fileHandle = null;
+let useFallback = false;  // 运行时检测到跨域 iframe 限制时设为 true
+const btnPick = document.getElementById('btn-pick-file');
+const btnSync = document.getElementById('btn-sync');
+
+// 回退模式：隐藏的 file input
+const fileInput = document.createElement('input');
+fileInput.type = 'file';
+fileInput.accept = '.json';
+fileInput.style.display = 'none';
+document.body.appendChild(fileInput);
+
+fileInput.addEventListener('change', async () => {
+  const file = fileInput.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    poolFromJson = JSON.parse(text);
+    refreshTemplates();
+    btnSync.disabled = false;
+    btnSync.textContent = '⬇ 下载关卡池';
+    showStatus('✓ 已加载 ' + Object.keys(poolFromJson).length + ' 个模板');
+  } catch(e) {
+    showStatus('✗ 解析失败: ' + e.message, true);
+  }
+  fileInput.value = '';
+});
+
+btnPick.addEventListener('click', async () => {
+  if (hasFileAPI && !useFallback) {
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+        multiple: false,
+      });
+      fileHandle = handle;
+      poolFromJson = await readPoolFromHandle(handle);
+      await storeHandle(handle);
+      refreshTemplates();
+      btnSync.disabled = false;
+      btnSync.textContent = '💾 同步到文件';
+      showStatus('✓ 已加载 ' + Object.keys(poolFromJson).length + ' 个模板');
+    } catch(e) {
+      // 跨域 iframe 不允许 showOpenFilePicker
+      if (e.message && e.message.includes('Cross origin')) {
+        useFallback = true;
+        fileInput.click();
+      } else if (e.name !== 'AbortError') {
+        showStatus('✗ ' + e.message, true);
+      }
+    }
+  } else {
+    fileInput.click();
+  }
+});
+
+btnSync.addEventListener('click', async () => {
+  const pool = getMergedTemplates();
+  const count = Object.keys(pool).length;
+
+  if (hasFileAPI && fileHandle && !useFallback) {
+    try {
+      await writePoolToHandle(fileHandle, pool);
+      localStorage.removeItem(STORAGE_KEY);
+      poolFromJson = pool;
+      showStatus('✓ 已同步 ' + count + ' 个模板到文件');
+    } catch(e) {
+      showStatus('✗ 写入失败: ' + e.message, true);
+    }
+  } else {
+    // 回退：下载文件
+    const blob = new Blob([JSON.stringify(pool, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'isaac-room-pool.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    localStorage.removeItem(STORAGE_KEY);
+    poolFromJson = pool;
+    showStatus('⬇ 已下载 ' + count + ' 个模板，替换项目中的 pool.json 即可');
+  }
+});
+
+// 首次打开时尝试自动加载
+async function autoLoadPool() {
+  if (hasFileAPI && !useFallback) {
+    try {
+      const handle = await getStoredHandle();
+      if (handle) {
+        const ok = await handle.queryPermission({ mode: 'readwrite' }) === 'granted'
+          || (await handle.requestPermission({ mode: 'readwrite' })) === 'granted';
+        if (ok) {
+          fileHandle = handle;
+          poolFromJson = await readPoolFromHandle(handle);
+          btnSync.disabled = false;
+          btnSync.textContent = '💾 同步到文件';
+          console.log('📂 自动加载: ' + Object.keys(poolFromJson).length + ' 个模板');
+          return;
+        }
+      }
+    } catch(e) { /* 静默 */ }
+  }
+  btnSync.textContent = '⬇ 下载关卡池';
+  console.log('📂 点击「选择 pool.json」加载关卡池文件');
+}
+
+// ================================================================
+//  模板验证
+// ================================================================
+function parseGrid(tiles) {
+  const grid = [];
+  for (let c = 0; c < COLS; c++) { grid[c] = []; }
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const ch = tiles[r][c];
+      switch (ch) {
+        case '#': grid[c][r] = TILE.ROCK;  break;
+        case 'P': grid[c][r] = TILE.POOP;  break;
+        case 'O': grid[c][r] = TILE.PIT;   break;
+        case '^': grid[c][r] = TILE.SPIKE; break;
+        default:  grid[c][r] = TILE.FLOOR; break;
+      }
+    }
+  }
+  return grid;
+}
+
+function isWalkable(grid, c, r) {
+  if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return false;
+  return TILE_PROPS[grid[c][r]].walkable;
+}
+
+function bfsReachable(grid, sc, sr, targets) {
+  if (!isWalkable(grid, sc, sr)) return { reachable: false, unreachable: targets };
+  const visited = new Set();
+  const queue = [{ c: sc, r: sr }];
+  visited.add(`${sc},${sr}`);
+  while (queue.length > 0) {
+    const { c, r } = queue.shift();
+    for (const [dc, dr] of [[0,-1],[0,1],[-1,0],[1,0]]) {
+      const nc = c + dc, nr = r + dr;
+      if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) continue;
+      if (visited.has(`${nc},${nr}`)) continue;
+      if (!isWalkable(grid, nc, nr)) continue;
+      visited.add(`${nc},${nr}`);
+      queue.push({ c: nc, r: nr });
+    }
+  }
+  const unreachable = [];
+  for (const t of targets) {
+    if (!visited.has(`${t.col},${t.row}`)) unreachable.push(t);
+  }
+  return { reachable: unreachable.length === 0, unreachable };
+}
+
+function validateTiles(tiles) {
+  const grid = parseGrid(tiles);
+  const errors = [];
+  const blockedDoors = [];
+  for (const [dir, pos] of Object.entries(DOOR_POS)) {
+    if (!isWalkable(grid, pos.col, pos.row)) {
+      blockedDoors.push({ dir, pos, tile: grid[pos.col][pos.row] });
+      errors.push(`${dir}门被"${TILE_PROPS[grid[pos.col][pos.row]].name}"阻塞`);
+    }
+  }
+  const walkableDoors = Object.entries(DOOR_POS)
+    .filter(([_, pos]) => isWalkable(grid, pos.col, pos.row));
+  if (walkableDoors.length >= 2) {
+    const first = walkableDoors[0][1];
+    const targets = walkableDoors.slice(1).map(([_, pos]) => ({ col: pos.col, row: pos.row }));
+    const result = bfsReachable(grid, first.col, first.row, targets);
+    if (!result.reachable) {
+      for (const u of result.unreachable) {
+        errors.push(`${first.col},${first.row} → ${u.col},${u.row} 不连通`);
+      }
+    }
+  }
+  return { pass: errors.length === 0, errors, blockedDoors };
+}
+
+// ================================================================
+//  状态
+// ================================================================
+let allTemplates = {};        // 合并后的全部模板
+let viewMode = 'templates';   // 'templates' | 'floor'
+let editingKey = null;        // 当前编辑的模板 key
+let editorGrid = null;        // 编辑器中的 grid[col][row]
+let editorTiles = null;       // 编辑器中的 tiles[row][col] 字符
+let editorHistory = [];       // 撤销历史
+let selectedTile = TILE.FLOOR;
+let currentFloorNum = 1;
+let allFloors = {};
+
+// ================================================================
+//  模板列表渲染
+// ================================================================
+const TPL_TILE = 16;
+
+// ================================================================
+//  自定义确认弹窗
+// ================================================================
+let confirmCallback = null;
+
+function showConfirm(msg, cb) {
+  document.getElementById('confirm-msg').textContent = msg;
+  document.getElementById('confirm-modal').classList.add('show');
+  confirmCallback = cb;
+}
+
+function hideConfirm() {
+  document.getElementById('confirm-modal').classList.remove('show');
+  confirmCallback = null;
+}
+
+document.getElementById('confirm-ok').addEventListener('click', () => {
+  if (confirmCallback) { const cb = confirmCallback; hideConfirm(); cb(); }
+});
+document.getElementById('confirm-cancel').addEventListener('click', hideConfirm);
+document.getElementById('confirm-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'confirm-modal') hideConfirm();
+});
+
+// ================================================================
+function refreshTemplates() {
+  allTemplates = getMergedTemplates();
+  renderTemplateCards();
+}
+
+function renderTemplateCards() {
+  const container = document.getElementById('template-grid');
+  container.innerHTML = '';
+  const tplKeys = Object.keys(allTemplates);
+  let passCount = 0, failCount = 0;
+
+  for (const key of tplKeys) {
+    const tpl = allTemplates[key];
+    const validation = validateTiles(tpl.tiles);
+    if (validation.pass) passCount++; else failCount++;
+
+    const card = document.createElement('div');
+    card.className = `tpl-card ${validation.pass ? 'pass' : 'fail'}${isCustomKey(key) ? ' custom' : ''}`;
+    card.dataset.key = key;
+
+    // 头部
+    const hdr = document.createElement('div');
+    hdr.className = 'tpl-header';
+    const typesCN = { start:'起点', normal:'普通', treasure:'宝箱', boss:'Boss', shop:'商店' };
+    const typeStr = (tpl.types || ['normal']).map(t => typesCN[t] || t).join('/');
+    hdr.innerHTML = `<span class="tpl-name">${tpl.name}</span><span class="tpl-types">${typeStr}</span>`;
+    card.appendChild(hdr);
+
+    // 缩略图画布
+    const cvsW = COLS * TPL_TILE + 2, cvsH = ROWS * TPL_TILE + 2;
+    const cnv = document.createElement('canvas');
+    cnv.className = 'tpl-canvas';
+    cnv.width = cvsW; cnv.height = cvsH;
+    cnv.style.width = cvsW + 'px'; cnv.style.height = cvsH + 'px';
+    const ctx = cnv.getContext('2d');
+    const grid = parseGrid(tpl.tiles);
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < ROWS; r++) {
+        ctx.fillStyle = TILE_PROPS[grid[c][r]].vc;
+        ctx.fillRect(1 + c * TPL_TILE, 1 + r * TPL_TILE, TPL_TILE, TPL_TILE);
+        ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 0.5;
+        ctx.strokeRect(1 + c * TPL_TILE, 1 + r * TPL_TILE, TPL_TILE, TPL_TILE);
+      }
+    }
+    // 标记门位
+    for (const [dir, pos] of Object.entries(DOOR_POS)) {
+      const blocked = validation.blockedDoors.some(b => b.dir === dir);
+      const bx = 1 + pos.col * TPL_TILE, by = 1 + pos.row * TPL_TILE;
+      ctx.fillStyle = blocked ? 'rgba(255,50,50,0.7)' : 'rgba(80,180,80,0.65)';
+      ctx.fillRect(bx + 2, by + 2, TPL_TILE - 4, TPL_TILE - 4);
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${Math.max(8, TPL_TILE - 6)}px sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText({ up:'↑', down:'↓', left:'←', right:'→' }[dir], bx + TPL_TILE / 2, by + TPL_TILE / 2);
+    }
+    card.appendChild(cnv);
+
+    // 标记
+    const badge = document.createElement('div');
+    badge.style.cssText = 'text-align:center;margin-top:3px;';
+    const customLabel = isCustomKey(key) ? '<span style="color:#6699cc;font-size:10px;">[自定义]</span> ' : '';
+    badge.innerHTML = customLabel + (validation.pass
+      ? '<span class="badge badge-pass">✓ 通过</span>'
+      : '<span class="badge badge-fail">✗ 不通过</span>');
+    card.appendChild(badge);
+
+    // 操作按钮 — 用内联 onclick 确保可靠触发
+    const actions = document.createElement('div');
+    actions.className = 'tpl-actions';
+    const btnEdit = document.createElement('button');
+    btnEdit.className = 'tpl-act-btn edit';
+    btnEdit.textContent = '编辑';
+    btnEdit.onclick = (e) => { e.stopPropagation(); openEditor(key); };
+
+    const btnCopy = document.createElement('button');
+    btnCopy.className = 'tpl-act-btn copy';
+    btnCopy.textContent = '复制';
+    btnCopy.onclick = (e) => { e.stopPropagation(); copyTemplate(key); };
+
+    const btnDel = document.createElement('button');
+    btnDel.className = 'tpl-act-btn del';
+    btnDel.textContent = isCustomKey(key) ? '删除' : '内置';
+    btnDel.disabled = !isCustomKey(key);
+    if (isCustomKey(key)) {
+      btnDel.onclick = (e) => {
+        e.stopPropagation();
+        const name = allTemplates[key] ? allTemplates[key].name : key;
+        showConfirm('确定删除模板「' + name + '」吗？', () => {
+          const custom = loadCustomTemplates();
+          delete custom[key];
+          saveCustomTemplates(custom);
+          refreshTemplates();
+        });
+      };
+    }
+    actions.appendChild(btnEdit);
+    actions.appendChild(btnCopy);
+    actions.appendChild(btnDel);
+    card.appendChild(actions);
+
+    // 事件 — 点击卡片空白处打开编辑器
+    cnv.addEventListener('click', (e) => { e.stopPropagation(); openEditor(key); });
+
+    container.appendChild(card);
+  }
+
+  document.getElementById('info-text').innerHTML = `
+    模板: <span class="iv">${tplKeys.length}</span>
+    &nbsp; 通过: <span class="iv" style="color:#66cc66;">${passCount}</span>
+    &nbsp; 不通过: <span class="iv" style="color:#ff6666;">${failCount}</span>
+    ${failCount > 0 ? '<br><span style="color:#ff6666;font-size:11px;">⚠ 请修复不通过的模板</span>' : '<br><span style="color:#66cc66;font-size:11px;">✓ 全部可用</span>'}
+  `;
+}
+
+// ================================================================
+//  列表操作
+// ================================================================
+function copyTemplate(key) {
+  const custom = loadCustomTemplates();
+  const src = allTemplates[key];
+  let newKey = key + '_copy';
+  let i = 1;
+  while (newKey in allTemplates || newKey in custom) { newKey = key + '_copy' + i; i++; }
+  custom[newKey] = JSON.parse(JSON.stringify(src));
+  custom[newKey].name = src.name + ' (副本)';
+  saveCustomTemplates(custom);
+  refreshTemplates();
+}
+
+// ================================================================
+//  自动生成 — Isaac 风格设计模式
+// ================================================================
+function makeEmptyTiles() {
+  return Array.from({length: ROWS}, () => '.'.repeat(COLS));
+}
+
+// 确保4个门位是地板
+function clearDoors(tiles) {
+  for (const pos of Object.values(DOOR_POS)) {
+    const row = tiles[pos.row];
+    tiles[pos.row] = row.substring(0, pos.col) + '.' + row.substring(pos.col + 1);
+  }
+  return tiles;
+}
+
+function setTile(tiles, c, r, ch) {
+  if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return;
+  const row = tiles[r];
+  tiles[r] = row.substring(0, c) + ch + row.substring(c + 1);
+}
+
+// 对称应用：在 (c,r) 和其镜像 (12-c, r) 同时放置
+function setSym(tiles, c, r, ch) {
+  setTile(tiles, c, r, ch);
+  setTile(tiles, COLS - 1 - c, r, ch);
+}
+
+// 安全放置（不覆盖门位）
+function isDoorPos(c, r) {
+  return Object.values(DOOR_POS).some(p => p.col === c && p.row === r);
+}
+
+function safeSet(tiles, c, r, ch) {
+  if (isDoorPos(c, r)) return;
+  setTile(tiles, c, r, ch);
+}
+
+function safeSetSym(tiles, c, r, ch) {
+  if (!isDoorPos(c, r)) setTile(tiles, c, r, ch);
+  const mc = COLS - 1 - c;
+  if (!isDoorPos(mc, r)) setTile(tiles, mc, r, ch);
+}
+
+// 图案1：四角岩石块 (2x2)
+function pattern_corners(tiles) {
+  const size = Math.random() < 0.5 ? 2 : (Math.random() < 0.5 ? 1 : 3);
+  for (let dx = 0; dx < size; dx++) {
+    for (let dy = 0; dy < Math.min(size, 2); dy++) {
+      safeSetSym(tiles, 1 + dx, 0 + dy, '#');
+      safeSetSym(tiles, 1 + dx, ROWS - 1 - dy, '#');
+    }
+  }
+}
+
+// 图案2：中心十字/菱形岩石
+function pattern_cross(tiles) {
+  const style = Math.floor(Math.random() * 3);
+  if (style === 0) {
+    // 十字
+    for (let i = -2; i <= 2; i++) {
+      safeSet(tiles, 6 + i, 3, '#');
+    }
+    for (let i = -1; i <= 1; i++) {
+      safeSet(tiles, 6, 3 + i, '#');
+    }
+  } else if (style === 1) {
+    // 菱形
+    for (let r = 1; r <= 5; r++) {
+      const halfW = r <= 3 ? r : 6 - r;
+      for (let c = 6 - halfW; c <= 6 + halfW; c++) {
+        safeSet(tiles, c, r, '#');
+      }
+    }
+  } else {
+    // H 形
+    for (let r = 1; r <= 2; r++) {
+      for (let c = 3; c <= 9; c++) safeSet(tiles, c, r, '#');
+    }
+    for (let r = 3; r <= 3; r++) {
+      for (let c = 5; c <= 7; c++) safeSet(tiles, c, r, '#');
+    }
+    for (let r = 4; r <= 5; r++) {
+      for (let c = 3; c <= 9; c++) safeSet(tiles, c, r, '#');
+    }
+  }
+}
+
+// 图案3：横向/纵向石墙（带缺口）
+function pattern_wall(tiles) {
+  if (Math.random() < 0.5) {
+    // 横向墙
+    const row = 1 + Math.floor(Math.random() * 5);
+    const gap = 2 + Math.floor(Math.random() * 9);
+    for (let c = 1; c < COLS - 1; c++) {
+      if (Math.abs(c - gap) <= 1) continue;
+      safeSet(tiles, c, row, '#');
+    }
+  } else {
+    // 纵向墙
+    const col = 1 + Math.floor(Math.random() * 11);
+    const gap = 1 + Math.floor(Math.random() * 5);
+    for (let r = 1; r < ROWS - 1; r++) {
+      if (Math.abs(r - gap) <= 1) continue;
+      safeSet(tiles, col, r, '#');
+    }
+  }
+}
+
+// 图案4：散落石柱 (对称分布)
+function pattern_pillars(tiles) {
+  const count = 2 + Math.floor(Math.random() * 4);
+  const positions = [];
+  for (let i = 0; i < count; i++) {
+    const c = 2 + Math.floor(Math.random() * 5);
+    const r = 1 + Math.floor(Math.random() * 5);
+    safeSetSym(tiles, c, r, '#');
+  }
+}
+
+// 图案5：对角线
+function pattern_diagonal(tiles) {
+  if (Math.random() < 0.5) {
+    for (let i = 1; i < Math.min(COLS, ROWS) - 1; i++) {
+      safeSet(tiles, 1 + i, 1 + i, '#');
+      safeSet(tiles, COLS - 2 - i, 1 + i, '#');
+    }
+  } else {
+    for (let i = 1; i < Math.min(COLS, ROWS) - 1; i++) {
+      safeSet(tiles, 1 + i, ROWS - 2 - i, '#');
+      safeSet(tiles, COLS - 2 - i, ROWS - 2 - i, '#');
+    }
+  }
+}
+
+// 图案6：中央大石柱
+function pattern_center_pillar(tiles) {
+  const w = 1 + Math.floor(Math.random() * 2);
+  const h = 1 + Math.floor(Math.random() * 2);
+  for (let dx = 0; dx < w; dx++) {
+    for (let dy = 0; dy < h; dy++) {
+      safeSet(tiles, 6 + dx - Math.floor(w / 2), 3 + dy - Math.floor(h / 2), '#');
+    }
+  }
+}
+
+// 图案7：在空地撒一些便便/尖刺（不堵路）
+function pattern_hazards(tiles) {
+  const count = 1 + Math.floor(Math.random() * 3);
+  const edgePositions = [];
+  for (let c = 1; c < COLS - 1; c++) {
+    for (let r = 1; r < ROWS - 1; r++) {
+      if (isDoorPos(c, r)) continue;
+      if (tiles[r][c] !== '.') continue;
+      // 偏向贴墙的
+      if (c <= 2 || c >= COLS - 3 || r <= 1 || r >= ROWS - 3) {
+        edgePositions.push({ c, r });
+      }
+    }
+  }
+  // 扩大到所有空地
+  const allEmpty = [];
+  for (let c = 1; c < COLS - 1; c++) {
+    for (let r = 1; r < ROWS - 1; r++) {
+      if (isDoorPos(c, r)) continue;
+      if (tiles[r][c] === '.') allEmpty.push({ c, r });
+    }
+  }
+  const pool = edgePositions.length > 0 ? edgePositions : allEmpty;
+  const shuffled = shuffle(pool);
+  for (let i = 0; i < Math.min(count, shuffled.length); i++) {
+    const ch = Math.random() < 0.5 ? 'P' : '^';
+    setTile(tiles, shuffled[i].c, shuffled[i].r, ch);
+  }
+}
+
+const PATTERNS = [
+  { fn: pattern_corners,      weight: 20, name: '角岩' },
+  { fn: pattern_cross,        weight: 15, name: '十字' },
+  { fn: pattern_wall,         weight: 15, name: '石墙' },
+  { fn: pattern_pillars,      weight: 20, name: '石柱' },
+  { fn: pattern_diagonal,     weight: 10, name: '斜线' },
+  { fn: pattern_center_pillar,weight: 10, name: '中柱' },
+];
+
+function autoGenerate() {
+  // 最多尝试200次
+  for (let attempt = 0; attempt < 200; attempt++) {
+    let tiles = makeEmptyTiles();
+
+    // 随机选1-2个图案
+    const totalW = PATTERNS.reduce((s, p) => s + p.weight, 0);
+    const patternCount = Math.random() < 0.5 ? 1 : 2;
+    const chosen = [];
+    const avail = [...PATTERNS];
+
+    for (let i = 0; i < patternCount && avail.length > 0; i++) {
+      let rndW = Math.random() * totalW;
+      let picked = 0;
+      for (let j = 0; j < avail.length; j++) {
+        rndW -= avail[j].weight;
+        if (rndW <= 0 || j === avail.length - 1) { picked = j; break; }
+      }
+      chosen.push(avail[picked]);
+      avail.splice(picked, 1);
+    }
+
+    // 应用图案
+    for (const p of chosen) {
+      p.fn(tiles);
+    }
+
+    // 在不是纯空的情况下，加一点危害物
+    if (Math.random() < 0.5) {
+      pattern_hazards(tiles);
+    }
+
+    // 确保门位干净
+    clearDoors(tiles);
+
+    // 验证
+    if (validateTiles(tiles).pass) {
+      // 检查是否有足够的障碍物（不要太空洞）
+      let rockCount = 0;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          if (tiles[r][c] !== '.') rockCount++;
+        }
+      }
+      if (rockCount < 3) continue; // 太空洞，重新生成
+
+      const custom = loadCustomTemplates();
+      let newKey = 'custom_1';
+      let j = 1;
+      while (newKey in allTemplates || newKey in custom) { newKey = 'custom_' + (++j); }
+      const patternNames = chosen.map(p => p.name).join('+');
+      custom[newKey] = {
+        name: `自生成 ${j} (${patternNames})`,
+        types: ['normal'],
+        tiles: tiles,
+      };
+      saveCustomTemplates(custom);
+      refreshTemplates();
+      return;
+    }
+  }
+  alert('自动生成失败：200次未通过连通性检查，请手动编辑');
+}
+
+// ================================================================
+//  编辑器
+// ================================================================
+const EDIT_TILE = 32;
+const editorCanvas = document.getElementById('editor-canvas');
+const editorCtx = editorCanvas.getContext('2d');
+
+function initEditorCanvas() {
+  editorCanvas.width = COLS * EDIT_TILE + 2;
+  editorCanvas.height = ROWS * EDIT_TILE + 2;
+  editorCanvas.style.width = (COLS * EDIT_TILE + 2) + 'px';
+  editorCanvas.style.height = (ROWS * EDIT_TILE + 2) + 'px';
+}
+
+function openEditor(key) {
+  editingKey = key;
+  const tpl = allTemplates[key];
+  editorTiles = tpl.tiles.map(r => r);  // 深拷贝
+  editorGrid = parseGrid(editorTiles);
+  editorHistory = [];
+  selectedTile = TILE.FLOOR;
+
+  document.getElementById('edit-name').value = tpl.name;
+  document.querySelectorAll('.edit-type').forEach(cb => {
+    cb.checked = (tpl.types || []).includes(cb.value);
+  });
+
+  document.getElementById('list-view').style.display = 'none';
+  document.getElementById('editor-view').classList.add('active');
+  document.getElementById('floor-panel').classList.remove('active');
+  document.getElementById('floor-btns').style.display = 'none';
+
+  initEditorCanvas();
+  buildPalette();
+  renderEditorCanvas();
+  updateEditorStatus();
+}
+
+function closeEditor(save) {
+  if (save) {
+    const tpl = allTemplates[editingKey];
+    tpl.name = document.getElementById('edit-name').value || tpl.name;
+    tpl.types = [];
+    document.querySelectorAll('.edit-type:checked').forEach(cb => tpl.types.push(cb.value));
+    if (tpl.types.length === 0) tpl.types = ['normal'];
+    tpl.tiles = editorTiles.map(r => r);
+
+    const custom = loadCustomTemplates();
+    custom[editingKey] = {
+      name: tpl.name,
+      types: tpl.types,
+      tiles: tpl.tiles,
+    };
+    saveCustomTemplates(custom);
+    refreshTemplates();
+  }
+
+  editingKey = null;
+  editorGrid = null;
+  editorTiles = null;
+  editorHistory = [];
+
+  document.getElementById('list-view').style.display = 'block';
+  document.getElementById('editor-view').classList.remove('active');
+}
+
+function saveEditorHistory() {
+  const snapshot = editorTiles.map(r => r);
+  editorHistory.push(snapshot);
+  if (editorHistory.length > 50) editorHistory.shift();
+}
+
+function undoEdit() {
+  if (editorHistory.length === 0) return;
+  editorTiles = editorHistory.pop();
+  editorGrid = parseGrid(editorTiles);
+  renderEditorCanvas();
+  updateEditorStatus();
+}
+
+function clearAll() {
+  if (!confirm('确定清空全部方格为普通地面？')) return;
+  saveEditorHistory();
+  editorTiles = [];
+  for (let r = 0; r < ROWS; r++) {
+    editorTiles.push('.'.repeat(COLS));
+  }
+  editorGrid = parseGrid(editorTiles);
+  renderEditorCanvas();
+  updateEditorStatus();
+}
+
+function checkConnectivity() {
+  const v = validateTiles(editorTiles);
+  document.getElementById('editor-status').textContent = v.pass ? '✓ 全部门位连通' : '✗ ' + v.errors.join('; ');
+  document.getElementById('editor-status').className = v.pass ? 'pass' : 'fail';
+  renderEditorCanvas();
+}
+
+function updateEditorStatus() {
+  const v = validateTiles(editorTiles);
+  document.getElementById('editor-status').textContent = v.pass ? '✓ 全部门位连通' : '✗ ' + v.errors.join('; ');
+  document.getElementById('editor-status').className = v.pass ? 'pass' : 'fail';
+}
+
+// ================================================================
+//  编辑器画布渲染
+// ================================================================
+function renderEditorCanvas() {
+  const w = COLS * EDIT_TILE + 2, h = ROWS * EDIT_TILE + 2;
+  editorCanvas.width = w; editorCanvas.height = h;
+  editorCanvas.style.width = w + 'px'; editorCanvas.style.height = h + 'px';
+
+  for (let c = 0; c < COLS; c++) {
+    for (let r = 0; r < ROWS; r++) {
+      const tile = editorGrid[c][r];
+      editorCtx.fillStyle = TILE_PROPS[tile].vc;
+      editorCtx.fillRect(1 + c * EDIT_TILE, 1 + r * EDIT_TILE, EDIT_TILE, EDIT_TILE);
+      editorCtx.strokeStyle = 'rgba(0,0,0,0.3)'; editorCtx.lineWidth = 1;
+      editorCtx.strokeRect(1 + c * EDIT_TILE, 1 + r * EDIT_TILE, EDIT_TILE, EDIT_TILE);
+    }
+  }
+
+  // 标记门位
+  const v = validateTiles(editorTiles);
+  for (const [dir, pos] of Object.entries(DOOR_POS)) {
+    const blocked = v.blockedDoors.some(b => b.dir === dir);
+    const bx = 1 + pos.col * EDIT_TILE, by = 1 + pos.row * EDIT_TILE;
+    editorCtx.fillStyle = blocked ? 'rgba(255,50,50,0.6)' : 'rgba(80,180,80,0.5)';
+    editorCtx.fillRect(bx + 3, by + 3, EDIT_TILE - 6, EDIT_TILE - 6);
+    editorCtx.fillStyle = '#fff'; editorCtx.font = `bold ${EDIT_TILE - 12}px sans-serif`;
+    editorCtx.textAlign = 'center'; editorCtx.textBaseline = 'middle';
+    editorCtx.fillText({ up:'↑', down:'↓', left:'←', right:'→' }[dir], bx + EDIT_TILE / 2, by + EDIT_TILE / 2);
+  }
+}
+
+// ================================================================
+//  调色板
+// ================================================================
+function buildPalette() {
+  const container = document.getElementById('palette');
+  container.innerHTML = '';
+  for (const t of TILE_KEYS) {
+    const btn = document.createElement('div');
+    btn.className = 'palette-btn' + (t === selectedTile ? ' selected' : '');
+    btn.style.background = TILE_PROPS[t].vc;
+    btn.title = TILE_PROPS[t].name;
+    btn.addEventListener('click', () => {
+      selectedTile = t;
+      document.querySelectorAll('.palette-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+    container.appendChild(btn);
+  }
+}
+
+// ================================================================
+//  编辑器鼠标事件
+// ================================================================
+let isDrawing = false;
+
+editorCanvas.addEventListener('mousedown', (e) => {
+  isDrawing = true;
+  paintTile(e);
+});
+
+editorCanvas.addEventListener('mousemove', (e) => {
+  if (isDrawing) paintTile(e);
+});
+
+editorCanvas.addEventListener('mouseup', () => { isDrawing = false; });
+editorCanvas.addEventListener('mouseleave', () => { isDrawing = false; });
+
+// 触摸支持
+editorCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); isDrawing = true; paintTile(e.touches[0]); });
+editorCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); if (isDrawing) paintTile(e.touches[0]); });
+editorCanvas.addEventListener('touchend', () => { isDrawing = false; });
+
+function paintTile(e) {
+  const rect = editorCanvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const col = Math.floor((mx - 1) / EDIT_TILE);
+  const row = Math.floor((my - 1) / EDIT_TILE);
+  if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return;
+
+  const currentTile = editorGrid[col][row];
+  if (currentTile === selectedTile) return;
+
+  saveEditorHistory();
+  const sym = TILE_PROPS[selectedTile].sym;
+  const rowStr = editorTiles[row];
+  editorTiles[row] = rowStr.substring(0, col) + sym + rowStr.substring(col + 1);
+  editorGrid[col][row] = selectedTile;
+  renderEditorCanvas();
+  updateEditorStatus();
+}
+
+// ================================================================
+//  按钮事件
+// ================================================================
+document.getElementById('btn-autogen').addEventListener('click', autoGenerate);
+
+function showStatus(msg, isError) {
+  const el = document.getElementById('tool-status');
+  el.textContent = msg;
+  el.className = 'tool-status' + (isError ? ' error' : '');
+  setTimeout(() => { if (el.textContent === msg) { el.textContent = ''; el.className = 'tool-status'; } }, 3000);
+}
+
+document.getElementById('btn-save').addEventListener('click', () => closeEditor(true));
+document.getElementById('btn-cancel').addEventListener('click', () => closeEditor(false));
+document.getElementById('btn-check').addEventListener('click', checkConnectivity);
+document.getElementById('btn-clear').addEventListener('click', clearAll);
+document.getElementById('btn-undo').addEventListener('click', undoEdit);
+
+// ================================================================
+//  楼层生成 (保留用)
+// ================================================================
+const DIRS = { up:{dx:0,dy:-1}, down:{dx:0,dy:1}, left:{dx:-1,dy:0}, right:{dx:1,dy:0} };
+const FLOOR_CONFIG = {
+  1:{name:'地牢1层',roomCount:[8,10]}, 2:{name:'地牢2层',roomCount:[9,11]},
+  3:{name:'地牢3层',roomCount:[10,12]}, 4:{name:'地牢4层',roomCount:[10,13]},
+  5:{name:'地牢5层',roomCount:[11,14]}, 6:{name:'地牢6层',roomCount:[12,15]},
+};
+
+function randInt(min,max){return Math.floor(Math.random()*(max-min+1))+min;}
+function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+function generateFloor(floorNum){
+  const cfg=FLOOR_CONFIG[floorNum];const N=randInt(cfg.roomCount[0],cfg.roomCount[1]);
+  const rooms=[];for(let i=0;i<N;i++)rooms.push({id:`f${floorNum}_r${i}`,type:null,tplKey:null,grid:null,connections:[],doors:{up:null,down:null,left:null,right:null}});
+  const nodeIds=rooms.map(r=>r.id);const shuffledIds=shuffle(nodeIds);
+  const connected=new Set([shuffledIds[0]]);const unconnected=new Set(shuffledIds.slice(1));const edges=[];
+  while(unconnected.size>0){const ca=[...connected],ua=[...unconnected];const a=ca[Math.floor(Math.random()*ca.length)],b=ua[Math.floor(Math.random()*ua.length)];edges.push([a,b]);connected.add(b);unconnected.delete(b);}
+  const maxExtra=Math.floor(N*0.25);for(let e=0;e<randInt(0,maxExtra);e++){const s2=shuffle(nodeIds);if(!edges.some(ed=>(ed[0]===s2[0]&&ed[1]===s2[1])||(ed[0]===s2[1]&&ed[1]===s2[0]))&&s2[0]!==s2[1])edges.push([s2[0],s2[1]]);}
+  const degree={};nodeIds.forEach(id=>degree[id]=0);edges.forEach(([a,b])=>{degree[a]++;degree[b]++;});
+  const sortedByDeg=[...nodeIds].sort((a,b)=>degree[a]-degree[b]);const startId=sortedByDeg[0];
+  const distFrom={},bfsQ=[startId],bfsV=new Set([startId]);distFrom[startId]=0;
+  while(bfsQ.length>0){const cur=bfsQ.shift();for(const[a,b]of edges){const nb=a===cur?b:(b===cur?a:null);if(nb&&!bfsV.has(nb)){bfsV.add(nb);distFrom[nb]=distFrom[cur]+1;bfsQ.push(nb);}}}
+  const bossCands=nodeIds.filter(id=>id!==startId&&degree[id]<=2).sort((a,b)=>(distFrom[b]||0)-(distFrom[a]||0));
+  const bossId=bossCands.length>0?bossCands[0]:sortedByDeg.filter(id=>id!==startId).pop();
+  const treasureCands=nodeIds.filter(id=>id!==startId&&id!==bossId&&degree[id]>=2&&degree[id]<=3);
+  const shufT=shuffle(treasureCands);const treasureIds=new Set(shufT.slice(0,Math.min(randInt(1,2),shufT.length)));
+  const roomMap={};rooms.forEach(r=>{roomMap[r.id]=r;});
+  rooms.forEach(r=>{if(r.id===startId)r.type='start';else if(r.id===bossId)r.type='boss';else if(treasureIds.has(r.id))r.type='treasure';else r.type='normal';});
+  const validTpls={};for(const[k,v]of Object.entries(allTemplates)){if(validateTiles(v.tiles).pass)validTpls[k]=v;}if(Object.keys(validTpls).length===0)validTpls['open']=BUILTIN_TEMPLATES['open'];
+  rooms.forEach(r=>{const cands=Object.keys(validTpls).filter(k=>{if(r.type==='start')return k==='open';if(r.type==='boss')return k==='boss_arena'&&validateTiles(validTpls[k].tiles).pass;return validTpls[k].types.includes(r.type);});
+    if(cands.length===0){r.tplKey='open';r.grid=parseGrid(BUILTIN_TEMPLATES['open'].tiles);}else{r.tplKey=cands[Math.floor(Math.random()*cands.length)];r.grid=parseGrid(validTpls[r.tplKey].tiles);}});
+  const layout={},gridOcc=new Set();const placeRoom=(id,gx,gy)=>{layout[id]={gx,gy};gridOcc.add(`${gx},${gy}`);};placeRoom(startId,0,0);const layQ=[startId],layV=new Set([startId]);
+  while(layQ.length>0){const cur=layQ.shift(),cp=layout[cur];for(const[a,b]of edges){const nb=a===cur?b:(b===cur?a:null);if(!nb||layV.has(nb))continue;layV.add(nb);const dOrder=shuffle(['up','down','left','right']);let placed=false;
+    for(const d of dOrder){const ngx=cp.gx+DIRS[d].dx,ngy=cp.gy+DIRS[d].dy;if(!gridOcc.has(`${ngx},${ngy}`)){placeRoom(nb,ngx,ngy);placed=true;break;}}
+    if(!placed){for(let rad=2;rad<10;rad++){const cands2=[];for(let dx=-rad;dx<=rad;dx++)for(let dy=-rad;dy<=rad;dy++)if(Math.abs(dx)+Math.abs(dy)===rad&&!gridOcc.has(`${cp.gx+dx},${cp.gy+dy}`))cands2.push({gx:cp.gx+dx,gy:cp.gy+dy});if(cands2.length>0){const p=cands2[Math.floor(Math.random()*cands2.length)];placeRoom(nb,p.gx,p.gy);placed=true;break;}}}
+    layQ.push(nb);}}
+  edges.forEach(([idA,idB])=>{const pa=layout[idA],pb=layout[idB],dx=pb.gx-pa.gx,dy=pb.gy-pa.gy;let da,db;if(Math.abs(dx)>=Math.abs(dy)){da=dx>0?'right':'left';db=dx>0?'left':'right';}else{da=dy>0?'down':'up';db=dy>0?'up':'down';}roomMap[idA].doors[da]={targetRoomId:idB,open:true};roomMap[idB].doors[db]={targetRoomId:idA,open:true};roomMap[idA].connections.push({targetId:idB,dir:da});roomMap[idB].connections.push({targetId:idA,dir:db});});
+  return{floorNum,name:cfg.name,rooms,edges,layout,startRoomId:startId,bossRoomId:bossId,treasureRoomIds:[...treasureIds]};
+}
+
+function generateAllFloors(){for(let f=1;f<=6;f++)allFloors[f]=generateFloor(f);}
+
+// 楼层渲染
+const MTILE=14,MPAD=10,MGAP=36;const mapCanvas=document.getElementById('map');const mapCtx=mapCanvas.getContext('2d');
+function getRoomPS(){return{w:MPAD*2+COLS*MTILE,h:MPAD*2+ROWS*MTILE};}
+function layToCanvas(gx,gy){const rs=getRoomPS();return{x:gx*(rs.w+MGAP),y:gy*(rs.h+MGAP)};}
+function getLayoutBounds(floor){let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;for(const id in floor.layout){const{gx,gy}=floor.layout[id];minX=Math.min(minX,gx);maxX=Math.max(maxX,gx);minY=Math.min(minY,gy);maxY=Math.max(maxY,gy);}return{minX,maxX,minY,maxY};}
+function renderFloor(floor){if(!floor)return;const bounds=getLayoutBounds(floor),rs=getRoomPS(),cW=rs.w+MGAP,cH=rs.h+MGAP,margin=40;mapCanvas.width=Math.max(400,(bounds.maxX-bounds.minX+1)*cW+margin*2);mapCanvas.height=Math.max(300,(bounds.maxY-bounds.minY+1)*cH+margin*2);mapCtx.clearRect(0,0,mapCanvas.width,mapCanvas.height);const rm={};floor.rooms.forEach(r=>rm[r.id]=r);
+  for(const[a,b]of floor.edges){const pa=floor.layout[a],pb=floor.layout[b];if(!pa||!pb)continue;const ca=layToCanvas(pa.gx-bounds.minX,pa.gy-bounds.minY),cb=layToCanvas(pb.gx-bounds.minX,pb.gy-bounds.minY);mapCtx.strokeStyle='#554433';mapCtx.lineWidth=2;mapCtx.setLineDash([6,4]);mapCtx.beginPath();mapCtx.moveTo(ca.x+margin+rs.w/2,ca.y+margin+rs.h/2);mapCtx.lineTo(cb.x+margin+rs.w/2,cb.y+margin+rs.h/2);mapCtx.stroke();mapCtx.setLineDash([]);}
+  for(const room of floor.rooms){const{gx,gy}=floor.layout[room.id],lc=layToCanvas(gx-bounds.minX,gy-bounds.minY),rx=lc.x+margin,ry=lc.y+margin;mapCtx.fillStyle='#1a1815';mapCtx.fillRect(rx,ry,rs.w,rs.h);mapCtx.strokeStyle='#3a3020';mapCtx.lineWidth=1;mapCtx.strokeRect(rx,ry,rs.w,rs.h);
+    for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++){const tile=room.grid[c][r];mapCtx.fillStyle=TILE_PROPS[tile].vc;mapCtx.fillRect(rx+MPAD+c*MTILE,ry+MPAD+r*MTILE,MTILE,MTILE);mapCtx.strokeStyle='rgba(0,0,0,0.25)';mapCtx.lineWidth=0.5;mapCtx.strokeRect(rx+MPAD+c*MTILE,ry+MPAD+r*MTILE,MTILE,MTILE);}
+    for(const dir of['up','down','left','right']){if(room.doors[dir]){const{col,row}=DOOR_POS[dir],dx=rx+MPAD+col*MTILE,dy=ry+MPAD+row*MTILE;mapCtx.fillStyle=room.doors[dir].open?'#559944':'#664433';mapCtx.fillRect(dx+1,dy+1,MTILE-2,MTILE-2);mapCtx.fillStyle='#fff';mapCtx.font=`${Math.max(6,MTILE-4)}px sans-serif`;mapCtx.textAlign='center';mapCtx.textBaseline='middle';mapCtx.fillText({up:'↑',down:'↓',left:'←',right:'→'}[dir],dx+MTILE/2,dy+MTILE/2);}}
+    const tc={start:'#88ccff',normal:'#998866',treasure:'#ffcc44',boss:'#ff4444',shop:'#ff8844'},tn={start:'起点',normal:'普通',treasure:'宝箱',boss:'Boss',shop:'商店'};mapCtx.fillStyle=tc[room.type]||'#998866';mapCtx.font='bold 10px "ZCOOL KuaiLe","Microsoft YaHei",sans-serif';mapCtx.textAlign='center';mapCtx.fillText(`[${tn[room.type]}] ${allTemplates[room.tplKey]?.name||room.tplKey}`,rx+rs.w/2,ry-6);}
+  document.getElementById('info-text').innerHTML=`当前: <span class="iv">${floor.name}</span>&nbsp; 房间: <span class="iv">${floor.rooms.length}</span> 个`;}
+
+function buildFloorNav(){const nav=document.getElementById('floor-nav');nav.innerHTML='';for(let f=1;f<=6;f++){const btn=document.createElement('button');btn.className='floor-btn'+(f===currentFloorNum?' active':'');btn.textContent=allFloors[f].name;btn.dataset.floor=f;btn.addEventListener('click',()=>{currentFloorNum=f;document.querySelectorAll('.floor-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderFloor(allFloors[f]);});nav.appendChild(btn);}}
+
+// ================================================================
+//  标签切换
+// ================================================================
+function switchTab(tab){
+  viewMode=tab;
+  document.getElementById('tab-templates').classList.toggle('active',tab==='templates');
+  document.getElementById('tab-floor').classList.toggle('active',tab==='floor');
+  document.getElementById('list-view').style.display=tab==='templates'?'block':'none';
+  document.getElementById('editor-view').classList.remove('active');
+  document.getElementById('floor-panel').classList.toggle('active',tab==='floor');
+  document.getElementById('floor-btns').style.display=tab==='floor'?'flex':'none';
+  editingKey=null;
+  if(tab==='templates')refreshTemplates();
+  else{buildFloorNav();renderFloor(allFloors[currentFloorNum]);}
+}
+document.getElementById('tab-templates').addEventListener('click',()=>switchTab('templates'));
+document.getElementById('tab-floor').addEventListener('click',()=>switchTab('floor'));
+document.getElementById('btn-regen').addEventListener('click',()=>{allFloors[currentFloorNum]=generateFloor(currentFloorNum);renderFloor(allFloors[currentFloorNum]);});
+document.getElementById('btn-regen-all').addEventListener('click',()=>{generateAllFloors();renderFloor(allFloors[currentFloorNum]);});
+
+// ================================================================
+//  启动
+// ================================================================
+(async function init(){
+  try{
+    await autoLoadPool();
+    refreshTemplates();
+    generateAllFloors();
+    console.log('✅ 编辑器就绪 — File System Access API 直读直写');
+  }catch(e){
+    console.error('初始化失败:',e);
+    document.getElementById('template-grid').innerHTML='<div style="color:#ff4444;padding:20px;">初始化错误: '+e.message+'</div>';
+  }
+})();
+</script>
+</body>
+</html>

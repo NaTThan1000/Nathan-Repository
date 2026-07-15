@@ -22,19 +22,35 @@ Room（单房间）
   └── cleared: bool            ← 是否已清空
 ```
 
-### 1.2 网格类型定义
+### 1.2 网格类型定义（✅ 已实现）
 
 ```javascript
 const TILE = {
-  FLOOR: 0,           // 可行走地面
-  ROCK:  1,           // 不可穿越的石头障碍
-  POOP:  2,           // 可摧毁的大便（占用1格）
-  DOOR_U: 3,          // 上方向门
-  DOOR_D: 4,
-  DOOR_L: 5,
-  DOOR_R: 6,
+  FLOOR: 0,           // 普通地面 — 可行走，不阻挡弹道
+  ROCK:  1,           // 岩石 — 不可行走，阻挡子弹，可被爆炸摧毁（5%掉落）
+  POOP:  2,           // 便便 — 不可行走，阻挡子弹，耐久4（被击中4次摧毁，5%掉落）
+  PIT:   3,           // 深坑 — 不可行走，不阻挡弹道，不可摧毁，相邻合并
+  SPIKE: 4,           // 尖刺地面 — 可行走，不阻挡弹道，经过-2HP(玩家)/-5HP(怪物)
+};
+
+// 每个 TILE 的行为属性
+const TILE_PROPS = {
+  [TILE.FLOOR]: { walkable: true,  blocksBullet: false },
+  [TILE.ROCK]:  { walkable: false, blocksBullet: true  },
+  [TILE.POOP]:  { walkable: false, blocksBullet: true  },
+  [TILE.PIT]:   { walkable: false, blocksBullet: false },
+  [TILE.SPIKE]: { walkable: true,  blocksBullet: false },
 };
 ```
+
+### 1.2.1 门系统（✅ 已确定）
+
+- 房间为四方形，每边正中一个门，**不占用格子**（是墙壁上的特殊段）
+- 关闭时和普通墙壁一样阻挡移动，打开时玩家走到门前格 → 切换房间
+- 门前格唯一位置：
+  - 上门: (col=6, row=0)    下门: (col=6, row=6)
+  - 左门: (col=0, row=3)    右门: (col=12, row=3)
+- 门不由模板定义，由楼层生成算法根据房间连接图自动放置
 
 ### 1.3 isWall() 改造
 
@@ -78,25 +94,46 @@ graph TD
 
 - Boss 房间特殊约束：生成时确保只有 **1 个相邻房间**（即只有一扇门）。
 
-### 1.6 房间内部布局 — 模板法
+### 1.6 房间内部布局（✅ 已实现 12 种模板）
 
-鉴于房间固定 13×7，推荐使用**模板 + 随机变异**，比纯程序化更可控：
+当前已设计 12 种房间模板，每模板为 13×7 字符数组，使用 `.` `#` `P` `O` `^` 分别表示 5 种 TILE 类型。
 
-```javascript
-// 预定义模板（每种模板是一个 13×7 的 TILE 数组）
-const ROOM_TEMPLATES = {
-  // 模板名 → { grid: number[][], monsterSlots: [{col,row}], obstacleSlots: [...] }
-  'cross_rocks': { /* 十字形岩石布局 */ },
-  'four_corners': { /* 四角有障碍 */ },
-  'pillars':     { /* 中心几根柱子 */ },
-  'corridor':    { /* 中间过道两边石头 */ },
-  'open':        { /* 几乎空旷 */ },
-  'poop_field':  { /* 分布大便 */ },
-  // ... 10~15 种模板
-};
-```
+| # | 模板 Key | 名称 | 特殊格 | 适用房间类型 |
+|:--:|------|------|:--:|------|
+| 1 | `open` | 空旷大厅 | - | start/normal/treasure/shop |
+| 2 | `cross_rocks` | 十字岩石 | - | normal/treasure |
+| 3 | `four_corners` | 四角岩石 | - | normal/treasure |
+| 4 | `pillars` | 四柱大厅 | P×2 | normal/treasure |
+| 5 | `corridor` | 横向窄道 | - | normal |
+| 6 | `corridor_v` | 纵向窄道 | - | normal |
+| 7 | `scattered` | 散落岩石 | - | normal |
+| 8 | `ring` | 环形壁垒 | - | normal/treasure |
+| 9 | `room_split` | 裂半之室 | ^×4 | normal |
+| 10 | `alcoves` | 壁龛石室 | P×2 | normal/treasure |
+| 11 | `diagonal` | 斜岩通道 | - | normal |
+| 12 | `boss_arena` | Boss竞技场 | - | boss |
 
-### 1.7 控制地图方式的汇总
+关键设计规则：
+- 4 个门前格(6,0)(6,6)(0,3)(12,3) 必须 walkable（FLOOR 或 SPIKE）
+- 所有门位之间必须在曼哈顿 4 方向移动下 BFS 全连通（无需炸弹破坏岩石即可互达）
+- 全部 12 个模板已通过自动化连通性验证
+
+### 1.7 房间模板编辑器（✅ 已实现）
+
+工具文件: `isaac-map-viewer.html`（独立运行，不依赖 `isaac-turnbased-demo.html`）
+
+功能：
+- **模板池管理**: 查看全部模板缩略图，编辑/复制/删除，自动连通性验证
+- **13×7 画布编辑器**: 调色板选 5 种 TILE，拖拽绘制，撤销/清空
+- **自动生成**: 6 种 Isaac 风格设计图案（角岩/十字/石墙/石柱/斜线/中柱），随机组合 + 连通性验证
+- **关卡池持久化**: 
+  - `isaac-room-pool.json` 为关卡池数据文件
+  - 启动时自动加载（File System Access API 或文件选择器回退）
+  - 编辑后一键同步写回 JSON 文件
+  - 支持跨设备迁移（带上 `pool.json` 即可）
+- **楼层生成预览**: 第二标签页，随机生成 6 层地牢布局预览
+
+### 1.8 控制地图方式的汇总
 
 | 控制维度 | 控制方式 |
 |----------|---------|
