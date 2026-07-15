@@ -1,6 +1,6 @@
 # 以撒·半回合制战斗 — 项目总览
 
-> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html` | 单文件 ~2400 行 | 状态: 完整回合制 + 怪物AI + 碰撞击退 + 预览系统
+> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html` | 单文件 ~2400 行 | 状态: 即时操作回合制 + 怪物AI + 碰撞击退 + ESC全重置
 
 ---
 
@@ -12,13 +12,15 @@
 **类型**: Roguelike 半回合制地牢战斗 | **原型平台**: 网页 Canvas | **目标平台**: Godot 引擎
 
 ### 1.2 核心概念
-受《以撒的结合》启发，Roguelike 回合制 + AP 行动点数系统：
-- 玩家通过消耗 M-AP/A-AP 在预览模式下规划移动和射击
-- 所有操作为预览（幽灵复制体、半透明弹道），Esc 倒序撤销返还 AP
-- 按 Space 统一执行队列中所有行为（按顺序播放动画）
-- 射击方向：↑↓←→ 进入方向选择，再按 ↑↓←→ 切换方向，Space 确认
-- 操作键：WASD 移动预览、Space 确认、Esc 撤销、C 生怪
-- 0 AP 时 Space 自动结束回合（无弹窗）；有剩余 AP 提前结束则弹窗二次确认
+受《以撒的结合》启发，Roguelike 半回合制 + AP 行动点数系统（2026-07-15 重构）：
+- 回合开始时计算可移动范围（BFS，考虑墙壁和怪物阻挡），浅蓝色呼吸闪烁标示
+- WASD 在可移动范围内**即时移动本体**（非预览），消耗 M-AP
+- ↑↓←→ **即时射击**（非预览），立即发射子弹，消耗 A-AP
+- 首次射击触发 checkpoint：锁定位置 + 刷新可移动范围从当前位置重新计算
+- 回合开始位置保留半透明幽灵作视觉参考（非操作体）
+- Esc **全重置**本回合所有操作和结果（角色/怪物/环境回到回合开始时）
+- Space 结束回合 → 切换怪物回合；有剩余 AP 时弹窗二次确认
+- 操作键：WASD 移动、↑↓←→ 射击、Space 结束回合、Esc 全重置、C 生怪
 - 透视像素风格渲染
 
 ### 1.3 玩家属性
@@ -26,8 +28,8 @@
 | 属性 | 值 | 说明 |
 |------|-----|------|
 | 血量 HP | 6/6 | 可被攻击次数 / 上限 |
-| 移速 | 1 | M-AP 上限 = 移速 × 2 → 默认 2 |
-| 射速 | 2 | A-AP 上限 = 射速 → 默认 2 |
+| 移速 | 3 | M-AP 上限 = 移速 → 默认 3 (下限1) |
+| 射速 | 3 | A-AP 上限 = 射速 → 默认 3 (下限1) |
 | 攻击力 | 3.5 | 每发子弹对怪物伤害 |
 | 射程 | 6 | 子弹最远飞行距离（格） |
 | 运气 | 0 | 影响掉落/暴击等（未实现） |
@@ -78,26 +80,24 @@
 
 | AP 类型 | 默认上限 | 来源 | 消耗方式 |
 |---------|---------|------|---------|
-| M-AP (移动) | 2 (= 移速 × 2) | 移速属性 | 每移动 1 格消耗 1 点 |
-| A-AP (攻击) | 2 (= 射速) | 射速属性 | 每次射击消耗 1 点 |
+| M-AP (移动) | 3 (= 移速) | 移速属性 | 每移动 1 格消耗 1 点，移动后在原位置留半透明幽灵 |
+| A-AP (攻击) | 3 (= 射速) | 射速属性 | 每次射击消耗 1 点，即时发射子弹 |
 
 - 每回合上限固定，可消耗任意点数（不强制用完）
 - 回合结束 → AP 重置为满值
-- 智能 M-AP 管理：自由移动区（无 checkpoint）内，按相反方向自动撤销移动并返还 M-AP
+- **可移动范围**：通过 BFS 从当前位置计算，考虑墙壁/怪物阻挡，浅蓝色呼吸闪烁标示
 
-### 2.3 预操作与行为队列
+### 2.3 即时操作与 Checkpoint 系统
 
-**行为队列** (`actionQueue`)：玩家先规划行为序列，空格确认后按序执行。
+**全新交互模型**（替代旧预览队列系统）：
 
-- **移动预操作**：按 WASD → M-AP-1 → 幽灵复制体(40%透明度)移动 → 地面橙色粗箭头指引
-- **射击预操作**：按 J 进入方向选择 → WASD 选方向 → K 确认 → A-AP-1
-- **射击 checkpoint**：确认射击时锁定之前所有移动行为，之后的移动只能在 checkpoint 后自由撤销
-- **L 键撤销**：从队列末尾逐层删除行为，退还 AP
-- **空格执行**：按队列顺序依次执行移动动画 → 射击动画 → 子弹飞行/碎裂
-
-**幽灵复制体**：`calcGhostPos()` 遍历所有队列移动，计算最终位置，40%透明度绘制。
-
-**地面箭头**：`calcMoveArrows()` 生成相邻移动间的橙黄色粗箭头（40%透明度），带三角箭头尖端。
+- **移动**：WASD 在可移动范围内即时移动本体，M-AP-1，范围动态刷新
+- **射击**：↑↓←→ 立即发射子弹，A-AP-1
+- **射击 Checkpoint**：首次射击时保存位置（`checkpointPos`），之后可移动范围从当前位置重新计算
+- **回合起始幽灵**：回合开始位置留 40% 透明度幽灵，作为视觉参考（非操作体）
+- **Esc 全重置**：恢复完整回合快照（`turnSnapshot`），玩家/怪物/HP 全部回到回合开始时状态
+- **回合快照**：`saveTurnSnapshot()` 保存玩家坐标/HP、怪物坐标/HP 等；`restoreTurnSnapshot()` 恢复
+- **可移动范围计算**：`calcReachableTiles(fromCol, fromRow, maxSteps)` BFS，排除墙壁和怪物占据格
 
 ### 2.4 角色移动与精灵动画
 
@@ -170,23 +170,22 @@
 ### 2.8 游戏状态机 (turnState.phase)
 
 ```
-player_select ←── player_shoot_dir
-     │  ↑              │
-     │ Space          Space/↑↓←→
-     ↓  │              ↓
-player_execute ──→ monster_turn ──→ player_select
+player_select ──→ monster_turn ──→ player_select
+     │    ↑
+     │    └── Esc (重置回合)
+     └── Space (结束回合)
 ```
 
 | 阶段 | 说明 |
 |------|------|
-| `player_select` | 预览模式：WASD移动、↑↓←→进入射击、Esc撤销、Space确认队列、C生怪 |
-| `player_shoot_dir` | 射击方向选择：↑↓←→改方向、Space确认入队、Esc取消 |
-| `player_execute` | 执行阶段：按队列顺序执行移动动画→射击→子弹特效 |
+| `player_select` | 即时操作：WASD移动本体、↑↓←→即时射击、Esc全重置、Space结束回合、C生怪 |
 | `turn_end_confirm` | 弹窗确认结束回合（仅剩余AP时触发） |
 | `monster_turn` | 怪物同时移动，碰撞检测，完成后重置AP |
 
-- 所有预览操作累积在 `actionQueue`，AP 预扣除
-- 0AP 时执行完毕自动进入 `monster_turn`（无弹窗）
+- 无预操作队列，所有行为即时生效
+- `hasShot` 标记首次射击（触发 checkpoint，`checkpointPos` 保存位置）
+- Esc 全重置本回合 → `restoreTurnSnapshot()` 恢复回合开始时状态
+- 0AP 时 Space 直接进入 `monster_turn`（无弹窗）
 
 ---
 
@@ -196,37 +195,40 @@ player_execute ──→ monster_turn ──→ player_select
 
 | 按键 | 阶段 | 功能 |
 |------|------|------|
-| W / A / S / D | 行为选择 | 预移动 1 格（自由移动区可自动抵消折返） |
-| J | 行为选择 | 进入射击方向选择模式 |
-| K | 射击方向选择 | 确认射击，消耗 A-AP，锁定 checkpoint |
-| L | 行为选择/方向选择 | 撤销最后一个行为 / 取消射击选择 |
-| 空格 | 行为选择 | 按队列顺序执行所有行为 |
+| W / A / S / D | 行为选择 | 在可移动范围(浅蓝呼吸)内即时移动本体 |
+| ↑ / ↓ / ← / → | 行为选择 | 即时射击（按即发射），首次射击触发 checkpoint |
+| 空格 | 行为选择 | 结束回合（有剩余 AP 时弹窗确认，无剩余直接进入怪物回合） |
+| Esc | 行为选择 | 全重置本回合 → 恢复回合快照（角色/怪物/HP 全部回到回合开始时） |
+| C | 行为选择 | 生成怪物 |
 
 ### 3.2 UI 面板
 
 | 面板 | 内容 |
 |------|------|
 | HP | 当前血量/上限 (6/6) |
-| A-AP | 剩余攻击点数/上限 (高亮黄色) |
-| M-AP | 剩余移动点数/上限 (高亮黄色) |
+| A-AP | 剩余攻击点数/上限 (高亮橙色圆点) |
+| M-AP | 剩余移动点数/上限 (高亮蓝色圆点) |
 | 阶段 | 当前回合阶段文字 + 颜色标记 |
 | 回合 | 当前回合编号 |
-| 按键提示 | WASD/J/K/L/空格 操作说明 |
 | 属性 | 攻击力3.5 射程6 运气0 |
-| **行为序列栏** | 棋盘下方，左→右排列行为块（↑←↓→=移动 / ⊕↑=射击），含 checkpoint 标记 |
+| **状态栏** | 棋盘下方，显示 [自由]/[已锁定] + 当前 M-AP, A-AP 剩余/上限 |
+| **可移动范围** | BFS 计算的浅蓝色呼吸闪烁方格 |
+| **回合起始幽灵** | 40% 透明度角色，标示回合开始位置 |
 
 ---
 
 ## 4. 游戏流程（当前原型）
 
-1. 页面加载 → 初始化画布、角色坐标，重置 AP
-2. 进入 `player_select` 阶段，玩家用 WASD/J/K/L 规划行为序列
-3. 幽灵复制体和地面箭头实时预览移动结果
-4. 行为块在棋盘下方从左到右排列显示
-5. 按空格 → 进入 `player_execute`，按队列顺序播放动画
-6. 全部执行完毕 → `monster_turn` (占位 600ms)
-7. 回合数+1，AP 重置 → 回到 `player_select`
-8. 循环进行，无结束条件
+1. 页面加载 → 初始化画布、角色坐标
+2. `resetTurnAP()` → 计算初始可移动范围 → 保存回合快照
+3. 进入 `player_select` 阶段：
+   - WASD 在浅蓝可移动范围内即时移动本体，每步 -1 M-AP，范围动态刷新
+   - ↑↓←→ 即时射击，发射子弹，-1 A-AP，首次射击触发 checkpoint
+   - Esc → 恢复回合快照（角色/怪物/HP 全部重置）
+   - Space → 结束确认 → monster_turn（0AP 跳过确认）
+4. `monster_turn` → 怪物同时移动 + 碰撞检测
+5. 回合数+1，AP 重置 → 重新计算可移动范围 + 保存新快照 → 回到 `player_select`
+6. 循环进行，无结束条件
 
 ---
 
@@ -235,25 +237,26 @@ player_execute ──→ monster_turn ──→ player_select
 ## 1. 架构概览
 
 ```
-单文件 HTML (isaac-turnbased-demo.html) ~1100 行
-├── CSS: 像素风 UI + 行为块样式 (Press Start 2P 字体)
-├── HTML: Canvas 游戏容器 + 行为序列栏 (#action-bar) + UI 面板
+单文件 HTML (isaac-turnbased-demo.html) ~2400 行
+├── CSS: 像素风 UI (Press Start 2P 字体)
+├── HTML: Canvas 游戏容器 + 状态栏 (#action-bar) + UI 面板
 └── JavaScript
     ├── 渲染配置 & 精灵图集 (SPRITE)
     ├── 透视投影 & 坐标转换
     ├── 玩家属性 (playerStats: HP/移速/射速/攻击/射程/运气)
     ├── 运行时状态 (player pos/animation)
-    ├── 回合状态 (turnState: phase/AP/actionQueue/lastCheckpointIndex/execIndex)
-    ├── AP 管理 (resetTurnAP, calcGhostPos, calcMoveArrows)
-    ├── 渲染系统 (drawWalls/Floor/GridHighlight/MoveArrows/ShootPreview/Ghost/Player/Bullets/Particles)
+    ├── 回合状态 (turnState: phase/AP/hasShot/reachableTiles/turnNumber)
+    ├── 快照系统 (saveTurnSnapshot, restoreTurnSnapshot — 支撑Esc全重置)
+    ├── 可移动范围 (calcReachableTiles BFS, refreshReachableTiles)
+    ├── AP 管理 (resetTurnAP)
+    ├── 渲染系统 (drawWalls/Floor/Grid/ReachableOverlay/Ghost/Player/Bullets/Particles/Monsters)
     ├── 角色渲染 (drawCharacterAt — 本体和幽灵复用)
     ├── 移动系统 (startMove, updateMove)
     ├── 子弹系统 (spawnBullet, updateBullets, shatterBullet)
     ├── 粒子系统 (updateParticles)
-    ├── 行为队列执行 (isExecIdle, startExecuteQueue, executeNextAction)
-    ├── 回合管理 (endPlayerTurn)
+    ├── 怪物系统 (calcAllMonsterPaths, startMonsterTurn, updateMonsterTurn)
     ├── UI 更新 (updateUI, updateActionBar)
-    ├── 输入处理 (keydown — 智能M-AP/checkpoint/撤销)
+    ├── 输入处理 (keydown — WASD移动/箭头射击/Esc重置/Space结束)
     └── 游戏循环 (gameLoop → requestAnimationFrame)
 ```
 
@@ -304,47 +307,42 @@ function project(wx, wy) {
 
 | 函数 | 职责 |
 |------|------|
-| `resetTurnAP()` | 初始化回合 AP (maxMAP/maxAAP)，清空队列和 checkpoint |
-| `calcGhostPos()` | 遍历 actionQueue 中的移动，计算幽灵最终网格位置 |
-| `calcMoveArrows()` | 生成所有移动步骤的起止坐标对，用于地面箭头渲染 |
+| `resetTurnAP()` | 初始化回合 AP，计算可移动范围，保存回合快照 |
+| `saveTurnSnapshot()` | 保存回合开始时完整快照（玩家/怪物状态） |
+| `restoreTurnSnapshot()` | 恢复回合快照，重置所有状态到回合开始 |
+| `calcReachableTiles(fromCol, fromRow, maxSteps)` | BFS 计算可移动方格集（排除墙壁和怪物） |
+| `refreshReachableTiles()` | 从当前位置以剩余 M-AP 刷新可移动范围 |
 | `drawCharacterAt(px,py,facing,walkFrame,shootTimer,alpha)` | 通用角色渲染（本体和幽灵复用），支持透明度 |
-| `drawGhost()` | 渲染 40% 透明度幽灵复制体和坐标标签 |
-| `drawMoveArrows()` | 渲染地面橙黄色粗箭头路径指引（40% 透明度） |
-| `drawShootPreview()` | 射击方向选择阶段的红色虚线预览（从幽灵位置出发） |
+| `drawTurnStartGhost()` | 渲染 40% 透明度回合起始位置幽灵 |
+| `drawReachableOverlay()` | 渲染浅蓝色呼吸闪烁可移动方格 |
 | `drawWalls/Floor/GridHighlight/Bullets/Particles` | 各渲染子系统 |
-| `startMove(dir)` / `updateMove(dt)` | 执行阶段移动动画 |
+| `startMove(dir)` / `updateMove(dt)` | 移动动画系统 |
 | `spawnBullet(dir,fromPx,fromPy)` / `updateBullets(dt)` / `shatterBullet(b)` | 子弹生命周期 |
 | `updateParticles(dt)` | 粒子物理+淡出 |
-| `isExecIdle()` | 检查执行阶段是否空闲（无子弹/粒子/移动动画） |
-| `startExecuteQueue()` | 开始按队列顺序执行行为 |
-| `executeNextAction()` | 消费队列中下一个行为（移动/射击） |
-| `endPlayerTurn()` | 切换怪物回合，延迟后重置 AP |
-| `undoLastAction()` | L 键撤销最后一个行为，处理 checkpoint 回溯 |
-| `updateActionBar()` | 重建 DOM 行为块序列（↑←↓→ / ⊕↑等） |
+| `calcAllMonsterPaths()` / `startMonsterTurn()` / `updateMonsterTurn(dt)` | 怪物回合系统 |
+| `updateActionBar()` | 更新底部状态栏（自由/锁定 + AP 剩余） |
 | `updateUI()` | 更新所有 DOM UI 面板数据 |
-| `gameLoop(timestamp)` | 主循环：移动动画→子弹→粒子→执行调度→渲染 |
+| `gameLoop(timestamp)` | 主循环：移动动画→子弹→粒子→怪物回合→渲染 |
 
 ## 6. 数据流
 
 ```
-玩家回合开始 (player_select)
-  键盘输入 → WASD: actionQueue.push(move) + M-AP-1 + 智能折返检测
-           → J: 进入 player_shoot_dir → K: actionQueue.push(shoot) + A-AP-1 + 设checkpoint
-           → L: undoLastAction → actionQueue.pop + AP++
-           → 空格: startExecuteQueue → player_execute
+回合开始 (player_select)
+  resetTurnAP() → 计算可移动范围 → 保存快照
 
-执行阶段 (player_execute)
-  gameLoop → if isExecIdle(): executeNextAction()
-           → move: 设置 targetPx/targetPy → updateMove 动画
-           →    动画完成 → execIndex++
-           → shoot: spawnBullet → execIndex++
-           →    子弹飞行/碎裂/粒子消亡 → isExecIdle()=true → 下一行为
-           → execIndex >= queue.length → endPlayerTurn
+玩家操作:
+  WASD → 检查 reachableTiles.has(key) → 移动本体(col/row/px/py) → M-AP-1 → refreshReachableTiles()
+  ↑↓←→ → 即时 spawnBullet → A-AP-1 → 首次? 设 hasShot + checkpointPos + refreshReachableTiles()
+  Esc  → restoreTurnSnapshot() → 重置 mAP/aAP/hasShot/checkpointPos → 重新计算范围 + 保存新快照
+  Space → 有剩余AP? showEndTurnConfirm : 直接 enter monster_turn
+
+怪物回合 (monster_turn)
+  updateMonsterTurn(dt) → 同时逐步移动怪物 → 碰撞检测 → finishMonsterTurn → AP重置
 
 渲染层序:
   gameLoop → render()
-           → 墙壁 → 地板 → 网格高亮 → 移动箭头 → 射击预览线
-           → 子弹 → 粒子 → 幽灵(40%透明度) → 角色本体
+           → 墙壁 → 地板 → 网格高亮 → 可移动范围(浅蓝呼吸) → 怪物危险区
+           → 怪物路径 → 子弹 → 粒子 → 怪物 → 起始幽灵(40%透明度) → 角色本体 → 飘字
 ```
 
 ## 7. 项目文件清单
@@ -367,6 +365,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-15 | **核心交互重构：即时操作 + ESC 全重置**。彻底移除预操作队列系统（`actionQueue`/`player_shoot_dir`/`player_execute`），改为即时操作模型：WASD 在 BFS 可移动范围(浅蓝呼吸)内即时移动本体、↑↓←→ 即时射击发射子弹。新增回合快照系统 (`saveTurnSnapshot`/`restoreTurnSnapshot`) 支撑 Esc 全重置（角色/怪物/环境全部回到回合开始时）。射击后触发 checkpoint (`hasShot`/`checkpointPos`) 并刷新可移动范围。回合起始位置保留半透明幽灵作视觉参考。同步调整初始属性 (移速3→M-AP=3, 射速3→A-AP=3, 均系数1下限1)。更新上下文文档全部相关章节。 |
 | 2026-07-14 | **多房间地图设计方案**：创建 `isaac-roommonster-plan.md`，包含楼层生成算法（随机图生成 + BFS 全连通检查，采用以撒模式无走廊）、房间类型分配（start/normal/treasure/shop/boss）、模板法内部布局、怪物配置表（MONSTER_DB 内联 JS 对象）、掉落系统（权重随机 + DROP_TABLES）、AI 行为类型枚举、道具被动能力提升。方案基于现有 13×7 单房间框架扩充为 Roguelike 多房间系统。 |
 | 2026-07-13 | 集成精灵图集渲染：使用 `issac-idle.png`（32×32 每帧）替代程序化像素角色。实现头身分离叠加（头偏移 body 30%）、4 方向 × 10 帧走路动画、射击表情切换（0.4s 持续）。背面缺失方向暂复用正面帧。移动速度从 280 → 70 px/s 以适配动画播放。新增 `sprite-debug.html` 和 `walk-preview.html` 调试工具。更新文档各节编号，修正函数索引、数据流和文件清单。 |
 | 2026-07-13 | 首次创建项目上下文文档（isaac-turnbase-context.md），记录 HTML Canvas 原型的技术架构、核心系统、关键函数索引与数据流。 |

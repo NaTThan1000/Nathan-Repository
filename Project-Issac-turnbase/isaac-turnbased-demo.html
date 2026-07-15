@@ -467,23 +467,23 @@
     <h2>操作说明</h2>
     <div class="help-row">
       <div class="help-keys"><span class="help-key">W</span><span class="help-key">A</span><span class="help-key">S</span><span class="help-key">D</span></div>
-      <div class="help-desc">幽灵预览移动 (消耗 M-AP)</div>
-    </div>
-    <div class="help-row">
-      <div class="help-keys"><span class="help-key">Space</span></div>
-      <div class="help-desc">确认移动/射击, 无操作时结束回合</div>
+      <div class="help-desc">在可移动范围(浅蓝)内移动本体</div>
     </div>
     <div class="help-row">
       <div class="help-keys"><span class="help-key">↑</span><span class="help-key">↓</span><span class="help-key">←</span><span class="help-key">→</span></div>
-      <div class="help-desc">进入射击选择; 方向选择时也用它改方向</div>
+      <div class="help-desc">立即射击 (消耗 1 A-AP, 首次锁定位置)</div>
+    </div>
+    <div class="help-row">
+      <div class="help-keys"><span class="help-key">Space</span></div>
+      <div class="help-desc">结束回合, 切换到怪物回合</div>
     </div>
     <div class="help-row">
       <div class="help-keys"><span class="help-key">Esc</span></div>
-      <div class="help-desc">撤销幽灵预览 / 取消射击选择</div>
+      <div class="help-desc">重置本回合所有操作, 回到回合开始时</div>
     </div>
     <div class="help-note">
-      M-AP范围内可自由移动, 自动计算最短路径.<br>
-      射击方向预览线从幽灵复制体位置出发.
+      浅蓝色方格 = 可移动范围.<br>
+      射击前可自由调整, 射击后锁定位置 (Esc 可全重置).
     </div>
     <button id="help-close">关闭</button>
   </div>
@@ -626,8 +626,8 @@ function prect(x, y, w, h, c) {
 // ==================== 玩家属性 ====================
 const playerStats = {
   hp: 6,        maxHp: 6,
-  moveSpeed: 1,    // 移速 → M-AP上限 = moveSpeed * 2
-  fireRate: 2,     // 射速 → A-AP上限 = fireRate
+  moveSpeed: 3,    // 移速 → M-AP上限 = moveSpeed (下限1)
+  fireRate: 3,     // 射速 → A-AP上限 = fireRate (下限1)
   attack: 3.5,
   range: 6,
   luck: 0,
@@ -649,21 +649,22 @@ const player = {
 
 // ==================== AP 与回合状态 ====================
 let turnState = {
-  phase: 'player_select',     // player_select | player_shoot_dir | player_execute | turn_end_confirm | monster_turn
-  mAP: 0, maxMAP: 0,          // 移动行动点数 (剩余, 含队列预扣除)
-  aAP: 0, maxAAP: 0,          // 攻击行动点数 (剩余, 含队列预扣除)
-  actionQueue: [],            // [{type:'move'|'shoot', dir}] 统一行为队列
-  pendingShootDir: null,      // 射击方向选择中暂存
-  previewHits: [],             // 射击预览命中 [{monster, dmg, lethal}]
+  phase: 'player_select',     // player_select | turn_end_confirm | monster_turn
+  mAP: 0, maxMAP: 0,
+  aAP: 0, maxAAP: 0,
+  hasShot: false,              // 是否已进行过射击(触发checkpoint)
   turnNumber: 1,
-  execIndex: 0,               // 空格执行时的当前行为索引
-  monsterTurnCounter: 0,      // 怪物回合计数 (交替2/1格)
+  monsterTurnCounter: 0,
+  reachableTiles: new Set(),   // 当前可移动方格集 "col,row"
+  previewHits: [],             // 保留兼容 (旧渲染引用, 新流程不使用)
 };
 
-let bullets    = [];
-let particles  = [];
+let bullets       = [];
+let particles     = [];
 let damageNumbers = [];  // [{x, y, text, life, maxLife, vy}]
-let totalShots = 0;
+let totalShots    = 0;
+let checkpointPos = null;       // {col, row} 射击后checkpoint位置
+let turnSnapshot  = null;       // 回合开始时完整快照
 
 // ==================== 怪物系统 ====================
 const MONSTER_CFG = {
@@ -682,86 +683,128 @@ let debugMouseX   = -1;       // 鼠标在游戏像素坐标中的 X
 let debugMouseY   = -1;       // 鼠标在游戏像素坐标中的 Y
 let debugMouseIn  = false;    // 鼠标是否在 canvas 内
 
-// 初始化回合 AP
+// ==================== 回合快照系统 ====================
+function saveTurnSnapshot() {
+  const sp = gridToPixel(player.col, player.row);
+  turnSnapshot = {
+    playerCol: player.col, playerRow: player.row,
+    playerPx: sp.x, playerPy: sp.y,              // 对齐网格
+    playerFacing: player.facing,
+    playerHp: playerStats.hp,
+    monsters: monsters.map(m => {
+      const gp = gridToPixel(m.col, m.row);
+      return {
+        id: m.id, col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
+        px: gp.x, py: gp.y,                      // 对齐网格 (静止状态)
+        displayHp: m.displayHp,
+        predictedPath: m.predictedPath ? m.predictedPath.map(s => ({ fromCol: s.fromCol, fromRow: s.fromRow, toCol: s.toCol, toRow: s.toRow })) : [],
+        moveSpeed: m.moveSpeed,
+        hitFlash: m.hitFlash, shakeX: m.shakeX, shakeY: m.shakeY,
+      };
+    }),
+    monsterTurnCounter: turnState.monsterTurnCounter,
+  };
+}
+
+function restoreTurnSnapshot() {
+  if (!turnSnapshot) return;
+  const s = turnSnapshot;
+  player.col = s.playerCol; player.row = s.playerRow;
+  player.px = s.playerPx; player.py = s.playerPy;
+  player.facing = s.playerFacing;
+  player.targetPx = null; player.targetPy = null;
+  player.walkFrame = 0; player.animTime = 0;
+  player.shootTimer = 0;
+  playerStats.hp = s.playerHp;
+  monsters = s.monsters.map(m => ({
+    id: m.id, col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
+    px: m.px, py: m.py, displayHp: m.displayHp,
+    predictedPath: m.predictedPath.map(p => ({ fromCol: p.fromCol, fromRow: p.fromRow, toCol: p.toCol, toRow: p.toRow })),
+    moveSpeed: m.moveSpeed,
+    hitFlash: 0, shakeX: 0, shakeY: 0,
+  }));
+  turnState.monsterTurnCounter = s.monsterTurnCounter;
+  bullets = [];
+  particles = [];
+  damageNumbers = [];
+  turnSnapshot = null;
+  updateHearts();
+  updateUI();
+}
+
+// ==================== 可移动范围计算 (BFS) ====================
+function calcReachableTiles(fromCol, fromRow, maxSteps) {
+  const reachable = new Set();
+  const visited = new Set();
+  const queue = [{ col: fromCol, row: fromRow, steps: 0 }];
+  visited.add(`${fromCol},${fromRow}`);
+  reachable.add(`${fromCol},${fromRow}`);
+
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    if (cur.steps >= maxSteps) continue;
+
+    for (const dir of ['up', 'down', 'left', 'right']) {
+      const nc = cur.col + DIR_VEC[dir].dx;
+      const nr = cur.row + DIR_VEC[dir].dy;
+      const key = `${nc},${nr}`;
+      if (visited.has(key)) continue;
+      if (isWall(nc, nr)) continue;
+      if (isMonsterAt(nc, nr)) continue;  // 怪物占据的格子不可走
+
+      visited.add(key);
+      reachable.add(key);
+      queue.push({ col: nc, row: nr, steps: cur.steps + 1 });
+    }
+  }
+  return reachable;
+}
+
+// 刷新可移动范围: 从指定位置以指定步数计算
+function refreshReachableTiles() {
+  turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
+}
+
+// 曼哈顿距离
+function manhattanDist(c1, r1, c2, r2) {
+  return Math.abs(c1 - c2) + Math.abs(r1 - r2);
+}
+
+// 计算移动到(col,row)后的M-AP (距离公式, 支持回原点返还)
+function calculateMAPAt(col, row) {
+  const originCol = turnSnapshot.playerCol;
+  const originRow = turnSnapshot.playerRow;
+  const distFromOrigin = manhattanDist(col, row, originCol, originRow);
+
+  if (!turnState.hasShot) {
+    // 射击前: 纯距离 = 距起始格曼哈顿距离
+    if (distFromOrigin > turnState.maxMAP) return -1;
+    return turnState.maxMAP - distFromOrigin;
+  } else {
+    // 射击后: 总消耗 = 起始→checkpoint + checkpoint→目标
+    const toCheckpoint = manhattanDist(checkpointPos.col, checkpointPos.row, originCol, originRow);
+    const fromCheckpoint = manhattanDist(col, row, checkpointPos.col, checkpointPos.row);
+    const totalCost = toCheckpoint + fromCheckpoint;
+    if (totalCost > turnState.maxMAP) return -1;
+    return turnState.maxMAP - totalCost;
+  }
+}
+
+// ==================== 回合AP初始化 ====================
 function resetTurnAP() {
-  turnState.maxMAP = playerStats.moveSpeed * 2;
-  turnState.maxAAP = playerStats.fireRate;
+  turnState.maxMAP = playerStats.moveSpeed;      // 系数1
+  turnState.maxAAP = playerStats.fireRate;        // 系数1
   turnState.mAP = turnState.maxMAP;
   turnState.aAP = turnState.maxAAP;
-  turnState.actionQueue = [];
-  turnState.pendingShootDir = null;
+  turnState.hasShot = false;
   turnState.phase = 'player_select';
-  turnState.execIndex = 0;
+  checkpointPos = null;
+  turnSnapshot = null;
   calcAllMonsterPaths();
-  // 无敌回合递减
   if (player.invincibleTurns > 0) player.invincibleTurns--;
+  turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
+  saveTurnSnapshot();
   updateActionBar();
-}
-
-// 计算幽灵位置 (从玩家回合起始 + 队列中所有移动)
-function calcGhostPos() {
-  let col = player.col, row = player.row;
-  for (const act of turnState.actionQueue) {
-    if (act.type === 'move') { col += DIR_VEC[act.dir].dx; row += DIR_VEC[act.dir].dy; }
-  }
-  return { col, row };
-}
-
-// 生成移动箭头 (从队列中的移动)
-function calcMoveArrows() {
-  const arrows = [];
-  let col = player.col, row = player.row;
-  for (const act of turnState.actionQueue) {
-    if (act.type === 'move') {
-      const v = DIR_VEC[act.dir];
-      const nc = col + v.dx, nr = row + v.dy;
-      arrows.push({ fromCol: col, fromRow: row, toCol: nc, toRow: nr });
-      col = nc; row = nr;
-    }
-  }
-  return arrows;
-}
-
-// 计算某次射击在队列中的执行位置 (遍历之前的移动)
-function getShootOriginPos(shootIdx) {
-  let col = player.col, row = player.row;
-  for (let i = 0; i < shootIdx && i < turnState.actionQueue.length; i++) {
-    const act = turnState.actionQueue[i];
-    if (act.type === 'move') { col += DIR_VEC[act.dir].dx; row += DIR_VEC[act.dir].dy; }
-  }
-  return { col, row };
-}
-
-// 计算队列中所有射击的预览信息: [{origin:{col,row}, dir}]
-function getShootPreviews() {
-  const previews = [];
-  let col = player.col, row = player.row;
-  for (const act of turnState.actionQueue) {
-    if (act.type === 'move') {
-      col += DIR_VEC[act.dir].dx; row += DIR_VEC[act.dir].dy;
-    } else if (act.type === 'shoot') {
-      previews.push({ origin: { col, row }, dir: act.dir });
-    }
-  }
-  return previews;
-}
-
-// 统计队列层级中移动的比例（结尾连续移动数 / 曼哈顿距离可用于缩短判断）
-function getMovableTail() {
-  let idx = turnState.actionQueue.length - 1;
-  while (idx >= 0 && turnState.actionQueue[idx].type === 'move') idx--;
-  return turnState.actionQueue.slice(idx + 1);
-}
-
-// 从 origin 到 target 构建最短移动路径
-function buildFreeMoves(originCol, originRow, targetCol, targetRow) {
-  const moves = [];
-  const dx = targetCol - originCol, dy = targetRow - originRow;
-  const hDir = dx > 0 ? 'right' : 'left';
-  const vDir = dy > 0 ? 'down' : 'up';
-  for (let i = 0; i < Math.abs(dx); i++) moves.push({ type: 'move', dir: hDir });
-  for (let i = 0; i < Math.abs(dy); i++) moves.push({ type: 'move', dir: vDir });
-  return moves;
 }
 
 // ==================== 怪物系统辅助 ====================
@@ -1390,17 +1433,15 @@ function render() {
   drawWalls();
   drawFloor();
   drawGridHighlight();
-  drawMonsterDangerZones();  // 怪物路径红色呼吸方格
-  drawShootGridHighlights(); // 射击弹道蓝色呼吸方格
-  drawMoveArrows();
-  drawShootPreview();
-  drawMonsterPaths();     // 怪物路径预览 (红色闪烁)
+  drawReachableOverlay();   // 可移动方格 (浅蓝呼吸)
+  drawMonsterDangerZones(); // 怪物路径红色呼吸方格
+  drawMonsterPaths();       // 怪物路径预览 (红色闪烁)
   drawBullets();
   drawParticles();
-  drawMonsters();          // 怪物绘制
-  drawGhost();
+  drawMonsters();
+  drawTurnStartGhost();     // 回合开始位置幽灵
   drawPlayer();
-  drawDamageNumbers();     // 伤害飘字 (最前层)
+  drawDamageNumbers();
   drawDebugOverlay();
 }
 
@@ -1683,6 +1724,44 @@ function drawMonsterPaths() {
   ctx.restore();
 }
 
+// --- 可移动范围渲染 (浅蓝色呼吸闪烁) ---
+function drawReachableOverlay() {
+  if (turnState.phase !== 'player_select') return;
+  const breath = 0.10 + 0.06 * Math.sin(monsterFlashTimer * 3.5);
+  for (const key of turnState.reachableTiles) {
+    const [col, row] = key.split(',').map(Number);
+    // 跳过玩家当前位置 (由 drawGridHighlight 处理)
+    if (col === player.col && row === player.row) continue;
+    const xL = FLOOR_L + col * CELL, xR = FLOOR_L + (col + 1) * CELL;
+    const yT = FLOOR_T + row * CELL, yB = FLOOR_T + (row + 1) * CELL;
+    const tl = project(xL, yT), tr = project(xR, yT);
+    const bl = project(xL, yB), br = project(xR, yB);
+
+    ctx.save();
+    ctx.globalAlpha = breath;
+    ctx.fillStyle = '#55aadd';
+    ctx.beginPath();
+    ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+    ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+    ctx.closePath(); ctx.fill();
+
+    ctx.globalAlpha = breath * 0.7;
+    ctx.strokeStyle = '#88ccff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// --- 回合开始位置幽灵 (半透明提示) ---
+function drawTurnStartGhost() {
+  if (turnState.phase !== 'player_select') return;
+  if (!turnSnapshot) return;
+  if (turnSnapshot.playerCol === player.col && turnSnapshot.playerRow === player.row) return;
+  const gp = gridToPixel(turnSnapshot.playerCol, turnSnapshot.playerRow);
+  drawCharacterAt(gp.x, gp.y, turnSnapshot.playerFacing || 'down', 0, 0, CFG.GHOST_ALPHA);
+}
+
 // --- 调试渲染 ---
 function drawDebugOverlay() {
   if (!debugMode) return;
@@ -1755,16 +1834,11 @@ function drawDebugOverlay() {
 function updateActionBar() {
   const bar = document.getElementById('action-bar');
   bar.innerHTML = '';
-  if (turnState.actionQueue.length === 0) {
-    bar.innerHTML = '<span class="action-bar-placeholder">行为序列</span>';
-    return;
-  }
-  const dirIcons = { up:'↑', down:'↓', left:'←', right:'→' };
-  for (const act of turnState.actionQueue) {
-    const block = document.createElement('span');
-    block.className = 'action-block ' + act.type;
-    block.textContent = act.type === 'move' ? (dirIcons[act.dir] || '') : ('⊕' + (dirIcons[act.dir] || ''));
-    bar.appendChild(block);
+  if (turnState.phase === 'player_select') {
+    const lockedTag = turnState.hasShot ? '<span style="color:#ee6644;">[已锁定]</span>' : '<span style="color:#88ccff;">[自由]</span>';
+    bar.innerHTML = `<span class="action-bar-placeholder">${lockedTag} M-AP:${turnState.mAP}/${turnState.maxMAP} A-AP:${turnState.aAP}/${turnState.maxAAP}</span>`;
+  } else {
+    bar.innerHTML = '<span class="action-bar-placeholder">-</span>';
   }
 }
 
@@ -1821,8 +1895,6 @@ function updateUI() {
   phaseEl.className = 'pill-value';
   switch (turnState.phase) {
     case 'player_select':    phaseEl.textContent = '行为选择'; phaseEl.classList.add('phase-player'); break;
-    case 'player_shoot_dir': phaseEl.textContent = '选择方向'; phaseEl.classList.add('phase-shoot'); break;
-    case 'player_execute': phaseEl.textContent = '执行中'; phaseEl.classList.add('phase-exec'); break;
     case 'turn_end_confirm': phaseEl.textContent = '确认结束'; phaseEl.classList.add('phase-monster'); break;
     case 'monster_turn':     phaseEl.textContent = '怪物行动'; phaseEl.classList.add('phase-monster'); break;
   }
@@ -1830,7 +1902,7 @@ function updateUI() {
   // HP 心形
   updateHearts();
 
-  // AP 圆点 (mAP 已含队列预扣除)
+  // AP 圆点
   updateApDots('ui-aap-dots', turnState.aAP, turnState.maxAAP, 'aap');
   updateApDots('ui-map-dots', turnState.mAP, turnState.maxMAP, 'map');
 }
@@ -2063,8 +2135,11 @@ function showEndTurnConfirm() {
 
 function confirmEndTurn() {
   document.getElementById('end-turn-modal').classList.remove('open');
+  bullets = [];
+  particles = [];
+  damageNumbers = [];
   turnState.phase = 'monster_turn';
-  document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">行为序列</span>';
+  document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">-</span>';
   startMonsterTurn();
   updateUI();
 }
@@ -2087,116 +2162,110 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // ---- 阶段：行为选择 (预览模式) ----
+  // ---- 阶段：怪物回合禁止操作 ----
+  if (turnState.phase === 'monster_turn') return;
+
+  // ---- 阶段：行为选择 ----
   if (turnState.phase === 'player_select') {
     switch (e.code) {
       case 'KeyW': case 'KeyS': case 'KeyA': case 'KeyD': {
+        // === 移动本体 (距离公式, 可回原位返还AP) ===
         const dirMap = { KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right' };
         const dir = dirMap[e.code];
         if (!dir) return;
 
-        const ghost = calcGhostPos();
         const vec = DIR_VEC[dir];
-        const newCol = ghost.col + vec.dx;
-        const newRow = ghost.row + vec.dy;
-        if (isWall(newCol, newRow)) return;
+        const nc = player.col + vec.dx;
+        const nr = player.row + vec.dy;
+        const key = `${nc},${nr}`;
 
-        // 曼哈顿距离智能 M-AP 模型
-        const tail = getMovableTail();
-        const tailLen = tail.length;
-        const lockedPart = turnState.actionQueue.slice(0, turnState.actionQueue.length - tailLen);
-        const lockedMoves = lockedPart.filter(a => a.type === 'move').length;
+        // 必须在初始可移动范围内 (BFS 已验证无墙无怪, 不实时刷新)
+        if (!turnState.reachableTiles.has(key)) return;
 
-        // 自由区起始位置
-        let originCol = player.col, originRow = player.row;
-        for (const act of lockedPart) {
-          if (act.type === 'move') { originCol += DIR_VEC[act.dir].dx; originRow += DIR_VEC[act.dir].dy; }
-        }
+        // 距离公式计算新 M-AP
+        const newMAP = calculateMAPAt(nc, nr);
+        if (newMAP < 0) return; // 超出距离上限
 
-        const freeDistNew = Math.abs(newCol - originCol) + Math.abs(newRow - originRow);
-        const totalCost = lockedMoves + freeDistNew;
+        // 移动本体
+        player.facing = dir;
+        player.col = nc;
+        player.row = nr;
+        const t = gridToPixel(nc, nr);
+        player.targetPx = t.x;
+        player.targetPy = t.y;
+        player.animTime = 0;
+        turnState.mAP = newMAP;
 
-        if (totalCost > turnState.maxMAP) return; // 新位置消耗超出M-AP上限
-
-        if (freeDistNew < tailLen) {
-          // 路径缩短 → 用最短路径重建尾部
-          turnState.actionQueue = [
-            ...lockedPart,
-            ...buildFreeMoves(originCol, originRow, newCol, newRow)
-          ];
-        } else {
-          turnState.actionQueue.push({ type: 'move', dir });
-        }
-        turnState.mAP = turnState.maxMAP - totalCost;
+        // 移动时不刷新可移动范围浅蓝示意 (request 3)
         updateActionBar();
         updateUI();
         return;
       }
-      case 'Space': {
-        // 有队列则执行, 否则弹出回合结束确认
-        if (turnState.actionQueue.length > 0) {
-          startExecuteQueue();
-        } else {
-          showEndTurnConfirm();
-        }
-        return;
-      }
+
       case 'ArrowUp': case 'ArrowDown': case 'ArrowLeft': case 'ArrowRight': {
+        // === 立即射击 ===
         if (turnState.aAP <= 0) return;
         const dirMap = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
         const dir = dirMap[e.code];
-        turnState.phase = 'player_shoot_dir';
-        turnState.pendingShootDir = dir;
+        if (!dir) return;
+
+        // 立即射击
+        player.facing = dir;
+        player.shootTimer = 0.4;
+        spawnBullet(dir, player.px, player.py);
+
+        // 消耗 A-AP
+        turnState.aAP--;
+
+        // 首次射击: 保存 checkpoint, 从当前位置重新计算可移动范围
+        if (!turnState.hasShot) {
+          turnState.hasShot = true;
+          checkpointPos = { col: player.col, row: player.row };
+          // M-AP 用距离公式当前值; 可移动范围从 checkpoint 以剩余步数重新 BFS
+          const remainingSteps = turnState.mAP;
+          turnState.reachableTiles = calcReachableTiles(player.col, player.row, remainingSteps);
+        }
+
+        updateActionBar();
         updateUI();
-        break;
+        return;
       }
+
+      case 'Space': {
+        // 结束回合
+        if (turnState.mAP > 0 || turnState.aAP > 0) {
+          showEndTurnConfirm();
+        } else {
+          bullets = [];
+          particles = [];
+          damageNumbers = [];
+          turnState.phase = 'monster_turn';
+          document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">-</span>';
+          startMonsterTurn();
+          updateUI();
+        }
+        return;
+      }
+
+      case 'Escape': {
+        // 全重置到回合开始
+        if (turnSnapshot) {
+          restoreTurnSnapshot();
+          turnState.mAP = turnState.maxMAP;
+          turnState.aAP = turnState.maxAAP;
+          turnState.hasShot = false;
+          checkpointPos = null;
+          turnState.phase = 'player_select';
+          turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
+          saveTurnSnapshot();
+          updateActionBar();
+          updateUI();
+        }
+        return;
+      }
+
       case 'KeyC': {
         spawnMonster();
-        break;
-      }
-      case 'Escape': {
-        // 倒序撤销
-        if (turnState.actionQueue.length > 0) {
-          const last = turnState.actionQueue.pop();
-          if (last.type === 'move') turnState.mAP++;
-          else if (last.type === 'shoot') turnState.aAP++;
-          updateActionBar();
-          updateUI();
-        }
-        break;
-      }
-    }
-    return;
-  }
-
-  // ---- 阶段：射击方向选择 (选方向并入队列) ----
-  if (turnState.phase === 'player_shoot_dir') {
-    switch (e.code) {
-      case 'ArrowUp': case 'ArrowDown': case 'ArrowLeft': case 'ArrowRight': {
-        const dirMap = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
-        const dir = dirMap[e.code];
-        if (!dir) return;
-        turnState.pendingShootDir = dir;
-        updateUI();
-        break;
-      }
-      case 'Space': {
-        if (turnState.pendingShootDir) {
-          turnState.aAP--;
-          turnState.actionQueue.push({ type: 'shoot', dir: turnState.pendingShootDir });
-          turnState.pendingShootDir = null;
-          turnState.phase = 'player_select';
-          updateActionBar();
-          updateUI();
-        } else {
-          showEndTurnConfirm();
-        }
-        break;
-      }
-      case 'Escape': {
-        turnState.pendingShootDir = null;
-        turnState.phase = 'player_select';
-        updateUI();
         break;
       }
     }
@@ -2260,38 +2329,14 @@ function gameLoop(timestamp) {
   lastTime = timestamp;
   if (dt > 0.1) dt = 0.1;
 
-  // 更新移动动画 (空格执行阶段)
+  // 更新移动动画 (本体移动)
   if (player.targetPx !== null) {
-    const done = updateMove(dt);
-    if (done && turnState.phase === 'player_execute') {
-      turnState.execIndex++;
-      executeNextAction();
-    }
+    updateMove(dt);
   }
 
   // 更新子弹 & 粒子
   updateBullets(dt);
   updateParticles(dt);
-
-  // 空格执行阶段：检查是否可继续 / 完成
-  if (turnState.phase === 'player_execute') {
-    if (player.targetPx === null && bullets.length === 0 && particles.length === 0) {
-      if (turnState.execIndex < turnState.actionQueue.length) {
-        executeNextAction();
-      } else {
-        // 队列全部执行完毕 → 回到行为选择
-        turnState.execIndex = 0;
-        turnState.actionQueue = [];
-        turnState.phase = 'player_select';
-        updateActionBar();
-        updateUI();
-        // 实际执行完后若 AP 全空 → 直接结束回合, 不弹窗
-        if (turnState.mAP === 0 && turnState.aAP === 0) {
-          confirmEndTurn();
-        }
-      }
-    }
-  }
 
   // 射击表情倒计时
   player.shootTimer = Math.max(0, player.shootTimer - dt);
@@ -2313,8 +2358,8 @@ function gameLoop(timestamp) {
     updateMonsterTurn(dt);
   }
 
-  // 怪物路径闪烁计时
-  if (turnState.phase === 'player_select' || turnState.phase === 'player_shoot_dir') {
+  // 闪烁计时器 (可移动范围 / 怪物路径)
+  if (turnState.phase === 'player_select') {
     monsterFlashTimer += dt;
   }
 
@@ -2383,10 +2428,10 @@ document.getElementById('end-turn-modal').addEventListener('click', (e) => {
   if (e.target.id === 'end-turn-modal') cancelEndTurn();
 });
 
-console.log('⚔ 以撒半回合制 Demo — AP 行动点数系统 已就绪');
-console.log('  WASD = 幽灵预览  |  ↑↓←→ = 射击  |  Space = 确认  |  Esc = 撤销');
+console.log('⚔ 以撒半回合制 Demo — 即时操作+全重置 已就绪');
+console.log('  WASD = 移动  |  ↑↓←→ = 射击  |  Space = 结束回合  |  Esc = 全重置');
 console.log(`  房间: ${COLS}×${ROWS} 格子  |  射程: ${CFG.BULLET_MAX_DIST} 格`);
-console.log(`  A-AP=${playerStats.fireRate}  M-AP=${playerStats.moveSpeed * 2}  HP=${playerStats.hp}/${playerStats.maxHp}`);
+console.log(`  A-AP=${playerStats.fireRate}  M-AP=${playerStats.moveSpeed}  HP=${playerStats.hp}/${playerStats.maxHp}`);
 </script>
 </body>
 </html>
