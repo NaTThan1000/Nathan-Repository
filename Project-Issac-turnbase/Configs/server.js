@@ -55,6 +55,30 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // POST /save-floor — 保存楼层生成数据
+  if (req.method === 'POST' && req.url === '/save-floor') {
+    let body = '';
+    req.on('data', d => body += d);
+    req.on('end', () => {
+      try {
+        let data = body;
+        if (!body.startsWith('{')) {
+          const sp = new URLSearchParams(body);
+          data = sp.get('data') || '{}';
+        }
+        fs.writeFileSync(path.join(DIR, 'floor-data.json'), data, 'utf-8');
+        res.writeHead(200, { ...CORS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+        console.log('[save-floor] 楼层数据已保存');
+      } catch (e) {
+        res.writeHead(500, CORS);
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+        console.log('[err]', e.message);
+      }
+    });
+    return;
+  }
+
   // GET static files
   let filePath = path.join(DIR, url.parse(req.url).pathname || '/');
   if (filePath.endsWith('/')) filePath = path.join(filePath, 'index.html');

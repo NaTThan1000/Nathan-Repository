@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>以撒半回合制 Demo — AP 行动点数系统</title>
+<title>【v2】以撒半回合制 Demo — 门前检测版</title>
 <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=VT323&display=swap" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -493,11 +493,15 @@
       <div class="help-keys"><span class="help-key">C</span></div>
       <div class="help-desc">随机位置生成怪物</div>
     </div>
-    <div class="help-note">
-      浅蓝色方格 = 可移动范围.<br>
-      走到绿色门格 → 切换房间 (带滑动过渡).<br>
-      走到梯子格▼ → 进入下一层地牢.
+    <div class="help-row">
+      <div class="help-keys"><span class="help-key">R</span></div>
+      <div class="help-desc">重置游戏 (回到第1层起点)</div>
     </div>
+      <div class="help-note">
+        浅蓝色方格 = 可移动范围.<br>
+        走到门前格 + 方向键 → 切换房间 (带滑动过渡).<br>
+        走到梯子格▼ → 进入下一层地牢.
+      </div>
     <button id="help-close">关闭</button>
   </div>
 </div>
@@ -513,6 +517,7 @@
 </div>
 
 <script>
+console.log('✅ isaac-turnbased-demo v2 已加载 - 门在门前格+方向键触发');
 // ==================== 渲染配置 ====================
 const GAME_W  = 318;
 const GAME_H  = 186;
@@ -555,7 +560,7 @@ const SPRITE = {
   },
 };
 SPRITE.img.onload = () => { SPRITE.loaded = true; };
-SPRITE.img.src = 'issac-idle.png';
+SPRITE.img.src = 'Assets/issac-idle.png';
 
 // ==================== 游戏常量 ====================
 const CFG = {
@@ -572,7 +577,7 @@ const CFG = {
   GRAVITY: 360,            // 翻倍配合粒子速度
   SHATTER_PARTICLES: 10,
   SHATTER_DURATION: 0.25,
-  VP_SCALE_TOP: 0.90,
+  VP_SCALE_TOP: 1.00,
   VP_SCALE_BOT: 1.00,
   GHOST_ALPHA: 0.4,
   EXEC_MOVE_SPEED: 170,    // 翻倍: 85→170
@@ -617,6 +622,62 @@ let currentFloor = null;       // 当前楼层数据
 let currentRoomId = null;      // 当前房间 ID
 let currentRoomGrid = null;    // 当前房间 grid[col][row]
 let transition = null;         // { active, dir, offset, fromRoom, toRoom, playerEntryPos }
+let inCombat = false;          // 当前房间是否有存活怪物
+let tileData = {};             // { `${col},${row}`: { type, hp } }  可变瓷砖状态
+
+function initTileData(){
+  tileData={};
+  if(!currentRoomGrid)return;
+  for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++){
+    const t=currentRoomGrid[c][r];
+    if(t===TILE.POOP)tileData[`${c},${r}`]={type:'poop',hp:4};
+    if(t===TILE.ROCK)tileData[`${c},${r}`]={type:'rock',hp:99};
+  }
+}
+
+function hitTile(col,row,dmg){
+  const k=`${col},${row}`;const td=tileData[k];
+  if(!td)return false;
+  td.hp-=dmg;
+  if(td.hp<=0){
+    delete tileData[k];
+    currentRoomGrid[col][row]=TILE.FLOOR;
+    // 刷新 BFS
+    if(turnState.phase==='player_select')pendingReachableRefresh=true;
+    spawnBloodParticles(gridToPixel(col,row).x,gridToPixel(col,row).y,5);
+    return true;
+  }
+  return false;
+}
+
+function hasMonstersAlive(){return monsters.length>0&&monsters.some(m=>m.hp>0);}
+function updateRoomCombatState(){
+  const wasInCombat=inCombat;
+  inCombat=hasMonstersAlive();
+  if(!inCombat&&wasInCombat){// 房间清空：结束战斗
+    turnState.phase='player_select';
+    turnState.mAP=turnState.maxMAP;turnState.aAP=turnState.maxAAP;
+    turnState.hasShot=false;checkpointPos=null;
+    pendingReachableRefresh=true;
+    monsterExecTimer=0;monsterExecStepIdx=0;
+    saveTurnSnapshot();updateActionBar();updateUI();
+  }
+  if(inCombat&&!wasInCombat){// 刚进入战斗
+    player.invincibleSteps=0; // 清除探索模式无敌步数
+    turnState.phase='player_select';
+    turnState.turnNumber=0;
+    resetTurnAP();
+  }
+  updateDoorsLocked();
+}
+
+function updateDoorsLocked(){
+  const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
+  if(!room)return;
+  for(const dir of['up','down','left','right']){
+    if(room.doors[dir])room.doors[dir].open=!inCombat;
+  }
+}
 
 // 模板加载
 async function loadTemplates(){
@@ -687,16 +748,51 @@ function generateFloor(floorNum){
   return{floorNum,name:cfg.name,rooms,edges,layout,startRoomId:startId,bossRoomId:bossId,treasureRoomIds:[...treasureIds]};}
 
 function generateAllFloors(){for(let f=1;f<=6;f++)allFloors[f]=generateFloor(f);}
+function resetGameToFloor1(){
+  monsters=[];bullets.length=0;particles.length=0;damageNumbers.length=0;transition=null;
+  player.col=6;player.row=3;const p=gridToPixel(6,3);player.px=p.x;player.py=p.y;
+  player.targetPx=null;player.targetPy=null;player.animTime=0;player.facing='down';player.walkFrame=0;
+  player.shootTimer=0;player.hitFlash=0;player.shakeX=0;player.shakeY=0;player.invincibleTurns=0;player.invincibleSteps=0;
+  playerStats.hp=playerStats.maxHp;
+  currentFloor=allFloors[1];currentRoomId=currentFloor.startRoomId;
+  const room=currentFloor.rooms.find(r=>r.id===currentRoomId);currentRoomGrid=room.grid;
+  initTileData();inCombat=false;
+  turnState.phase='player_select';turnState.turnNumber=0;resetTurnAP();turnState.reachableTiles=new Set();
+  updateDoorsLocked();updateUI();updateFloorUI();
+  buildHearts(playerStats.maxHp);buildApDots('ui-aap-dots',turnState.maxAAP);buildApDots('ui-map-dots',turnState.maxMAP);
+}
+let _lastFloorHash='';
+async function loadOrGenerateFloors(forceReload){
+  try{
+    const resp=await fetch('http://localhost:8080/floor-data.json?'+Date.now());
+    if(resp.ok){
+      const text=await resp.text();
+      // 若已有数据且内容未变且非强制，跳过重新加载
+      if(_lastFloorHash===text&&Object.keys(allFloors).length>0)return false;
+      _lastFloorHash=text;
+      const data=JSON.parse(text);
+      for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(r.tplKey?getTpl(r.tplKey).tiles:BUILTIN_TEMPLATES()['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;});}
+      if(forceReload){console.log('🔄 检测到楼层更新，已重新加载');resetGameToFloor1();}
+      return true;
+    }
+  }catch(e){}
+  // 兜底生成
+  generateAllFloors();return false;
+}
+// 每隔3秒检测楼层文件变化
+setInterval(()=>{if(document.visibilityState==='visible')loadOrGenerateFloors(true);},3000);
 
 function enterFloor(floorNum){
   currentFloor=allFloors[floorNum];currentRoomId=currentFloor.startRoomId;
   const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
   currentRoomGrid=room.grid;
-  // 清除旧怪物，重置玩家到起始房间中心
   monsters.length=0;
   player.col=6;player.row=3;
   const p=gridToPixel(6,3);player.px=p.x;player.py=p.y;player.facing='down';
+  player.targetPx=null;player.targetPy=null;player.animTime=0; // 防残留滑动
+  initTileData();
   turnState.turnNumber=0;resetTurnAP();
+  updateRoomCombatState();
   updateUI();updateFloorUI();
 }
 
@@ -730,20 +826,27 @@ function finishTransition(){
   currentRoomGrid=room.grid;
   player.col=transition.playerEntryCol;player.row=transition.playerEntryRow;
   const p=gridToPixel(player.col,player.row);player.px=p.x;player.py=p.y;
-  // 新房间怪物 (TODO: 后续按模板生成)
+  // 清除移动残留状态，防止过渡后自动滑动
+  player.targetPx=null;player.targetPy=null;player.animTime=0;
+  player.facing='down';player.walkFrame=0;
+  initTileData();
   transition=null;
-  resetTurnAP();
+  updateRoomCombatState();
   updateFloorUI();
 }
 
-function tryWalkIntoDoor(col,row,facing){
+function tryWalkIntoDoor(fromCol,fromRow,moveDir){
+  if(inCombat)return false;
   const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
-  if(!room)return false;
-  for(const dir of['up','down','left','right']){
-    const dp=DOOR_POS[dir];
-    if(col===dp.col&&row===dp.row&&room.doors[dir]){
-      switchRoom(dir,{col,row});return true;
-    }
+  if(!room||!room.doors[moveDir]||!room.doors[moveDir].open)return false;
+  // 触发条件：玩家站在墙边格，且按的方向正对着该方向的门
+  const dp=DOOR_POS[moveDir];
+  const vec=DIR_VEC[moveDir];
+  const nc=fromCol+vec.dx, nr=fromRow+vec.dy;
+  // 下一步会走到格子外(撞墙)，且玩家当前列/行与门对齐
+  if(nc<0||nc>=COLS||nr<0||nr>=ROWS){
+    if(moveDir==='up'||moveDir==='down'){if(fromCol===dp.col){switchRoom(moveDir,{col:dp.col,row:dp.row});return true;}}
+    else{if(fromRow===dp.row){switchRoom(moveDir,{col:dp.col,row:dp.row});return true;}}
   }
   return false;
 }
@@ -787,7 +890,10 @@ function isWall(col, row) {
 function isBlockingBullet(col,row){
   if(col<0||col>=COLS||row<0||row>=ROWS)return true;
   if(currentRoomGrid&&currentRoomGrid[col]&&currentRoomGrid[col][row]!==undefined){
-    return TILE_BLOCKS_BULLET[currentRoomGrid[col][row]];
+    const t=currentRoomGrid[col][row];
+    // ROCK 完全阻挡；POOP 也让子弹击中的效果在 updateBullets 中处理
+    if(t===TILE.ROCK||t===TILE.POOP){hitTile(col,row,1);return true;}
+    return TILE_BLOCKS_BULLET[t]||false;
   }
   return false;
 }
@@ -829,7 +935,8 @@ const player = {
   shootTimer: 0,
   hitFlash: 0,         // 受击白闪
   shakeX: 0, shakeY: 0, // 受击抖动
-  invincibleTurns: 0,  // 无敌回合计数
+  invincibleTurns: 0,   // 无敌回合计数 (战斗模式)
+  invincibleSteps: 0,  // 无敌步数计数 (探索模式, =移速×2)
 };
 
 // ==================== AP 与回合状态 ====================
@@ -1052,12 +1159,16 @@ function calcMonsterPath(monster, targetCol, targetRow) {
 
 // ==================== 玩家受伤系统 ====================
 function damagePlayer(amount) {
-  if (player.invincibleTurns > 0) return; // 无敌中
+  if (player.invincibleTurns > 0 || player.invincibleSteps > 0) return; // 无敌中
   playerStats.hp = Math.max(0, playerStats.hp - amount);
   player.hitFlash = 0.12;
   player.shakeX = (Math.random() - 0.5) * 5;
   player.shakeY = (Math.random() - 0.5) * 4;
-  player.invincibleTurns = 3;
+  if (inCombat) {
+    player.invincibleTurns = 3;               // 战斗模式：无敌3回合
+  } else {
+    player.invincibleSteps = playerStats.moveSpeed * 2; // 探索模式：无敌=移速×2步
+  }
   updateHearts();
   updateUI();
 }
@@ -1547,7 +1658,7 @@ function drawGhost() {
 function drawPlayer() {
   // 无敌闪烁
   let alpha = 1;
-  if (player.invincibleTurns > 0) {
+  if (player.invincibleTurns > 0 || player.invincibleSteps > 0) {
     alpha = 0.3 + 0.35 * Math.sin(performance.now() * 0.015);
   }
   // 抖动偏移
@@ -1559,7 +1670,7 @@ function drawPlayer() {
   drawCharacterAt(player.px + sx, player.py + sy, player.facing, player.walkFrame, player.shootTimer, alpha);
 
   // 受击白闪
-  if (player.hitFlash > 0 && player.invincibleTurns <= 0) {
+  if (player.hitFlash > 0 && player.invincibleTurns <= 0 && player.invincibleSteps <= 0) {
     const pp = project(player.px + sx, player.py + sy);
     const s = pp.s;
     const size = Math.round(SPRITE.BASE_SIZE * s);
@@ -1612,28 +1723,47 @@ function drawParticles() {
   }
 }
 
-// --- 瓷砖渲染 ---
+// --- 瓷砖渲染 (透视投影适配) ---
+function cellRect(col,row){
+  const xL=FLOOR_L+col*CELL,xR=FLOOR_L+(col+1)*CELL,yT=FLOOR_T+row*CELL,yB=FLOOR_T+(row+1)*CELL;
+  const tl=project(xL,yT),tr=project(xR,yT),bl=project(xL,yB),br=project(xR,yB);
+  return{cx:(tl.x+tr.x+bl.x+br.x)/4,cy:(tl.y+tr.y+bl.y+br.y)/4,
+    w:(tr.x-tl.x+br.x-bl.x)/2,h:(bl.y-tl.y+br.y-tr.y)/2,
+    xL:tl.x,yT:tl.y,xR:tr.x,yB:br.y};
+}
 function drawTiles(){
   if(!currentRoomGrid)return;
   for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++){
-    const t=currentRoomGrid[c][r];
-    if(t===TILE.FLOOR)continue;
-    const x=FLOOR_L+c*CELL,y=FLOOR_T+r*CELL;
-    // 岩石
-    if(t===TILE.ROCK){prect(x+2,y+2,CELL-4,CELL-4,'#6b6058');prect(x+3,y+1,CELL-6,CELL-6,'#7a6e64');prect(x+5,y+3,CELL-10,CELL-10,'#595048');prect(x+7,y+5,CELL-14,CELL-14,'#4a423a');}
-    // 便便
-    else if(t===TILE.POOP){prect(x+1,y+1,CELL-2,CELL-2,'#8b7355');prect(x+2,y+0,CELL-4,CELL-4,'#9a8060');prect(x+4,y+2,CELL-8,CELL-6,'#7a6348');prect(x+3,y+1,3,2,'#6b5530');prect(x+CELL-7,y+2,4,2,'#6b5530');}
-    // 深坑
-    else if(t===TILE.PIT){prect(x,y,CELL,CELL,'#1a1520');prect(x+1,y+1,CELL-2,CELL-2,'#120d18');prect(x+3,y+3,CELL-6,CELL-6,'#0a0610');}
-    // 尖刺
-    else if(t===TILE.SPIKE){ctx.fillStyle='#8a3030';ctx.beginPath();const cx=x+CELL/2,cy=y+CELL/2;ctx.moveTo(cx,y+3);ctx.lineTo(x+3,cy);ctx.lineTo(cx,cy-3);ctx.lineTo(x+CELL-3,cy);ctx.closePath();ctx.fill();
-      ctx.fillStyle='#aa4040';ctx.beginPath();ctx.moveTo(cx,y+5);ctx.lineTo(x+5,cy);ctx.lineTo(cx,cy-5);ctx.lineTo(x+CELL-5,cy);ctx.closePath();ctx.fill();prect(x+8,y+2,2,2,'#ff4444');prect(x+CELL-10,y+2,2,2,'#ff4444');}
-    // 梯子 (boss room bossladder)
-    else if(t===TILE.LADDER){prect(x,y,CELL,CELL,'#1a1520');prect(x+1,y+1,CELL-2,CELL-2,'#120d18');
-      // 向下延伸的梯子
-      ctx.fillStyle='#6b5a3e';ctx.fillRect(x+4,y+3,3,CELL-6);ctx.fillRect(x+CELL-9,y+3,3,CELL-6);
-      for(let ly=y+5;ly<y+CELL;ly+=4){ctx.fillStyle='#4a3a2e';ctx.fillRect(x+5,ly,CELL-10,2);}
-      ctx.fillStyle='#ffcc44';ctx.font='8px sans-serif';ctx.textAlign='center';ctx.fillText('▼',x+CELL/2,y+CELL-3);}
+    const t=currentRoomGrid[c][r];if(t===TILE.FLOOR)continue;
+    const cr=cellRect(c,r);const cx=cr.cx,cy=cr.cy,cw=cr.w,ch=cr.h,m=Math.max(1,cw*0.08);
+    if(t===TILE.ROCK){
+      prect(cx-cw*0.42,cy-ch*0.42,cw*0.84,ch*0.84,'#6b6058');
+      prect(cx-cw*0.36,cy-ch*0.44,cw*0.72,ch*0.80,'#7a6e64');
+      prect(cx-cw*0.24,cy-ch*0.30,cw*0.48,ch*0.52,'#595048');
+      prect(cx-cw*0.14,cy-ch*0.18,cw*0.28,ch*0.28,'#4a423a');
+    }else if(t===TILE.POOP){
+      prect(cx-cw*0.46,cy-ch*0.46,cw*0.92,ch*0.92,'#8b7355');
+      prect(cx-cw*0.42,cy-ch*0.48,cw*0.84,ch*0.88,'#9a8060');
+      prect(cx-cw*0.32,cy-ch*0.32,cw*0.64,ch*0.52,'#7a6348');
+      prect(cx-cw*0.28,cy-ch*0.38,3,2,'#6b5530');prect(cx+cw*0.12,cy-ch*0.30,4,2,'#6b5530');
+    }else if(t===TILE.PIT){
+      prect(cx-cw*0.48,cy-ch*0.48,cw*0.96,ch*0.96,'#1a1520');
+      prect(cx-cw*0.44,cy-ch*0.44,cw*0.88,ch*0.88,'#120d18');
+      prect(cx-cw*0.36,cy-ch*0.36,cw*0.72,ch*0.72,'#0a0610');
+    }else if(t===TILE.SPIKE){
+      ctx.fillStyle='#8a3030';ctx.beginPath();const hw=cw*0.35,hh=ch*0.40;
+      ctx.moveTo(cx,cy+hh);ctx.lineTo(cx-hw,cy);ctx.lineTo(cx,cy-hh);ctx.lineTo(cx+hw,cy);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#aa4040';ctx.beginPath();const hw2=cw*0.28,hh2=ch*0.32;
+      ctx.moveTo(cx,cy+hh2);ctx.lineTo(cx-hw2,cy);ctx.lineTo(cx,cy-hh2);ctx.lineTo(cx+hw2,cy);ctx.closePath();ctx.fill();
+      prect(cx+cw*0.15,cy-ch*0.30,2,2,'#ff4444');prect(cx-cw*0.20,cy-ch*0.30,2,2,'#ff4444');
+    }else if(t===TILE.LADDER){
+      prect(cx-cw*0.48,cy-ch*0.48,cw*0.96,ch*0.96,'#1a1520');
+      prect(cx-cw*0.44,cy-ch*0.44,cw*0.88,ch*0.88,'#120d18');
+      ctx.fillStyle='#6b5a3e';ctx.fillRect(cx-cw*0.20,cy-ch*0.30,3,ch*0.55);
+      ctx.fillRect(cx+cw*0.12,cy-ch*0.30,3,ch*0.55);
+      for(let ly=cy-ch*0.25;ly<cy+ch*0.32;ly+=4){ctx.fillStyle='#4a3a2e';ctx.fillRect(cx-cw*0.15,ly,cw*0.30,2);}
+      ctx.fillStyle='#ffcc44';ctx.font='8px sans-serif';ctx.textAlign='center';ctx.fillText('▼',cx,cy+ch*0.38);
+    }
   }
 }
 function drawDoors(){
@@ -1641,12 +1771,50 @@ function drawDoors(){
   const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
   if(!room)return;
   for(const dir of['up','down','left','right']){
-    if(room.doors[dir]){
-      const dp=DOOR_POS[dir];
-      const x=FLOOR_L+dp.col*CELL,y=FLOOR_T+dp.row*CELL;
-      ctx.fillStyle='#332211';prect(x,y,CELL,CELL);
-      ctx.fillStyle='#559944';const icx=x+CELL/2;const icy=y+CELL/2;
-      ctx.fillRect(icx-3,icy-3,6,6);ctx.fillStyle='#fff';ctx.fillRect(icx-1,icy-1,2,2);
+    if(!room.doors[dir])continue;
+    const dp=DOOR_POS[dir];
+    const cr=cellRect(dp.col,dp.row);
+    const cx=cr.cx,cy=cr.cy,cw=cr.w,ch=cr.h;
+    const open=room.doors[dir].open;
+    const m=Math.max(1,cw*0.08);
+
+    // 覆盖原有瓷砖，用地面色打底
+    prect(cr.xL,cr.yT,cr.xR-cr.xL,cr.yB-cr.yT,'#2a2520');
+
+    if(dir==='up'||dir==='down'){
+      const dw=cw*0.44,dh=ch*0.36;
+      const dx=cx-dw/2;
+      const dy=dir==='up'?cr.yT-dh*0.20:cy+ch*0.12;
+      if(open){
+        prect(dx,dy,dw,dh,'#0a0705');
+        prect(dx+dw*0.22,dy+dh*0.22,dw*0.56,dh*0.56,'#18120c');
+        ctx.strokeStyle='#4a3a28';ctx.lineWidth=m;
+        ctx.strokeRect(dx-m*0.5,dy-m*0.5,dw+m,dh+m);
+      }else{
+        prect(dx,dy,dw,dh,'#5a4a3a');
+        for(let i=1;i<4;i++)prect(dx+dw*i/4,dy,Math.max(1,m*0.6),dh,'#332211');
+        prect(dx,dy+dh*0.30,dw,Math.max(1,m*0.6),'#332211');
+        prect(dx,dy+dh*0.65,dw,Math.max(1,m*0.6),'#332211');
+        ctx.strokeStyle='#332211';ctx.lineWidth=m;
+        ctx.strokeRect(dx,dy,dw,dh);
+      }
+    }else{
+      const dw=cw*0.36,dh=ch*0.44;
+      const dx=dir==='left'?cr.xL-dw*0.20:cx+cw*0.12;
+      const dy=cy-dh/2;
+      if(open){
+        prect(dx,dy,dw,dh,'#0a0705');
+        prect(dx+dw*0.22,dy+dh*0.22,dw*0.56,dh*0.56,'#18120c');
+        ctx.strokeStyle='#4a3a28';ctx.lineWidth=m;
+        ctx.strokeRect(dx-m*0.5,dy-m*0.5,dw+m,dh+m);
+      }else{
+        prect(dx,dy,dw,dh,'#5a4a3a');
+        for(let i=1;i<3;i++)prect(dx,dy+dh*i/3,dw,Math.max(1,m*0.6),'#332211');
+        prect(dx+dw*0.35,dy,Math.max(1,m*0.6),dh,'#332211');
+        prect(dx+dw*0.60,dy,Math.max(1,m*0.6),dh,'#332211');
+        ctx.strokeStyle='#332211';ctx.lineWidth=m;
+        ctx.strokeRect(dx,dy,dw,dh);
+      }
     }
   }
 }
@@ -1659,11 +1827,11 @@ function render() {
   drawTiles();
   drawDoors();
   drawGridHighlight();
-  drawReachableOverlay();   // 可移动方格 (浅蓝呼吸)
+  if(inCombat)drawReachableOverlay(); // 仅战斗模式显示可移动范围
   drawBullets();
   drawParticles();
   drawMonsters();
-  drawTurnStartGhost();     // 回合开始位置幽灵
+  if(inCombat)drawTurnStartGhost(); // 仅战斗模式显示回合起始幽灵
   drawPlayer();
   drawDamageNumbers();
   drawDebugOverlay();
@@ -2220,6 +2388,7 @@ function damageMonster(m, dmg) {
     if (turnState.phase === 'player_select') pendingReachableRefresh = true;
     const idx = monsters.indexOf(m);
     if (idx !== -1) monsters.splice(idx, 1);
+    updateRoomCombatState();
   }
 }
 
@@ -2264,7 +2433,6 @@ function updateBullets(dt) {
       b.vVel += CFG.DECAY_GRAVITY * dt;
       b.vOff += b.vVel * dt;
       if (bulletHitWall(b.x, b.y)) { shatterBullet(b); continue; }
-      // 下落阶段也可命中
       const hitMon = bulletHitMonster(b.x, b.y);
       if (hitMon) { damageMonster(hitMon, playerStats.attack); shatterBullet(b); continue; }
       if (b.distTraveled >= b.maxDist || b.vOff > CELL * 0.6) {
@@ -2377,7 +2545,7 @@ function cancelEndTurn() {
 
 // ==================== 输入处理 ====================
 document.addEventListener('keydown', (e) => {
-  const actionKeys = ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','Escape','KeyC','KeyB'];
+  const actionKeys = ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','Escape','KeyC','KeyB','KeyR'];
   if (actionKeys.includes(e.code)) e.preventDefault();
 
   // ---- 场景过渡中禁止操作 ----
@@ -2397,78 +2565,59 @@ document.addEventListener('keydown', (e) => {
   if (turnState.phase === 'player_select') {
     switch (e.code) {
       case 'KeyW': case 'KeyS': case 'KeyA': case 'KeyD': {
-        // === 移动本体 (距离公式, 可回原位返还AP) ===
         const dirMap = { KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right' };
         const dir = dirMap[e.code];
         if (!dir) return;
+        // 先检测门触发：站在门前格+朝门方向按=切换房间（不执行移动）
+        if(tryWalkIntoDoor(player.col,player.row,dir))return;
 
         const vec = DIR_VEC[dir];
         const nc = player.col + vec.dx;
         const nr = player.row + vec.dy;
-        const key = `${nc},${nr}`;
+        if(isWall(nc,nr))return;
 
-        // 必须在初始可移动范围内 (BFS 已验证无墙无怪, 不实时刷新)
-        if (!turnState.reachableTiles.has(key)) return;
+        if(inCombat){
+          const key=`${nc},${nr}`;
+          if(!turnState.reachableTiles.has(key))return;
+          const newMAP=calculateMAPAt(nc,nr);
+          if(newMAP<0)return;
+          turnState.mAP=newMAP;
+        }
 
-        // 距离公式计算新 M-AP
-        const newMAP = calculateMAPAt(nc, nr);
-        if (newMAP < 0) return; // 超出距离上限
+        player.facing=dir;player.col=nc;player.row=nr;
+        const t=gridToPixel(nc,nr);player.targetPx=t.x;player.targetPy=t.y;player.animTime=0;
 
-        // 移动本体
-        player.facing = dir;
-        player.col = nc;
-        player.row = nr;
-        const t = gridToPixel(nc, nr);
-        player.targetPx = t.x;
-        player.targetPy = t.y;
-        player.animTime = 0;
-        turnState.mAP = newMAP;
-
-        // 检查是否踩到门 → 房间切换
-        if(tryWalkIntoDoor(nc,nr,dir))return;
-        // 检查是否踩到梯子 → 下楼
+        if(!inCombat&&player.invincibleSteps>0)player.invincibleSteps--; // 探索模式：每移动一格递减无敌步数
+        if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.SPIKE){damagePlayer(0.5,0,0);}
         if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.LADDER){
           const nextF=currentFloor.floorNum+1;
           if(allFloors[nextF]){enterFloor(nextF);return;}
         }
-
-        // 移动时不刷新可移动范围浅蓝示意 (request 3)
-        updateActionBar();
-        updateUI();
+        updateActionBar();updateUI();
         return;
       }
 
       case 'ArrowUp': case 'ArrowDown': case 'ArrowLeft': case 'ArrowRight': {
-        // === 立即射击 ===
-        if (turnState.aAP <= 0) return;
+        // 战斗模式：需有 AP 才可射击
+        if(inCombat&&turnState.aAP<=0)return;
         const dirMap = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
         const dir = dirMap[e.code];
-        if (!dir) return;
+        if(!dir)return;
 
-        // 立即射击
-        player.facing = dir;
-        player.shootTimer = 0.4;
-        spawnBullet(dir, player.px, player.py);
+        player.facing=dir;player.shootTimer=0.4;
+        spawnBullet(dir,player.px,player.py);
 
-        // 消耗 A-AP
-        turnState.aAP--;
-
-        // 首次射击: 保存 checkpoint, 从当前位置重新计算可移动范围
-        if (!turnState.hasShot) {
-          turnState.hasShot = true;
-          checkpointPos = { col: player.col, row: player.row };
-          // M-AP 用距离公式当前值; 可移动范围从 checkpoint 以剩余步数重新 BFS
-          const remainingSteps = turnState.mAP;
-          turnState.reachableTiles = calcReachableTiles(player.col, player.row, remainingSteps);
+        if(inCombat){
+          turnState.aAP--;
+          if(!turnState.hasShot){turnState.hasShot=true;checkpointPos={col:player.col,row:player.row};
+            const rs=turnState.mAP;turnState.reachableTiles=calcReachableTiles(player.col,player.row,rs);}
         }
-
-        updateActionBar();
-        updateUI();
+        updateActionBar();updateUI();
         return;
       }
 
       case 'Space': {
-        // 结束回合
+        if(!inCombat)return; // 非战斗模式不需要结束回合
         if (turnState.mAP > 0 || turnState.aAP > 0) {
           showEndTurnConfirm();
         } else {
@@ -2484,7 +2633,7 @@ document.addEventListener('keydown', (e) => {
       }
 
       case 'Escape': {
-        // 全重置到回合开始
+        if(!inCombat)return; // 探索状态下 Esc 无效
         if (turnSnapshot) {
           restoreTurnSnapshot();
           turnState.mAP = turnState.maxMAP;
@@ -2513,6 +2662,10 @@ document.addEventListener('keydown', (e) => {
             updateActionBar();
           }
         }
+        break;
+      }
+      case 'KeyR': {
+        resetGameToFloor1();
         break;
       }
       case 'KeyC': {
@@ -2655,7 +2808,7 @@ function gameLoop(timestamp) {
 // ==================== 启动 ====================
 async function initGame(){
   await loadTemplates();
-  generateAllFloors();
+  await loadOrGenerateFloors();
   // 默认加载空旷房间网格
   currentRoomGrid=parseGrid(BUILTIN_TEMPLATES()['open'].tiles);
   
@@ -2680,7 +2833,7 @@ function spawnMonster() {
   const candidates = [];
   for (let c = 0; c < COLS; c++)
     for (let r = 0; r < ROWS; r++)
-      if (!occupied.has(`${c},${r}`)) candidates.push({ col: c, row: r });
+      if (!occupied.has(`${c},${r}`)&&TILE_WALKABLE[currentRoomGrid[c][r]]) candidates.push({ col: c, row: r });
   if (candidates.length === 0) return;
   const pos = candidates[Math.floor(Math.random() * candidates.length)];
   const pix = gridToPixel(pos.col, pos.row);
@@ -2694,6 +2847,7 @@ function spawnMonster() {
     hitFlash: 0, shakeX: 0, shakeY: 0,
   });
   calcAllMonsterPaths();
+  updateRoomCombatState();
 }
 document.getElementById('spawn-monster-btn').addEventListener('click', spawnMonster);
 

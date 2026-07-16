@@ -1180,6 +1180,13 @@ function openEditor(key) {
 
 function closeEditor(save) {
   if (save) {
+    // 保存前验证：不通过或有门阻塞则拒绝保存
+    const v = validateTiles(editorTiles);
+    if (!v.pass) {
+      showStatus('✗ 无法保存：' + v.errors.join('; '), true);
+      return;
+    }
+
     const tpl = allTemplates[editingKey];
     tpl.name = document.getElementById('edit-name').value || tpl.name;
     tpl.types = [];
@@ -1425,7 +1432,47 @@ function generateFloor(floorNum){
   return{floorNum,name:cfg.name,rooms,edges,layout,startRoomId:startId,bossRoomId:bossId,treasureRoomIds:[...treasureIds]};
 }
 
-function generateAllFloors(){for(let f=1;f<=6;f++)allFloors[f]=generateFloor(f);}
+function generateAllFloors(){for(let f=1;f<=6;f++)allFloors[f]=generateFloor(f);saveFloorToFile();}
+async function loadOrGenerateFloors(){
+  try{
+    const resp=await fetch('http://localhost:8080/floor-data.json?'+Date.now());
+    if(resp.ok){const data=await resp.json();for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(r.tplKey?getTpl(r.tplKey).tiles:BUILTIN_TEMPLATES['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;});}
+    return true;}
+  }catch(e){}
+  generateAllFloors();return false;
+}
+function saveFloorToFile(){
+  try{
+    const data={};for(let f=1;f<=6;f++){const fl=allFloors[f];data[f]={floorNum:fl.floorNum,name:fl.name,rooms:fl.rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds};}
+    const json=JSON.stringify(data);
+    const form=document.createElement('form');form.method='POST';form.action='http://localhost:8080/save-floor';form.target='save-frame';form.style.display='none';
+    const input=document.createElement('input');input.type='hidden';input.name='data';input.value=json;
+    form.appendChild(input);document.body.appendChild(form);form.submit();document.body.removeChild(form);
+  }catch(e){console.warn('楼层保存失败',e);}
+}
+async function tryLoadFloorData(){
+  for(let attempt=0;attempt<5;attempt++){
+    try{
+      console.log('📂 尝试加载 floor-data (第'+(attempt+1)+'次)');
+      const resp=await fetch('http://localhost:8080/floor-data.json?'+Date.now());
+      console.log('  状态:',resp.status);
+      if(resp.ok){
+        const text=await resp.text();
+        const data=JSON.parse(text);
+        if(!data['1']||!data['1'].rooms){console.error('❌ 数据不全');}
+        else{
+          for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;});}
+          console.log('✅ 已加载楼层:',allFloors[1].name,allFloors[1].rooms.length,'房间');
+          return true;
+        }
+      }
+    }catch(e){console.warn('⚠ 第'+(attempt+1)+'次加载失败:',e.message);}
+    if(attempt<4)await new Promise(r=>setTimeout(r,800));
+  }
+  console.warn('⚠ 5次重试均失败，生成新楼层');
+  generateAllFloors();
+  return false;
+}
 
 // 楼层渲染
 const MTILE=14,MPAD=10,MGAP=36;const mapCanvas=document.getElementById('map');const mapCtx=mapCanvas.getContext('2d');
@@ -1459,7 +1506,7 @@ function switchTab(tab){
 }
 document.getElementById('tab-templates').addEventListener('click',()=>switchTab('templates'));
 document.getElementById('tab-floor').addEventListener('click',()=>switchTab('floor'));
-document.getElementById('btn-regen').addEventListener('click',()=>{allFloors[currentFloorNum]=generateFloor(currentFloorNum);renderFloor(allFloors[currentFloorNum]);});
+document.getElementById('btn-regen').addEventListener('click',()=>{allFloors[currentFloorNum]=generateFloor(currentFloorNum);saveFloorToFile();renderFloor(allFloors[currentFloorNum]);});
 document.getElementById('btn-regen-all').addEventListener('click',()=>{generateAllFloors();renderFloor(allFloors[currentFloorNum]);});
 
 // ================================================================
@@ -1469,8 +1516,11 @@ document.getElementById('btn-regen-all').addEventListener('click',()=>{generateA
   try{
     await autoLoadPool();
     refreshTemplates();
-    generateAllFloors();
-    console.log('✅ 编辑器就绪 — File System Access API 直读直写');
+    // 始终从文件加载楼层，服务器刚启动时加重试
+    await tryLoadFloorData();
+    buildFloorNav();
+    if(allFloors[currentFloorNum])renderFloor(allFloors[currentFloorNum]);
+    console.log('✅ 编辑器就绪');
   }catch(e){
     console.error('初始化失败:',e);
     document.getElementById('template-grid').innerHTML='<div style="color:#ff4444;padding:20px;">初始化错误: '+e.message+'</div>';
