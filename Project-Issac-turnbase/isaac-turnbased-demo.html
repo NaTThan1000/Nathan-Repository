@@ -400,6 +400,10 @@
 <div id="top-bar">
   <h1>⚔ 以撒 · 半回合制战斗</h1>
   <div id="top-status">
+    <div class="status-pill" id="status-floor" style="border-color:#448866;">
+      <span class="pill-label" style="color:#66cc88;">楼层</span>
+      <span class="pill-value" style="color:#88eebb;" id="ui-floor-info">加载中...</span>
+    </div>
     <div class="status-pill" id="status-phase">
       <span class="pill-label">阶段</span>
       <span class="pill-value phase-player" id="ui-phase">行为选择</span>
@@ -481,9 +485,18 @@
       <div class="help-keys"><span class="help-key">Esc</span></div>
       <div class="help-desc">重置本回合所有操作, 回到回合开始时</div>
     </div>
+    <div class="help-row">
+      <div class="help-keys"><span class="help-key">B</span></div>
+      <div class="help-desc">Bos房间放置梯子 (清怪后使用, 进下一层)</div>
+    </div>
+    <div class="help-row">
+      <div class="help-keys"><span class="help-key">C</span></div>
+      <div class="help-desc">随机位置生成怪物</div>
+    </div>
     <div class="help-note">
       浅蓝色方格 = 可移动范围.<br>
-      射击前可自由调整, 射击后锁定位置 (Esc 可全重置).
+      走到绿色门格 → 切换房间 (带滑动过渡).<br>
+      走到梯子格▼ → 进入下一层地牢.
     </div>
     <button id="help-close">关闭</button>
   </div>
@@ -585,6 +598,165 @@ const DIR_VEC = {
   right: { dx:  1, dy:  0, symbol: '→' },
 };
 
+// ==================== TILE 网格系统 ====================
+const TILE = { FLOOR:0, ROCK:1, POOP:2, PIT:3, SPIKE:4, LADDER:5 };
+const TILE_CHAR = { '.':0, '#':1, 'P':2, 'O':3, '^':4, 'L':5 };
+const TILE_COLORS = { 0:'#4a4038', 1:'#6b6058', 2:'#8b7355', 3:'#1a1520', 4:'#8a3030', 5:'#1a1520' };
+const TILE_WALKABLE = { 0:true, 1:false, 2:false, 3:false, 4:true, 5:true };
+const TILE_BLOCKS_BULLET = { 0:false, 1:true, 2:true, 3:false, 4:false, 5:false };
+function parseGrid(tiles){const g=[];for(let c=0;c<COLS;c++){g[c]=[];for(let r=0;r<ROWS;r++)g[c][r]=TILE_CHAR[tiles[r][c]]||0;}return g;}
+
+// ==================== 房间/楼层系统 ====================
+const FLOOR_CONFIG = {1:{name:'地牢1层',roomCount:[8,10]},2:{name:'地牢2层',roomCount:[9,11]},3:{name:'地牢3层',roomCount:[10,12]},4:{name:'地牢4层',roomCount:[10,13]},5:{name:'地牢5层',roomCount:[11,14]},6:{name:'地牢6层',roomCount:[12,15]}};
+const DOOR_POS = {up:{col:6,row:0},down:{col:6,row:6},left:{col:0,row:3},right:{col:12,row:3}};
+const DOOR_FROM_DIR = {up:'down',down:'up',left:'right',right:'left'};
+
+let poolTemplates = {};        // 从 pool.json 加载的模板
+let allFloors = {};            // { floorNum: { rooms, edges, layout, startRoomId, bossRoomId, treasureRoomIds } }
+let currentFloor = null;       // 当前楼层数据
+let currentRoomId = null;      // 当前房间 ID
+let currentRoomGrid = null;    // 当前房间 grid[col][row]
+let transition = null;         // { active, dir, offset, fromRoom, toRoom, playerEntryPos }
+
+// 模板加载
+async function loadTemplates(){
+  try{const r=await fetch('http://localhost:8080/pool.json?'+Date.now());if(r.ok){poolTemplates=await r.json();console.log('📂 加载关卡池: '+Object.keys(poolTemplates).length+' 模板');return;}}catch(e){}
+  try{const r=await fetch('Configs/pool.json?'+Date.now());if(r.ok){poolTemplates=await r.json();return;}}catch(e){}
+  console.log('⚠ 无法加载 pool.json, 使用内置模板');
+}
+function getTpl(key){
+  if(poolTemplates[key])return poolTemplates[key];
+  const b=BUILTIN_TEMPLATES();const v=b[key];return v||b['open'];
+}
+function BUILTIN_TEMPLATES(){
+  return {
+    'open':{name:'空旷大厅',types:['start','normal','treasure','shop'],tiles:['.............','.............','.............','.............','.............','.............','.............']},
+    'boss_arena':{name:'Boss竞技场',types:['boss'],tiles:['.............','.............','.............','.............','.............','.............','.............']},
+    'cross_rocks':{name:'十字岩石',types:['normal','treasure'],tiles:['.............','.....##......','.....##......','..#######....','.....##......','.....##......','.............']},
+    'four_corners':{name:'四角岩石',types:['normal','treasure'],tiles:['.##.......##.','.##.......##.','.............','.............','.............','.##.......##.','.##.......##.']},
+    'pillars':{name:'四柱大厅',types:['normal','treasure'],tiles:['.............','...#P....#...','.............','.......#.....','.............','...#P....#...','.............']},
+    'corridor':{name:'横向窄道',types:['normal'],tiles:['..###...###..','..###...###..','.............','.............','.............','..###...###..','..###...###..']},
+    'corridor_v':{name:'纵向窄道',types:['normal'],tiles:['....##..##...','....##..##...','....#....#...','......##.....','....#....#...','....##..##...','....##..##...']},
+    'scattered':{name:'散落岩石',types:['normal'],tiles:['...........#.','.....#.......','.......#.....','..#..........','.........#...','......#......','...#.........']},
+    'ring':{name:'环形壁垒',types:['normal','treasure'],tiles:['..###...###..','..#.......##.','..#........#.','.............','..#........#.','..#.......##.','..###...###..']},
+    'room_split':{name:'裂半之室',types:['normal'],tiles:['.............','.....#^#.....','....#...^....','...##...##...','....^...#....','.....#^#.....','.............']},
+    'alcoves':{name:'壁龛石室',types:['normal','treasure'],tiles:['.###P....##..','.#.........#.','.#.........#.','.............','.#.........#.','.#.........#.','.###P....##..']},
+    'diagonal':{name:'斜岩通道',types:['normal'],tiles:['##...........','.##..........','..##.........','...##........','....##.......','.....##......','.............']},
+  };
+}
+
+// 楼层生成 (从地图编辑器移植)
+function randInt(min,max){return Math.floor(Math.random()*(max-min+1))+min;}
+function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+function generateFloor(floorNum){
+  const cfg=FLOOR_CONFIG[floorNum];const N=randInt(cfg.roomCount[0],cfg.roomCount[1]);
+  const rooms=[];for(let i=0;i<N;i++)rooms.push({id:`f${floorNum}_r${i}`,type:null,tplKey:null,grid:null,connections:[],doors:{up:null,down:null,left:null,right:null},bossLadderPlaced:false});
+  const nodeIds=rooms.map(r=>r.id);const shuffledIds=shuffle(nodeIds);
+  const degCount={};nodeIds.forEach(id=>degCount[id]=0);
+  const connected=new Set([shuffledIds[0]]);const unconnected=new Set(shuffledIds.slice(1));const edges=[];
+  while(unconnected.size>0){const ca=[...connected].filter(id=>degCount[id]<4);const ua=[...unconnected];if(ca.length===0){const a=[...connected][0];const b=ua[0];edges.push([a,b]);degCount[a]++;degCount[b]++;connected.add(b);unconnected.delete(b);}else{const a=ca[Math.floor(Math.random()*ca.length)];const b=ua[Math.floor(Math.random()*ua.length)];edges.push([a,b]);degCount[a]++;degCount[b]++;connected.add(b);unconnected.delete(b);}}
+  const maxExtra=Math.floor(N*0.25);for(let e=0;e<randInt(0,maxExtra);e++){const s2=shuffle(nodeIds);if(edges.some(ed=>(ed[0]===s2[0]&&ed[1]===s2[1])||(ed[0]===s2[1]&&ed[1]===s2[0]))||s2[0]===s2[1]||degCount[s2[0]]>=4||degCount[s2[1]]>=4)continue;
+    const testEdges=[...edges,[s2[0],s2[1]]];const td={};nodeIds.forEach(id=>td[id]=0);testEdges.forEach(([a,b])=>{td[a]++;td[b]++;});
+    if(nodeIds.filter(id=>td[id]===1).length>=3){edges.push([s2[0],s2[1]]);degCount[s2[0]]++;degCount[s2[1]]++;}}
+  const degree={};nodeIds.forEach(id=>degree[id]=0);edges.forEach(([a,b])=>{degree[a]++;degree[b]++;});
+  const sortedByDeg=[...nodeIds].sort((a,b)=>degree[a]-degree[b]);const startId=sortedByDeg[0];
+  const distFrom={},bfsQ=[startId],bfsV=new Set([startId]);distFrom[startId]=0;
+  while(bfsQ.length>0){const cur=bfsQ.shift();for(const[a,b]of edges){const nb=a===cur?b:(b===cur?a:null);if(nb&&!bfsV.has(nb)){bfsV.add(nb);distFrom[nb]=distFrom[cur]+1;bfsQ.push(nb);}}}
+  const bossCands=nodeIds.filter(id=>id!==startId&&degree[id]===1).sort((a,b)=>(distFrom[b]||0)-(distFrom[a]||0));
+  const bossId=bossCands.length>0?bossCands[0]:sortedByDeg.filter(id=>id!==startId).pop();
+  const t1=nodeIds.filter(id=>id!==startId&&id!==bossId&&degree[id]===1);
+  const treasureCands=shuffle(t1);const treasureIds=new Set(treasureCands.slice(0,Math.min(randInt(1,2),treasureCands.length)));
+  const roomMap={};rooms.forEach(r=>{roomMap[r.id]=r;});
+  rooms.forEach(r=>{if(r.id===startId)r.type='start';else if(r.id===bossId)r.type='boss';else if(treasureIds.has(r.id))r.type='treasure';else r.type='normal';});
+  rooms.forEach(r=>{const tpl=getTpl(r.type==='start'?'open':r.type==='boss'?'boss_arena':null);
+    const cands=Object.keys(poolTemplates).length>0?Object.keys(poolTemplates).filter(k=>{if(r.type==='start')return k==='open';if(r.type==='boss')return k==='boss_arena';return poolTemplates[k].types.includes(r.type);}):Object.keys(BUILTIN_TEMPLATES()).filter(k=>{const t=getTpl(k);if(r.type==='start')return k==='open';if(r.type==='boss')return k==='boss_arena';return t.types.includes(r.type);});
+    if(cands.length===0){r.tplKey='open';r.grid=parseGrid(BUILTIN_TEMPLATES()['open'].tiles);}else{const k=cands[Math.floor(Math.random()*cands.length)];r.tplKey=k;r.grid=parseGrid(getTpl(k).tiles);}});
+  const DIRS={up:{dx:0,dy:-1,opp:'down'},down:{dx:0,dy:1,opp:'up'},left:{dx:-1,dy:0,opp:'right'},right:{dx:1,dy:0,opp:'left'}};
+  let layout=null,gridOcc=null,layoutOk=false;
+  for(let attempt=0;attempt<30&&!layoutOk;attempt++){layout={};gridOcc=new Set();const lq=[startId],lv=new Set([startId]);let fail=false;const reg=(id,gx,gy)=>{layout[id]={gx,gy};gridOcc.add(`${gx},${gy}`);};reg(startId,0,0);
+    while(lq.length>0&&!fail){const cur=lq.shift(),cp=layout[cur];const el=shuffle([...edges]);for(const[a,b]of el){const nb=a===cur?b:(b===cur?a:null);if(!nb||lv.has(nb))continue;lv.add(nb);
+      const pns=[];for(const[x,y]of edges){const o=x===nb?y:(y===nb?x:null);if(o&&layout[o])pns.push(o);}if(!pns.includes(cur))pns.unshift(cur);
+      const cands=[];for(const pnId of pns){const pn=layout[pnId];for(const d of Object.keys(DIRS)){const nx=pn.gx+DIRS[d].dx,ny=pn.gy+DIRS[d].dy;if(gridOcc.has(`${nx},${ny}`))continue;let ok=true;for(const chkId of pns){if(chkId===pnId)continue;const chk=layout[chkId];if(chk.gx!==nx&&chk.gy!==ny){ok=false;break;}}if(ok)cands.push({gx:nx,gy:ny,dist:Math.abs(nx-cp.gx)+Math.abs(ny-cp.gy)});}}
+      if(cands.length>0){cands.sort((a,b)=>a.dist-b.dist);const best=cands[0];reg(nb,best.gx,best.gy);}else{fail=true;}
+    lq.push(nb);}}if(!fail)layoutOk=true;}
+  if(!layoutOk){layout={};gridOcc=new Set();const lq=[startId],lv=new Set([startId]);const reg2=(id,gx,gy)=>{layout[id]={gx,gy};gridOcc.add(`${gx},${gy}`);};reg2(startId,0,0);
+    while(lq.length>0){const cur=lq.shift(),cp=layout[cur];for(const[a,b]of edges){const nb=a===cur?b:(b===cur?a:null);if(!nb||lv.has(nb))continue;lv.add(nb);const dOrder=shuffle(['up','down','left','right']);let ok=false;for(const d of dOrder){const nx=cp.gx+DIRS[d].dx,ny=cp.gy+DIRS[d].dy;if(!gridOcc.has(`${nx},${ny}`)){reg2(nb,nx,ny);ok=true;break;}}if(!ok){for(let r=2;r<10;r++){const cs=[];for(let x=-r;x<=r;x++)for(let y=-r;y<=r;y++)if(Math.abs(x)+Math.abs(y)===r&&(x===0||y===0)&&!gridOcc.has(`${cp.gx+x},${cp.gy+y}`))cs.push({gx:cp.gx+x,gy:cp.gy+y});if(cs.length>0){const p=cs[Math.floor(Math.random()*cs.length)];reg2(nb,p.gx,p.gy);ok=true;break;}}}
+    lq.push(nb);}}}
+  edges.forEach(([idA,idB])=>{const pa=layout[idA],pb=layout[idB],dx=pb.gx-pa.gx,dy=pb.gy-pa.gy;const dA=dx>0?'right':dx<0?'left':dy>0?'down':'up';const dB=dx>0?'left':dx<0?'right':dy>0?'up':'down';roomMap[idA].doors[dA]={targetRoomId:idB,open:true};roomMap[idB].doors[dB]={targetRoomId:idA,open:true};roomMap[idA].connections.push({targetId:idB,dir:dA});roomMap[idB].connections.push({targetId:idA,dir:dB});});
+  return{floorNum,name:cfg.name,rooms,edges,layout,startRoomId:startId,bossRoomId:bossId,treasureRoomIds:[...treasureIds]};}
+
+function generateAllFloors(){for(let f=1;f<=6;f++)allFloors[f]=generateFloor(f);}
+
+function enterFloor(floorNum){
+  currentFloor=allFloors[floorNum];currentRoomId=currentFloor.startRoomId;
+  const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
+  currentRoomGrid=room.grid;
+  // 清除旧怪物，重置玩家到起始房间中心
+  monsters.length=0;
+  player.col=6;player.row=3;
+  const p=gridToPixel(6,3);player.px=p.x;player.py=p.y;player.facing='down';
+  turnState.turnNumber=0;resetTurnAP();
+  updateUI();updateFloorUI();
+}
+
+function switchRoom(dir, fromPos){
+  const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
+  const door=room.doors[dir];
+  if(!door||!door.open)return false;
+  const targetRoom=currentFloor.rooms.find(r=>r.id===door.targetRoomId);
+  if(!targetRoom)return false;
+  // 计算玩家在新房间的入口位置
+  const oppDir=DOOR_FROM_DIR[dir];
+  const dp=DOOR_POS[oppDir];
+  let entryCol=dp.col,entryRow=dp.row;
+  // 放到门前相邻格
+  if(oppDir==='up')entryRow=dp.row-1;
+  else if(oppDir==='down')entryRow=dp.row+1;
+  else if(oppDir==='left')entryCol=dp.col-1;
+  else if(oppDir==='right')entryCol=dp.col+1;
+  entryCol=Math.max(0,Math.min(12,entryCol));entryRow=Math.max(0,Math.min(6,entryRow));
+  // 如果门前格不可行走，则找最近的可行走格
+  if(!TILE_WALKABLE[targetRoom.grid[entryCol][entryRow]]){for(let r=0;r<7;r++)for(let c=0;c<13;c++)if(TILE_WALKABLE[targetRoom.grid[c][r]]){entryCol=c;entryRow=r;r=99;c=99;}}
+  // 启动切换过渡
+  transition={active:true,dir:dir,offset:0,fromRoom:currentRoomId,toRoom:door.targetRoomId,playerEntryCol:entryCol,playerEntryRow:entryRow};
+  return true;
+}
+
+function finishTransition(){
+  if(!transition)return;
+  currentRoomId=transition.toRoom;
+  const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
+  currentRoomGrid=room.grid;
+  player.col=transition.playerEntryCol;player.row=transition.playerEntryRow;
+  const p=gridToPixel(player.col,player.row);player.px=p.x;player.py=p.y;
+  // 新房间怪物 (TODO: 后续按模板生成)
+  transition=null;
+  resetTurnAP();
+  updateFloorUI();
+}
+
+function tryWalkIntoDoor(col,row,facing){
+  const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
+  if(!room)return false;
+  for(const dir of['up','down','left','right']){
+    const dp=DOOR_POS[dir];
+    if(col===dp.col&&row===dp.row&&room.doors[dir]){
+      switchRoom(dir,{col,row});return true;
+    }
+  }
+  return false;
+}
+
+// 更新楼层 UI
+function updateFloorUI(){
+  const el=document.getElementById('ui-floor-info');
+  if(!el)return;
+  const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
+  const tn={start:'起点',normal:'普通',treasure:'宝箱',boss:'Boss',shop:'商店'};
+  el.textContent=`${currentFloor.name} | [${tn[room.type]}] ${room.tplKey}`;
+}
+
 // ==================== 透视投影 ====================
 function vpScale(wy) {
   const t = Math.max(0, Math.min(1, (wy - FLOOR_T) / (FLOOR_B - FLOOR_T)));
@@ -606,11 +778,24 @@ function pixelToGrid(px, py) {
   };
 }
 function isWall(col, row) {
-  return col < 0 || col >= COLS || row < 0 || row >= ROWS;
+  if(col < 0 || col >= COLS || row < 0 || row >= ROWS) return true;
+  if(currentRoomGrid && currentRoomGrid[col] && currentRoomGrid[col][row]!==undefined){
+    return !TILE_WALKABLE[currentRoomGrid[col][row]];
+  }
+  return false;
+}
+function isBlockingBullet(col,row){
+  if(col<0||col>=COLS||row<0||row>=ROWS)return true;
+  if(currentRoomGrid&&currentRoomGrid[col]&&currentRoomGrid[col][row]!==undefined){
+    return TILE_BLOCKS_BULLET[currentRoomGrid[col][row]];
+  }
+  return false;
 }
 function bulletHitWall(bx, by) {
   const r = 2;
-  return bx - r < FLOOR_L || bx + r > FLOOR_R || by - r < FLOOR_T || by + r > FLOOR_B;
+  if(bx - r < FLOOR_L || bx + r > FLOOR_R || by - r < FLOOR_T || by + r > FLOOR_B) return true;
+  const g = pixelToGrid(bx, by);
+  return isBlockingBullet(g.col, g.row);
 }
 
 // ==================== 像素绘制辅助 ====================
@@ -1427,11 +1612,52 @@ function drawParticles() {
   }
 }
 
+// --- 瓷砖渲染 ---
+function drawTiles(){
+  if(!currentRoomGrid)return;
+  for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++){
+    const t=currentRoomGrid[c][r];
+    if(t===TILE.FLOOR)continue;
+    const x=FLOOR_L+c*CELL,y=FLOOR_T+r*CELL;
+    // 岩石
+    if(t===TILE.ROCK){prect(x+2,y+2,CELL-4,CELL-4,'#6b6058');prect(x+3,y+1,CELL-6,CELL-6,'#7a6e64');prect(x+5,y+3,CELL-10,CELL-10,'#595048');prect(x+7,y+5,CELL-14,CELL-14,'#4a423a');}
+    // 便便
+    else if(t===TILE.POOP){prect(x+1,y+1,CELL-2,CELL-2,'#8b7355');prect(x+2,y+0,CELL-4,CELL-4,'#9a8060');prect(x+4,y+2,CELL-8,CELL-6,'#7a6348');prect(x+3,y+1,3,2,'#6b5530');prect(x+CELL-7,y+2,4,2,'#6b5530');}
+    // 深坑
+    else if(t===TILE.PIT){prect(x,y,CELL,CELL,'#1a1520');prect(x+1,y+1,CELL-2,CELL-2,'#120d18');prect(x+3,y+3,CELL-6,CELL-6,'#0a0610');}
+    // 尖刺
+    else if(t===TILE.SPIKE){ctx.fillStyle='#8a3030';ctx.beginPath();const cx=x+CELL/2,cy=y+CELL/2;ctx.moveTo(cx,y+3);ctx.lineTo(x+3,cy);ctx.lineTo(cx,cy-3);ctx.lineTo(x+CELL-3,cy);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#aa4040';ctx.beginPath();ctx.moveTo(cx,y+5);ctx.lineTo(x+5,cy);ctx.lineTo(cx,cy-5);ctx.lineTo(x+CELL-5,cy);ctx.closePath();ctx.fill();prect(x+8,y+2,2,2,'#ff4444');prect(x+CELL-10,y+2,2,2,'#ff4444');}
+    // 梯子 (boss room bossladder)
+    else if(t===TILE.LADDER){prect(x,y,CELL,CELL,'#1a1520');prect(x+1,y+1,CELL-2,CELL-2,'#120d18');
+      // 向下延伸的梯子
+      ctx.fillStyle='#6b5a3e';ctx.fillRect(x+4,y+3,3,CELL-6);ctx.fillRect(x+CELL-9,y+3,3,CELL-6);
+      for(let ly=y+5;ly<y+CELL;ly+=4){ctx.fillStyle='#4a3a2e';ctx.fillRect(x+5,ly,CELL-10,2);}
+      ctx.fillStyle='#ffcc44';ctx.font='8px sans-serif';ctx.textAlign='center';ctx.fillText('▼',x+CELL/2,y+CELL-3);}
+  }
+}
+function drawDoors(){
+  if(!currentRoomGrid || transition)return;
+  const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
+  if(!room)return;
+  for(const dir of['up','down','left','right']){
+    if(room.doors[dir]){
+      const dp=DOOR_POS[dir];
+      const x=FLOOR_L+dp.col*CELL,y=FLOOR_T+dp.row*CELL;
+      ctx.fillStyle='#332211';prect(x,y,CELL,CELL);
+      ctx.fillStyle='#559944';const icx=x+CELL/2;const icy=y+CELL/2;
+      ctx.fillRect(icx-3,icy-3,6,6);ctx.fillStyle='#fff';ctx.fillRect(icx-1,icy-1,2,2);
+    }
+  }
+}
+
 // --- 主渲染 ---
 function render() {
   ctx.clearRect(0, 0, GAME_W, GAME_H);
   drawWalls();
   drawFloor();
+  drawTiles();
+  drawDoors();
   drawGridHighlight();
   drawReachableOverlay();   // 可移动方格 (浅蓝呼吸)
   drawBullets();
@@ -2151,8 +2377,11 @@ function cancelEndTurn() {
 
 // ==================== 输入处理 ====================
 document.addEventListener('keydown', (e) => {
-  const actionKeys = ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','Escape','KeyC'];
+  const actionKeys = ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','Escape','KeyC','KeyB'];
   if (actionKeys.includes(e.code)) e.preventDefault();
+
+  // ---- 场景过渡中禁止操作 ----
+  if(transition&&transition.active)return;
 
   // ---- 阶段：回合结束确认弹窗 ----
   if (turnState.phase === 'turn_end_confirm') {
@@ -2194,6 +2423,14 @@ document.addEventListener('keydown', (e) => {
         player.targetPy = t.y;
         player.animTime = 0;
         turnState.mAP = newMAP;
+
+        // 检查是否踩到门 → 房间切换
+        if(tryWalkIntoDoor(nc,nr,dir))return;
+        // 检查是否踩到梯子 → 下楼
+        if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.LADDER){
+          const nextF=currentFloor.floorNum+1;
+          if(allFloors[nextF]){enterFloor(nextF);return;}
+        }
 
         // 移动时不刷新可移动范围浅蓝示意 (request 3)
         updateActionBar();
@@ -2263,6 +2500,21 @@ document.addEventListener('keydown', (e) => {
         return;
       }
 
+      case 'KeyB': {
+        // 在 Boss 房间中放置梯子格
+        const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
+        if(room&&room.type==='boss'&&!room.bossLadderPlaced){
+          const t=currentRoomGrid[player.col][player.row];
+          if(t===TILE.FLOOR||t===TILE.SPIKE){
+            currentRoomGrid[player.col][player.row]=TILE.LADDER;
+            room.bossLadderPlaced=true;
+            // 刷新 BFS
+            turnState.reachableTiles=calcReachableTiles(player.col,player.row,turnState.mAP);
+            updateActionBar();
+          }
+        }
+        break;
+      }
       case 'KeyC': {
         spawnMonster();
         break;
@@ -2328,6 +2580,26 @@ function gameLoop(timestamp) {
   lastTime = timestamp;
   if (dt > 0.1) dt = 0.1;
 
+  // 场景过渡动画
+  if(transition&&transition.active){
+    transition.offset+=dt*400; // 400 px/s
+    if(transition.offset>=GAME_W){
+      finishTransition();
+    } else {
+      // 渲染过渡效果
+      ctx.clearRect(0,0,GAME_W,GAME_H);
+      const ox=transition.dir==='right'?-transition.offset:transition.dir==='left'?transition.offset:0;
+      const oy=transition.dir==='down'?-transition.offset:transition.dir==='up'?transition.offset:0;
+      ctx.save();ctx.translate(ox,oy);
+      // 简单渲染当前房间
+      if(transition.offset<GAME_W/2){render();}
+      else{/* 新房间渲染等下帧完成 */ render();}
+      ctx.restore();
+      requestAnimationFrame(gameLoop);
+      return;
+    }
+  }
+
   // 更新移动动画 (本体移动)
   if (player.targetPx !== null) {
     updateMove(dt);
@@ -2381,16 +2653,24 @@ function gameLoop(timestamp) {
 }
 
 // ==================== 启动 ====================
-const startPos = gridToPixel(player.col, player.row);
-player.px = startPos.x;
-player.py = startPos.y;
-resetTurnAP();
-buildHearts(playerStats.maxHp);
-buildApDots('ui-aap-dots', turnState.maxAAP);
-buildApDots('ui-map-dots', turnState.maxMAP);
-updateUI();
-lastTime = performance.now();
-requestAnimationFrame(gameLoop);
+async function initGame(){
+  await loadTemplates();
+  generateAllFloors();
+  // 默认加载空旷房间网格
+  currentRoomGrid=parseGrid(BUILTIN_TEMPLATES()['open'].tiles);
+  
+  const startPos = gridToPixel(player.col, player.row);
+  player.px = startPos.x;
+  player.py = startPos.y;
+  enterFloor(1);
+  buildHearts(playerStats.maxHp);
+  buildApDots('ui-aap-dots', turnState.maxAAP);
+  buildApDots('ui-map-dots', turnState.maxMAP);
+  updateUI();
+  lastTime = performance.now();
+  requestAnimationFrame(gameLoop);
+}
+initGame();
 
 // ==================== 生怪 ====================
 function spawnMonster() {

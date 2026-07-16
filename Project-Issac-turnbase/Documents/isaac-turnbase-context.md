@@ -1,6 +1,6 @@
 # 以撒·半回合制战斗 — 项目总览
 
-> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html` | 单文件 ~2400 行 | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/server.js` 本地文件读写服务 | 状态: 即时操作回合制 + 怪物AI + 碰撞击退 + ESC全重置 + 房间模板池
+> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html` | 单文件 ~3000+ 行 | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/server.js` 本地文件读写服务 | 状态: 即时操作回合制 + 怪物AI + 碰撞击退 + ESC全重置 + 多房间楼层切换 + Boss梯子下层 + 场景滑动过渡
 
 ---
 
@@ -387,6 +387,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-16 | **游戏集成多房间楼层系统 + Boss梯子 + 场景过渡**。①`isaac-turnbased-demo.html` 集成 TILE 网格系统（FLOOR/ROCK/POOP/PIT/SPIKE/LADDER 六种），`isWall()` 改为基于房间格子数据判断。②接入 `pool.json` 关卡池，启动时自动加载模板并生成 6 层地牢（移植地图编辑器的 `generateFloor()`）。③房间切换系统：走到门前格触发切换，带滑动过渡动画（根据方向左/右/上/下滑动 400px/s），新房间出现时 `resetTurnAP()` 刷新状态。④Boss 梯子格：B 键在 BOSS 房间当前格放置，视觉上深坑+梯子+▼箭头，踩上后自动进入下一层起始房间。⑤新增 `drawTiles()` 渲染六种瓷砖、`drawDoors()` 渲染绿色房门标记。⑥UI 新增楼层信息栏，帮助弹窗更新操作说明。同步更新设计文档。 |
 | 2026-07-16 | **楼层生成规则强化 + 布局/门系统修复**。①房间类型约束：Boss 房和宝箱房强制度数=1（单门死路），图生成阶段保证至少 3 个叶节点（start/boss/treasure 各一）。②所有房间度数 ≤4（每方向最多一扇门），生成树构建时跳过已满节点，额外边也做度数上限检查，杜绝一门连多个房间。③布局强制相邻：连接房间必须 Manhattan 距离=1，采用随机顺序重试机制（最多 30 次）确保相邻放置可行；渲染层兜底 L 形线绝不画斜线。④门一致性校验：分配时检测方向覆盖冲突，分配后验证每个房间门数=边数。⑤`isaac-map-viewer.html` 新增 `CACHE_KEY` 机制：手动选择/同步文件后缓存到 localStorage，启动时优先读取，无需每次重新选文件。同步更新 `isaac-roommonster-plan.md` 设计文档。 |
 | 2026-07-16 | **项目文件分类整理 + 编辑器保存机制重构**。项目文件按类型重组到子目录：`Assets/`（图片素材）、`Configs/`（pool.json 关卡池 + server.js 文件读写服务 + 原始备份）、`Documents/`（全部 md 文档）。清理冗余文件：删除失败的 server.py、cgi-bin/、err.log、out.log。`isaac-map-viewer.html` 编辑器保存机制改用 `<form>` POST + 隐藏 `<iframe>` 绕过 IDE 代理拦截，通过 `server.js` (Node.js) 实现可靠的 pool.json 文件读写。新增文件管理规则：不随意删除或重命名用户手动新增文件，操作前需经用户同意。 |
 | 2026-07-15 | **房间框架实现：TILE 系统 + 12 种模板 + 地图编辑器**。定义 5 种 TILE 类型（FLOOR/ROCK/POOP/PIT/SPIKE）及行为属性表，确定门系统（每边正中一个门前格，不占格子）。设计 12 种 13×7 房间模板（含便便/尖刺），全部通过自动化 BFS 连通性验证（4门位在曼哈顿移动下全连通）。创建 `isaac-map-viewer.html` 独立编辑器：模板池管理（查看/编辑/复制/删除）、13×7 画布绘制（5色调色板+撤销）、6 种 Isaac 风格自动生成图案（角岩/十字/石墙/石柱/斜线/中柱）、双模式关卡池持久化（File System Access API 直读直写 + 文件选择器/下载回退）、`isaac-room-pool.json` 数据文件、楼层生成预览。更新 `isaac-roommonster-plan.md` 同步设计方案为已实现状态。 |
