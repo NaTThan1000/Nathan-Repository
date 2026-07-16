@@ -1,0 +1,54 @@
+{
+  "crack_maw": {
+    "id": "crack_maw",
+    "name": "裂口尸",
+    "hp": 10,
+    "moveCycle": [2, 1],
+    "damage": 1,
+    "aiType": "chase",
+    "aiRange": null,
+    "tint": null,
+    "dropTable": "common",
+    "dropRate": 0.4,
+    "roomTypes": ["normal"]
+  },
+  "flying_eye": {
+    "id": "flying_eye",
+    "name": "浮游眼",
+    "hp": 6,
+    "moveCycle": [1, 1],
+    "damage": 1,
+    "aiType": "ranged_kite",
+    "aiRange": 3,
+    "tint": "rgba(180,180,255,0.35)",
+    "dropTable": "ranged",
+    "dropRate": 0.5,
+    "roomTypes": ["normal"]
+  },
+  "rock_golem": {
+    "id": "rock_golem",
+    "name": "岩石魔像",
+    "hp": 20,
+    "moveCycle": [1, 1],
+    "damage": 2,
+    "aiType": "chase",
+    "aiRange": null,
+    "tint": "rgba(180,160,140,0.45)",
+    "dropTable": "heavy",
+    "dropRate": 0.7,
+    "roomTypes": ["normal", "treasure"]
+  },
+  "boss_maw_king": {
+    "id": "boss_maw_king",
+    "name": "裂口之王",
+    "hp": 45,
+    "moveCycle": [3, 2],
+    "damage": 2,
+    "aiType": "boss_chase",
+    "aiRange": null,
+    "tint": "rgba(255,100,50,0.45)",
+    "dropTable": "boss",
+    "dropRate": 1.0,
+    "roomTypes": ["boss"]
+  }
+}
