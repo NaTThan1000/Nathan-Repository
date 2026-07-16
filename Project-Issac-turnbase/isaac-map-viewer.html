@@ -380,6 +380,7 @@ const BUILTIN_TEMPLATES = {
 //  localStorage 持久化
 // ================================================================
 const STORAGE_KEY = 'isaac-room-templates-v2';
+const CACHE_KEY = 'isaac-cached-pool';  // 本地缓存：上次手动选择的完整关卡池数据
 
 function loadCustomTemplates() {
   try {
@@ -493,6 +494,7 @@ fileInput.addEventListener('change', async () => {
     // 文件是权威数据源 → 覆盖 poolFromJson 并清空 localStorage
     poolFromJson = loaded;
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.setItem(CACHE_KEY, text);  // 记忆本次选择的文件内容
     useFallback = true;
     refreshTemplates();
     btnSync.disabled = false;
@@ -514,6 +516,7 @@ btnPick.addEventListener('click', async () => {
       fileHandle = handle;
       poolFromJson = await readPoolFromHandle(handle);
       localStorage.removeItem(STORAGE_KEY);  // 文件是权威源
+      localStorage.setItem(CACHE_KEY, JSON.stringify(poolFromJson));  // 记忆文件内容
       await storeHandle(handle);
       refreshTemplates();
       btnSync.disabled = false;
@@ -554,12 +557,27 @@ btnSync.addEventListener('click', () => {
   document.body.removeChild(form);
 
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.setItem(CACHE_KEY, json);  // 记忆同步后的文件内容
   poolFromJson = JSON.parse(json);
   showStatus('✅ 已更新 pool.json — ' + count + ' 个模板');
 });
 
 // 首次打开时自动加载 pool.json
 async function autoLoadPool() {
+  // 1. 优先读取本地缓存（记录上一次手动选择/同步的文件内容）
+  const cached = localStorage.getItem(CACHE_KEY);
+  if (cached) {
+    try {
+      poolFromJson = JSON.parse(cached);
+      localStorage.removeItem(STORAGE_KEY);
+      btnSync.disabled = false;
+      btnSync.textContent = '💾 同步到文件';
+      console.log('📂 从缓存加载关卡池: ' + Object.keys(poolFromJson).length + ' 个模板');
+      return;
+    } catch(e) { localStorage.removeItem(CACHE_KEY); }
+  }
+
+  // 2. 尝试从服务器自动加载
   try {
     const loadUrl = 'http://localhost:8080/pool.json?' + Date.now();
     const resp = await fetch(loadUrl);
@@ -1355,28 +1373,55 @@ function generateFloor(floorNum){
   const cfg=FLOOR_CONFIG[floorNum];const N=randInt(cfg.roomCount[0],cfg.roomCount[1]);
   const rooms=[];for(let i=0;i<N;i++)rooms.push({id:`f${floorNum}_r${i}`,type:null,tplKey:null,grid:null,connections:[],doors:{up:null,down:null,left:null,right:null}});
   const nodeIds=rooms.map(r=>r.id);const shuffledIds=shuffle(nodeIds);
+  const degCount={};nodeIds.forEach(id=>degCount[id]=0);
+  // 生成树：每个房间最多 4 条边（对应 4 个方向），防止一门连多个房间
   const connected=new Set([shuffledIds[0]]);const unconnected=new Set(shuffledIds.slice(1));const edges=[];
-  while(unconnected.size>0){const ca=[...connected],ua=[...unconnected];const a=ca[Math.floor(Math.random()*ca.length)],b=ua[Math.floor(Math.random()*ua.length)];edges.push([a,b]);connected.add(b);unconnected.delete(b);}
-  const maxExtra=Math.floor(N*0.25);for(let e=0;e<randInt(0,maxExtra);e++){const s2=shuffle(nodeIds);if(!edges.some(ed=>(ed[0]===s2[0]&&ed[1]===s2[1])||(ed[0]===s2[1]&&ed[1]===s2[0]))&&s2[0]!==s2[1])edges.push([s2[0],s2[1]]);}
+  while(unconnected.size>0){const ca=[...connected].filter(id=>degCount[id]<4);const ua=[...unconnected];if(ca.length===0){const a=[...connected][0];const b=ua[0];edges.push([a,b]);degCount[a]++;degCount[b]++;connected.add(b);unconnected.delete(b);}else{const a=ca[Math.floor(Math.random()*ca.length)];const b=ua[Math.floor(Math.random()*ua.length)];edges.push([a,b]);degCount[a]++;degCount[b]++;connected.add(b);unconnected.delete(b);}}
+  // 额外边：保证至少 3 个叶节点 + 所有节点度数 ≤ 4
+  const maxExtra=Math.floor(N*0.25);for(let e=0;e<randInt(0,maxExtra);e++){const s2=shuffle(nodeIds);if(edges.some(ed=>(ed[0]===s2[0]&&ed[1]===s2[1])||(ed[0]===s2[1]&&ed[1]===s2[0]))||s2[0]===s2[1]||degCount[s2[0]]>=4||degCount[s2[1]]>=4)continue;
+    const testEdges=[...edges,[s2[0],s2[1]]];const td={};nodeIds.forEach(id=>td[id]=0);testEdges.forEach(([a,b])=>{td[a]++;td[b]++;});
+    if(nodeIds.filter(id=>td[id]===1).length>=3){edges.push([s2[0],s2[1]]);degCount[s2[0]]++;degCount[s2[1]]++;}}
   const degree={};nodeIds.forEach(id=>degree[id]=0);edges.forEach(([a,b])=>{degree[a]++;degree[b]++;});
   const sortedByDeg=[...nodeIds].sort((a,b)=>degree[a]-degree[b]);const startId=sortedByDeg[0];
   const distFrom={},bfsQ=[startId],bfsV=new Set([startId]);distFrom[startId]=0;
   while(bfsQ.length>0){const cur=bfsQ.shift();for(const[a,b]of edges){const nb=a===cur?b:(b===cur?a:null);if(nb&&!bfsV.has(nb)){bfsV.add(nb);distFrom[nb]=distFrom[cur]+1;bfsQ.push(nb);}}}
-  const bossCands=nodeIds.filter(id=>id!==startId&&degree[id]<=2).sort((a,b)=>(distFrom[b]||0)-(distFrom[a]||0));
+  // Boss房：强制度数=1 (单门)，从所有叶节点中选距离起点最远的
+  const bossCands=nodeIds.filter(id=>id!==startId&&degree[id]===1).sort((a,b)=>(distFrom[b]||0)-(distFrom[a]||0));
   const bossId=bossCands.length>0?bossCands[0]:sortedByDeg.filter(id=>id!==startId).pop();
-  const treasureCands=nodeIds.filter(id=>id!==startId&&id!==bossId&&degree[id]>=2&&degree[id]<=3);
-  const shufT=shuffle(treasureCands);const treasureIds=new Set(shufT.slice(0,Math.min(randInt(1,2),shufT.length)));
+  // 宝箱房：强制度数=1 (单门)，与Boss房同等约束
+  const treasureCands=nodeIds.filter(id=>id!==startId&&id!==bossId&&degree[id]===1);
+  const shufT=shuffle(treasureCands);
+  const treasureIds=new Set(shufT.slice(0,Math.min(randInt(1,2),shufT.length)));
   const roomMap={};rooms.forEach(r=>{roomMap[r.id]=r;});
   rooms.forEach(r=>{if(r.id===startId)r.type='start';else if(r.id===bossId)r.type='boss';else if(treasureIds.has(r.id))r.type='treasure';else r.type='normal';});
   const validTpls={};for(const[k,v]of Object.entries(allTemplates)){if(validateTiles(v.tiles).pass)validTpls[k]=v;}if(Object.keys(validTpls).length===0)validTpls['open']=BUILTIN_TEMPLATES['open'];
   rooms.forEach(r=>{const cands=Object.keys(validTpls).filter(k=>{if(r.type==='start')return k==='open';if(r.type==='boss')return k==='boss_arena'&&validateTiles(validTpls[k].tiles).pass;return validTpls[k].types.includes(r.type);});
     if(cands.length===0){r.tplKey='open';r.grid=parseGrid(BUILTIN_TEMPLATES['open'].tiles);}else{r.tplKey=cands[Math.floor(Math.random()*cands.length)];r.grid=parseGrid(validTpls[r.tplKey].tiles);}});
-  const layout={},gridOcc=new Set();const placeRoom=(id,gx,gy)=>{layout[id]={gx,gy};gridOcc.add(`${gx},${gy}`);};placeRoom(startId,0,0);const layQ=[startId],layV=new Set([startId]);
-  while(layQ.length>0){const cur=layQ.shift(),cp=layout[cur];for(const[a,b]of edges){const nb=a===cur?b:(b===cur?a:null);if(!nb||layV.has(nb))continue;layV.add(nb);const dOrder=shuffle(['up','down','left','right']);let placed=false;
-    for(const d of dOrder){const ngx=cp.gx+DIRS[d].dx,ngy=cp.gy+DIRS[d].dy;if(!gridOcc.has(`${ngx},${ngy}`)){placeRoom(nb,ngx,ngy);placed=true;break;}}
-    if(!placed){for(let rad=2;rad<10;rad++){const cands2=[];for(let dx=-rad;dx<=rad;dx++)for(let dy=-rad;dy<=rad;dy++)if(Math.abs(dx)+Math.abs(dy)===rad&&!gridOcc.has(`${cp.gx+dx},${cp.gy+dy}`))cands2.push({gx:cp.gx+dx,gy:cp.gy+dy});if(cands2.length>0){const p=cands2[Math.floor(Math.random()*cands2.length)];placeRoom(nb,p.gx,p.gy);placed=true;break;}}}
-    layQ.push(nb);}}
-  edges.forEach(([idA,idB])=>{const pa=layout[idA],pb=layout[idB],dx=pb.gx-pa.gx,dy=pb.gy-pa.gy;let da,db;if(Math.abs(dx)>=Math.abs(dy)){da=dx>0?'right':'left';db=dx>0?'left':'right';}else{da=dy>0?'down':'up';db=dy>0?'up':'down';}roomMap[idA].doors[da]={targetRoomId:idB,open:true};roomMap[idB].doors[db]={targetRoomId:idA,open:true};roomMap[idA].connections.push({targetId:idB,dir:da});roomMap[idB].connections.push({targetId:idA,dir:db});});
+  const DIRS={up:{dx:0,dy:-1,opp:'down'},down:{dx:0,dy:1,opp:'up'},left:{dx:-1,dy:0,opp:'right'},right:{dx:1,dy:0,opp:'left'}};
+  // 相邻强制布局：失败时换随机顺序重试（树结构 + 度数≤4 理论上总能成功）
+  let layout=null,gridOcc=null,layoutOk=false;
+  for(let attempt=0;attempt<30&&!layoutOk;attempt++){
+    layout={};gridOcc=new Set();const lq=[startId],lv=new Set([startId]);let fail=false;
+    const register=(id,gx,gy)=>{layout[id]={gx,gy};gridOcc.add(`${gx},${gy}`);};register(startId,0,0);
+    while(lq.length>0&&!fail){const cur=lq.shift(),cp=layout[cur];const edgeList=shuffle([...edges]);
+      for(const[a,b]of edgeList){const nb=a===cur?b:(b===cur?a:null);if(!nb||lv.has(nb))continue;lv.add(nb);
+        const pns=[];for(const[x,y]of edges){const o=x===nb?y:(y===nb?x:null);if(o&&layout[o])pns.push(o);}if(!pns.includes(cur))pns.unshift(cur);
+        const cands=[];for(const pnId of pns){const pn=layout[pnId];for(const d of Object.keys(DIRS)){const nx=pn.gx+DIRS[d].dx,ny=pn.gy+DIRS[d].dy;if(gridOcc.has(`${nx},${ny}`))continue;let ok=true;for(const chkId of pns){if(chkId===pnId)continue;const chk=layout[chkId];if(chk.gx!==nx&&chk.gy!==ny){ok=false;break;}}if(ok)cands.push({gx:nx,gy:ny,dist:Math.abs(nx-cp.gx)+Math.abs(ny-cp.gy)});}}
+        if(cands.length>0){cands.sort((a,b)=>a.dist-b.dist);const best=cands[0];register(nb,best.gx,best.gy);}else{fail=true;}
+      lq.push(nb);}}if(!fail)layoutOk=true;}
+  // 兜底：若所有重试都失败（高概率不发生），用紧靠父节点的简单方法
+  if(!layoutOk){layout={};gridOcc=new Set();const lq=[startId],lv=new Set([startId]);const reg=(id,gx,gy)=>{layout[id]={gx,gy};gridOcc.add(`${gx},${gy}`);};reg(startId,0,0);
+    while(lq.length>0){const cur=lq.shift(),cp=layout[cur];for(const[a,b]of edges){const nb=a===cur?b:(b===cur?a:null);if(!nb||lv.has(nb))continue;lv.add(nb);const dOrder=shuffle(['up','down','left','right']);let ok=false;for(const d of dOrder){const nx=cp.gx+DIRS[d].dx,ny=cp.gy+DIRS[d].dy;if(!gridOcc.has(`${nx},${ny}`)){reg(nb,nx,ny);ok=true;break;}}if(!ok){for(let r=2;r<10;r++){const cs=[];for(let x=-r;x<=r;x++)for(let y=-r;y<=r;y++)if(Math.abs(x)+Math.abs(y)===r&&(x===0||y===0)&&!gridOcc.has(`${cp.gx+x},${cp.gy+y}`))cs.push({gx:cp.gx+x,gy:cp.gy+y});if(cs.length>0){const p=cs[Math.floor(Math.random()*cs.length)];reg(nb,p.gx,p.gy);ok=true;break;}}}
+    lq.push(nb);}}}
+  // 门分配 + 验证
+  edges.forEach(([idA,idB])=>{const pa=layout[idA],pb=layout[idB],dx=pb.gx-pa.gx,dy=pb.gy-pa.gy;const dirA=dx>0?'right':dx<0?'left':dy>0?'down':'up';const dirB=dx>0?'left':dx<0?'right':dy>0?'up':'down';
+    // 防止同一方向覆盖旧门（记录冲突）
+    if(roomMap[idA].doors[dirA]&&roomMap[idA].doors[dirA].targetRoomId!==idB)console.warn('⚠ 门冲突:',idA,dirA,'已有→',roomMap[idA].doors[dirA].targetRoomId,'新→',idB);
+    if(roomMap[idB].doors[dirB]&&roomMap[idB].doors[dirB].targetRoomId!==idA)console.warn('⚠ 门冲突:',idB,dirB,'已有→',roomMap[idB].doors[dirB].targetRoomId,'新→',idA);
+    roomMap[idA].doors[dirA]={targetRoomId:idB,open:true};roomMap[idB].doors[dirB]={targetRoomId:idA,open:true};
+    roomMap[idA].connections.push({targetId:idB,dir:dirA});roomMap[idB].connections.push({targetId:idA,dir:dirB});});
+  // 验证边 ↔ 门 一一对应
+  for(const r of rooms){const dc=Object.values(r.doors).filter(d=>d!==null).length;const ec=edges.filter(([a,b])=>a===r.id||b===r.id).length;if(dc!==ec)console.warn('⚠ 房间',r.id,'边数='+ec+'门数='+dc,'(门覆盖/丢失)');}
   return{floorNum,name:cfg.name,rooms,edges,layout,startRoomId:startId,bossRoomId:bossId,treasureRoomIds:[...treasureIds]};
 }
 
@@ -1388,7 +1433,7 @@ function getRoomPS(){return{w:MPAD*2+COLS*MTILE,h:MPAD*2+ROWS*MTILE};}
 function layToCanvas(gx,gy){const rs=getRoomPS();return{x:gx*(rs.w+MGAP),y:gy*(rs.h+MGAP)};}
 function getLayoutBounds(floor){let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;for(const id in floor.layout){const{gx,gy}=floor.layout[id];minX=Math.min(minX,gx);maxX=Math.max(maxX,gx);minY=Math.min(minY,gy);maxY=Math.max(maxY,gy);}return{minX,maxX,minY,maxY};}
 function renderFloor(floor){if(!floor)return;const bounds=getLayoutBounds(floor),rs=getRoomPS(),cW=rs.w+MGAP,cH=rs.h+MGAP,margin=40;mapCanvas.width=Math.max(400,(bounds.maxX-bounds.minX+1)*cW+margin*2);mapCanvas.height=Math.max(300,(bounds.maxY-bounds.minY+1)*cH+margin*2);mapCtx.clearRect(0,0,mapCanvas.width,mapCanvas.height);const rm={};floor.rooms.forEach(r=>rm[r.id]=r);
-  for(const[a,b]of floor.edges){const pa=floor.layout[a],pb=floor.layout[b];if(!pa||!pb)continue;const ca=layToCanvas(pa.gx-bounds.minX,pa.gy-bounds.minY),cb=layToCanvas(pb.gx-bounds.minX,pb.gy-bounds.minY);mapCtx.strokeStyle='#554433';mapCtx.lineWidth=2;mapCtx.setLineDash([6,4]);mapCtx.beginPath();mapCtx.moveTo(ca.x+margin+rs.w/2,ca.y+margin+rs.h/2);mapCtx.lineTo(cb.x+margin+rs.w/2,cb.y+margin+rs.h/2);mapCtx.stroke();mapCtx.setLineDash([]);}
+  for(const[a,b]of floor.edges){const pa=floor.layout[a],pb=floor.layout[b];if(!pa||!pb)continue;const ca=layToCanvas(pa.gx-bounds.minX,pa.gy-bounds.minY),cb=layToCanvas(pb.gx-bounds.minX,pb.gy-bounds.minY);const ax=ca.x+margin+rs.w/2,ay=ca.y+margin+rs.h/2,bx=cb.x+margin+rs.w/2,by=cb.y+margin+rs.h/2;mapCtx.strokeStyle='#554433';mapCtx.lineWidth=2;mapCtx.setLineDash([6,4]);mapCtx.beginPath();mapCtx.moveTo(ax,ay);if(pa.gx!==pb.gx&&pa.gy!==pb.gy){mapCtx.lineTo(bx,ay);mapCtx.lineTo(bx,by);}else{mapCtx.lineTo(bx,by);}mapCtx.stroke();mapCtx.setLineDash([]);}
   for(const room of floor.rooms){const{gx,gy}=floor.layout[room.id],lc=layToCanvas(gx-bounds.minX,gy-bounds.minY),rx=lc.x+margin,ry=lc.y+margin;mapCtx.fillStyle='#1a1815';mapCtx.fillRect(rx,ry,rs.w,rs.h);mapCtx.strokeStyle='#3a3020';mapCtx.lineWidth=1;mapCtx.strokeRect(rx,ry,rs.w,rs.h);
     for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++){const tile=room.grid[c][r];mapCtx.fillStyle=TILE_PROPS[tile].vc;mapCtx.fillRect(rx+MPAD+c*MTILE,ry+MPAD+r*MTILE,MTILE,MTILE);mapCtx.strokeStyle='rgba(0,0,0,0.25)';mapCtx.lineWidth=0.5;mapCtx.strokeRect(rx+MPAD+c*MTILE,ry+MPAD+r*MTILE,MTILE,MTILE);}
     for(const dir of['up','down','left','right']){if(room.doors[dir]){const{col,row}=DOOR_POS[dir],dx=rx+MPAD+col*MTILE,dy=ry+MPAD+row*MTILE;mapCtx.fillStyle=room.doors[dir].open?'#559944':'#664433';mapCtx.fillRect(dx+1,dy+1,MTILE-2,MTILE-2);mapCtx.fillStyle='#fff';mapCtx.font=`${Math.max(6,MTILE-4)}px sans-serif`;mapCtx.textAlign='center';mapCtx.textBaseline='middle';mapCtx.fillText({up:'↑',down:'↓',left:'←',right:'→'}[dir],dx+MTILE/2,dy+MTILE/2);}}
