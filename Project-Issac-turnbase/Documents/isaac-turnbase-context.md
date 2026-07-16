@@ -1,6 +1,6 @@
 # 以撒·半回合制战斗 — 项目总览
 
-> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html` | 单文件 ~3000+ 行 | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/server.js` 本地文件读写服务 | 状态: 即时操作回合制 + 怪物AI + 碰撞击退 + ESC全重置 + 多房间楼层切换 + Boss梯子下层 + 场景滑动过渡
+> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html` | 单文件 ~3000+ 行 | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/server.js` 本地文件读写服务 | 状态: 即时操作回合制 + TILE系统 + 探索/战斗双模式 + 多房间楼层切换 + Boss梯子下层 + 场景滑动过渡
 
 ---
 
@@ -12,7 +12,7 @@
 **类型**: Roguelike 半回合制地牢战斗 | **原型平台**: 网页 Canvas | **目标平台**: Godot 引擎
 
 ### 1.2 核心概念
-受《以撒的结合》启发，Roguelike 半回合制 + AP 行动点数系统（2026-07-15 重构）：
+受《以撒的结合》启发，Roguelike 半回合制 + AP 行动点数系统（2026-07-15 重构），含探索模式(非战斗)与战斗模式两套操作逻辑：
 - 回合开始时计算可移动范围（BFS，考虑墙壁和怪物阻挡），浅蓝色呼吸闪烁标示
 - WASD 在可移动范围内**即时移动本体**（非预览），消耗 M-AP
 - ↑↓←→ **即时射击**（非预览），立即发射子弹，消耗 A-AP
@@ -20,7 +20,7 @@
 - 回合开始位置保留半透明幽灵作视觉参考（非操作体）
 - Esc **全重置**本回合所有操作和结果（角色/怪物/环境回到回合开始时）
 - Space 结束回合 → 切换怪物回合；有剩余 AP 时弹窗二次确认
-- 操作键：WASD 移动、↑↓←→ 射击、Space 结束回合、Esc 全重置、C 生怪
+- 操作键：WASD 移动(探索)/WASD 战斗移动、↑↓←→ 射击、Space 结束回合、Esc 全重置、C 生怪、B 放boss梯子、R 重置游戏
 - 标准矩形像素风格渲染
 
 ### 1.3 玩家属性
@@ -102,10 +102,11 @@
 ### 2.4 角色移动与精灵动画
 
 - 玩家占据网格坐标 (col, row)，初始位置 (6, 3)
-- 预操作阶段：本体不动，幽灵复制体(40%透明度)表示规划终点
-- 执行阶段：按队列顺序播放移动动画（85 像素/秒），到达后触发下一行为
-- **走路动画**：执行移动时播放精灵图集 10 帧走路循环（80ms/帧）
-- 移动受限：网格边界外不可移动
+- **探索模式**：WASD 自由移动（无 AP 限制），按方向键切换房间
+- **战斗模式**：WASD 在可移动范围(浅蓝呼吸)内即时移动本体，每步消耗 1 M-AP；方向键射击消耗 A-AP
+- 回合起始位置保留半透明幽灵(40%透明度)作视觉参考
+- **走路动画**：移动时播放精灵图集 10 帧走路循环（80ms/帧）
+- 移动受限：网格边界外不可移动，墙壁/怪物格不可通行
 - 朝向跟踪：记录最后移动/射击方向，决定精灵帧方向
 
 ### 2.5 角色精灵渲染
@@ -131,13 +132,41 @@
 | 下落水平速度比例 | 7% |
 | 下落重力加速度 | 550 像素/秒² |
 
-- 执行阶段按队列中的射击行为发射子弹，从当前角色位置射出
-- 射击方向选择阶段预览线从幽灵复制体位置出发
+- 即时射击：按方向键立即从角色位置发射子弹
 - 子弹三阶段：飞行（匀速）→ 下落（水平减速+垂直加速）→ 碎裂为粒子
 - 碎裂粒子：10 个，持续 0.25 秒，溅射随机分布
 - 子弹像素绘制：光晕（两层半透明方块）+ 发光核心 + 拖尾像素
 
-### 2.5 投影系统
+### 2.7 TILE 瓷砖系统
+
+房间内部由 13×7 格 TILE 组成，六种类型：
+
+| TILE | 字符 | 名称 | 可行走 | 说明 |
+|------|------|------|--------|------|
+| FLOOR | `.` | 普通地面 | ✅ | 默认地面 |
+| ROCK | `#` | 岩石 | ❌ | 阻挡通行和子弹 |
+| POOP | `P` | 便便 | ❌ | 可破坏(受击3次)，挡子弹 |
+| PIT | `_` | 深渊 | ❌ | 踩上即死或掉落 |
+| SPIKE | `^` | 尖刺 | ✅ | 踩上扣 0.5 HP（可走过） |
+| LADDER | `▼` | 梯子 | ✅ | Boss房踩上进入下一层 |
+
+- 门位：每边正中（上6,0 / 下6,6 / 左0,3 / 右12,3），这些格必须为可通行地面
+- `drawTiles()`：使用 `cellRect()` 透视坐标渲染六种瓷砖（岩石叠层/便便棕块/深渊/尖刺菱形/梯子深坑）
+- `drawDoors()`：房门渲染（打开=深色通道+门框/关闭=铁栏纹理+横竖铁条），区分上下/左右方向实现
+
+### 2.8 多房间楼层系统
+
+- **楼层结构**：随机图生成 6 层地牢，每层 8~15 个房间，BFS 全连通验证
+- **房间类型**：start(起点)/normal(普通)/treasure(宝箱)/boss(Boss)/shop(商店)
+- **模板系统**：每个房间引用 `pool.json` 中的模板(tplKey)，生成时解析 TILE 布局
+- **门系统**：每房间最多 4 扇门(每个方向一扇)，房间清怪后门自动打开(`updateDoorsLocked()`)
+- **探索模式** `inCombat=false`：无怪物时 WASD 自由移动，门前格+方向键切换房间(滑动过渡400px/s)
+- **战斗模式** `inCombat=true`：有怪物时 AP 回合制，Space 结束回合，清怪后门打开
+- **Boss 梯子**：B 键在 Boss 房当前位置放置 `TILE.LADDER`，踩上自动 `enterFloor()` 进入下一层起始房
+- **楼层持久化**：`floor-data.json` 保存楼层结构+房间 grid，加载时保留已存 grid（修改关卡池不影响已有楼层）
+- **`cellRect(col,row)`**：返回透视投影后格子中心坐标/尺寸，供 TILE 和门渲染使用
+
+### 2.9 投影系统
 
 ```
 缩放因子 s(y) = VP_SCALE_TOP + t * (VP_SCALE_BOT - VP_SCALE_TOP)
@@ -154,7 +183,7 @@
 - 角色、子弹、粒子均等比例渲染（无 Y 轴缩放变形）
 - 地板砖块为标准正方形，网格线为直线
 
-### 2.6 粒子系统
+### 2.10 粒子系统
 
 | 属性 | 值 |
 |------|-----|
@@ -164,9 +193,8 @@
 
 - 子弹死亡时迸发粒子：随机角度、随机速度、两种颜色（金黄/橙）
 - 粒子有生命周期，随时间淡出
-- 带透视缩放
 
-### 2.8 游戏状态机 (turnState.phase)
+### 2.11 游戏状态机 (turnState.phase)
 
 ```
 player_select ──→ monster_turn ──→ player_select
@@ -194,11 +222,14 @@ player_select ──→ monster_turn ──→ player_select
 
 | 按键 | 阶段 | 功能 |
 |------|------|------|
-| W / A / S / D | 行为选择 | 在可移动范围(浅蓝呼吸)内即时移动本体 |
-| ↑ / ↓ / ← / → | 行为选择 | 即时射击（按即发射），首次射击触发 checkpoint |
-| 空格 | 行为选择 | 结束回合（有剩余 AP 时弹窗确认，无剩余直接进入怪物回合） |
-| Esc | 行为选择 | 全重置本回合 → 恢复回合快照（角色/怪物/HP 全部回到回合开始时） |
-| C | 行为选择 | 生成怪物 |
+| W / A / S / D | 探索/战斗 | 探索模式自由移动；战斗模式在可移动范围(浅蓝呼吸)内即时移动本体 |
+| W/A/S/D + 门前格 | 探索 | 站在门前格+按门方向键 → 切换房间(带滑动过渡动画) |
+| ↑ / ↓ / ← / → | 战斗 | 即时射击（按即发射），首次射击触发 checkpoint |
+| 空格 | 战斗 | 结束回合（有剩余 AP 时弹窗确认，无剩余直接进入怪物回合） |
+| Esc | 战斗 | 全重置本回合 → 恢复回合快照（角色/怪物/HP 全部回到回合开始时） |
+| C | 探索/战斗 | 生成怪物 |
+| B | 探索 | 在 Boss 房间放置梯子格(踩上进入下一层) |
+| R | 任意 | 重置游戏 → 回到第1层起点 |
 
 ### 3.2 UI 面板
 
@@ -211,23 +242,31 @@ player_select ──→ monster_turn ──→ player_select
 | 回合 | 当前回合编号 |
 | 属性 | 攻击力3.5 射程6 运气0 |
 | **状态栏** | 棋盘下方，显示 [自由]/[已锁定] + 当前 M-AP, A-AP 剩余/上限 |
-| **可移动范围** | BFS 计算的浅蓝色呼吸闪烁方格 |
-| **回合起始幽灵** | 40% 透明度角色，标示回合开始位置 |
+| **楼层信息** | 左上角显示当前楼层名+房间类型+tplKey |
+| **可移动范围** | BFS 计算的浅蓝色呼吸闪烁方格（仅战斗模式） |
+| **回合起始幽灵** | 40% 透明度角色，标示回合开始位置（仅战斗模式） |
 
 ---
 
 ## 4. 游戏流程（当前原型）
 
-1. 页面加载 → 初始化画布、角色坐标
-2. `resetTurnAP()` → 计算初始可移动范围 → 保存回合快照
-3. 进入 `player_select` 阶段：
-   - WASD 在浅蓝可移动范围内即时移动本体，每步 -1 M-AP，范围动态刷新
-   - ↑↓←→ 即时射击，发射子弹，-1 A-AP，首次射击触发 checkpoint
+1. 页面加载 → `loadTemplates()` 加载关卡池 → `loadOrGenerateFloors()` 加载/生成6层地牢
+2. `enterFloor(1)` → 进入第1层起始房间 → 探索模式(`inCombat=false`)
+3. **探索模式**：
+   - WASD 自由移动，不受 AP 限制
+   - 走到门前格+按方向键 → 滑动过渡切换房间
+   - 进入新房间 → `updateRoomCombatState()`：无怪则探索，有怪则战斗
+   - 踩到梯子 → `enterFloor()` 进入下一层
+   - 踩到尖刺 → `damagePlayer()`（无敌保护：移速×2步）
+4. **战斗模式** `player_select`：
+   - WASD 在浅蓝可移动范围内即时移动本体，每步 -1 M-AP
+   - ↑↓←→ 即时射击，-1 A-AP，首次射击触发 checkpoint
    - Esc → 恢复回合快照（角色/怪物/HP 全部重置）
-   - Space → 结束确认 → monster_turn（0AP 跳过确认）
-4. `monster_turn` → 怪物同时移动 + 碰撞检测
-5. 回合数+1，AP 重置 → 重新计算可移动范围 + 保存新快照 → 回到 `player_select`
-6. 循环进行，无结束条件
+   - Space → 结束确认 → monster_turn
+5. `monster_turn` → 怪物移动 + 碰撞检测 → `updateRoomCombatState()`
+   - 清怪 → 门打开 → 回到探索模式
+   - 有怪 → 继续战斗，回合数+1
+6. 6层通关后游戏结束（当前无通关处理）
 
 ---
 
@@ -241,21 +280,23 @@ player_select ──→ monster_turn ──→ player_select
 ├── HTML: Canvas 游戏容器 + 状态栏 (#action-bar) + UI 面板
 └── JavaScript
     ├── 渲染配置 & 精灵图集 (SPRITE)
-    ├── 透视投影 & 坐标转换
+    ├── 投影系统 & 坐标转换
+    ├── TILE 瓷砖系统 (FLOOR/ROCK/POOP/PIT/SPIKE/LADDER 六种)
     ├── 玩家属性 (playerStats: HP/移速/射速/攻击/射程/运气)
-    ├── 运行时状态 (player pos/animation)
+    ├── 运行时状态 (player pos/animation/invincibleSteps)
     ├── 回合状态 (turnState: phase/AP/hasShot/reachableTiles/turnNumber)
     ├── 快照系统 (saveTurnSnapshot, restoreTurnSnapshot — 支撑Esc全重置)
     ├── 可移动范围 (calcReachableTiles BFS, refreshReachableTiles)
     ├── AP 管理 (resetTurnAP)
-    ├── 渲染系统 (drawWalls/Floor/Grid/ReachableOverlay/Ghost/Player/Bullets/Particles/Monsters)
+    ├── 房间/楼层系统 (loadTemplates/generateFloor/enterFloor/updateDoorsLocked/tryWalkIntoDoor)
+    ├── 渲染系统 (drawWalls/Floor/Tiles/Doors/Grid/ReachableOverlay/Ghost/Player/Bullets/Particles/Monsters)
     ├── 角色渲染 (drawCharacterAt — 本体和幽灵复用)
-    ├── 移动系统 (startMove, updateMove)
+    ├── 移动系统 (探索自由移动 + 战斗AP移动 + 场景过渡动画)
     ├── 子弹系统 (spawnBullet, updateBullets, shatterBullet)
-    ├── 粒子系统 (updateParticles)
+    ├── 粒子系统 (updateParticles) & 受伤系统 (damagePlayer)
     ├── 怪物系统 (calcAllMonsterPaths, startMonsterTurn, updateMonsterTurn)
-    ├── UI 更新 (updateUI, updateActionBar)
-    ├── 输入处理 (keydown — WASD移动/箭头射击/Esc重置/Space结束)
+    ├── UI 更新 (updateUI, updateActionBar, updateFloorUI)
+    ├── 输入处理 (keydown — WASD移动/箭头射击/Esc重置/Space结束/C生怪/B梯子/R重置)
     └── 游戏循环 (gameLoop → requestAnimationFrame)
 ```
 
@@ -264,8 +305,8 @@ player_select ──→ monster_turn ──→ player_select
 ```javascript
 GAME_W = 318, GAME_H = 186, DISPLAY_SCALE = 3
 WALL = 16, CELL = 22, COLS = 13, ROWS = 7
-BULLET_MAX_DIST = 6.0, BULLET_SPEED = 280
-MOVE_SPEED = 70, EXEC_MOVE_SPEED = 85, GRAVITY = 180
+BULLET_MAX_DIST = 6.0, BULLET_SPEED = 560
+MOVE_SPEED = 140, EXEC_MOVE_SPEED = 170, GRAVITY = 360
 SHATTER_PARTICLES = 10, SHATTER_DURATION = 0.25
 GHOST_ALPHA = 0.4
 VP_SCALE_TOP = 1.00, VP_SCALE_BOT = 1.00
@@ -306,42 +347,62 @@ function project(wx, wy) {
 
 | 函数 | 职责 |
 |------|------|
-| `resetTurnAP()` | 初始化回合 AP，计算可移动范围，保存回合快照 |
+| `resetTurnAP()` | 初始化回合 AP，计算可移动范围，保存回合快照，递减战斗无敌 |
 | `saveTurnSnapshot()` | 保存回合开始时完整快照（玩家/怪物状态） |
 | `restoreTurnSnapshot()` | 恢复回合快照，重置所有状态到回合开始 |
 | `calcReachableTiles(fromCol, fromRow, maxSteps)` | BFS 计算可移动方格集（排除墙壁和怪物） |
 | `refreshReachableTiles()` | 从当前位置以剩余 M-AP 刷新可移动范围 |
-| `drawCharacterAt(px,py,facing,walkFrame,shootTimer,alpha)` | 通用角色渲染（本体和幽灵复用），支持透明度 |
+| `loadTemplates()` | 加载 `pool.json` 关卡池模板→`poolTemplates` |
+| `getTpl(key)` | 按 key 获取模板，优先 poolTemplates，回退内置 |
+| `generateFloor(floorNum)` | 随机生成单层地牢：图生成+BFS连通+布局+门分配+模板填充 |
+| `generateAllFloors()` | 生成全部 6 层地牢 |
+| `loadOrGenerateFloors(forceReload)` | 从 `floor-data.json` 加载楼层数据（hash 变化时触发重置） |
+| `resetGameToFloor1()` | 重置游戏状态回到第1层起点（R键调用） |
+| `enterFloor(floorNum)` | 进入指定楼层起始房间 |
+| `tryWalkIntoDoor(fromCol,fromRow,dir)` | 检测门触发：站在门前格+按方向→切换房间 |
+| `updateRoomCombatState()` | 更新战斗/探索状态，触发回合初始化或结束 |
+| `updateDoorsLocked()` | 根据 inCombat 开关门（战斗=锁/探索=开） |
+| `damagePlayer(amount)` | 玩家受伤：战斗无3回合/探索无敌移速×2步 |
+| `drawCharacterAt(px,py,facing,walkFrame,shootTimer,alpha)` | 通用角色渲染（本体和幽灵复用），支持透明度/无敌闪烁 |
 | `drawTurnStartGhost()` | 渲染 40% 透明度回合起始位置幽灵 |
 | `drawReachableOverlay()` | 渲染浅蓝色呼吸闪烁可移动方格 |
+| `drawTiles()` | 渲染六种 TILE（岩/便/坑/刺/梯），使用 `cellRect()` 透视坐标 |
+| `drawDoors()` | 房门渲染：开=通道+门框/关=铁栏纹理，区分上下左右 |
+| `cellRect(col,row)` | 透视投影后格子中心坐标+尺寸，供 TILE/门渲染 |
 | `drawWalls/Floor/GridHighlight/Bullets/Particles` | 各渲染子系统 |
-| `startMove(dir)` / `updateMove(dt)` | 移动动画系统 |
 | `spawnBullet(dir,fromPx,fromPy)` / `updateBullets(dt)` / `shatterBullet(b)` | 子弹生命周期 |
 | `updateParticles(dt)` | 粒子物理+淡出 |
 | `calcAllMonsterPaths()` / `startMonsterTurn()` / `updateMonsterTurn(dt)` | 怪物回合系统 |
 | `updateActionBar()` | 更新底部状态栏（自由/锁定 + AP 剩余） |
-| `updateUI()` | 更新所有 DOM UI 面板数据 |
-| `gameLoop(timestamp)` | 主循环：移动动画→子弹→粒子→怪物回合→渲染 |
+| `updateUI()` / `updateFloorUI()` | 更新所有 DOM UI 面板（含楼层信息栏） |
+| `gameLoop(timestamp)` | 主循环：动画→输入→子弹→粒子→怪物回合→渲染 |
 
 ## 6. 数据流
 
 ```
-回合开始 (player_select)
+启动:
+  loadTemplates() → poolTemplates
+  loadOrGenerateFloors() → allFloors (从 floor-data.json / 兜底 generateAllFloors)
+  enterFloor(1) → 设置 currentFloor/currentRoomId/currentRoomGrid
+
+探索模式 (inCombat=false):
+  WASD → isWall检查 → 自由移动(col/row/px/py)
+       → invincibleSteps递减 → 尖刺检测(damagePlayer) → 梯子(enterFloor)
+       → tryWalkIntoDoor → 门前格+方向 → 房间切换(滑动过渡) → updateRoomCombatState
+
+战斗模式 (inCombat=true):
   resetTurnAP() → 计算可移动范围 → 保存快照
-
-玩家操作:
-  WASD → 检查 reachableTiles.has(key) → 移动本体(col/row/px/py) → M-AP-1 → refreshReachableTiles()
-  ↑↓←→ → 即时 spawnBullet → A-AP-1 → 首次? 设 hasShot + checkpointPos + refreshReachableTiles()
-  Esc  → restoreTurnSnapshot() → 重置 mAP/aAP/hasShot/checkpointPos → 重新计算范围 + 保存新快照
-  Space → 有剩余AP? showEndTurnConfirm : 直接 enter monster_turn
-
-怪物回合 (monster_turn)
-  updateMonsterTurn(dt) → 同时逐步移动怪物 → 碰撞检测 → finishMonsterTurn → AP重置
+  WASD → 检查 reachableTiles.has(key) → 移动本体 → M-AP-1 → refreshReachableTiles()
+  ↑↓←→ → 即时 spawnBullet → A-AP-1 → 首次? 设 hasShot + checkpointPos
+  Esc  → restoreTurnSnapshot() → 重置所有状态
+  Space → 结束回合 → monster_turn → 怪物移动+碰撞 → finishMonsterTurn
+       → updateRoomCombatState (清怪则门开+切回探索)
 
 渲染层序:
   gameLoop → render()
-           → 墙壁 → 地板 → 网格高亮 → 可移动范围(浅蓝呼吸) → 怪物危险区
-           → 怪物路径 → 子弹 → 粒子 → 怪物 → 起始幽灵(40%透明度) → 角色本体 → 飘字
+           → 墙壁 → 地板 → TILE瓷砖(岩/便/坑/刺/梯) → 房门(开/关)
+           → 网格高亮 → 可移动范围(浅蓝呼吸) → 子弹 → 粒子
+           → 怪物 → 起始幽灵(40%透明度) → 角色本体(无敌闪烁) → 飘字
 ```
 
 ## 7. 项目文件清单
@@ -367,7 +428,8 @@ function project(wx, wy) {
 
 | 文件 | 类型 | 说明 |
 |------|------|------|
-| `pool.json` | JSON | 关卡池数据文件（原 `isaac-room-pool.json`） |
+| `pool.json` | JSON | 关卡池数据文件（模板定义，编辑器读写） |
+| `floor-data.json` | JSON | 楼层生成数据（房间结构+grid，编辑器/游戏加载） |
 | `server.js` | Node.js | 本地文件读写服务器（端口 8080） |
 | `isaac-room-pool - original backup.json` | JSON | 原始关卡池备份 |
 
@@ -397,4 +459,4 @@ function project(wx, wy) {
 
 ---
 
-> **下一步方向**：将 TILE 系统集成到主游戏 `isaac-turnbased-demo.html`（改造 isWall/bulletHitWall/BFS/怪物寻路感知障碍物），实现楼层生成 + 房间切换 + 模板对接。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。
+> **下一步方向**：完善怪物多样性（怪物配置表实际接入）、掉落系统（道具/消耗品）、商店房间交易功能、Sound/FX 音效系统。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。
