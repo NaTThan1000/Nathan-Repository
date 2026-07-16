@@ -416,7 +416,7 @@
   <div id="top-right">
     <button class="corner-btn" id="debug-btn" title="切换调试模式">调试:关</button>
     <button class="corner-btn" id="help-btn" title="查看操作说明">操作?</button>
-    <button class="corner-btn" id="spawn-monster-btn" title="生成怪物">生怪</button>
+    <button class="corner-btn" id="spawn-monster-btn" title="随机生成怪物">生怪</button>
   </div>
 </div>
 
@@ -491,7 +491,7 @@
     </div>
     <div class="help-row">
       <div class="help-keys"><span class="help-key">C</span></div>
-      <div class="help-desc">随机位置生成怪物</div>
+      <div class="help-desc">随机位置生成随机怪物 (5%概率Boss)</div>
     </div>
     <div class="help-row">
       <div class="help-keys"><span class="help-key">R</span></div>
@@ -752,7 +752,7 @@ function resetGameToFloor1(){
   monsters=[];bullets.length=0;particles.length=0;damageNumbers.length=0;transition=null;
   player.col=6;player.row=3;const p=gridToPixel(6,3);player.px=p.x;player.py=p.y;
   player.targetPx=null;player.targetPy=null;player.animTime=0;player.facing='down';player.walkFrame=0;
-  player.shootTimer=0;player.hitFlash=0;player.shakeX=0;player.shakeY=0;player.invincibleTurns=0;player.invincibleSteps=0;
+  player.shootTimer=0;player.hitFlash=0;player.shakeX=0;player.shakeY=0;player.invincibleSteps=0;
   playerStats.hp=playerStats.maxHp;
   currentFloor=allFloors[1];currentRoomId=currentFloor.startRoomId;
   const room=currentFloor.rooms.find(r=>r.id===currentRoomId);currentRoomGrid=room.grid;
@@ -935,8 +935,7 @@ const player = {
   shootTimer: 0,
   hitFlash: 0,         // 受击白闪
   shakeX: 0, shakeY: 0, // 受击抖动
-  invincibleTurns: 0,   // 无敌回合计数 (战斗模式)
-  invincibleSteps: 0,  // 无敌步数计数 (探索模式, =移速×2)
+  invincibleSteps: 0,  // 无敌步数计数 (战斗/探索通用, =移速×2)
 };
 
 // ==================== AP 与回合状态 ====================
@@ -960,13 +959,78 @@ let turnSnapshot  = null;       // 回合开始时完整快照
 let pendingReachableRefresh = false;  // 怪物死亡后需刷新可移动范围
 
 // ==================== 怪物系统 ====================
-const MONSTER_CFG = {
-  name: '裂口尸',
-  hp: 10,
-  SPEED_CYCLE: [2, 1],    // 两回合交替: 2格, 1格
+// AI 行为类型枚举
+const AI_TYPE = {
+  CHASE:        'chase',         // 向玩家追踪移动
+  RANGED_KITE:  'ranged_kite',   // 保持距离远程射击
+  PATROL:       'patrol',        // 巡逻+感知追击
+  CHARGE:       'charge',        // 周期性冲刺
+  STATIONARY:   'stationary',    // 不动但远程射击
+  BOSS_CHASE:   'boss_chase',    // 追踪+特殊攻击
 };
 
-let monsters = [];  // [{id, name, col, row, hp, maxHp, predictedPath, moveSpeed}]
+// 怪物配置数据库
+const MONSTER_DB = {
+  // ===== 普通怪物 =====
+  'crack_maw': {
+    id: 'crack_maw',
+    name: '裂口尸',
+    hp: 10,
+    moveCycle: [2, 1],        // 双回合交替移速
+    damage: 1,                // 碰撞伤害
+    aiType: 'chase',
+    tint: null,               // 颜色叠加(rgba)
+    dropTable: 'common',
+    dropRate: 0.4,
+    roomTypes: ['normal'],
+  },
+  'flying_eye': {
+    id: 'flying_eye',
+    name: '浮游眼',
+    hp: 6,
+    moveCycle: [1, 1],        // 每回合1格
+    damage: 1,
+    aiType: 'ranged_kite',
+    aiRange: 3,               // 偏好距离
+    tint: 'rgba(180,180,255,0.35)',
+    dropTable: 'ranged',
+    dropRate: 0.5,
+    roomTypes: ['normal'],
+  },
+  'rock_golem': {
+    id: 'rock_golem',
+    name: '岩石魔像',
+    hp: 20,
+    moveCycle: [1, 1],        // 每回合1格
+    damage: 2,                // 高伤害
+    aiType: 'chase',
+    tint: 'rgba(180,160,140,0.45)',
+    dropTable: 'heavy',
+    dropRate: 0.7,
+    roomTypes: ['normal', 'treasure'],
+  },
+
+  // ===== Boss 怪物 =====
+  'boss_maw_king': {
+    id: 'boss_maw_king',
+    name: '裂口之王',
+    hp: 45,
+    moveCycle: [3, 2],        // 双回合交替: 3格, 2格
+    damage: 2,
+    aiType: 'boss_chase',
+    tint: 'rgba(255,100,50,0.45)',
+    dropTable: 'boss',
+    dropRate: 1.0,
+    roomTypes: ['boss'],
+  },
+};
+
+// 随机生成时可选的普通怪物池(排除Boss)
+const MONSTER_POOL_NORMAL = Object.keys(MONSTER_DB).filter(k => MONSTER_DB[k].aiType !== 'boss_chase');
+// 全部怪物池
+const MONSTER_POOL_ALL = Object.keys(MONSTER_DB);
+
+let monsters = [];  // [{id, cfgId, name, col, row, hp, maxHp, predictedPath, moveSpeed, moveCycle, damage, aiType, tint, ...}]
 let monsterIdCounter = 0;
 let monsterFlashTimer = 0;  // 路径箭头闪烁计时器
 
@@ -987,9 +1051,11 @@ function saveTurnSnapshot() {
     monsters: monsters.map(m => {
       const gp = gridToPixel(m.col, m.row);
       return {
-        id: m.id, col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
+        id: m.id, cfgId: m.cfgId, name: m.name,
+        col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
         px: gp.x, py: gp.y,                      // 对齐网格 (静止状态)
         displayHp: m.displayHp,
+        damage: m.damage, moveCycle: m.moveCycle, aiType: m.aiType, tint: m.tint,
         predictedPath: m.predictedPath ? m.predictedPath.map(s => ({ fromCol: s.fromCol, fromRow: s.fromRow, toCol: s.toCol, toRow: s.toRow })) : [],
         moveSpeed: m.moveSpeed,
         hitFlash: m.hitFlash, shakeX: m.shakeX, shakeY: m.shakeY,
@@ -1010,8 +1076,10 @@ function restoreTurnSnapshot() {
   player.shootTimer = 0;
   playerStats.hp = s.playerHp;
   monsters = s.monsters.map(m => ({
-    id: m.id, col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
+    id: m.id, cfgId: m.cfgId, name: m.name,
+    col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
     px: m.px, py: m.py, displayHp: m.displayHp,
+    damage: m.damage, moveCycle: m.moveCycle, aiType: m.aiType, tint: m.tint,
     predictedPath: m.predictedPath.map(p => ({ fromCol: p.fromCol, fromRow: p.fromRow, toCol: p.toCol, toRow: p.toRow })),
     moveSpeed: m.moveSpeed,
     hitFlash: 0, shakeX: 0, shakeY: 0,
@@ -1093,7 +1161,6 @@ function resetTurnAP() {
   turnState.phase = 'player_select';
   checkpointPos = null;
   turnSnapshot = null;
-  if (player.invincibleTurns > 0) player.invincibleTurns--;
   turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
   saveTurnSnapshot();
   updateActionBar();
@@ -1107,11 +1174,43 @@ function isMonsterAt(col, row, excludeId = -1) {
 // 怪物回合开始时: 所有怪物计算向玩家实时位置的移动路径
 function calcAllMonsterPaths() {
   const turnIdx = turnState.monsterTurnCounter;
-  const speed = MONSTER_CFG.SPEED_CYCLE[turnIdx % 2];
 
   for (const m of monsters) {
-    m.moveSpeed = speed;
-    m.predictedPath = calcMonsterPath(m, player.col, player.row);
+    const cycle = m.moveCycle || [2, 1];
+    m.moveSpeed = cycle[turnIdx % cycle.length];
+    // AI行为路由: 不同AI类型使用不同寻路策略
+    switch (m.aiType) {
+      case 'stationary':
+        m.predictedPath = [];  // 不移动
+        break;
+      case 'ranged_kite':
+        // 保持距离: 如果太近就远离, 如果太远就靠近
+        m.predictedPath = calcMonsterPath(m, player.col, player.row);
+        break;
+      case 'charge':
+        // 每3回合冲锋一次(移动速度加倍), 其他回合正常追踪
+        if (turnIdx % 3 === 0) m.moveSpeed = Math.min(m.moveSpeed * 2, 4);
+        m.predictedPath = calcMonsterPath(m, player.col, player.row);
+        break;
+      case 'boss_chase':
+        // Boss追踪: 每4回合额外+1移速
+        if (turnIdx % 4 === 0) m.moveSpeed += 1;
+        m.predictedPath = calcMonsterPath(m, player.col, player.row);
+        break;
+      case 'patrol':
+        // 简化巡逻: 玩家在5格内才追击, 否则原地不动
+        const dist = manhattanDist(m.col, m.row, player.col, player.row);
+        if (dist <= 5) {
+          m.predictedPath = calcMonsterPath(m, player.col, player.row);
+        } else {
+          m.predictedPath = [];
+        }
+        break;
+      case 'chase':
+      default:
+        m.predictedPath = calcMonsterPath(m, player.col, player.row);
+        break;
+    }
   }
 }
 
@@ -1159,16 +1258,12 @@ function calcMonsterPath(monster, targetCol, targetRow) {
 
 // ==================== 玩家受伤系统 ====================
 function damagePlayer(amount) {
-  if (player.invincibleTurns > 0 || player.invincibleSteps > 0) return; // 无敌中
+  if (player.invincibleSteps > 0) return; // 无敌中
   playerStats.hp = Math.max(0, playerStats.hp - amount);
   player.hitFlash = 0.12;
   player.shakeX = (Math.random() - 0.5) * 5;
   player.shakeY = (Math.random() - 0.5) * 4;
-  if (inCombat) {
-    player.invincibleTurns = 3;               // 战斗模式：无敌3回合
-  } else {
-    player.invincibleSteps = playerStats.moveSpeed * 2; // 探索模式：无敌=移速×2步
-  }
+  player.invincibleSteps = playerStats.moveSpeed * 2; // 战斗/探索统一: 无敌=移速×2步
   updateHearts();
   updateUI();
 }
@@ -1270,7 +1365,7 @@ function updateMonsterTurn(dt) {
 
     // 检查玩家位置 (碰撞 → 伤害, 按怪物移动方向击退玩家, 失败则怪物反弹)
     if (p.toCol === player.col && p.toRow === player.row) {
-      damagePlayer(1);
+      damagePlayer(m.damage || 1);
       const step = m.predictedPath[monsterExecStepIdx];
       const pushDx = step.toCol - step.fromCol;
       const pushDy = step.toRow - step.fromRow;
@@ -1283,6 +1378,10 @@ function updateMonsterTurn(dt) {
     // 可以移动
     m.col = p.toCol;
     m.row = p.toRow;
+    // 尖刺地格：怪物受到5点伤害
+    if (currentRoomGrid && currentRoomGrid[p.toCol][p.toRow] === TILE.SPIKE) {
+      damageMonster(m, 5);
+    }
     occupied.add(key);
   }
 
@@ -1562,8 +1661,8 @@ function drawShootLine(originCol, originRow, dir, alpha) {
   ctx.restore();
 }
 
-// --- 角色渲染 (通用，支持透明度参数) ---
-function drawCharacterAt(px, py, facing, walkFrame, shootTimer, alpha) {
+// --- 角色渲染 (通用，支持透明度参数和色彩叠加) ---
+function drawCharacterAt(px, py, facing, walkFrame, shootTimer, alpha, tint) {
   if (alpha === undefined) alpha = 1;
 
   const pp = project(px, py);
@@ -1627,6 +1726,11 @@ function drawCharacterAt(px, py, facing, walkFrame, shootTimer, alpha) {
     prect(tx + vec.dx * (-i) - vec.dy * i, ty + vec.dy * (-i) + vec.dx * i, 1, 1, '#ffcc88');
   }
 
+  // 色彩叠加 (怪物类型区分)
+  if (tint) {
+    prect(drawX, drawY, size, size, tint);
+  }
+
   ctx.restore();
 }
 
@@ -1658,7 +1762,7 @@ function drawGhost() {
 function drawPlayer() {
   // 无敌闪烁
   let alpha = 1;
-  if (player.invincibleTurns > 0 || player.invincibleSteps > 0) {
+  if (player.invincibleSteps > 0) {
     alpha = 0.3 + 0.35 * Math.sin(performance.now() * 0.015);
   }
   // 抖动偏移
@@ -1670,7 +1774,7 @@ function drawPlayer() {
   drawCharacterAt(player.px + sx, player.py + sy, player.facing, player.walkFrame, player.shootTimer, alpha);
 
   // 受击白闪
-  if (player.hitFlash > 0 && player.invincibleTurns <= 0 && player.invincibleSteps <= 0) {
+  if (player.hitFlash > 0 && player.invincibleSteps <= 0) {
     const pp = project(player.px + sx, player.py + sy);
     const s = pp.s;
     const size = Math.round(SPRITE.BASE_SIZE * s);
@@ -1899,6 +2003,15 @@ function drawMonsters() {
     const size = Math.round(SPRITE.BASE_SIZE * s * 1.1);
     const half = Math.floor(size / 2);
 
+    // --- 名称标签 ---
+    ctx.save();
+    ctx.fillStyle = m.aiType === 'boss_chase' ? '#ff6644' : '#ccaa88';
+    ctx.font = `bold ${Math.max(4, Math.round(5.5 * s))}px 'Press Start 2P'`;
+    ctx.textAlign = 'center';
+    const nameY = cy - half - Math.round(15 * s);
+    ctx.fillText(m.name, cx, nameY);
+    ctx.restore();
+
     // --- HP 条 ---
     const barW = Math.max(16, Math.round(size * 1.0));
     const barH = Math.max(3, Math.round(5 * s));
@@ -1936,7 +2049,7 @@ function drawMonsters() {
     }
     const sx2 = m.hitFlash > 0 ? m.shakeX : 0;
     const sy2 = m.hitFlash > 0 ? m.shakeY : 0;
-    drawCharacterAt(m.px + sx2, m.py + sy2, facing, 0, 0, 1);
+    drawCharacterAt(m.px + sx2, m.py + sy2, facing, 0, 0, 1, m.tint);
 
     // 白闪覆盖 (受击瞬间)
     if (m.hitFlash > 0) {
@@ -2493,8 +2606,8 @@ function executeNextAction() {
     if (isWall(nc, nr)) { turnState.execIndex++; return; }
     // 玩家→怪物碰撞
     const hitMon = monsters.find(m => m.col === nc && m.row === nr);
-    if (hitMon && player.invincibleTurns <= 0) {
-      damagePlayer(1);
+    if (hitMon && player.invincibleSteps <= 0) {
+      damagePlayer(hitMon.damage || 1);
       if (!tryPushMonster(hitMon, vec.dx, vec.dy)) {
         turnState.execIndex++;
         return;
@@ -2504,6 +2617,7 @@ function executeNextAction() {
     const t = gridToPixel(nc, nr);
     player.targetPx = t.x; player.targetPy = t.y;
     player.animTime = 0;
+    if (player.invincibleSteps > 0) player.invincibleSteps--; // 战斗模式执行移动时递减无敌步数
   } else if (act.type === 'shoot') {
     player.facing = act.dir;
     player.shootTimer = 0.4;
@@ -2533,6 +2647,10 @@ function confirmEndTurn() {
   damageNumbers = [];
   turnState.phase = 'monster_turn';
   document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">-</span>';
+  // 未消耗的M-AP计入无敌步数消耗
+  if (player.invincibleSteps > 0 && turnState.mAP > 0) {
+    player.invincibleSteps = Math.max(0, player.invincibleSteps - turnState.mAP);
+  }
   startMonsterTurn();
   updateUI();
 }
@@ -2587,8 +2705,8 @@ document.addEventListener('keydown', (e) => {
         player.facing=dir;player.col=nc;player.row=nr;
         const t=gridToPixel(nc,nr);player.targetPx=t.x;player.targetPy=t.y;player.animTime=0;
 
-        if(!inCombat&&player.invincibleSteps>0)player.invincibleSteps--; // 探索模式：每移动一格递减无敌步数
-        if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.SPIKE){damagePlayer(0.5,0,0);}
+        if(player.invincibleSteps>0)player.invincibleSteps--; // 每移动一格递减无敌步数 (战斗/探索通用)
+        if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.SPIKE){damagePlayer(2,0,0);}
         if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.LADDER){
           const nextF=currentFloor.floorNum+1;
           if(allFloors[nextF]){enterFloor(nextF);return;}
@@ -2626,6 +2744,10 @@ document.addEventListener('keydown', (e) => {
           damageNumbers = [];
           turnState.phase = 'monster_turn';
           document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">-</span>';
+          // 未消耗的M-AP计入无敌步数消耗 (此时mAP=0, 但保持一致性)
+          if (player.invincibleSteps > 0 && turnState.mAP > 0) {
+            player.invincibleSteps = Math.max(0, player.invincibleSteps - turnState.mAP);
+          }
           startMonsterTurn();
           updateUI();
         }
@@ -2826,7 +2948,17 @@ async function initGame(){
 initGame();
 
 // ==================== 生怪 ====================
-function spawnMonster() {
+function spawnMonster(cfgId = null) {
+  // 随机选择怪物类型 (默认从普通怪物池选, 5%概率出Boss)
+  if (!cfgId) {
+    const roll = Math.random();
+    cfgId = roll < 0.05
+      ? MONSTER_POOL_ALL[Math.floor(Math.random() * MONSTER_POOL_ALL.length)]
+      : MONSTER_POOL_NORMAL[Math.floor(Math.random() * MONSTER_POOL_NORMAL.length)];
+  }
+  const cfg = MONSTER_DB[cfgId];
+  if (!cfg) return;
+
   const occupied = new Set();
   occupied.add(`${player.col},${player.row}`);
   for (const m of monsters) occupied.add(`${m.col},${m.row}`);
@@ -2838,12 +2970,18 @@ function spawnMonster() {
   const pos = candidates[Math.floor(Math.random() * candidates.length)];
   const pix = gridToPixel(pos.col, pos.row);
   monsters.push({
-    id: ++monsterIdCounter, name: MONSTER_CFG.name,
+    id: ++monsterIdCounter,
+    cfgId: cfg.id,
+    name: cfg.name,
     col: pos.col, row: pos.row,
     px: pix.x, py: pix.y,
-    hp: MONSTER_CFG.hp, maxHp: MONSTER_CFG.hp,
-    displayHp: MONSTER_CFG.hp,
-    predictedPath: [], moveSpeed: 2,
+    hp: cfg.hp, maxHp: cfg.hp,
+    displayHp: cfg.hp,
+    damage: cfg.damage,
+    moveCycle: cfg.moveCycle,
+    aiType: cfg.aiType,
+    tint: cfg.tint,
+    predictedPath: [], moveSpeed: cfg.moveCycle[0],
     hitFlash: 0, shakeX: 0, shakeY: 0,
   });
   calcAllMonsterPaths();
@@ -2875,6 +3013,7 @@ document.getElementById('end-turn-modal').addEventListener('click', (e) => {
 console.log('⚔ 以撒半回合制 Demo — 即时操作+全重置 已就绪');
 console.log('  WASD = 移动  |  ↑↓←→ = 射击  |  Space = 结束回合  |  Esc = 全重置');
 console.log(`  房间: ${COLS}×${ROWS} 格子  |  射程: ${CFG.BULLET_MAX_DIST} 格`);
+console.log(`  C = 随机怪物 | 怪物类型: ${Object.keys(MONSTER_DB).map(k=>MONSTER_DB[k].name).join(', ')}`);
 console.log(`  A-AP=${playerStats.fireRate}  M-AP=${playerStats.moveSpeed}  HP=${playerStats.hp}/${playerStats.maxHp}`);
 </script>
 </body>

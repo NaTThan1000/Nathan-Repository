@@ -1,6 +1,6 @@
 # 以撒·半回合制战斗 — 项目总览
 
-> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html` | 单文件 ~3000+ 行 | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/server.js` 本地文件读写服务 | 状态: 即时操作回合制 + TILE系统 + 探索/战斗双模式 + 多房间楼层切换 + Boss梯子下层 + 场景滑动过渡
+> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html` | 单文件 ~3000+ 行 | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/server.js` 本地文件读写服务 | 状态: 即时操作回合制 + MONSTER_DB 4种怪物 + AI行为路由 + 统一无敌 + TILE系统 + 探索/战斗双模式 + 多房间楼层切换 + Boss梯子下层 + 场景滑动过渡
 
 ---
 
@@ -20,7 +20,7 @@
 - 回合开始位置保留半透明幽灵作视觉参考（非操作体）
 - Esc **全重置**本回合所有操作和结果（角色/怪物/环境回到回合开始时）
 - Space 结束回合 → 切换怪物回合；有剩余 AP 时弹窗二次确认
-- 操作键：WASD 移动(探索)/WASD 战斗移动、↑↓←→ 射击、Space 结束回合、Esc 全重置、C 生怪、B 放boss梯子、R 重置游戏
+- 操作键：WASD 移动(探索)/WASD 战斗移动、↑↓←→ 射击、Space 结束回合、Esc 全重置、C 随机生怪、B 放boss梯子、R 重置游戏
 - 标准矩形像素风格渲染
 
 ### 1.3 玩家属性
@@ -40,22 +40,53 @@
 
 ### 1.5 怪物系统
 
-**裂口尸** (C键或右上角按钮生成):
+**怪物配置数据库** `MONSTER_DB`（4种怪物，内联 JS 对象）：
 
-| 属性 | 值 |
-|------|-----|
-| HP | 10 |
-| AI 回合1 | 向玩家移动 2 格 |
-| AI 回合2 | 向玩家移动 1 格 |
-| 移动方式 | 所有怪物同时逐步移动 (0.15s/步)，平滑动画插值 170px/s |
-| 碰撞 | 怪物之间不可重叠；撞玩家 → 伤害1 + 击退(怪物移动方向) |
-| 视觉 | 使用角色精灵+角色朝向，红色血条 (黑色底槽+百分比填充)，受击白闪+抖动 |
-| 路径预览 | 红色粗箭头闪烁 (仅在玩家回合显示) |
-| 伤害反馈 | 黄色飘字迸发 + 血条白色延迟扣除动画 + 血雾粒子 |
-| 死亡 | 18颗血粒子爆浆特效 |
+| cfgId | 名称 | HP | 伤害 | 移速周期 | AI类型 | 颜色叠加(tint) | 房间类型 |
+|-------|------|-----|------|----------|--------|---------------|----------|
+| `crack_maw` | 裂口尸 | 10 | 1 | [2,1] | chase | 无 | normal |
+| `flying_eye` | 浮游眼 | 6 | 1 | [1,1] | ranged_kite | 蓝紫半透 | normal |
+| `rock_golem` | 岩石魔像 | 20 | 2 | [1,1] | chase | 棕半透 | normal/treasure |
+| `boss_maw_king` | 裂口之王 | 45 | 2 | [3,2] | boss_chase | 红橙半透 | boss |
 
-**玩家→怪物碰撞**: 玩家移动撞怪物 → 自身受伤1 + 击退怪物(移动方向)，失败则玩家反弹。
-**无敌**: 受击后闪烁无敌(透明)，可穿过怪物不受伤。战斗模式：无敌 3 回合；探索模式：无敌持续移速×2 步（移速=3 → 6步），每移动一格递减，受伤格为第1步。
+**AI 行为类型枚举** `AI_TYPE`（6种）：
+
+| aiType | 行为描述 |
+|--------|---------|
+| `chase` | 向玩家追踪移动（默认） |
+| `ranged_kite` | 保持距离追踪 |
+| `charge` | 每3回合双倍移速冲锋（上限4格） |
+| `boss_chase` | 追踪 + 每4回合额外+1移速 |
+| `patrol` | 5格内感知追击，否则原地 |
+| `stationary` | 不移动 |
+
+**生成方式**：C键或右上角“生怪”按钮 → 95%概率从普通怪物池随机（裂口尸/浮游眼/岩石魔像），5%概率含Boss。`spawnMonster(cfgId?)` 支持指定类型或随机。
+
+**移动与碰撞**：
+- 所有怪物同时逐步移动 (0.15s/步)，平滑动画插值 170px/s
+- 怪物之间不可重叠；撞玩家 → 伤害由怪物类型决定(crack_maw=1, flying_eye=1, rock_golem=2, boss=2) + 击退(怪物移动方向)
+- 玩家撞怪物 → 同样按怪物类型计算伤害 + 击退怪物(移动方向)，失败则玩家反弹
+- 尖刺地格：怪物经过 → 受到 5 点伤害
+
+**视觉**：
+- 使用角色精灵+朝向，红色血条 (黑色底槽+百分比填充)，受击白闪+抖动
+- 每只怪物通过 `tint` 半透明色彩叠加区分类型（浮游眼蓝紫/魔像棕/Boss红橙）
+- 头顶名称标签（Boss红字突出，普通棕色）
+- 路径预览：红色粗箭头闪烁 (仅在玩家回合显示)
+- 伤害反馈：黄色飘字迸发 + 血条白色延迟扣除动画 + 血雾粒子
+- 死亡：18颗血粒子爆浆特效
+
+**每只怪物独立属性**：
+- `moveCycle`：每个怪物独立的移速周期数组，不再全局共享
+- `damage`：每个怪物独立的碰撞伤害
+- `aiType`：AI 行为路由（`calcAllMonsterPaths()` 中 switch 分发）
+- `tint`：RGBA 色彩叠加，渲染时传入 `drawCharacterAt()`
+
+**无敌系统（统一）**：战斗/探索模式均使用 `invincibleSteps = 移速×2` 步数制。
+- 每次实际移动 → `invincibleSteps--`
+- 战斗模式结束回合时，未消耗的 M-AP 也计入无敌步数消耗：`invincibleSteps -= turnState.mAP`（只读 mAP 值，不改变 AP 系统）
+- 无敌归零 → 下次移动/碰撞可受伤
+- 受击后闪烁无敌(透明)，可穿过怪物不受伤
 
 ---
 
@@ -147,7 +178,7 @@
 | ROCK | `#` | 岩石 | ❌ | 阻挡通行和子弹 |
 | POOP | `P` | 便便 | ❌ | 可破坏(受击3次)，挡子弹 |
 | PIT | `_` | 深渊 | ❌ | 踩上即死或掉落 |
-| SPIKE | `^` | 尖刺 | ✅ | 踩上扣 0.5 HP（可走过） |
+| SPIKE | `^` | 尖刺 | ✅ | 踩上扣 2 HP(玩家)/5 HP(怪物) |
 | LADDER | `▼` | 梯子 | ✅ | Boss房踩上进入下一层 |
 
 - 门位：每边正中（上6,0 / 下6,6 / 左0,3 / 右12,3），这些格必须为可通行地面
@@ -205,9 +236,9 @@ player_select ──→ monster_turn ──→ player_select
 
 | 阶段 | 说明 |
 |------|------|
-| `player_select` | 即时操作：WASD移动本体、↑↓←→即时射击、Esc全重置、Space结束回合、C生怪 |
+| `player_select` | 即时操作：WASD移动本体、↑↓←→即时射击、Esc全重置、Space结束回合(未消耗M-AP计无敌)、C随机生怪 |
 | `turn_end_confirm` | 弹窗确认结束回合（仅剩余AP时触发） |
-| `monster_turn` | 怪物同时移动，碰撞检测，完成后重置AP |
+| `monster_turn` | 怪物AI路由分发→逐步移动(每怪独立移速/dmg)→碰撞+尖刺检测，完成后重置AP |
 
 - 无预操作队列，所有行为即时生效
 - `hasShot` 标记首次射击（触发 checkpoint，`checkpointPos` 保存位置）
@@ -227,7 +258,7 @@ player_select ──→ monster_turn ──→ player_select
 | ↑ / ↓ / ← / → | 战斗 | 即时射击（按即发射），首次射击触发 checkpoint |
 | 空格 | 战斗 | 结束回合（有剩余 AP 时弹窗确认，无剩余直接进入怪物回合） |
 | Esc | 战斗 | 全重置本回合 → 恢复回合快照（角色/怪物/HP 全部回到回合开始时） |
-| C | 探索/战斗 | 生成怪物 |
+| C | 探索/战斗 | 随机生成怪物 (95%普通, 5%含Boss) |
 | B | 探索 | 在 Boss 房间放置梯子格(踩上进入下一层) |
 | R | 任意 | 重置游戏 → 回到第1层起点 |
 
@@ -257,13 +288,13 @@ player_select ──→ monster_turn ──→ player_select
    - 走到门前格+按方向键 → 滑动过渡切换房间
    - 进入新房间 → `updateRoomCombatState()`：无怪则探索，有怪则战斗
    - 踩到梯子 → `enterFloor()` 进入下一层
-   - 踩到尖刺 → `damagePlayer()`（无敌保护：移速×2步）
+   - 踩到尖刺 → `damagePlayer(2)`；无敌保护：移速×2步（战斗/探索统一）
 4. **战斗模式** `player_select`：
-   - WASD 在浅蓝可移动范围内即时移动本体，每步 -1 M-AP
+   - WASD 在浅蓝可移动范围内即时移动本体，每步 -1 M-AP，`invincibleSteps--`
    - ↑↓←→ 即时射击，-1 A-AP，首次射击触发 checkpoint
    - Esc → 恢复回合快照（角色/怪物/HP 全部重置）
-   - Space → 结束确认 → monster_turn
-5. `monster_turn` → 怪物移动 + 碰撞检测 → `updateRoomCombatState()`
+   - Space → 结束确认（未消耗M-AP计入无敌步数）→ monster_turn
+5. `monster_turn` → 每怪独立移速/AI路由 → 怪物逐步移动 + 碰撞(按类型伤害) + 尖刺5伤害 → `updateRoomCombatState()`
    - 清怪 → 门打开 → 回到探索模式
    - 有怪 → 继续战斗，回合数+1
 6. 6层通关后游戏结束（当前无通关处理）
@@ -294,7 +325,7 @@ player_select ──→ monster_turn ──→ player_select
     ├── 移动系统 (探索自由移动 + 战斗AP移动 + 场景过渡动画)
     ├── 子弹系统 (spawnBullet, updateBullets, shatterBullet)
     ├── 粒子系统 (updateParticles) & 受伤系统 (damagePlayer)
-    ├── 怪物系统 (calcAllMonsterPaths, startMonsterTurn, updateMonsterTurn)
+    ├── 怪物系统 (MONSTER_DB 配置表 + AI_TYPE 枚举 + AI行为路由 + calcAllMonsterPaths/startMonsterTurn/updateMonsterTurn/spawnMonster)
     ├── UI 更新 (updateUI, updateActionBar, updateFloorUI)
     ├── 输入处理 (keydown — WASD移动/箭头射击/Esc重置/Space结束/C生怪/B梯子/R重置)
     └── 游戏循环 (gameLoop → requestAnimationFrame)
@@ -347,7 +378,7 @@ function project(wx, wy) {
 
 | 函数 | 职责 |
 |------|------|
-| `resetTurnAP()` | 初始化回合 AP，计算可移动范围，保存回合快照，递减战斗无敌 |
+| `resetTurnAP()` | 初始化回合 AP，计算可移动范围，保存回合快照 |
 | `saveTurnSnapshot()` | 保存回合开始时完整快照（玩家/怪物状态） |
 | `restoreTurnSnapshot()` | 恢复回合快照，重置所有状态到回合开始 |
 | `calcReachableTiles(fromCol, fromRow, maxSteps)` | BFS 计算可移动方格集（排除墙壁和怪物） |
@@ -362,8 +393,8 @@ function project(wx, wy) {
 | `tryWalkIntoDoor(fromCol,fromRow,dir)` | 检测门触发：站在门前格+按方向→切换房间 |
 | `updateRoomCombatState()` | 更新战斗/探索状态，触发回合初始化或结束 |
 | `updateDoorsLocked()` | 根据 inCombat 开关门（战斗=锁/探索=开） |
-| `damagePlayer(amount)` | 玩家受伤：战斗无3回合/探索无敌移速×2步 |
-| `drawCharacterAt(px,py,facing,walkFrame,shootTimer,alpha)` | 通用角色渲染（本体和幽灵复用），支持透明度/无敌闪烁 |
+| `damagePlayer(amount)` | 玩家受伤：战斗/探索统一无敌移速×2步（战斗中结束回合时未消耗M-AP也计入） |
+| `drawCharacterAt(px,py,facing,walkFrame,shootTimer,alpha,tint)` | 通用角色渲染（本体和幽灵复用），支持透明度/无敌闪烁/tint色彩叠加 |
 | `drawTurnStartGhost()` | 渲染 40% 透明度回合起始位置幽灵 |
 | `drawReachableOverlay()` | 渲染浅蓝色呼吸闪烁可移动方格 |
 | `drawTiles()` | 渲染六种 TILE（岩/便/坑/刺/梯），使用 `cellRect()` 透视坐标 |
@@ -372,7 +403,8 @@ function project(wx, wy) {
 | `drawWalls/Floor/GridHighlight/Bullets/Particles` | 各渲染子系统 |
 | `spawnBullet(dir,fromPx,fromPy)` / `updateBullets(dt)` / `shatterBullet(b)` | 子弹生命周期 |
 | `updateParticles(dt)` | 粒子物理+淡出 |
-| `calcAllMonsterPaths()` / `startMonsterTurn()` / `updateMonsterTurn(dt)` | 怪物回合系统 |
+| `spawnMonster(cfgId?)` | 随机(或指定cfgId)生成怪物，支持全部4种类型 |
+| `calcAllMonsterPaths()` / `startMonsterTurn()` / `updateMonsterTurn(dt)` | 怪物回合系统：AI路由分发+每怪独立移速/移动路径计算 |
 | `updateActionBar()` | 更新底部状态栏（自由/锁定 + AP 剩余） |
 | `updateUI()` / `updateFloorUI()` | 更新所有 DOM UI 面板（含楼层信息栏） |
 | `gameLoop(timestamp)` | 主循环：动画→输入→子弹→粒子→怪物回合→渲染 |
@@ -392,10 +424,11 @@ function project(wx, wy) {
 
 战斗模式 (inCombat=true):
   resetTurnAP() → 计算可移动范围 → 保存快照
-  WASD → 检查 reachableTiles.has(key) → 移动本体 → M-AP-1 → refreshReachableTiles()
+  WASD → 检查 reachableTiles.has(key) → 移动本体 → M-AP-1 → invincibleSteps-- → refreshReachableTiles()
   ↑↓←→ → 即时 spawnBullet → A-AP-1 → 首次? 设 hasShot + checkpointPos
   Esc  → restoreTurnSnapshot() → 重置所有状态
-  Space → 结束回合 → monster_turn → 怪物移动+碰撞 → finishMonsterTurn
+  Space → 结束回合 → 未消耗M-AP计入invincibleSteps → monster_turn:
+         calcAllMonsterPaths() → AI路由分发(每怪独立移速+dmg) → 怪物逐步移动+碰撞+尖刺5 → finishMonsterTurn
        → updateRoomCombatState (清怪则门开+切回探索)
 
 渲染层序:
@@ -448,6 +481,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-16 | **怪物配置表接入+无敌统一+尖刺伤害修正**。①`MONSTER_CFG` 替换为 `MONSTER_DB` 怪物配置数据库：4种怪物（裂口尸/浮游眼/岩石魔像/Boss裂口之王），每怪独立 `moveCycle`/`damage`/`aiType`/`tint`。②`AI_TYPE` 枚举 6 种 AI 行为类型（chase/ranged_kite/patrol/charge/stationary/boss_chase），`calcAllMonsterPaths()` 新增 AI 路由分发。③C键/生怪按钮改为随机生成怪物（95%普通池+5%含Boss），`spawnMonster(cfgId?)` 支持指定类型。④怪物渲染增加 tint 色彩叠加区分类型 + 头顶名称标签（Boss红字）。⑤无敌系统统一：移除 `invincibleTurns`，战斗/探索均使用 `invincibleSteps = 移速×2` 步数制；战斗模式结束回合时未消耗 M-AP 计入无敌步数消耗（只读，不影响 AP 系统）。⑥尖刺伤害修正：玩家 2 点、怪物 5 点（新增怪物尖刺判定）。⑦怪物碰撞伤害按类型区分（裂口尸/浮游眼=1，魔像/Boss=2）。 |
 | 2026-07-16 | **探索模式无敌+房门重绘+透视取消+编辑器验证+楼层grid固化+清理**。①探索模式受伤触发步数制无敌：`invincibleSteps=移速×2`（移速=3→6步），每移动一格递减，受伤格为第1步，到0消失；战斗模式保持回合制无敌3回合。②`drawDoors()` 重绘：移除绿色提示块，使用 `cellRect()` 透视坐标渲染房门（打开=深色通道+门框/关闭=铁栏纹理+横竖铁条），区分上下/左右方向。③取消房间透视变形：`VP_SCALE_TOP` 改为 1.00，`project()` 变为恒等映射，地板网格/瓷砖/门全部恢复标准矩形。④R键直接用 `resetGameToFloor1()` 重置，不再经过 `loadOrGenerateFloors()`。⑤编辑器 `closeEditor(true)` 保存前强制 `validateTiles()` 验证，门阻塞或不连通时拒绝保存。⑥楼层 grid 固化：加载 `floor-data.json` 时保留已存 grid（仅缺失时模板兜底），修改 `pool.json` 不再影响已生成楼层。⑦删除无用的根目录 `pool.json`（已迁移至 `Configs/`）。同步更新设计文档。 |
 | 2026-07-16 | **楼层生成规则强化 + 布局/门系统修复**。①房间类型约束：Boss 房和宝箱房强制度数=1（单门死路），图生成阶段保证至少 3 个叶节点（start/boss/treasure 各一）。②所有房间度数 ≤4（每方向最多一扇门），生成树构建时跳过已满节点，额外边也做度数上限检查，杜绝一门连多个房间。③布局强制相邻：连接房间必须 Manhattan 距离=1，采用随机顺序重试机制（最多 30 次）确保相邻放置可行；渲染层兜底 L 形线绝不画斜线。④门一致性校验：分配时检测方向覆盖冲突，分配后验证每个房间门数=边数。⑤`isaac-map-viewer.html` 新增 `CACHE_KEY` 机制：手动选择/同步文件后缓存到 localStorage，启动时优先读取，无需每次重新选文件。同步更新 `isaac-roommonster-plan.md` 设计文档。 |
 | 2026-07-16 | **项目文件分类整理 + 编辑器保存机制重构**。项目文件按类型重组到子目录：`Assets/`（图片素材）、`Configs/`（pool.json 关卡池 + server.js 文件读写服务 + 原始备份）、`Documents/`（全部 md 文档）。清理冗余文件：删除失败的 server.py、cgi-bin/、err.log、out.log。`isaac-map-viewer.html` 编辑器保存机制改用 `<form>` POST + 隐藏 `<iframe>` 绕过 IDE 代理拦截，通过 `server.js` (Node.js) 实现可靠的 pool.json 文件读写。新增文件管理规则：不随意删除或重命名用户手动新增文件，操作前需经用户同意。 |
@@ -459,4 +493,4 @@ function project(wx, wy) {
 
 ---
 
-> **下一步方向**：完善怪物多样性（怪物配置表实际接入）、掉落系统（道具/消耗品）、商店房间交易功能、Sound/FX 音效系统。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。
+> **下一步方向**：完善 AI 行为（ranged_kite 远程射击 / stationary 远程攻击需子弹系统）、掉落系统（道具/消耗品）、商店房间交易功能、Sound/FX 音效系统。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。
