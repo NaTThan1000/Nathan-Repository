@@ -204,6 +204,33 @@
   #confirm-ok:hover { border-color: #cc4444; color: #ff6666; }
   #confirm-cancel:hover { border-color: #c9a96e; color: #c9a96e; }
 
+  /* 下载回退弹窗 */
+  #download-modal {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+    z-index: 999; align-items: center; justify-content: center;
+  }
+  #download-modal.show { display: flex; }
+  #download-box {
+    background: #1a1410; border: 3px solid #5a3a18; padding: 20px 24px;
+    max-width: 700px; width: 90%; color: #d4b87a;
+    font-family: var(--font-cn); box-shadow: 0 0 30px rgba(0,0,0,0.9);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  #download-box h3 { color: #c9a96e; text-align: center; font-size: 16px; }
+  #download-textarea {
+    width: 100%; height: 300px; background: #0a0a0f; color: #88cc88;
+    border: 1px solid #3a3020; font-family: monospace; font-size: 12px;
+    resize: vertical; padding: 8px; outline: none;
+  }
+  #download-copy, #download-close {
+    background: #15151a; border: 2px solid #3a3020; color: #d4b87a;
+    font-family: var(--font-cn); font-size: 14px; padding: 8px 22px; cursor: pointer;
+  }
+  #download-copy { border-color: #448866; color: #66cc88; }
+  #download-copy:hover { border-color: #66cc88; }
+  #download-close:hover { border-color: #c9a96e; color: #c9a96e; }
+
+
 </style>
 </head>
 <body>
@@ -265,6 +292,18 @@
     </div>
   </div>
 </div>
+<div id="download-modal">
+  <div id="download-box">
+    <h3>⬇ 关卡池 JSON — 请复制后保存</h3>
+    <textarea id="download-textarea" readonly></textarea>
+    <div style="display:flex;gap:12px;justify-content:center;">
+      <button id="download-copy">📋 复制到剪贴板</button>
+      <button id="download-close">关闭</button>
+    </div>
+  </div>
+</div>
+<a id="download-link" download="isaac-room-pool.json" style="display:none;"></a>
+<iframe name="save-frame" style="display:none;"></iframe>
 
 <div id="bottom-bar">
   <div id="legend">
@@ -450,7 +489,11 @@ fileInput.addEventListener('change', async () => {
   if (!file) return;
   try {
     const text = await file.text();
-    poolFromJson = JSON.parse(text);
+    const loaded = JSON.parse(text);
+    // 文件是权威数据源 → 覆盖 poolFromJson 并清空 localStorage
+    poolFromJson = loaded;
+    localStorage.removeItem(STORAGE_KEY);
+    useFallback = true;
     refreshTemplates();
     btnSync.disabled = false;
     btnSync.textContent = '⬇ 下载关卡池';
@@ -470,6 +513,7 @@ btnPick.addEventListener('click', async () => {
       });
       fileHandle = handle;
       poolFromJson = await readPoolFromHandle(handle);
+      localStorage.removeItem(STORAGE_KEY);  // 文件是权威源
       await storeHandle(handle);
       refreshTemplates();
       btnSync.disabled = false;
@@ -489,36 +533,47 @@ btnPick.addEventListener('click', async () => {
   }
 });
 
-btnSync.addEventListener('click', async () => {
+btnSync.addEventListener('click', () => {
   const pool = getMergedTemplates();
   const count = Object.keys(pool).length;
+  const json = JSON.stringify(pool, null, 2);
 
-  if (hasFileAPI && fileHandle && !useFallback) {
-    try {
-      await writePoolToHandle(fileHandle, pool);
-      localStorage.removeItem(STORAGE_KEY);
-      poolFromJson = pool;
-      showStatus('✓ 已同步 ' + count + ' 个模板到文件');
-    } catch(e) {
-      showStatus('✗ 写入失败: ' + e.message, true);
-    }
-  } else {
-    // 回退：下载文件
-    const blob = new Blob([JSON.stringify(pool, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'isaac-room-pool.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    localStorage.removeItem(STORAGE_KEY);
-    poolFromJson = pool;
-    showStatus('⬇ 已下载 ' + count + ' 个模板，替换项目中的 pool.json 即可');
-  }
+  // 用隐藏 form POST 绕过跨域限制
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = 'http://localhost:8080/save-pool';
+  form.target = 'save-frame';
+  form.style.display = 'none';
+  const input = document.createElement('input');
+  input.type = 'hidden';
+  input.name = 'json';
+  input.value = json;
+  form.appendChild(input);
+  document.body.appendChild(form);
+  form.submit();
+  document.body.removeChild(form);
+
+  localStorage.removeItem(STORAGE_KEY);
+  poolFromJson = JSON.parse(json);
+  showStatus('✅ 已更新 pool.json — ' + count + ' 个模板');
 });
 
-// 首次打开时尝试自动加载
+// 首次打开时自动加载 pool.json
 async function autoLoadPool() {
+  try {
+    const loadUrl = 'http://localhost:8080/pool.json?' + Date.now();
+    const resp = await fetch(loadUrl);
+    if (resp.ok) {
+      poolFromJson = await resp.json();
+      localStorage.removeItem(STORAGE_KEY);
+      btnSync.disabled = false;
+      btnSync.textContent = '💾 同步到文件';
+      console.log('📂 自动加载关卡池: ' + Object.keys(poolFromJson).length + ' 个模板');
+      return;
+    }
+  } catch(e) { /* 静默 */ }
+
+  // File System Access API fallback
   if (hasFileAPI && !useFallback) {
     try {
       const handle = await getStoredHandle();
@@ -528,15 +583,16 @@ async function autoLoadPool() {
         if (ok) {
           fileHandle = handle;
           poolFromJson = await readPoolFromHandle(handle);
+          localStorage.removeItem(STORAGE_KEY);
           btnSync.disabled = false;
           btnSync.textContent = '💾 同步到文件';
-          console.log('📂 自动加载: ' + Object.keys(poolFromJson).length + ' 个模板');
           return;
         }
       }
-    } catch(e) { /* 静默 */ }
+    } catch(e) {}
   }
-  btnSync.textContent = '⬇ 下载关卡池';
+
+  btnSync.textContent = '💾 同步到文件';
   console.log('📂 点击「选择 pool.json」加载关卡池文件');
 }
 
@@ -654,6 +710,38 @@ document.getElementById('confirm-ok').addEventListener('click', () => {
 document.getElementById('confirm-cancel').addEventListener('click', hideConfirm);
 document.getElementById('confirm-modal').addEventListener('click', (e) => {
   if (e.target.id === 'confirm-modal') hideConfirm();
+});
+
+// 下载回退弹窗
+function showDownloadFallback(json, count) {
+  document.getElementById('download-textarea').value = json;
+  document.getElementById('download-modal').classList.add('show');
+  localStorage.removeItem(STORAGE_KEY);
+  poolFromJson = JSON.parse(json);
+  showStatus('📋 请复制弹窗中 JSON → 粘贴替换 isaac-room-pool.json（' + count + ' 个模板）');
+}
+
+document.getElementById('download-copy').addEventListener('click', async () => {
+  const ta = document.getElementById('download-textarea');
+  try {
+    await navigator.clipboard.writeText(ta.value);
+    showStatus('✓ 已复制到剪贴板，请粘贴到 isaac-room-pool.json');
+  } catch(e) {
+    ta.select();
+    document.execCommand('copy');
+    showStatus('✓ 已复制（备用方式）');
+  }
+  document.getElementById('download-modal').classList.remove('show');
+});
+
+document.getElementById('download-close').addEventListener('click', () => {
+  document.getElementById('download-modal').classList.remove('show');
+});
+
+document.getElementById('download-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'download-modal') {
+    document.getElementById('download-modal').classList.remove('show');
+  }
 });
 
 // ================================================================

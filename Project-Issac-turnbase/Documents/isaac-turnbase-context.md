@@ -1,6 +1,6 @@
 # 以撒·半回合制战斗 — 项目总览
 
-> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html` | 单文件 ~2400 行 | 配套: `isaac-map-viewer.html` 房间编辑器 + `isaac-room-pool.json` 关卡池 | 状态: 即时操作回合制 + 怪物AI + 碰撞击退 + ESC全重置 + 房间模板池
+> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html` | 单文件 ~2400 行 | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/server.js` 本地文件读写服务 | 状态: 即时操作回合制 + 怪物AI + 碰撞击退 + ESC全重置 + 房间模板池
 
 ---
 
@@ -347,17 +347,39 @@ function project(wx, wy) {
 
 ## 7. 项目文件清单
 
+### 根目录
+
 | 文件 | 类型 | 说明 |
 |------|------|------|
 | `isaac-turnbased-demo.html` | HTML/JS | 游戏原型主文件（~2400行，浏览器直接运行） |
-| `issac-idle.png` | 图片 | 角色精灵图集（头+身体走路帧，32×32 每帧） |
-| `issac-background.png` | 图片 | 备用地面背景图 |
+| `isaac-map-viewer.html` | HTML/JS | 房间模板编辑器（通过 server.js 读写 pool.json） |
 | `sprite-debug.html` | HTML/JS | 精灵表调试工具（网格叠加查看帧坐标） |
 | `walk-preview.html` | HTML/JS | 走路动画预览工具（循环播放各方向帧） |
+
+### Assets/ (美术素材)
+
+| 文件 | 类型 | 说明 |
+|------|------|------|
+| `issac-idle.png` | 图片 | 角色精灵图集（头+身体走路帧，32×32 每帧） |
+| `issac-background.png` | 图片 | 备用地面背景图 |
+| `UI-reference1.png` | 图片 | UI 参考图 |
+
+### Configs/ (配置与服务)
+
+| 文件 | 类型 | 说明 |
+|------|------|------|
+| `pool.json` | JSON | 关卡池数据文件（原 `isaac-room-pool.json`） |
+| `server.js` | Node.js | 本地文件读写服务器（端口 8080） |
+| `isaac-room-pool - original backup.json` | JSON | 原始关卡池备份 |
+
+### Documents/ (文档)
+
+| 文件 | 类型 | 说明 |
+|------|------|------|
 | `isaac-turnbase-context.md` | 文档 | 本文档：策划+技术架构速查 |
+| `isaac-roommonster-plan.md` | 文档 | 多房间地图+怪物配置+掉落系统设计方案 |
 | `isaac-asset-desc.md` | 文档 | 资源替换步骤指南 |
 | `godot-setup-checklist.md` | 文档 | Godot 引擎安装与上手清单 |
-| `isaac-roommonster-plan.md` | 文档 | 多房间地图+怪物配置+掉落系统设计方案 |
 
 ---
 
@@ -365,6 +387,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-16 | **项目文件分类整理 + 编辑器保存机制重构**。项目文件按类型重组到子目录：`Assets/`（图片素材）、`Configs/`（pool.json 关卡池 + server.js 文件读写服务 + 原始备份）、`Documents/`（全部 md 文档）。清理冗余文件：删除失败的 server.py、cgi-bin/、err.log、out.log。`isaac-map-viewer.html` 编辑器保存机制改用 `<form>` POST + 隐藏 `<iframe>` 绕过 IDE 代理拦截，通过 `server.js` (Node.js) 实现可靠的 pool.json 文件读写。新增文件管理规则：不随意删除或重命名用户手动新增文件，操作前需经用户同意。 |
 | 2026-07-15 | **房间框架实现：TILE 系统 + 12 种模板 + 地图编辑器**。定义 5 种 TILE 类型（FLOOR/ROCK/POOP/PIT/SPIKE）及行为属性表，确定门系统（每边正中一个门前格，不占格子）。设计 12 种 13×7 房间模板（含便便/尖刺），全部通过自动化 BFS 连通性验证（4门位在曼哈顿移动下全连通）。创建 `isaac-map-viewer.html` 独立编辑器：模板池管理（查看/编辑/复制/删除）、13×7 画布绘制（5色调色板+撤销）、6 种 Isaac 风格自动生成图案（角岩/十字/石墙/石柱/斜线/中柱）、双模式关卡池持久化（File System Access API 直读直写 + 文件选择器/下载回退）、`isaac-room-pool.json` 数据文件、楼层生成预览。更新 `isaac-roommonster-plan.md` 同步设计方案为已实现状态。 |
 | 2026-07-15 | **核心交互重构：即时操作 + ESC 全重置**。彻底移除预操作队列系统（`actionQueue`/`player_shoot_dir`/`player_execute`），改为即时操作模型：WASD 在 BFS 可移动范围(浅蓝呼吸)内即时移动本体、↑↓←→ 即时射击发射子弹。新增回合快照系统 (`saveTurnSnapshot`/`restoreTurnSnapshot`) 支撑 Esc 全重置（角色/怪物/环境全部回到回合开始时）。射击后触发 checkpoint (`hasShot`/`checkpointPos`) 并刷新可移动范围。回合起始位置保留半透明幽灵作视觉参考。同步调整初始属性 (移速3→M-AP=3, 射速3→A-AP=3, 均系数1下限1)。更新上下文文档全部相关章节。 |
 | 2026-07-14 | **多房间地图设计方案**：创建 `isaac-roommonster-plan.md`，包含楼层生成算法（随机图生成 + BFS 全连通检查，采用以撒模式无走廊）、房间类型分配（start/normal/treasure/shop/boss）、模板法内部布局、怪物配置表（MONSTER_DB 内联 JS 对象）、掉落系统（权重随机 + DROP_TABLES）、AI 行为类型枚举、道具被动能力提升。方案基于现有 13×7 单房间框架扩充为 Roguelike 多房间系统。 |
