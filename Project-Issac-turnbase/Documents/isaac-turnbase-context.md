@@ -1,6 +1,6 @@
 # 以撒·半回合制战斗 — 项目总览
 
-> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html` | 单文件 ~3000+ 行 | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/monster-db.json` 怪物配置表 + `Configs/server.js` 本地文件读写服务 | 状态: 即时操作回合制 + MONSTER_DB 4种怪物 + AI行为路由 + 统一无敌 + TILE系统 + 探索/战斗双模式 + 多房间楼层切换 + Boss梯子下层 + 场景滑动过渡
+> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html` | 单文件 ~3100+ 行 | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/monster-db.json` 怪物配置表 + `Configs/server.js` 本地文件读写服务 | 状态: 即时操作回合制 + MONSTER_DB 4种怪物 + AI行为路由 + 统一无敌 + TILE系统 + 探索/战斗双模式 + 多房间楼层切换 + Boss梯子下层 + 场景滑动过渡 + 混合刷怪系统（标签匹配+组合规则+点数预算）
 
 ---
 
@@ -42,12 +42,17 @@
 
 **怪物配置数据库** `MONSTER_DB`（4种怪物），数据来源 `Configs/monster-db.json` 外部 JSON 配置文件：
 
-| cfgId | 名称 | HP | 伤害 | 移速周期 | AI类型 | 颜色叠加(tint) | 房间类型 |
-|-------|------|-----|------|----------|--------|---------------|----------|
-| `crack_maw` | 裂口尸 | 10 | 1 | [2,1] | chase | 无 | normal |
-| `flying_eye` | 浮游眼 | 6 | 1 | [1,1] | ranged_kite | 蓝紫半透 | normal |
-| `rock_golem` | 岩石魔像 | 20 | 2 | [1,1] | chase | 棕半透 | normal/treasure |
-| `boss_maw_king` | 裂口之王 | 45 | 2 | [3,2] | boss_chase | 红橙半透 | boss |
+| cfgId | 名称 | HP | 伤害 | 移速周期 | AI类型 | 颜色叠加(tint) | 移动标签 | 角色 | 威胁值 |
+|-------|------|-----|------|----------|--------|---------------|:--:|:--:|:--:|
+| `crack_maw` | 裂口尸 | 10 | 1 | [2,1] | chase | 无 | 地面 | melee | 3 |
+| `flying_eye` | 浮游眼 | 6 | 1 | [1,1] | ranged_kite | 蓝紫半透 | 飞行 | ranged | 2 |
+| `rock_golem` | 岩石魔像 | 20 | 2 | [1,1] | chase | 棕半透 | 地面 | tank | 5 |
+| `boss_maw_king` | 裂口之王 | 45 | 2 | [3,2] | boss_chase | 红橙半透 | 地面,飞行 | boss | 15 |
+
+**新增字段说明**：
+- `movementTags`：怪物移动特征标签，用于与房间 `allowedMovement` 做标签匹配。`地面` 表示只能在地面行走（无法穿越深坑），`飞行` 表示可无视地形障碍
+- `role`：战斗角色定位（melee/ranged/tank/boss），用于组合规则保证类型多样性
+- `threat`：威胁值，用于点数预算消耗，控制每房间怪物总体难度
 
 **AI 行为类型枚举** `AI_TYPE`（6种）：
 
@@ -60,7 +65,13 @@
 | `patrol` | 5格内感知追击，否则原地 |
 | `stationary` | 不移动 |
 
-**生成方式**：C键或右上角“生怪”按钮 → 95%概率从普通怪物池随机（裂口尸/浮游眼/岩石魔像），5%概率含Boss。`spawnMonster(cfgId?)` 支持指定类型或随机。
+**生成方式**：
+- **自动刷怪**：`spawnRoomMonsters()` — 进入房间/楼层切换时自动调用，三层递进：
+  1. **标签过滤**：怪物 `movementTags` 与房间 `allowedMovement` 取交集，仅匹配的怪物可生成
+  2. **组合规则**：优先保底 1 只近战（如有），后续按角色多样性加权（未出现的 role ×3 权重）
+  3. **点数预算**：总预算 = 房间 `budget` + (楼层-1) × 2，按怪物 `threat` 消耗填充
+  - Boss 房固定生成 `boss_maw_king`，起点房不生成怪物
+- **调试生怪**：C键或"生怪"按钮 → `spawnMonster()` 生成 1 只地面标签随机怪
 
 **移动与碰撞**：
 - 所有怪物同时逐步移动 (0.15s/步)，平滑动画插值 170px/s
@@ -403,7 +414,9 @@ function project(wx, wy) {
 | `drawWalls/Floor/GridHighlight/Bullets/Particles` | 各渲染子系统 |
 | `spawnBullet(dir,fromPx,fromPy)` / `updateBullets(dt)` / `shatterBullet(b)` | 子弹生命周期 |
 | `updateParticles(dt)` | 粒子物理+淡出 |
-| `spawnMonster(cfgId?)` | 随机(或指定cfgId)生成怪物，支持全部4种类型 |
+| `spawnMonster(cfgId?)` | 调试生怪：生成 1 只地面标签随机怪（C键/按钮） |
+| `spawnMonsterAtRandomPos(cfgId)` | 在随机可行走位置生成指定怪物，返回是否成功 |
+| `spawnRoomMonsters()` | 混合刷怪主函数：标签过滤+组合规则+点数预算，进入房间/楼层时自动调用 |
 | `calcAllMonsterPaths()` / `startMonsterTurn()` / `updateMonsterTurn(dt)` | 怪物回合系统：AI路由分发+每怪独立移速/移动路径计算 |
 | `updateActionBar()` | 更新底部状态栏（自由/锁定 + AP 剩余） |
 | `updateUI()` / `updateFloorUI()` | 更新所有 DOM UI 面板（含楼层信息栏） |
@@ -415,12 +428,12 @@ function project(wx, wy) {
 启动:
   loadTemplates() → poolTemplates
   loadOrGenerateFloors() → allFloors (从 floor-data.json / 兜底 generateAllFloors)
-  enterFloor(1) → 设置 currentFloor/currentRoomId/currentRoomGrid
+  enterFloor(1) → 设置 currentFloor/currentRoomId/currentRoomGrid → spawnRoomMonsters()
 
 探索模式 (inCombat=false):
   WASD → isWall检查 → 自由移动(col/row/px/py)
        → invincibleSteps递减 → 尖刺检测(damagePlayer) → 梯子(enterFloor)
-       → tryWalkIntoDoor → 门前格+方向 → 房间切换(滑动过渡) → updateRoomCombatState
+       → tryWalkIntoDoor → 门前格+方向 → 房间切换(滑动过渡) → finishTransition → spawnRoomMonsters()
 
 战斗模式 (inCombat=true):
   resetTurnAP() → 计算可移动范围 → 保存快照
@@ -461,8 +474,9 @@ function project(wx, wy) {
 
 | 文件 | 类型 | 说明 |
 |------|------|------|
-| `pool.json` | JSON | 关卡池数据文件（模板定义，编辑器读写） |
+| `pool.json` | JSON | 关卡池数据文件（模板定义 + spawnConfig 刷怪配置，编辑器读写） |
 | `floor-data.json` | JSON | 楼层生成数据（房间结构+grid，编辑器/游戏加载） |
+| `monster-db.json` | JSON | 怪物配置数据（4种怪物 + movementTags/role/threat 混合刷怪字段） |
 | `server.js` | Node.js | 本地文件读写服务器（端口 8080） |
 | `isaac-room-pool - original backup.json` | JSON | 原始关卡池备份 |
 
@@ -472,6 +486,7 @@ function project(wx, wy) {
 |------|------|------|
 | `isaac-turnbase-context.md` | 文档 | 本文档：策划+技术架构速查 |
 | `isaac-roommonster-plan.md` | 文档 | 多房间地图+怪物配置+掉落系统设计方案 |
+| `monster-random-plan.md` | 文档 | 混合刷怪系统方案（标签匹配+组合规则+点数预算实现文档） |
 | `isaac-asset-desc.md` | 文档 | 资源替换步骤指南 |
 | `godot-setup-checklist.md` | 文档 | Godot 引擎安装与上手清单 |
 
@@ -481,6 +496,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-16 | **混合刷怪系统（标签匹配+组合规则+点数预算）**。①怪物配置新增 3 字段：`movementTags`（移动特征标签：地面/飞行）、`role`（战斗角色：melee/ranged/tank/boss）、`threat`（威胁值点数）。②`pool.json` 每个房间模板新增 `spawnConfig`（`allowedMovement`/`minMonsters`/`maxMonsters`/`budget`），手动配置房间地形与怪物标签的匹配关系。③实现三层递进刷怪算法：标签过滤（怪物 movementTags ∩ 房间 allowedMovement）→ 组合规则（至少1近战保底 + 角色多样性加权×3）→ 点数预算（基础budget + (楼层-1)×2 递进）。④`enterFloor()` 和 `finishTransition()` 接入 `spawnRoomMonsters()` 自动刷怪；Boss房固定生成、起点房无怪。⑤生成 `Documents/monster-random-plan.md` 方案文档。⑥同步更新上下文文档相关章节。 |
 | 2026-07-16 | **怪物配置表外置 + 参数文档化**。①创建 `Configs/monster-db.json` 外部 JSON 配置文件，将怪物配置从内联 JS 对象迁移为独立数据文件，便于编辑和维护。②文档化所有怪物参数字段含义：`id`（标识符）、`name`（显示名）、`hp`（生命值）、`damage`（碰撞伤害）、`moveCycle`（移动周期数组）、`aiType`（AI类型：chase/ranged_kite/boss_chase）、`aiRange`（远程AI距离）、`tint`（颜色叠加）、`dropTable`/`dropRate`（掉落表与概率，待后续系统确认）、`roomTypes`（出现房间类型）。③同步更新上下文文档相关章节。 |
 | 2026-07-16 | **怪物配置表接入+无敌统一+尖刺伤害修正**。①`MONSTER_CFG` 替换为 `MONSTER_DB` 怪物配置数据库：4种怪物（裂口尸/浮游眼/岩石魔像/Boss裂口之王），每怪独立 `moveCycle`/`damage`/`aiType`/`tint`。②`AI_TYPE` 枚举 6 种 AI 行为类型（chase/ranged_kite/patrol/charge/stationary/boss_chase），`calcAllMonsterPaths()` 新增 AI 路由分发。③C键/生怪按钮改为随机生成怪物（95%普通池+5%含Boss），`spawnMonster(cfgId?)` 支持指定类型。④怪物渲染增加 tint 色彩叠加区分类型 + 头顶名称标签（Boss红字）。⑤无敌系统统一：移除 `invincibleTurns`，战斗/探索均使用 `invincibleSteps = 移速×2` 步数制；战斗模式结束回合时未消耗 M-AP 计入无敌步数消耗（只读，不影响 AP 系统）。⑥尖刺伤害修正：玩家 2 点、怪物 5 点（新增怪物尖刺判定）。⑦怪物碰撞伤害按类型区分（裂口尸/浮游眼=1，魔像/Boss=2）。 |
 | 2026-07-16 | **探索模式无敌+房门重绘+透视取消+编辑器验证+楼层grid固化+清理**。①探索模式受伤触发步数制无敌：`invincibleSteps=移速×2`（移速=3→6步），每移动一格递减，受伤格为第1步，到0消失；战斗模式保持回合制无敌3回合。②`drawDoors()` 重绘：移除绿色提示块，使用 `cellRect()` 透视坐标渲染房门（打开=深色通道+门框/关闭=铁栏纹理+横竖铁条），区分上下/左右方向。③取消房间透视变形：`VP_SCALE_TOP` 改为 1.00，`project()` 变为恒等映射，地板网格/瓷砖/门全部恢复标准矩形。④R键直接用 `resetGameToFloor1()` 重置，不再经过 `loadOrGenerateFloors()`。⑤编辑器 `closeEditor(true)` 保存前强制 `validateTiles()` 验证，门阻塞或不连通时拒绝保存。⑥楼层 grid 固化：加载 `floor-data.json` 时保留已存 grid（仅缺失时模板兜底），修改 `pool.json` 不再影响已生成楼层。⑦删除无用的根目录 `pool.json`（已迁移至 `Configs/`）。同步更新设计文档。 |

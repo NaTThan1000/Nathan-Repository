@@ -15,7 +15,13 @@
       ".............",
       ".............",
       "............."
-    ]
+    ],
+    "spawnConfig": {
+      "allowedMovement": ["地面", "飞行"],
+      "minMonsters": 1,
+      "maxMonsters": 3,
+      "budget": 8
+    }
   },
   "cross_rocks": {
     "name": "十字岩石",
@@ -31,7 +37,13 @@
       "......#......",
       "......#......",
       "............."
-    ]
+    ],
+    "spawnConfig": {
+      "allowedMovement": ["地面", "飞行"],
+      "minMonsters": 1,
+      "maxMonsters": 3,
+      "budget": 7
+    }
   },
   "four_corners": {
     "name": "四角岩石",
@@ -47,7 +59,13 @@
       ".............",
       ".##.......##.",
       "P##.......##P"
-    ]
+    ],
+    "spawnConfig": {
+      "allowedMovement": ["地面", "飞行"],
+      "minMonsters": 2,
+      "maxMonsters": 4,
+      "budget": 9
+    }
   },
   "pillars": {
     "name": "四柱大厅",
@@ -63,7 +81,13 @@
       ".............",
       "...#P...P#...",
       "............."
-    ]
+    ],
+    "spawnConfig": {
+      "allowedMovement": ["地面", "飞行"],
+      "minMonsters": 1,
+      "maxMonsters": 3,
+      "budget": 8
+    }
   },
   "corridor": {
     "name": "横向窄道",
@@ -78,7 +102,13 @@
       ".............",
       "..###...###..",
       "..###...###.."
-    ]
+    ],
+    "spawnConfig": {
+      "allowedMovement": ["地面", "飞行"],
+      "minMonsters": 1,
+      "maxMonsters": 2,
+      "budget": 5
+    }
   },
   "corridor_v": {
     "name": "纵向窄道",
@@ -93,7 +123,13 @@
       "...#.....#...",
       "...##...##...",
       "O..##...##..O"
-    ]
+    ],
+    "spawnConfig": {
+      "allowedMovement": ["地面", "飞行"],
+      "minMonsters": 1,
+      "maxMonsters": 2,
+      "budget": 5
+    }
   },
   "scattered": {
     "name": "散落岩石",
@@ -108,7 +144,13 @@
       ".........#...",
       "......#......",
       "...#........."
-    ]
+    ],
+    "spawnConfig": {
+      "allowedMovement": ["地面", "飞行"],
+      "minMonsters": 1,
+      "maxMonsters": 3,
+      "budget": 6
+    }
   },
   "ring": {
     "name": "环形壁垒",
@@ -124,7 +166,13 @@
       "..#........#.",
       "..#.......#..",
       "...##...##..."
-    ]
+    ],
+    "spawnConfig": {
+      "allowedMovement": ["地面", "飞行"],
+      "minMonsters": 1,
+      "maxMonsters": 3,
+      "budget": 8
+    }
   },
   "room_split": {
     "name": "裂半之室",
@@ -139,7 +187,13 @@
       "....^...#....",
       ".....#^#.....",
       "............."
-    ]
+    ],
+    "spawnConfig": {
+      "allowedMovement": ["地面", "飞行"],
+      "minMonsters": 2,
+      "maxMonsters": 4,
+      "budget": 9
+    }
   },
   "alcoves": {
     "name": "壁龛石室",
@@ -155,7 +209,13 @@
       ".#.........#.",
       ".............",
       "..##P...P##.."
-    ]
+    ],
+    "spawnConfig": {
+      "allowedMovement": ["地面", "飞行"],
+      "minMonsters": 1,
+      "maxMonsters": 3,
+      "budget": 8
+    }
   },
   "diagonal": {
     "name": "斜岩通道",
@@ -170,7 +230,13 @@
       "....##.......",
       ".....##......",
       "............."
-    ]
+    ],
+    "spawnConfig": {
+      "allowedMovement": ["地面", "飞行"],
+      "minMonsters": 1,
+      "maxMonsters": 3,
+      "budget": 7
+    }
   },
   "boss_arena": {
     "name": "Boss竞技场",
@@ -185,7 +251,13 @@
       ".............",
       "...#.....#...",
       "............."
-    ]
+    ],
+    "spawnConfig": {
+      "allowedMovement": ["地面", "飞行"],
+      "minMonsters": 1,
+      "maxMonsters": 1,
+      "budget": 0
+    }
   },
   "custom_1": {
     "name": "自生成 1 (角岩)",
@@ -200,6 +272,12 @@
       ".....#.#.....",
       ".............",
       ".#.........#."
-    ]
+    ],
+    "spawnConfig": {
+      "allowedMovement": ["地面", "飞行"],
+      "minMonsters": 1,
+      "maxMonsters": 3,
+      "budget": 7
+    }
   }
 }

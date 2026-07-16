@@ -10,7 +10,10 @@
     "tint": null,
     "dropTable": "common",
     "dropRate": 0.4,
-    "roomTypes": ["normal"]
+    "roomTypes": ["normal"],
+    "movementTags": ["地面"],
+    "role": "melee",
+    "threat": 3
   },
   "flying_eye": {
     "id": "flying_eye",
@@ -23,7 +26,10 @@
     "tint": "rgba(180,180,255,0.35)",
     "dropTable": "ranged",
     "dropRate": 0.5,
-    "roomTypes": ["normal"]
+    "roomTypes": ["normal"],
+    "movementTags": ["飞行"],
+    "role": "ranged",
+    "threat": 2
   },
   "rock_golem": {
     "id": "rock_golem",
@@ -36,7 +42,10 @@
     "tint": "rgba(180,160,140,0.45)",
     "dropTable": "heavy",
     "dropRate": 0.7,
-    "roomTypes": ["normal", "treasure"]
+    "roomTypes": ["normal", "treasure"],
+    "movementTags": ["地面"],
+    "role": "tank",
+    "threat": 5
   },
   "boss_maw_king": {
     "id": "boss_maw_king",
@@ -49,6 +58,9 @@
     "tint": "rgba(255,100,50,0.45)",
     "dropTable": "boss",
     "dropRate": 1.0,
-    "roomTypes": ["boss"]
+    "roomTypes": ["boss"],
+    "movementTags": ["地面", "飞行"],
+    "role": "boss",
+    "threat": 15
   }
 }
