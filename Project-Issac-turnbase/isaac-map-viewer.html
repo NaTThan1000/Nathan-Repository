@@ -1413,7 +1413,6 @@ function saveFloorToFile(){
   try{
     const data={};for(let f=1;f<=6;f++){const fl=allFloors[f];data[f]={floorNum:fl.floorNum,name:fl.name,rooms:fl.rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds};}
     const json=JSON.stringify(data);
-    try{const bc=new BroadcastChannel('isaac-floors');bc.postMessage(json);bc.close();}catch(e){}
     showStatus('✅ 楼层已重新生成（点击「生成json」导出供复制）');
   }catch(e){showStatus('❌ '+e.message, true);console.error(e);}
 }

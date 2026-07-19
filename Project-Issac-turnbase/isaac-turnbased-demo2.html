@@ -784,7 +784,6 @@ function updateDoorsLocked(){
 
 // 模板加载
 async function loadTemplates(){
-  try{const r=await fetch('http://localhost:8080/pool.json?'+Date.now());if(r.ok){poolTemplates=await r.json();console.log('📂 加载关卡池: '+Object.keys(poolTemplates).length+' 模板');return;}}catch(e){}
   try{const r=await fetch('Configs/pool.json?'+Date.now());if(r.ok){poolTemplates=await r.json();return;}}catch(e){}
   console.log('⚠ 无法加载 pool.json, 使用内置模板');
 }
@@ -871,42 +870,25 @@ function resetGameToFloor1(){
   updateItemBar();
 }
 let _lastFloorHash='';
-// BroadcastChannel：接收地图编辑器的即时楼层更新
-const _floorChannel2=new BroadcastChannel('isaac-floors');
-_floorChannel2.onmessage=(ev)=>{
-  if(typeof ev.data!=='string')return;
-  const json=ev.data;
-  if(_lastFloorHash===json&&Object.keys(allFloors).length>0)return;
-  _lastFloorHash=json;
-  const data=JSON.parse(json);
-  for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(r.tplKey?getTpl(r.tplKey).tiles:BUILTIN_TEMPLATES()['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;});}
-  console.log('🔄 地图编辑器楼层已更新，立即同步');
-  resetGameToFloor1();
-};
 async function loadOrGenerateFloors(forceReload){
-  // 优先从服务器加载 floor-data.json
-  for(let attempt=0;attempt<5;attempt++){
-    try{
-      const resp=await fetch('http://localhost:8080/floor-data.json?'+Date.now());
-      if(resp.ok){
-        const text=await resp.text();
-        if(_lastFloorHash===text&&Object.keys(allFloors).length>0)return false;
-        _lastFloorHash=text;
-        const data=JSON.parse(text);
-        for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(r.tplKey?getTpl(r.tplKey).tiles:BUILTIN_TEMPLATES()['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;});}
-        if(forceReload){console.log('🔄 检测到楼层更新，已重新加载');resetGameToFloor1();}
-        return true;
-      }
-    }catch(e){}
-    if(attempt<4)await new Promise(r=>setTimeout(r,800));
-  }
-  // 服务器不可用时，本地随机生成兜底（不写入 floor-data.json）
-  if(Object.keys(allFloors).length===0){
-    console.warn('⚠ 无法连接服务器，使用本地随机生成（未写入文件）');
-    generateAllFloors();return true;
-  }
-  return false;
+  try{
+    const resp=await fetch('Configs/floor-data.json?'+Date.now());
+    if(resp.ok){
+      const text=await resp.text();
+      // 若已有数据且内容未变且非强制，跳过重新加载
+      if(_lastFloorHash===text&&Object.keys(allFloors).length>0)return false;
+      _lastFloorHash=text;
+      const data=JSON.parse(text);
+      for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(r.tplKey?getTpl(r.tplKey).tiles:BUILTIN_TEMPLATES()['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;});}
+      if(forceReload){console.log('🔄 检测到楼层更新，已重新加载');resetGameToFloor1();}
+      return true;
+    }
+  }catch(e){}
+  // 兜底生成
+  generateAllFloors();return false;
 }
+// 每隔3秒检测楼层文件变化
+setInterval(()=>{if(document.visibilityState==='visible')loadOrGenerateFloors(true);},3000);
 setInterval(()=>{if(document.visibilityState==='visible')loadOrGenerateFloors(true);},3000);
 
 function enterFloor(floorNum){

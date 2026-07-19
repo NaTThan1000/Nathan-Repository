@@ -681,7 +681,6 @@ function updateDoorsLocked(){
 
 // 模板加载
 async function loadTemplates(){
-  try{const r=await fetch('http://localhost:8080/pool.json?'+Date.now());if(r.ok){poolTemplates=await r.json();console.log('📂 加载关卡池: '+Object.keys(poolTemplates).length+' 模板');return;}}catch(e){}
   try{const r=await fetch('Configs/pool.json?'+Date.now());if(r.ok){poolTemplates=await r.json();return;}}catch(e){}
   console.log('⚠ 无法加载 pool.json, 使用内置模板');
 }
@@ -764,7 +763,7 @@ function resetGameToFloor1(){
 let _lastFloorHash='';
 async function loadOrGenerateFloors(forceReload){
   try{
-    const resp=await fetch('http://localhost:8080/floor-data.json?'+Date.now());
+    const resp=await fetch('Configs/floor-data.json?'+Date.now());
     if(resp.ok){
       const text=await resp.text();
       // 若已有数据且内容未变且非强制，跳过重新加载
