@@ -17,7 +17,10 @@
       "............."
     ],
     "spawnConfig": {
-      "allowedMovement": ["地面", "飞行"],
+      "allowedMovement": [
+        "地面",
+        "飞行"
+      ],
       "minMonsters": 1,
       "maxMonsters": 3,
       "budget": 8
@@ -39,7 +42,10 @@
       "............."
     ],
     "spawnConfig": {
-      "allowedMovement": ["地面", "飞行"],
+      "allowedMovement": [
+        "地面",
+        "飞行"
+      ],
       "minMonsters": 1,
       "maxMonsters": 3,
       "budget": 7
@@ -61,7 +67,10 @@
       "P##.......##P"
     ],
     "spawnConfig": {
-      "allowedMovement": ["地面", "飞行"],
+      "allowedMovement": [
+        "地面",
+        "飞行"
+      ],
       "minMonsters": 2,
       "maxMonsters": 4,
       "budget": 9
@@ -83,7 +92,10 @@
       "............."
     ],
     "spawnConfig": {
-      "allowedMovement": ["地面", "飞行"],
+      "allowedMovement": [
+        "地面",
+        "飞行"
+      ],
       "minMonsters": 1,
       "maxMonsters": 3,
       "budget": 8
@@ -104,7 +116,10 @@
       "..###...###.."
     ],
     "spawnConfig": {
-      "allowedMovement": ["地面", "飞行"],
+      "allowedMovement": [
+        "地面",
+        "飞行"
+      ],
       "minMonsters": 1,
       "maxMonsters": 2,
       "budget": 5
@@ -125,7 +140,10 @@
       "O..##...##..O"
     ],
     "spawnConfig": {
-      "allowedMovement": ["地面", "飞行"],
+      "allowedMovement": [
+        "地面",
+        "飞行"
+      ],
       "minMonsters": 1,
       "maxMonsters": 2,
       "budget": 5
@@ -146,7 +164,10 @@
       "...#........."
     ],
     "spawnConfig": {
-      "allowedMovement": ["地面", "飞行"],
+      "allowedMovement": [
+        "地面",
+        "飞行"
+      ],
       "minMonsters": 1,
       "maxMonsters": 3,
       "budget": 6
@@ -168,7 +189,10 @@
       "...##...##..."
     ],
     "spawnConfig": {
-      "allowedMovement": ["地面", "飞行"],
+      "allowedMovement": [
+        "地面",
+        "飞行"
+      ],
       "minMonsters": 1,
       "maxMonsters": 3,
       "budget": 8
@@ -189,7 +213,10 @@
       "............."
     ],
     "spawnConfig": {
-      "allowedMovement": ["地面", "飞行"],
+      "allowedMovement": [
+        "地面",
+        "飞行"
+      ],
       "minMonsters": 2,
       "maxMonsters": 4,
       "budget": 9
@@ -211,7 +238,10 @@
       "..##P...P##.."
     ],
     "spawnConfig": {
-      "allowedMovement": ["地面", "飞行"],
+      "allowedMovement": [
+        "地面",
+        "飞行"
+      ],
       "minMonsters": 1,
       "maxMonsters": 3,
       "budget": 8
@@ -232,7 +262,10 @@
       "............."
     ],
     "spawnConfig": {
-      "allowedMovement": ["地面", "飞行"],
+      "allowedMovement": [
+        "地面",
+        "飞行"
+      ],
       "minMonsters": 1,
       "maxMonsters": 3,
       "budget": 7
@@ -253,7 +286,10 @@
       "............."
     ],
     "spawnConfig": {
-      "allowedMovement": ["地面", "飞行"],
+      "allowedMovement": [
+        "地面",
+        "飞行"
+      ],
       "minMonsters": 1,
       "maxMonsters": 1,
       "budget": 0
@@ -274,10 +310,43 @@
       ".#.........#."
     ],
     "spawnConfig": {
-      "allowedMovement": ["地面", "飞行"],
+      "allowedMovement": [
+        "地面",
+        "飞行"
+      ],
       "minMonsters": 1,
       "maxMonsters": 3,
       "budget": 7
     }
+  },
+  "custom_2": {
+    "name": "自生成 2 (中柱)",
+    "types": [
+      "normal"
+    ],
+    "tiles": [
+      ".............",
+      ".............",
+      ".............",
+      "..P...#......",
+      "...........P.",
+      ".............",
+      "............."
+    ]
+  },
+  "custom_3": {
+    "name": "自生成 3 (角岩+中柱)",
+    "types": [
+      "normal"
+    ],
+    "tiles": [
+      ".##.......##.",
+      ".##..P....##.",
+      ".^P..........",
+      ".....##......",
+      ".............",
+      ".##.......##.",
+      ".##.......##."
+    ]
   }
 }

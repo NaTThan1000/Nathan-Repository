@@ -246,7 +246,7 @@
   <div id="list-toolbar">
     <button class="tool-btn" id="btn-pick-file">📂 选择 pool.json</button>
     <button class="tool-btn gen" id="btn-autogen">+ 自动生成模板</button>
-    <button class="tool-btn" id="btn-sync" title="保存当前关卡池到 pool.json" disabled>💾 同步到文件</button>
+    <button class="tool-btn" id="btn-sync" title="生成 pool.json 内容供复制">📄 生成json</button>
     <span class="tool-status" id="tool-status"></span>
   </div>
   <div id="template-grid"></div>
@@ -321,6 +321,8 @@
   <div class="btn-row" id="floor-btns" style="display:none;">
     <button class="action-btn" id="btn-regen">重新生成</button>
     <button class="action-btn" id="btn-regen-all">全部重生成</button>
+    <button class="tool-btn" id="btn-pick-floor" title="选择 floor-data.json 文件">📂 选择 floor-data.json</button>
+    <button class="tool-btn" id="btn-floor-json" title="生成 floor-data.json 内容供复制">📄 生成json</button>
   </div>
 </div>
 
@@ -497,8 +499,7 @@ fileInput.addEventListener('change', async () => {
     localStorage.setItem(CACHE_KEY, text);  // 记忆本次选择的文件内容
     useFallback = true;
     refreshTemplates();
-    btnSync.disabled = false;
-    btnSync.textContent = '⬇ 下载关卡池';
+    btnSync.textContent = '📄 生成json';
     showStatus('✓ 已加载 ' + Object.keys(poolFromJson).length + ' 个模板');
   } catch(e) {
     showStatus('✗ 解析失败: ' + e.message, true);
@@ -519,8 +520,7 @@ btnPick.addEventListener('click', async () => {
       localStorage.setItem(CACHE_KEY, JSON.stringify(poolFromJson));  // 记忆文件内容
       await storeHandle(handle);
       refreshTemplates();
-      btnSync.disabled = false;
-      btnSync.textContent = '💾 同步到文件';
+      btnSync.textContent = '📄 生成json';
       showStatus('✓ 已加载 ' + Object.keys(poolFromJson).length + ' 个模板');
     } catch(e) {
       // 跨域 iframe 不允许 showOpenFilePicker
@@ -541,25 +541,16 @@ btnSync.addEventListener('click', () => {
   const count = Object.keys(pool).length;
   const json = JSON.stringify(pool, null, 2);
 
-  // 用隐藏 form POST 绕过跨域限制
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = 'http://localhost:8080/save-pool';
-  form.target = 'save-frame';
-  form.style.display = 'none';
-  const input = document.createElement('input');
-  input.type = 'hidden';
-  input.name = 'json';
-  input.value = json;
-  form.appendChild(input);
-  document.body.appendChild(form);
-  form.submit();
-  document.body.removeChild(form);
-
+  // 更新缓存
   localStorage.removeItem(STORAGE_KEY);
-  localStorage.setItem(CACHE_KEY, json);  // 记忆同步后的文件内容
+  localStorage.setItem(CACHE_KEY, json);
   poolFromJson = JSON.parse(json);
-  showStatus('✅ 已更新 pool.json — ' + count + ' 个模板');
+
+  // 弹出 JSON 供复制
+  document.getElementById('download-textarea').value = json;
+  document.querySelector('#download-modal h3').textContent = '📄 pool.json — ' + count + ' 个模板（请复制后覆盖到 Configs/pool.json）';
+  document.getElementById('download-modal').classList.add('show');
+  showStatus('✅ 已生成 pool.json — ' + count + ' 个模板');
 });
 
 // 首次打开时自动加载 pool.json
@@ -570,28 +561,13 @@ async function autoLoadPool() {
     try {
       poolFromJson = JSON.parse(cached);
       localStorage.removeItem(STORAGE_KEY);
-      btnSync.disabled = false;
-      btnSync.textContent = '💾 同步到文件';
+      btnSync.textContent = '📄 生成json';
       console.log('📂 从缓存加载关卡池: ' + Object.keys(poolFromJson).length + ' 个模板');
       return;
     } catch(e) { localStorage.removeItem(CACHE_KEY); }
   }
 
-  // 2. 尝试从服务器自动加载
-  try {
-    const loadUrl = 'http://localhost:8080/pool.json?' + Date.now();
-    const resp = await fetch(loadUrl);
-    if (resp.ok) {
-      poolFromJson = await resp.json();
-      localStorage.removeItem(STORAGE_KEY);
-      btnSync.disabled = false;
-      btnSync.textContent = '💾 同步到文件';
-      console.log('📂 自动加载关卡池: ' + Object.keys(poolFromJson).length + ' 个模板');
-      return;
-    }
-  } catch(e) { /* 静默 */ }
-
-  // File System Access API fallback
+  // 2. File System Access API fallback
   if (hasFileAPI && !useFallback) {
     try {
       const handle = await getStoredHandle();
@@ -602,15 +578,14 @@ async function autoLoadPool() {
           fileHandle = handle;
           poolFromJson = await readPoolFromHandle(handle);
           localStorage.removeItem(STORAGE_KEY);
-          btnSync.disabled = false;
-          btnSync.textContent = '💾 同步到文件';
+          btnSync.textContent = '📄 生成json';
           return;
         }
       }
     } catch(e) {}
   }
 
-  btnSync.textContent = '💾 同步到文件';
+  btnSync.textContent = '📄 生成json';
   console.log('📂 点击「选择 pool.json」加载关卡池文件');
 }
 
@@ -1433,46 +1408,112 @@ function generateFloor(floorNum){
 }
 
 function generateAllFloors(){for(let f=1;f<=6;f++)allFloors[f]=generateFloor(f);saveFloorToFile();}
-async function loadOrGenerateFloors(){
-  try{
-    const resp=await fetch('http://localhost:8080/floor-data.json?'+Date.now());
-    if(resp.ok){const data=await resp.json();for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(r.tplKey?getTpl(r.tplKey).tiles:BUILTIN_TEMPLATES['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;});}
-    return true;}
-  }catch(e){}
-  generateAllFloors();return false;
-}
+
 function saveFloorToFile(){
   try{
     const data={};for(let f=1;f<=6;f++){const fl=allFloors[f];data[f]={floorNum:fl.floorNum,name:fl.name,rooms:fl.rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds};}
     const json=JSON.stringify(data);
-    const form=document.createElement('form');form.method='POST';form.action='http://localhost:8080/save-floor';form.target='save-frame';form.style.display='none';
-    const input=document.createElement('input');input.type='hidden';input.name='data';input.value=json;
-    form.appendChild(input);document.body.appendChild(form);form.submit();document.body.removeChild(form);
-  }catch(e){console.warn('楼层保存失败',e);}
+    try{const bc=new BroadcastChannel('isaac-floors');bc.postMessage(json);bc.close();}catch(e){}
+    showStatus('✅ 楼层已重新生成（点击「生成json」导出供复制）');
+  }catch(e){showStatus('❌ '+e.message, true);console.error(e);}
 }
-async function tryLoadFloorData(){
-  for(let attempt=0;attempt<5;attempt++){
+
+// floor-data.json 文件持久化
+let floorFileHandle=null;
+const FLOOR_CACHE_KEY='isaac-floor-data-cache-v1';
+const FLOOR_HANDLE_KEY='isaac-floor-handle-v1';
+
+async function readFloorFromHandle(handle){
+  const f=await handle.getFile();
+  const text=await f.text();
+  const data=JSON.parse(text);
+  for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;});}
+  localStorage.setItem(FLOOR_CACHE_KEY,text);
+  console.log('📂 已加载 floor-data.json');
+  return true;
+}
+
+const floorFileInput=document.createElement('input');
+floorFileInput.type='file';floorFileInput.accept='.json';floorFileInput.style.display='none';
+document.body.appendChild(floorFileInput);
+floorFileInput.addEventListener('change',async()=>{
+  const f=floorFileInput.files[0];if(!f)return;
+  try{
+    const text=await f.text();
+    const data=JSON.parse(text);
+    for(let i=1;i<=6;i++){allFloors[i]=data[i];allFloors[i].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;});}
+    localStorage.setItem(FLOOR_CACHE_KEY,text);
+    buildFloorNav();renderFloor(allFloors[currentFloorNum]);
+    showStatus('✅ 已加载 floor-data.json');
+  }catch(e){showStatus('✗ 解析失败: '+e.message, true);}
+  floorFileInput.value='';
+});
+
+let floorUseFallback=false;
+async function pickFloorFile(){
+  if(hasFileAPI&&!floorUseFallback){
     try{
-      console.log('📂 尝试加载 floor-data (第'+(attempt+1)+'次)');
-      const resp=await fetch('http://localhost:8080/floor-data.json?'+Date.now());
-      console.log('  状态:',resp.status);
-      if(resp.ok){
-        const text=await resp.text();
-        const data=JSON.parse(text);
-        if(!data['1']||!data['1'].rooms){console.error('❌ 数据不全');}
-        else{
-          for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;});}
-          console.log('✅ 已加载楼层:',allFloors[1].name,allFloors[1].rooms.length,'房间');
-          return true;
-        }
+      const[h]=await window.showOpenFilePicker({types:[{description:'JSON',accept:{'application/json':['.json']}}],multiple:false});
+      floorFileHandle=h;
+      await readFloorFromHandle(h);
+      await saveStoredFloorHandle(h);
+      buildFloorNav();
+      renderFloor(allFloors[currentFloorNum]);
+      showStatus('✅ 已加载 floor-data.json');
+    }catch(e){
+      if(e.message&&e.message.includes('Cross origin')){
+        floorUseFallback=true;
+        floorFileInput.click();
+      }else if(e.name!=='AbortError'){
+        showStatus('⚠ 加载失败',true);
+        console.error(e);
       }
-    }catch(e){console.warn('⚠ 第'+(attempt+1)+'次加载失败:',e.message);}
-    if(attempt<4)await new Promise(r=>setTimeout(r,800));
+    }
+  }else{
+    floorFileInput.click();
   }
-  console.warn('⚠ 5次重试均失败，生成新楼层');
-  generateAllFloors();
+}
+
+async function saveStoredFloorHandle(handle){
+  try{
+    const db=await openHandleDB();
+    const tx=db.transaction('handles','readwrite');
+    tx.objectStore('handles').put(handle,FLOOR_HANDLE_KEY);
+    await new Promise(r=>{tx.oncomplete=r;});
+    db.close();
+  }catch(e){}
+}
+
+async function getStoredFloorHandle(){
+  try{
+    const db=await openHandleDB();
+    const h=await new Promise((res,rej)=>{const r=db.transaction('handles','readonly').objectStore('handles').get(FLOOR_HANDLE_KEY);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});
+    db.close();
+    if(h&&await h.queryPermission({mode:'readwrite'})==='granted')return h;
+  }catch(e){}
+  return null;
+}
+
+async function tryLoadFloorData(){
+  try{
+    const h=await getStoredFloorHandle();
+    if(h){floorFileHandle=h;await readFloorFromHandle(h);return true;}
+  }catch(e){}
+  const c=localStorage.getItem(FLOOR_CACHE_KEY);
+  if(c){try{const d=JSON.parse(c);for(let f=1;f<=6;f++){allFloors[f]=d[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;});}console.log('📂 从缓存加载楼层');return true;}catch(e){}}
+  console.warn('⚠ 请点击「选择 floor-data.json」加载楼层文件');
   return false;
 }
+
+document.getElementById('btn-pick-floor').addEventListener('click',pickFloorFile);
+document.getElementById('btn-floor-json').addEventListener('click',()=>{
+  const data={};for(let f=1;f<=6;f++){const fl=allFloors[f];if(!fl)continue;data[f]={floorNum:fl.floorNum,name:fl.name,rooms:fl.rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds};}
+  const json=JSON.stringify(data);
+  document.getElementById('download-textarea').value=json;
+  document.querySelector('#download-modal h3').textContent='📄 floor-data.json（请复制后覆盖到 Configs/floor-data.json）';
+  document.getElementById('download-modal').classList.add('show');
+  showStatus('✅ 已生成 floor-data.json');
+});
 
 // 楼层渲染
 const MTILE=14,MPAD=10,MGAP=36;const mapCanvas=document.getElementById('map');const mapCtx=mapCanvas.getContext('2d');
@@ -1487,7 +1528,7 @@ function renderFloor(floor){if(!floor)return;const bounds=getLayoutBounds(floor)
     const tc={start:'#88ccff',normal:'#998866',treasure:'#ffcc44',boss:'#ff4444',shop:'#ff8844'},tn={start:'起点',normal:'普通',treasure:'宝箱',boss:'Boss',shop:'商店'};mapCtx.fillStyle=tc[room.type]||'#998866';mapCtx.font='bold 10px "ZCOOL KuaiLe","Microsoft YaHei",sans-serif';mapCtx.textAlign='center';mapCtx.fillText(`[${tn[room.type]}] ${allTemplates[room.tplKey]?.name||room.tplKey}`,rx+rs.w/2,ry-6);}
   document.getElementById('info-text').innerHTML=`当前: <span class="iv">${floor.name}</span>&nbsp; 房间: <span class="iv">${floor.rooms.length}</span> 个`;}
 
-function buildFloorNav(){const nav=document.getElementById('floor-nav');nav.innerHTML='';for(let f=1;f<=6;f++){const btn=document.createElement('button');btn.className='floor-btn'+(f===currentFloorNum?' active':'');btn.textContent=allFloors[f].name;btn.dataset.floor=f;btn.addEventListener('click',()=>{currentFloorNum=f;document.querySelectorAll('.floor-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderFloor(allFloors[f]);});nav.appendChild(btn);}}
+function buildFloorNav(){const nav=document.getElementById('floor-nav');nav.innerHTML='';for(let f=1;f<=6;f++){if(!allFloors[f])continue;const btn=document.createElement('button');btn.className='floor-btn'+(f===currentFloorNum?' active':'');btn.textContent=allFloors[f].name;btn.dataset.floor=f;btn.addEventListener('click',()=>{currentFloorNum=f;document.querySelectorAll('.floor-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderFloor(allFloors[f]);});nav.appendChild(btn);}}
 
 // ================================================================
 //  标签切换
@@ -1506,8 +1547,19 @@ function switchTab(tab){
 }
 document.getElementById('tab-templates').addEventListener('click',()=>switchTab('templates'));
 document.getElementById('tab-floor').addEventListener('click',()=>switchTab('floor'));
-document.getElementById('btn-regen').addEventListener('click',()=>{allFloors[currentFloorNum]=generateFloor(currentFloorNum);saveFloorToFile();renderFloor(allFloors[currentFloorNum]);});
-document.getElementById('btn-regen-all').addEventListener('click',()=>{generateAllFloors();renderFloor(allFloors[currentFloorNum]);});
+document.getElementById('btn-regen').addEventListener('click',()=>{
+  try{
+    allFloors[currentFloorNum]=generateFloor(currentFloorNum);
+    saveFloorToFile();
+    renderFloor(allFloors[currentFloorNum]);
+  }catch(e){showStatus('❌ '+e.message, true);console.error(e);}
+});
+document.getElementById('btn-regen-all').addEventListener('click',()=>{
+  try{
+    generateAllFloors();
+    renderFloor(allFloors[currentFloorNum]);
+  }catch(e){showStatus('❌ '+e.message, true);console.error(e);}
+});
 
 // ================================================================
 //  启动
