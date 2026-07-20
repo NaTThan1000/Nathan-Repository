@@ -488,7 +488,6 @@ function project(wx, wy) {
 | `isaac-roommonster-plan.md` | 文档 | 多房间地图+怪物配置+掉落系统设计方案 |
 | `monster-random-plan.md` | 文档 | 混合刷怪系统方案（标签匹配+组合规则+点数预算实现文档） |
 | `isaac-asset-desc.md` | 文档 | 资源替换步骤指南 |
-| `godot-setup-checklist.md` | 文档 | Godot 引擎安装与上手清单 |
 
 ---
 
@@ -496,6 +495,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-20 | **godot-setup-checklist.md 移至根目录 Documents/**。文件从项目专属文档升级为跨项目通用参考文档，从 context.md 文件清单中移除引用。 |
 | 2026-07-20 | **三层记忆体系建立**。①新增 `Documents/isaac-memory.md`：从 context.md 全部历史记录 + chat-log + 当前会话三个数据源提取所有重要决策，按功能领域系统化整理（AP演变/无敌X→Y/怪物三次重构/尖刺调整/编辑器去服务器/道具系统等）。②新增根目录 `Documents/global-rules.md`：从 6 条 CodeBuddy Memories 迁移跨项目通用规范，补充时间戳和详细说明。③文件清单新增 isaac-memory.md 引用。④删除 `chat-log-2026-07-20.md`（内容已迁移到 memory.md）。⑤CodeBuddy Memories 新增"多端开发记忆同步"规则。 |
 | 2026-07-20 | **道具系统 + 小地图 + 访问记录 + AP动态 + 编辑器文件直读 + demo2 + 服务器彻底移除**。①创建 `isaac-turnbased-demo2.html`（v3道具版），新增 25 种被动道具（15普通/7稀有/3传说），宝箱房必定掉落稀有道具、Boss房清怪后掉落。②道具属性叠加系统：攻击/射速/移速/射程/HP上限，其中射速→A-AP、移速→M-AP（Math.floor 向下取整），拾取道具后动态调整 AP。③特殊道具效果：穿透子弹（丘比特之箭/死神的镰刀）、伤害倍率（蟋蟀头 ×1.5）。④道具栏 UI（底部图标+悬浮提示）+ 拾取交互（F键）+ 品质区分（金/蓝/棕边框）。⑤右下角小地图（100×80px）：根据 floor.layout 绘制已探索房间（起点S/BossB/宝箱T），当前房间金色边框，未探索深色方块。⑥已进入房间不再刷怪：visitedRooms(Set) 追踪，finishTransition 检测重复进入。⑦编辑器彻底移除 server.js 依赖：模板池/楼层数据改用 File System Access API 直读直写（showOpenFilePicker + IndexedDB 记住句柄），"生成json"按钮弹出文本框供手动复制覆盖。⑧demo.html/demo2.html/map-viewer.html 三文件统一清理所有服务器相关代码（localhost:8080/BroadcastChannel），`loadTemplates` 和 `loadOrGenerateFloors` 改为直接 fetch `Configs/pool.json` 和 `Configs/floor-data.json`。⑨删除 `Configs/server.js`、`test-save.html`、`server.py`、`server.ps1`。 |
 | 2026-07-16 | **混合刷怪系统（标签匹配+组合规则+点数预算）**。①怪物配置新增 3 字段：`movementTags`（移动特征标签：地面/飞行）、`role`（战斗角色：melee/ranged/tank/boss）、`threat`（威胁值点数）。②`pool.json` 每个房间模板新增 `spawnConfig`（`allowedMovement`/`minMonsters`/`maxMonsters`/`budget`），手动配置房间地形与怪物标签的匹配关系。③实现三层递进刷怪算法：标签过滤（怪物 movementTags ∩ 房间 allowedMovement）→ 组合规则（至少1近战保底 + 角色多样性加权×3）→ 点数预算（基础budget + (楼层-1)×2 递进）。④`enterFloor()` 和 `finishTransition()` 接入 `spawnRoomMonsters()` 自动刷怪；Boss房固定生成、起点房无怪。⑤生成 `Documents/monster-random-plan.md` 方案文档。⑥同步更新上下文文档相关章节。 |
