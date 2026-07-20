@@ -27,11 +27,12 @@
 - 询问用户确认：要继续直接改 main，还是改为走功能分支流程
 - 用户明确确认后才能继续
 
-### 1.3 推送命令 [2026-07-16]
+### 1.3 推送命令 [2026-07-16, 2026-07-20更新]
 
-- SSH 密钥已配置 (git@github.com:NaTThan1000/Nathan-Repository.git)
+- Remote 已设为 SSH：`git@github.com:NaTThan1000/Nathan-Repository.git`（原 HTTPS 被 DPI 防火墙拦截，详见 isaac-memory.md）
 - 推送前需设置环境变量：`$env:GIT_SSH_COMMAND = "ssh -o StrictHostKeyChecking=accept-new"`
 - 用户名：nathan.tian，邮箱：nathan.tian@ingcreations.com
+- **跨电脑注意**：其他电脑 clone 后 remote 默认为 HTTPS，需手动改为 SSH 或通过 Deploy Key API 添加密钥（详见 isaac-memory.md 2026-07-20 记录）
 
 ### 1.4 AI Git 写入操作权限边界 [2026-07-20]
 
