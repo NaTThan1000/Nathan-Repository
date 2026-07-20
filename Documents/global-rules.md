@@ -33,6 +33,33 @@
 - 推送前需设置环境变量：`$env:GIT_SSH_COMMAND = "ssh -o StrictHostKeyChecking=accept-new"`
 - 用户名：nathan.tian，邮箱：nathan.tian@ingcreations.com
 
+### 1.4 AI Git 写入操作权限边界 [2026-07-20]
+
+**核心原则：AI 绝不得在用户未明确要求时自动执行任何 Git 写入操作。**
+
+受限制的操作（禁止自动执行）：
+- `git commit` — 创建提交
+- `git push` — 推送到远程
+- `git merge` — 合并分支
+- `git rebase` — 变基操作
+- `git reset --hard` / `git checkout --` 等破坏性操作
+- 任何会修改 Git 历史或远程仓库的操作
+
+允许的操作（无需用户确认）：
+- `git status` — 查看状态
+- `git diff` — 查看差异
+- `git log` — 查看历史
+- `git branch` — 查看分支
+- 其他纯读取操作
+
+**触发条件**：只有当用户当前消息中包含以下任一明确指令时，AI 才能执行 Git 写入操作：
+- "提交" / "commit"
+- "推送" / "push"
+- "合并" / "merge"
+- "同步文档"（该指令隐含后续的 commit+push+merge 流程）
+
+**禁止行为**：AI 完成代码修改任务后，将修改保留在工作树中即可，不得自动追加 commit/push/merge 等"收尾"操作。用户会自行决定何时提交。
+
 ---
 
 ## 2. 文档体系规范
@@ -172,3 +199,4 @@
 | 82441438 | Monorepo 按项目分功能分支 | §1.1 |
 | 84923416 | 先同步文档再统一提交 | §2.3 |
 | 60895444 | 多端开发记忆同步：三文件体系 | §2.1 |
+| 70076756 | AI 禁止自动执行 Git 写入操作 | §1.4 |
