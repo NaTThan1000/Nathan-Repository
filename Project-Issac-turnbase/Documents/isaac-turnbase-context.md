@@ -27,7 +27,7 @@
 
 | 属性 | 值 | 说明 |
 |------|-----|------|
-| 血量 HP | 6/6 | 可被攻击次数 / 上限 |
+| 血量 HP | 3/3 (心形) | 3颗心，支持半心显示 (0.5伤害=半心) |
 | 移速 | 3 | M-AP 上限 = 移速 → 默认 3 (下限1) |
 | 射速 | 3 | A-AP 上限 = 射速 → 默认 3 (下限1) |
 | 攻击力 | 3.5 | 每发子弹对怪物伤害 |
@@ -44,10 +44,10 @@
 
 | cfgId | 名称 | HP | 伤害 | 移速周期 | AI类型 | 颜色叠加(tint) | 移动标签 | 角色 | 威胁值 |
 |-------|------|-----|------|----------|--------|---------------|:--:|:--:|:--:|
-| `crack_maw` | 裂口尸 | 10 | 1 | [2,1] | chase | 无 | 地面 | melee | 3 |
-| `flying_eye` | 浮游眼 | 6 | 1 | [1,1] | ranged_kite | 蓝紫半透 | 飞行 | ranged | 2 |
-| `rock_golem` | 岩石魔像 | 20 | 2 | [1,1] | chase | 棕半透 | 地面 | tank | 5 |
-| `boss_maw_king` | 裂口之王 | 45 | 2 | [3,2] | boss_chase | 红橙半透 | 地面,飞行 | boss | 15 |
+| `crack_maw` | 裂口尸 | 10 | 0.5 (半心) | [2,1] | chase | 无 | 地面 | melee | 3 |
+| `flying_eye` | 浮游眼 | 6 | 0.5 (半心) | [1,1] | ranged_kite | 蓝紫半透 | 飞行 | ranged | 2 |
+| `rock_golem` | 岩石魔像 | 20 | 1 (1心) | [1,1] | chase | 棕半透 | 地面 | tank | 5 |
+| `boss_maw_king` | 裂口之王 | 45 | 1 (1心) | [3,2] | boss_chase | 红橙半透 | 地面,飞行 | boss | 15 |
 
 **新增字段说明**：
 - `movementTags`：怪物移动特征标签，用于与房间 `allowedMovement` 做标签匹配。`地面` 表示只能在地面行走（无法穿越深坑），`飞行` 表示可无视地形障碍
@@ -76,8 +76,8 @@
 **移动与碰撞**：
 - 所有怪物同时逐步移动 (0.15s/步)，平滑动画插值 170px/s
 - 怪物之间不可重叠；撞玩家 → 伤害由怪物类型决定(crack_maw=1, flying_eye=1, rock_golem=2, boss=2) + 击退(怪物移动方向)
-- 玩家撞怪物 → 同样按怪物类型计算伤害 + 击退怪物(移动方向)，失败则玩家反弹
-- 尖刺地格：怪物经过 → 受到 5 点伤害
+- 玩家撞怪物 → 同样按怪物类型计算伤害(半心/1心) + 击退怪物(移动方向)，失败则玩家反弹
+- 尖刺地格：怪物经过 → 受到 5 点伤害；玩家踩上 → 受到 1 心伤害
 
 **视觉**：
 - 使用角色精灵+朝向，红色血条 (黑色底槽+百分比填充)，受击白闪+抖动
@@ -189,7 +189,7 @@
 | ROCK | `#` | 岩石 | ❌ | 阻挡通行和子弹 |
 | POOP | `P` | 便便 | ❌ | 可破坏(受击3次)，挡子弹 |
 | PIT | `_` | 深渊 | ❌ | 踩上即死或掉落 |
-| SPIKE | `^` | 尖刺 | ✅ | 踩上扣 2 HP(玩家)/5 HP(怪物) |
+| SPIKE | `^` | 尖刺 | ✅ | 踩上扣 1 心(玩家)/5 HP(怪物) |
 | LADDER | `▼` | 梯子 | ✅ | Boss房踩上进入下一层 |
 
 - 门位：每边正中（上6,0 / 下6,6 / 左0,3 / 右12,3），这些格必须为可通行地面
@@ -495,6 +495,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-20 | **HP系统心形改造**。①血量上限从 6/6 改为 3/3 心形制，内部 hp 支持 .5 浮点值。②所有玩家伤害减半：普通怪物 0.5 心（crack_maw/flying_eye）、高级怪物/Boss/尖刺 1 心（rock_golem/boss_maw_king）。③UI 新增半心显示（`.heart.half` CSS），左半红色右半暗色，两次半心伤害=1整心。④满心/半心/空心三态可看出血上限。⑤demo.html + demo2.html 同步修改：playerStats/MONSTER_DB damage/buildHearts/updateHearts/recalcAllStats/spike damage。 |
 | 2026-07-20 | **godot-setup-checklist.md 移至根目录 Documents/**。文件从项目专属文档升级为跨项目通用参考文档，从 context.md 文件清单中移除引用。 |
 | 2026-07-20 | **三层记忆体系建立**。①新增 `Documents/isaac-memory.md`：从 context.md 全部历史记录 + chat-log + 当前会话三个数据源提取所有重要决策，按功能领域系统化整理（AP演变/无敌X→Y/怪物三次重构/尖刺调整/编辑器去服务器/道具系统等）。②新增根目录 `Documents/global-rules.md`：从 6 条 CodeBuddy Memories 迁移跨项目通用规范，补充时间戳和详细说明。③文件清单新增 isaac-memory.md 引用。④删除 `chat-log-2026-07-20.md`（内容已迁移到 memory.md）。⑤CodeBuddy Memories 新增"多端开发记忆同步"规则。 |
 | 2026-07-20 | **道具系统 + 小地图 + 访问记录 + AP动态 + 编辑器文件直读 + demo2 + 服务器彻底移除**。①创建 `isaac-turnbased-demo2.html`（v3道具版），新增 25 种被动道具（15普通/7稀有/3传说），宝箱房必定掉落稀有道具、Boss房清怪后掉落。②道具属性叠加系统：攻击/射速/移速/射程/HP上限，其中射速→A-AP、移速→M-AP（Math.floor 向下取整），拾取道具后动态调整 AP。③特殊道具效果：穿透子弹（丘比特之箭/死神的镰刀）、伤害倍率（蟋蟀头 ×1.5）。④道具栏 UI（底部图标+悬浮提示）+ 拾取交互（F键）+ 品质区分（金/蓝/棕边框）。⑤右下角小地图（100×80px）：根据 floor.layout 绘制已探索房间（起点S/BossB/宝箱T），当前房间金色边框，未探索深色方块。⑥已进入房间不再刷怪：visitedRooms(Set) 追踪，finishTransition 检测重复进入。⑦编辑器彻底移除 server.js 依赖：模板池/楼层数据改用 File System Access API 直读直写（showOpenFilePicker + IndexedDB 记住句柄），"生成json"按钮弹出文本框供手动复制覆盖。⑧demo.html/demo2.html/map-viewer.html 三文件统一清理所有服务器相关代码（localhost:8080/BroadcastChannel），`loadTemplates` 和 `loadOrGenerateFloors` 改为直接 fetch `Configs/pool.json` 和 `Configs/floor-data.json`。⑨删除 `Configs/server.js`、`test-save.html`、`server.py`、`server.ps1`。 |

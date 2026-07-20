@@ -222,6 +222,14 @@
     background: #3a2020;
     box-shadow: inset 0 -2px 0 #2a1414;
   }
+  .heart.half::before {
+    background: #3a2020;
+    box-shadow: inset 0 -2px 0 #2a1414;
+  }
+  .heart.half::after {
+    background: #d43a3a;
+    box-shadow: inset 0 -2px 0 #8a1f1f;
+  }
   .heart::after {
     /* 高光点 */
     border-top: 4px solid rgba(255,255,255,0.3);
@@ -915,7 +923,7 @@ function prect(x, y, w, h, c) {
 
 // ==================== 玩家属性 ====================
 const playerStats = {
-  hp: 6,        maxHp: 6,
+  hp: 3,        maxHp: 3,
   moveSpeed: 3,    // 移速 → M-AP上限 = moveSpeed (下限1)
   fireRate: 3,     // 射速 → A-AP上限 = fireRate (下限1)
   attack: 3.5,
@@ -976,7 +984,7 @@ const MONSTER_DB = {
     name: '裂口尸',
     hp: 10,
     moveCycle: [2, 1],        // 双回合交替移速
-    damage: 1,                // 碰撞伤害
+    damage: 0.5,              // 碰撞伤害 (基础=半心)
     aiType: 'chase',
     tint: null,               // 颜色叠加(rgba)
     dropTable: 'common',
@@ -991,7 +999,7 @@ const MONSTER_DB = {
     name: '浮游眼',
     hp: 6,
     moveCycle: [1, 1],        // 每回合1格
-    damage: 1,
+    damage: 0.5,
     aiType: 'ranged_kite',
     aiRange: 3,               // 偏好距离
     tint: 'rgba(180,180,255,0.35)',
@@ -1007,7 +1015,7 @@ const MONSTER_DB = {
     name: '岩石魔像',
     hp: 20,
     moveCycle: [1, 1],        // 每回合1格
-    damage: 2,                // 高伤害
+    damage: 1,                // 高伤害 (1心=特殊伤害)
     aiType: 'chase',
     tint: 'rgba(180,160,140,0.45)',
     dropTable: 'heavy',
@@ -1024,7 +1032,7 @@ const MONSTER_DB = {
     name: '裂口之王',
     hp: 45,
     moveCycle: [3, 2],        // 双回合交替: 3格, 2格
-    damage: 2,
+    damage: 1,                // Boss伤害 (1心=特殊伤害)
     aiType: 'boss_chase',
     tint: 'rgba(255,100,50,0.45)',
     dropTable: 'boss',
@@ -2375,7 +2383,11 @@ function buildHearts(maxHp) {
 function updateHearts() {
   const hearts = document.querySelectorAll('#ui-hearts .heart');
   hearts.forEach((h, i) => {
-    h.classList.toggle('empty', i >= playerStats.hp);
+    const hp = playerStats.hp;
+    const full = hp >= i + 1;
+    const half = !full && hp >= i + 0.5;
+    h.classList.toggle('half', half);
+    h.classList.toggle('empty', !full && !half);
   });
 }
 
@@ -2717,7 +2729,7 @@ document.addEventListener('keydown', (e) => {
         const t=gridToPixel(nc,nr);player.targetPx=t.x;player.targetPy=t.y;player.animTime=0;
 
         if(player.invincibleSteps>0)player.invincibleSteps--; // 每移动一格递减无敌步数 (战斗/探索通用)
-        if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.SPIKE){damagePlayer(2,0,0);}
+        if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.SPIKE){damagePlayer(1);}
         if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.LADDER){
           const nextF=currentFloor.floorNum+1;
           if(allFloors[nextF]){enterFloor(nextF);return;}
