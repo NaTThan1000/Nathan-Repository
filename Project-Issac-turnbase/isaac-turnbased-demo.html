@@ -978,6 +978,10 @@ let totalShots    = 0;
 let checkpointPos = null;       // {col, row} 射击后checkpoint位置
 let turnSnapshot  = null;       // 回合开始时完整快照
 let pendingReachableRefresh = false;  // 怪物死亡后需刷新可移动范围
+let turnMovePath = [];            // 玩家本回合移动轨迹 [{col,row},...]
+let turnContactStepIdx = -1;     // 轨迹中触发接触伤害的步数索引（-1=无接触）
+let turnContactDamageAmount = 0; // 接触扣血量（用于撤销）
+let turnContactPrevInvincible = 0;// 接触前的 invincibleSteps（用于撤销）
 
 // ==================== 动画/视觉状态 ====================
 let battleStartAnim = { active: false, timer: 0, duration: 0.55 };  // 交叉剑战斗开始动画
@@ -1086,6 +1090,7 @@ function saveTurnSnapshot() {
     playerPx: sp.x, playerPy: sp.y,              // 对齐网格
     playerFacing: player.facing,
     playerHp: playerStats.hp,
+    playerInvincibleSteps: player.invincibleSteps,
     monsters: monsters.map(m => {
       const gp = gridToPixel(m.col, m.row);
       return {
@@ -1113,6 +1118,7 @@ function restoreTurnSnapshot() {
   player.walkFrame = 0; player.animTime = 0;
   player.shootTimer = 0;
   playerStats.hp = s.playerHp;
+  player.invincibleSteps = s.playerInvincibleSteps || 0;
   monsters = s.monsters.map(m => ({
     id: m.id, cfgId: m.cfgId, name: m.name,
     col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
@@ -1149,7 +1155,7 @@ function calcReachableTiles(fromCol, fromRow, maxSteps) {
       const key = `${nc},${nr}`;
       if (visited.has(key)) continue;
       if (isWall(nc, nr)) continue;
-      if (isMonsterAt(nc, nr)) continue;  // 怪物占据的格子不可走
+      // 怪物格不再阻挡（玩家可牺牲血量穿越）, 仅墙壁阻挡
 
       visited.add(key);
       reachable.add(key);
@@ -1189,6 +1195,38 @@ function calculateMAPAt(col, row) {
   }
 }
 
+// ==================== 接触伤害（基于移动轨迹） ====================
+function recalcContactDamage(nx, ny) {
+  // --- 更新轨迹 ---
+  const sameIdx = turnMovePath.findIndex(p => p.col === nx && p.row === ny);
+  if (sameIdx >= 0) {
+    turnMovePath.length = sameIdx + 1;
+  } else {
+    turnMovePath.push({col: nx, row: ny});
+  }
+
+  // --- 撤回检查：接触步被截断 → 撤销伤害+无敌 ---
+  if (turnContactStepIdx >= 0 && turnContactStepIdx >= turnMovePath.length) {
+    playerStats.hp += turnContactDamageAmount;
+    player.invincibleSteps = turnContactPrevInvincible;
+    turnContactStepIdx = -1;
+    turnContactDamageAmount = 0;
+    turnContactPrevInvincible = 0;
+  }
+
+  // --- 新接触：踩到怪物格且无敌结束 → 扣血+无敌 ---
+  if (turnContactStepIdx < 0 && player.invincibleSteps <= 0) {
+    const onMonster = monsters.find(m => m.col === nx && m.row === ny && m.hp > 0);
+    if (onMonster) {
+      turnContactPrevInvincible = player.invincibleSteps;
+      const dmg = onMonster.damage || 1;
+      damagePlayer(dmg);
+      turnContactStepIdx = turnMovePath.length - 1;
+      turnContactDamageAmount = dmg;
+    }
+  }
+}
+
 // ==================== 回合AP初始化 ====================
 function resetTurnAP() {
   turnState.maxMAP = playerStats.moveSpeed;      // 系数1
@@ -1199,8 +1237,13 @@ function resetTurnAP() {
   turnState.phase = 'player_select';
   checkpointPos = null;
   turnSnapshot = null;
+  turnMovePath = [{col: player.col, row: player.row, invincibleSteps: player.invincibleSteps}];
+  turnContactStepIdx = -1;
+  turnContactDamageAmount = 0;
+  turnContactPrevInvincible = 0;
   turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
   saveTurnSnapshot();
+  recalcContactDamage(player.col, player.row); // 回合开始检查是否已站在怪物上
   updateActionBar();
 }
 
@@ -1306,54 +1349,6 @@ function damagePlayer(amount) {
   updateUI();
 }
 
-// ==================== 击退/反弹系统 ====================
-// 尝试将玩家向 (dx,dy) 方向推1格, 返回是否成功
-function tryPushPlayer(pushDx, pushDy) {
-  const nx = player.col + pushDx, ny = player.row + pushDy;
-  if (!isWall(nx, ny) && !isMonsterAt(nx, ny)) {
-    player.col = nx; player.row = ny;
-    const t = gridToPixel(nx, ny);
-    player.targetPx = t.x; player.targetPy = t.y; player.animTime = 0;
-    return true;
-  }
-  // 主力向不通→尝试两个垂直方向
-  const perps = pushDx !== 0
-    ? [{dx:0, dy:1}, {dx:0, dy:-1}]
-    : [{dx:1, dy:0}, {dx:-1, dy:0}];
-  if (Math.random() < 0.5) [perps[0], perps[1]] = [perps[1], perps[0]];
-  for (const p of perps) {
-    const nx2 = player.col + p.dx, ny2 = player.row + p.dy;
-    if (!isWall(nx2, ny2) && !isMonsterAt(nx2, ny2)) {
-      player.col = nx2; player.row = ny2;
-      const t = gridToPixel(nx2, ny2);
-      player.targetPx = t.x; player.targetPy = t.y; player.animTime = 0;
-      return true;
-    }
-  }
-  return false; // 所有方向不通
-}
-
-// 尝试将怪物向 (dx,dy) 方向推1格, 返回是否成功
-function tryPushMonster(monster, pushDx, pushDy) {
-  const nx = monster.col + pushDx, ny = monster.row + pushDy;
-  if (!isWall(nx, ny) && !isMonsterAt(nx, ny, monster.id) && !(nx === player.col && ny === player.row)) {
-    monster.col = nx; monster.row = ny;
-    return true;
-  }
-  const perps = pushDx !== 0
-    ? [{dx:0, dy:1}, {dx:0, dy:-1}]
-    : [{dx:1, dy:0}, {dx:-1, dy:0}];
-  if (Math.random() < 0.5) [perps[0], perps[1]] = [perps[1], perps[0]];
-  for (const p of perps) {
-    const nx2 = monster.col + p.dx, ny2 = monster.row + p.dy;
-    if (!isWall(nx2, ny2) && !isMonsterAt(nx2, ny2, monster.id) && !(nx2 === player.col && ny2 === player.row)) {
-      monster.col = nx2; monster.row = ny2;
-      return true;
-    }
-  }
-  return false;
-}
-
 // 怪物回合执行
 let monsterExecTimer = 0;
 let monsterExecStepIdx = 0;
@@ -1401,15 +1396,13 @@ function updateMonsterTurn(dt) {
       continue; // 被挡住, 不动
     }
 
-    // 检查玩家位置 (碰撞 → 伤害, 按怪物移动方向击退玩家, 失败则怪物反弹)
+    // 检查玩家位置：受伤后共格子，无敌时直接通行
     if (p.toCol === player.col && p.toRow === player.row) {
-      damagePlayer(m.damage || 1);
-      const step = m.predictedPath[monsterExecStepIdx];
-      const pushDx = step.toCol - step.fromCol;
-      const pushDy = step.toRow - step.fromRow;
-      if (!tryPushPlayer(pushDx, pushDy)) {
-        m.col = step.fromCol; m.row = step.toRow;
-      }
+      damagePlayer(m.damage || 1); // 无敌中自动跳过伤害
+      // 无论是否受伤，怪物都占据该格（与玩家共格）
+      m.col = p.toCol;
+      m.row = p.toRow;
+      occupied.add(key);
       continue;
     }
 
@@ -2828,20 +2821,13 @@ function executeNextAction() {
     const vec = DIR_VEC[act.dir];
     const nc = player.col + vec.dx, nr = player.row + vec.dy;
     if (isWall(nc, nr)) { turnState.execIndex++; return; }
-    // 玩家→怪物碰撞
-    const hitMon = monsters.find(m => m.col === nc && m.row === nr);
-    if (hitMon && player.invincibleSteps <= 0) {
-      damagePlayer(hitMon.damage || 1);
-      if (!tryPushMonster(hitMon, vec.dx, vec.dy)) {
-        turnState.execIndex++;
-        return;
-      }
-    }
+    // 移动后更新轨迹+接触伤害
     player.col = nc; player.row = nr;
     const t = gridToPixel(nc, nr);
     player.targetPx = t.x; player.targetPy = t.y;
     player.animTime = 0;
-    if (player.invincibleSteps > 0) player.invincibleSteps--; // 战斗模式执行移动时递减无敌步数
+    recalcContactDamage(nc, nr);
+    if (player.invincibleSteps > 0) player.invincibleSteps--;
   } else if (act.type === 'shoot') {
     player.facing = act.dir;
     player.shootTimer = 0.4;
@@ -2902,7 +2888,9 @@ document.addEventListener('keydown', (e) => {
         player.facing=dir;player.col=nc;player.row=nr;
         const t=gridToPixel(nc,nr);player.targetPx=t.x;player.targetPy=t.y;player.animTime=0;
 
-        if(player.invincibleSteps>0)player.invincibleSteps--; // 每移动一格递减无敌步数 (战斗/探索通用)
+        // 移动后更新轨迹+接触伤害
+        recalcContactDamage(nc, nr);
+        if(player.invincibleSteps>0)player.invincibleSteps--;
         if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.SPIKE){damagePlayer(1);}
         if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.LADDER){
           const nextF=currentFloor.floorNum+1;
@@ -2925,7 +2913,9 @@ document.addEventListener('keydown', (e) => {
         if(inCombat){
           turnState.aAP--;
           if(!turnState.hasShot){turnState.hasShot=true;checkpointPos={col:player.col,row:player.row};
-            const rs=turnState.mAP;turnState.reachableTiles=calcReachableTiles(player.col,player.row,rs);}
+            const rs=turnState.mAP;turnState.reachableTiles=calcReachableTiles(player.col,player.row,rs);
+            // checkpoint 锁定状态：commit 接触伤害，不再撤回
+            turnContactStepIdx=-1;turnContactDamageAmount=0;}
         }
         updateActionBar();updateUI();
         return;
@@ -2954,6 +2944,10 @@ document.addEventListener('keydown', (e) => {
           turnState.aAP = turnState.maxAAP;
           turnState.hasShot = false;
           checkpointPos = null;
+          turnMovePath = [{col: player.col, row: player.row, invincibleSteps: player.invincibleSteps}];
+          turnContactStepIdx = -1;
+          turnContactDamageAmount = 0;
+          turnContactPrevInvincible = 0;
           turnState.phase = 'player_select';
           turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
           saveTurnSnapshot();

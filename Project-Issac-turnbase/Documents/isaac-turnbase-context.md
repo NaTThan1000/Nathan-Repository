@@ -74,8 +74,8 @@
 
 **移动与碰撞**：
 - 所有怪物同时逐步移动 (0.15s/步)，平滑动画插值 170px/s
-- 怪物之间不可重叠；撞玩家 → 伤害由怪物类型决定(crack_maw=1, flying_eye=1, rock_golem=2, boss=2) + 击退(怪物移动方向)
-- 玩家撞怪物 → 同样按怪物类型计算伤害(半心/1心) + 击退怪物(移动方向)，失败则玩家反弹
+- 怪物之间不可重叠（occupied Set排队）；撞玩家 → 伤害由怪物类型决定 + 怪物占格共处（无击退/反弹）
+- 玩家撞怪物 → 按怪物类型计算伤害（`damagePlayer`），可穿过共格。接触伤害走曼哈顿轨迹回溯。BFS不挡怪物格。（2026-07-21重构：移除击退/反弹系统）
 - 尖刺地格：怪物经过 → 受到 5 点伤害；玩家踩上 → 受到 1 心伤害
 
 **视觉**：
@@ -92,11 +92,17 @@
 - `aiType`：AI 行为路由（`calcAllMonsterPaths()` 中 switch 分发）
 - `tint`：RGBA 色彩叠加，渲染时传入 `drawCharacterAt()`
 
-**无敌系统（统一）**：战斗/探索模式均使用 `invincibleSteps = 移速×2` 步数制。
-- 每次实际移动 → `invincibleSteps--`
-- 战斗模式结束回合时，未消耗的 M-AP 也计入无敌步数消耗：`invincibleSteps -= turnState.mAP`（只读 mAP 值，不改变 AP 系统）
-- 无敌归零 → 下次移动/碰撞可受伤
-- 受击后闪烁无敌(透明)，可穿过怪物不受伤
+**无敌系统**：`invincibleSteps = 移速×2` 步数制，固定时长不刷新。
+- 每步移动 → `invincibleSteps--`；未消耗 M-AP 结束时也递减
+- 无敌期间可穿过怪物不受伤，`damagePlayer` 内部跳过
+- 接触伤害走曼哈顿轨迹回溯：踩怪格扣血+无敌，后退超接触步撤销；离开怪物格不撤销
+
+**接触伤害系统**（2026-07-21重构）：
+- 基于移动轨迹 `turnMovePath`，每个节点记录 `invincibleSteps`
+- `recalcContactDamage(nx,ny)`：新位置在轨迹中→回溯恢复无敌值；新位置→追加
+- `turnContactStepIdx` 标记触发接触的步数；后退超过该步 → 回血+回无敌
+- Checkpoint 射击时 commit 接触状态，不再撤回
+- 回合开始时调用一次，检测是否已站在怪物上
 
 ---
 
@@ -500,7 +506,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
-| 2026-07-21 | **UI精简 + 动画系统 + 文字渲染重构**。①去掉 Space 二次确认弹窗和回合起始幽灵，简化操作流程。②新增战斗开始交叉剑动画（两剑从左右飞入旋转碰撞、0.55秒渐隐）和 Esc 全重置时间倒流动画（蓝色收缩光圈+闪光）。③Canvas 文字全面迁移到 DOM 覆盖层（`#text-overlay`），绕过 `image-rendering:pixelated` 确保清晰渲染。④怪物名称/伤害飘字/A-AP圆点全部通过 DOM (`updateTextOverlay()`) 管理，`drawDamageNumbers/怪物名/A-AP` Canvas 绘制已移除。⑤探索模式隐藏 AP 面板，`updateUI()` 根据 `inCombat` 控制。⑥Canvas CSS 移除 `image-rendering:pixelated`。⑦`finishTransition` 增加 `updateUI()` 调用确保 AP 面板同步。⑧demo.html 补全 `visitedRooms` 逻辑（之前缺失导致已清怪房间重新刷怪）。⑨修复 `drawDebugOverlay` 函数声明被误删的 bug。 |
+| 2026-07-21(下) | **碰撞系统全面重构**。①移除击退/反弹系统（`tryPushPlayer`/`tryPushMonster` 整段删除）。②碰撞统一为：受伤+共格，无推击反弹。③基于移动轨迹 `turnMovePath` 的接触伤害系统：踩怪格扣血+无敌，离开不撤销，后退超过接触步才撤销。④`invincibleSteps` 加入 `saveTurnSnapshot/restoreTurnSnapshot`。⑤`recalcContactDamage` 在回合开始时调用一次检测初始接触。⑥BFS 不阻挡怪物格。⑦Checkpoint 时 commit 接触伤害。⑧怪物→玩家碰撞简化（无反弹）。 |
 | 2026-07-20 | **godot-setup-checklist.md 移至根目录 Documents/**。文件从项目专属文档升级为跨项目通用参考文档，从 context.md 文件清单中移除引用。 |
 | 2026-07-20 | **三层记忆体系建立**。①新增 `Documents/isaac-memory.md`：从 context.md 全部历史记录 + chat-log + 当前会话三个数据源提取所有重要决策，按功能领域系统化整理（AP演变/无敌X→Y/怪物三次重构/尖刺调整/编辑器去服务器/道具系统等）。②新增根目录 `Documents/global-rules.md`：从 6 条 CodeBuddy Memories 迁移跨项目通用规范，补充时间戳和详细说明。③文件清单新增 isaac-memory.md 引用。④删除 `chat-log-2026-07-20.md`（内容已迁移到 memory.md）。⑤CodeBuddy Memories 新增"多端开发记忆同步"规则。 |
 | 2026-07-20 | **道具系统 + 小地图 + 访问记录 + AP动态 + 编辑器文件直读 + demo2 + 服务器彻底移除**。①创建 `isaac-turnbased-demo2.html`（v3道具版），新增 25 种被动道具（15普通/7稀有/3传说），宝箱房必定掉落稀有道具、Boss房清怪后掉落。②道具属性叠加系统：攻击/射速/移速/射程/HP上限，其中射速→A-AP、移速→M-AP（Math.floor 向下取整），拾取道具后动态调整 AP。③特殊道具效果：穿透子弹（丘比特之箭/死神的镰刀）、伤害倍率（蟋蟀头 ×1.5）。④道具栏 UI（底部图标+悬浮提示）+ 拾取交互（F键）+ 品质区分（金/蓝/棕边框）。⑤右下角小地图（100×80px）：根据 floor.layout 绘制已探索房间（起点S/BossB/宝箱T），当前房间金色边框，未探索深色方块。⑥已进入房间不再刷怪：visitedRooms(Set) 追踪，finishTransition 检测重复进入。⑦编辑器彻底移除 server.js 依赖：模板池/楼层数据改用 File System Access API 直读直写（showOpenFilePicker + IndexedDB 记住句柄），"生成json"按钮弹出文本框供手动复制覆盖。⑧demo.html/demo2.html/map-viewer.html 三文件统一清理所有服务器相关代码（localhost:8080/BroadcastChannel），`loadTemplates` 和 `loadOrGenerateFloors` 改为直接 fetch `Configs/pool.json` 和 `Configs/floor-data.json`。⑨删除 `Configs/server.js`、`test-save.html`、`server.py`、`server.ps1`。 |

@@ -7,7 +7,7 @@
 >
 > **组织方式**：纯时间顺序，不做模块分类。给 AI 快速浏览聊天记忆用。
 >
-> 最后更新: 2026-07-20
+> 最后更新: 2026-07-21
 
 ---
 
@@ -196,6 +196,19 @@
 
 ## 2026-07-21
 
+### 碰撞系统全面重构 [当前方案]
+- **移除击退/反弹**：`tryPushPlayer()`/`tryPushMonster()` 整段删除。碰撞统一为：受伤 + 共格，无推击反弹
+- **怪物→玩家碰撞简化**：`updateMonsterTurn` 中不再尝试推玩家或反弹怪物，直接 `damagePlayer` + 怪物占格
+- **玩家→怪物碰撞**：BFS 不阻挡怪物格（玩家随时可穿越），走 `damagePlayer` 处理
+- **轨迹系统**：`turnMovePath` 记录每步 `{col, row, invincibleSteps}`，支持曼哈顿回溯
+  - 踩怪格 → `damagePlayer` 扣血+无敌，标记 `turnContactStepIdx`
+  - 离开怪物格 → **不撤销**（无敌正常递减）
+  - 后退超过接触步 → 回血+回无敌
+  - Checkpoint 射击 → commit 接触状态（清标记）
+  - 回合开始 → `recalcContactDamage` 首次检测
+- **invincibleSteps 回溯**：快照保存/恢复 `invincibleSteps`；轨迹每个节点记录无敌值，后退时恢复
+- **差异讨论**：用户澄清两次才定案——第一次要求曼哈顿回溯但实现后出一直无敌 bug（因无敌计时不回溯），最终定为全部回溯+固定不刷新
+
 ### UI精简与操作流程优化
 - **[决策]** 去掉 Space 二次确认弹窗（`turn_end_confirm` 阶段），Space 直接结束回合
 - **[决策]** 去掉回合起始幽灵（`drawTurnStartGhost()`）
@@ -234,7 +247,7 @@
 
 | 日期 | 更新内容 |
 |------|---------|
-| 2026-07-21 | **UI精简+动画+文字DOM化**。去掉Space弹窗和起始幽灵，新增交叉剑战斗开始动画+Esc时间倒流动画。Canvas文字全面迁移到DOM覆盖层绕过pixelated缩放。demo.html补全visitedRooms修复清房后重刷怪bug。修复drawDebugOverlay函数声明被误删。 |
+| 2026-07-21(下) | **碰撞系统重构+轨迹回溯**。移除击退/反弹系统，碰撞统一为受伤+共格。基于`turnMovePath`轨迹的接触伤害回溯：踩怪扣血，后退超接触步才撤销。`invincibleSteps`加入快照+轨迹节点。checkpoint commit接触状态。BFS不挡怪格。`tryPushPlayer`/`tryPushMonster`整段删除。 |
 | 2026-07-20 | **SSH推送替代HTTPS**。DPI防火墙拦截git/curl HTTPS连接，诊断确认SSH 22端口正常。生成ed25519密钥，利用Deploy Key API绕行token scope限制（repo scope够用），remote永久改为SSH。记录完整诊断过程+跨电脑注意事项。 |
 | 2026-07-20 | **global-rules §1.4 正式化**。将 AI 禁止自动 Git 写入操作写入 global-rules.md 作为正式跨项目规范，创建 Memory ID 70076756。 |
 | 2026-07-20 | **HP心形改造 + AI提交行为纠正**。①HP系统改为3心制+半心显示，所有玩家伤害减半。②记录AI自动提交行为被纠正事件，确认Git操作需用户明确指令。 |
