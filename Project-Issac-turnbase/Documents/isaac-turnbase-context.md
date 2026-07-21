@@ -1,6 +1,6 @@
 # 以撒·半回合制战斗 — 项目总览
 
-> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html`（v2基础版）+ `isaac-turnbased-demo2.html`（v3道具系统版） | 单文件 ~4000+ 行 | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/monster-db.json` 怪物配置表 + `Configs/item-db.json` 道具数据库 + `Configs/item-drop-tables.json` 掉落表 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层(绕过Canvas像素缩放) + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表系统 + 掉落表机制
+> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html`（v2基础版）+ `isaac-turnbased-demo2.html`（v3道具系统版） | 单文件 ~4300+ 行 | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/monster-db.json` 怪物配置表 + `Configs/item-db.json` 道具数据库 + `Configs/item-drop-tables.json` 掉落表 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层 + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表 + 掉落表机制 + Boss Jumper 2×2跳跃Boss
 
 ---
 
@@ -39,21 +39,22 @@
 
 ### 1.5 怪物系统
 
-**怪物配置数据库** `MONSTER_DB`（4种怪物），数据来源 `Configs/monster-db.json` 外部 JSON 配置文件：
+**怪物配置数据库** `MONSTER_DB`（5种怪物），数据来源 `Configs/monster-db.json` 外部 JSON 配置文件：
 
-| cfgId | 名称 | HP | 伤害 | 移速周期 | AI类型 | 颜色叠加(tint) | 移动标签 | 角色 | 威胁值 |
-|-------|------|-----|------|----------|--------|---------------|:--:|:--:|:--:|
-| `crack_maw` | 裂口尸 | 10 | 0.5 (半心) | [2,1] | chase | 无 | 地面 | melee | 3 |
-| `flying_eye` | 浮游眼 | 6 | 0.5 (半心) | [1,1] | ranged_kite | 蓝紫半透 | 飞行 | ranged | 2 |
-| `rock_golem` | 岩石魔像 | 20 | 1 (1心) | [1,1] | chase | 棕半透 | 地面 | tank | 5 |
-| `boss_maw_king` | 裂口之王 | 45 | 1 (1心) | [3,2] | boss_chase | 红橙半透 | 地面,飞行 | boss | 15 |
+| cfgId | 名称 | HP | 伤害 | 移速周期 | AI类型 | 颜色叠加(tint) | 移动标签 | 角色 | 威胁值 | 体型 |
+|-------|------|-----|------|----------|--------|---------------|:--:|:--:|:--:|:--:|
+| `crack_maw` | 裂口尸 | 10 | 0.5 (半心) | [2,1] | chase | 无 | 地面 | melee | 3 | 1×1 |
+| `flying_eye` | 浮游眼 | 6 | 0.5 (半心) | [1,1] | ranged_kite | 蓝紫半透 | 飞行 | ranged | 2 | 1×1 |
+| `rock_golem` | 岩石魔像 | 20 | 1 (1心) | [1,1] | chase | 棕半透 | 地面 | tank | 5 | 1×1 |
+| `boss_maw_king` | 裂口之王 | 45 | 1 (1心) | [3,2] | boss_chase | 红橙半透 | 地面,飞行 | boss | 15 | 1×1 |
+| `boss_jumper` | 跳跃巨兽 | 60 | 0.5 (半心) | [1,1] | boss_jumper | 紫半透 | 地面,飞行 | boss | 20 | **2×2** |
 
 **新增字段说明**：
 - `movementTags`：怪物移动特征标签，用于与房间 `allowedMovement` 做标签匹配。`地面` 表示只能在地面行走（无法穿越深坑），`飞行` 表示可无视地形障碍
 - `role`：战斗角色定位（melee/ranged/tank/boss），用于组合规则保证类型多样性
 - `threat`：威胁值，用于点数预算消耗，控制每房间怪物总体难度
 
-**AI 行为类型枚举** `AI_TYPE`（6种）：
+**AI 行为类型枚举** `AI_TYPE`（7种）：
 
 | aiType | 行为描述 |
 |--------|---------|
@@ -61,6 +62,7 @@
 | `ranged_kite` | 保持距离追踪 |
 | `charge` | 每3回合双倍移速冲锋（上限4格） |
 | `boss_chase` | 追踪 + 每4回合额外+1移速 |
+| `boss_jumper` | 2×2跳跃Boss：小跳×2→判定→大跳消失→落地12格AOE（专用行动循环） |
 | `patrol` | 5格内感知追击，否则原地 |
 | `stationary` | 不移动 |
 
@@ -69,7 +71,7 @@
   1. **标签过滤**：怪物 `movementTags` 与房间 `allowedMovement` 取交集，仅匹配的怪物可生成
   2. **组合规则**：优先保底 1 只近战（如有），后续按角色多样性加权（未出现的 role ×3 权重）
   3. **点数预算**：总预算 = 房间 `budget` + (楼层-1) × 2，按怪物 `threat` 消耗填充
-  - Boss 房固定生成 `boss_maw_king`，起点房不生成怪物
+  - Boss 房固定生成 `boss_jumper`（2×2体型），起点/宝藏房不生成怪物
 - **调试生怪**：C键或"生怪"按钮 → `spawnMonster()` 生成 1 只地面标签随机怪
 
 **移动与碰撞**：
@@ -300,6 +302,25 @@ player_select ──→ monster_turn ──→ player_select
 
 **道具栏 UI**：底部图标横排（品质边框颜色），悬浮显示道具名+描述+来源提示
 
+### 2.13 Boss Jumper — 2×2跳跃Boss系统
+
+Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），不参与普通移动。
+
+**行动循环**：`1(小跳) → 2(小跳) → 3(50%重复1+2) → 4(大跳) → 1`
+
+| 行动 | 机制 | 伤害 | 动画 |
+|------|------|------|------|
+| **小跳跃** | Boss中心与玩家坐标比较 → 横向/纵向选远的走1格 ×3次 → 落点4格内单位0.5伤害。无视岩石/尖刺/深坑，但不能全深坑 | 0.5心(玩家) | 弧线跳跃(sin弧线+ease-in-out+缩放弹跳) |
+| **大跳跃** | Boss消失1回合（缩小淡出残影）→ 跳起时判定玩家位置选2×2落点 → 玩家回合结束时落下 → 对12格(目标2×2+8邻格)造成1点伤害 | 1心(12格范围) | 消失:缩小淡出 / 落地:缩放弹出+双圈冲击波 |
+
+**关键设计**：
+- `pendingBossLanding`：大跳落点跳起时即确定（不依赖落下时玩家位置），跨回合延迟执行
+- `jumperJustLanded`：落地回合Boss休息不行动，下个怪物回合才循环回phase 1
+- 无需BFS寻路（`predictedPath` 永久为空），跳跃一次性完成
+- 接触伤害0.5心（玩家走入2×2区域），子弹碰撞4格检测
+
+**2×2适配**：`monsterCells()` / `isInMonsterFootprint()` / `isValidLandingZone()` 辅助函数。全系统适配（渲染中心偏移 `CELL*(sz-1)/2`、碰撞、快照、占用、DOM标签）。
+
 ---
 
 ## 3. 界面与交互
@@ -350,9 +371,10 @@ player_select ──→ monster_turn ──→ player_select
    - WASD 在浅蓝可移动范围内即时移动本体，每步 -1 M-AP
    - ↑↓←→ 即时射击，-1 A-AP，角色右上角黄色圆点实时显示 A-AP
    - Esc → 时间倒流动画 + 恢复回合快照
-   - Space → 直接结束回合（无弹窗）→ monster_turn
-5. `monster_turn` → 每怪独立移速/AI路由 → 怪物逐步移动 + 碰撞(按类型伤害) + 尖刺5伤害 → `updateRoomCombatState()`
-   - 清怪 → 门打开 → 回到探索模式
+   - Space → 先处理大跳Boss落地 → 直接结束回合（无弹窗）→ monster_turn
+5. `monster_turn` → 跳跃Boss一次性行动（不逐步移动）+ 普通怪逐步移动 + 碰撞(按类型伤害) + 尖刺5伤害 → `updateRoomCombatState()`
+   - Boss Jumper状态机：大跳时Boss消失，玩家回合结束后落下（延迟执行）
+   - 清怪 → 门打开 → Boss房掉落道具 → 回到探索模式
    - 有怪 → 继续战斗，回合数+1
 6. 6层通关后游戏结束（当前无通关处理）
 
@@ -384,7 +406,8 @@ player_select ──→ monster_turn ──→ player_select
     ├── 移动系统 (探索自由移动 + 战斗AP移动 + 场景过渡动画)
     ├── 子弹系统 (spawnBullet, updateBullets, shatterBullet)
     ├── 粒子系统 (updateParticles) & 受伤系统 (damagePlayer)
-    ├── 怪物系统 (MONSTER_DB 配置表 + AI_TYPE 枚举 + AI行为路由 + calcAllMonsterPaths/startMonsterTurn/updateMonsterTurn/spawnMonster)
+    ├── 怪物系统 (MONSTER_DB 配置表 + AI_TYPE 枚举 + AI行为路由 + calcAllMonsterPaths/startMonsterTurn/updateMonsterTurn/spawnMonster + 2×2怪物辅助函数)
+    ├── Boss Jumper系统 (processJumperAction/calcJumperSmallJump/calcJumperBigJump/executeBossLanding — 状态机驱动2×2跳跃Boss)
     ├── 道具系统 (ITEMS_DB 道具数据库 + SPECIAL_EFFECT_HANDLERS 特效注册表 + playerInventory 背包 + recalcAllStats 属性重算)
     ├── 掉落系统 (item-drop-tables.json 掉落表 + rollItem 按品质权重随机)
     ├── 数据加载层 (loadMonsterDB/loadItemDB/loadDropTables — 异步fetch JSON配置文件)
@@ -475,8 +498,14 @@ function project(wx, wy) {
 | `spawnBullet(dir,fromPx,fromPy)` / `updateBullets(dt)` / `shatterBullet(b)` | 子弹生命周期 |
 | `updateParticles(dt)` | 粒子物理+淡出 |
 | `spawnMonster(cfgId?)` | 调试生怪：生成 1 只地面标签随机怪 |
-| `spawnMonsterAtRandomPos(cfgId)` | 在随机可行走位置生成指定怪物，返回是否成功 |
-| `spawnRoomMonsters()` | 混合刷怪主函数：标签过滤+组合规则+点数预算，进入房间/楼层时自动调用 |
+| `spawnMonsterAtRandomPos(cfgId)` | 在随机可行走位置生成指定怪物（支持2×2体型判定），返回是否成功 |
+| `spawnRoomMonsters()` | 混合刷怪主函数：Boss房→`boss_jumper`、宝藏/起点房无怪、普通房三层递进 |
+| `monsterCells(m)` / `isInMonsterFootprint(m,c,r)` | 2×2怪物辅助：获取占据格列表 / 检测格子是否在怪物范围内 |
+| `isValidLandingZone(c,r,size)` | 2×2落脚验证：不越界、不是墙、不能全深坑 |
+| `processJumperAction(m)` | Boss Jumper行动分发：phase 1/2→小跳、phase 4→大跳消失、justLanded→跳过 |
+| `calcJumperSmallJump(m)` | 小跳跃计算：中心距离判定×3步 → 落点验证 → 移动Boss → 0.5范围伤害 |
+| `calcJumperBigJump(m)` | 大跳跃计算：记录玩家位置 → 选2×2落点 → 标记vanished + pendingBossLanding |
+| `executeBossLanding()` | 大跳落地执行：Boss出现 → 12格1点伤害 → 重置phase → 标记justLanded |
 | `calcAllMonsterPaths()` / `startMonsterTurn()` / `updateMonsterTurn(dt)` | 怪物回合系统：AI路由分发+每怪独立移速/移动路径计算 |
 | `updateActionBar()` | 更新底部状态栏（探索模式隐藏 / 战斗模式显示 AP） |
 | `updateUI()` / `updateFloorUI()` | 更新所有 DOM UI 面板（含AP面板显隐、楼层信息栏） |
@@ -541,7 +570,7 @@ function project(wx, wy) {
 |------|------|------|
 | `pool.json` | JSON | 关卡池数据文件（模板定义 + spawnConfig 刷怪配置，编辑器读写） |
 | `floor-data.json` | JSON | 楼层生成数据（房间结构+grid，编辑器/游戏加载） |
-| `monster-db.json` | JSON | 怪物配置数据（4种怪物 + movementTags/role/threat 混合刷怪字段） |
+| `monster-db.json` | JSON | 怪物配置数据（5种怪物：4普通+1 Boss Jumper 2×2跳跃Boss + size字段） |
 | `item-db.json` | JSON | 道具数据库（25种被动道具：effects 数值属性 + specials[] 结构化特效） |
 | `item-drop-tables.json` | JSON | 道具掉落表（三张表：default/treasure_room/boss_room 按品质权重） |
 | `isaac-room-pool - original backup.json` | JSON | 原始关卡池备份 |
@@ -562,7 +591,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
-| 2026-07-21(晚) | **数据外置 + 特效系统结构化 + 掉落表机制**。①MONSTER_DB 从内联 JS 改为 `loadMonsterDB()` 异步 fetch `monster-db.json`，新增 `_rebuildMonsterPools()`。②创建 `Configs/item-db.json`（25种道具完整配置）+ `Configs/item-drop-tables.json`（三张掉落表）。③`cfg.special` 字符串改为 `cfg.specials[]` 结构化数组，新增 `SPECIAL_EFFECT_HANDLERS` 注册表（piercing/damage_mult/heal_full），向后兼容旧格式。④`spawnTreasureRoomItem()` / `spawnBossRoomItem()` 改用掉落表机制。⑤monster-db.json 伤害值全面同步半心制。⑥新增 §2.12 道具系统策划章节。 |
+| 2026-07-21(晚) | **Boss Jumper 2×2跳跃Boss系统**。①新增 `boss_jumper` 怪物（size:2占据4格），替代旧boss为每层Boss房唯一Boss。②行动循环：小跳×2（中心距离判定+3步目标+弧线动画）→50%重复判定→大跳（消失淡出+延迟落地+12格范围1心伤害+冲击波动画）。③2×2全系统适配：渲染（中心偏移公式修正）、碰撞（子弹4格检测）、接触伤害（0.5心）、快照/占用/标签。④`pendingBossLanding` 跨回合延迟执行 + `jumperJustLanded` 落地休息。⑤宝藏房不刷怪。⑥新增 §2.13 Boss Jumper 章节 + AI类型表。 |
 | 2026-07-20 | **godot-setup-checklist.md 移至根目录 Documents/**。文件从项目专属文档升级为跨项目通用参考文档，从 context.md 文件清单中移除引用。 |
 | 2026-07-20 | **三层记忆体系建立**。①新增 `Documents/isaac-memory.md`：从 context.md 全部历史记录 + chat-log + 当前会话三个数据源提取所有重要决策，按功能领域系统化整理（AP演变/无敌X→Y/怪物三次重构/尖刺调整/编辑器去服务器/道具系统等）。②新增根目录 `Documents/global-rules.md`：从 6 条 CodeBuddy Memories 迁移跨项目通用规范，补充时间戳和详细说明。③文件清单新增 isaac-memory.md 引用。④删除 `chat-log-2026-07-20.md`（内容已迁移到 memory.md）。⑤CodeBuddy Memories 新增"多端开发记忆同步"规则。 |
 | 2026-07-20 | **道具系统 + 小地图 + 访问记录 + AP动态 + 编辑器文件直读 + demo2 + 服务器彻底移除**。①创建 `isaac-turnbased-demo2.html`（v3道具版），新增 25 种被动道具（15普通/7稀有/3传说），宝箱房必定掉落稀有道具、Boss房清怪后掉落。②道具属性叠加系统：攻击/射速/移速/射程/HP上限，其中射速→A-AP、移速→M-AP（Math.floor 向下取整），拾取道具后动态调整 AP。③特殊道具效果：穿透子弹（丘比特之箭/死神的镰刀）、伤害倍率（蟋蟀头 ×1.5）。④道具栏 UI（底部图标+悬浮提示）+ 拾取交互（F键）+ 品质区分（金/蓝/棕边框）。⑤右下角小地图（100×80px）：根据 floor.layout 绘制已探索房间（起点S/BossB/宝箱T），当前房间金色边框，未探索深色方块。⑥已进入房间不再刷怪：visitedRooms(Set) 追踪，finishTransition 检测重复进入。⑦编辑器彻底移除 server.js 依赖：模板池/楼层数据改用 File System Access API 直读直写（showOpenFilePicker + IndexedDB 记住句柄），"生成json"按钮弹出文本框供手动复制覆盖。⑧demo.html/demo2.html/map-viewer.html 三文件统一清理所有服务器相关代码（localhost:8080/BroadcastChannel），`loadTemplates` 和 `loadOrGenerateFloors` 改为直接 fetch `Configs/pool.json` 和 `Configs/floor-data.json`。⑨删除 `Configs/server.js`、`test-save.html`、`server.py`、`server.ps1`。 |
@@ -580,4 +609,4 @@ function project(wx, wy) {
 
 ---
 
-> **下一步方向**：完善 AI 行为（ranged_kite 远程射击 / stationary 远程攻击需子弹系统）、掉落系统扩展（消耗品/饰品）、商店房间交易功能、Sound/FX 音效系统。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。物品掉落基础已完成（道具掉落表 + 品质权重分配）。
+> **下一步方向**：完善 AI 行为（ranged_kite 远程射击 / stationary 远程攻击需子弹系统）、更多Boss类型、掉落系统扩展（消耗品/饰品）、商店房间交易功能、Sound/FX 音效系统。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。物品掉落基础已完成，Boss Jumper 2×2系统已完成。

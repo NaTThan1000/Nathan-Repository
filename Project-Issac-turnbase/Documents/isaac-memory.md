@@ -279,11 +279,21 @@
 - **[决策]** monster-db.json 中全部怪物伤害同步半心制：裂口尸 1→0.5 / 浮游眼 1→0.5 / 岩石魔像 2→1 / 裂口之王 2→1
 - **[原因]** HP系统改为3心制时 monster-db.json 伤害值未同步修正，导致实际伤害比预期高2倍
 
+### Boss Jumper — 2×2跳跃Boss系统 [当前方案]
+- **[决策]** 新增 `boss_jumper` 怪物类型，替代旧 `boss_maw_king` 为每层Boss房唯一Boss
+- **[2×2体型]** 怪物 `size:2` 属性，占据4个格子（col/row为左上角），配套 `monsterCells()` / `isInMonsterFootprint()` / `isValidLandingZone()` 辅助函数。全面适配渲染（中心偏移 `CELL*(sz-1)/2`）、碰撞（子弹/玩家接触4格检测）、快照系统
+- **[行动循环]** 状态机 phase 1→2→3(50%重复)→4→1。小跳2次 → 判定 → 大跳1次 → 循环
+- **[小跳跃]** 中心距离判定（横向/纵向选远的 ×3步）→ 落点4格内玩家0.5伤害。无视岩石尖刺，单不能全深坑。弧线动画（sin弧线+ease-in-out+缩放弹跳）
+- **[大跳跃]** Boss消失1回合（缩小淡出动画）→ 玩家回合结束落下（缩放弹出+双圈冲击波）→ 12格1点伤害（目标2×2+8邻格）。跳起时判定落点，`pendingBossLanding` 延迟执行。`jumperJustLanded` 落地回合休息
+- **[宝藏房]** 不再刷怪；道具仅宝箱房+Boss清空房
+- **[接触伤害]** 角色碰撞Boss 0.5伤害，使用 `isInMonsterFootprint` 适配2×2
+- **[修复]** 渲染中心偏移（`CELL*sz/2`→`CELL*(sz-1)/2`）、落地回合额外行动（`jumperJustLanded` 跳过）
+
 ## 最近更新记录
 
 | 日期 | 更新内容 |
 |------|---------|
-| 2026-07-21(晚) | **数据外置 + 特效结构化 + 掉落表改造 + 怪物伤害修正**。①MONSTER_DB 从内联JS改为异步fetch JSON。②item-db.json + item-drop-tables.json 独立配置。③specials[] 结构化 + SPECIAL_EFFECT_HANDLERS 注册表。④宝箱/Boss掉落改用掉落表机制。⑤monster-db.json 伤害值同步半心制。 |
+| 2026-07-21(晚) | **Boss Jumper 2×2跳跃Boss系统**。新增 `boss_jumper` 怪物（size:2占据4格），替代旧裂口之王为每层Boss房Boss。行动循环：小跳×2→50%重复→大跳消失→落地12格伤害。配套跳跃动画（弧线/消失残影/落地冲击波）。宝藏房不再刷怪。修复渲染中心偏移和落地回合额外行动。 |
 | 2026-07-20 | **SSH推送替代HTTPS**。DPI防火墙拦截git/curl HTTPS连接，诊断确认SSH 22端口正常。生成ed25519密钥，利用Deploy Key API绕行token scope限制（repo scope够用），remote永久改为SSH。记录完整诊断过程+跨电脑注意事项。 |
 | 2026-07-20 | **global-rules §1.4 正式化**。将 AI 禁止自动 Git 写入操作写入 global-rules.md 作为正式跨项目规范，创建 Memory ID 70076756。 |
 | 2026-07-20 | **HP心形改造 + AI提交行为纠正**。①HP系统改为3心制+半心显示，所有玩家伤害减半。②记录AI自动提交行为被纠正事件，确认Git操作需用户明确指令。 |

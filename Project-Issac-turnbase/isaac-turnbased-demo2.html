@@ -1112,6 +1112,7 @@ const AI_TYPE = {
   CHARGE:       'charge',        // 周期性冲刺
   STATIONARY:   'stationary',    // 不动但远程射击
   BOSS_CHASE:   'boss_chase',    // 追踪+特殊攻击
+  BOSS_JUMPER:  'boss_jumper',   // 2×2跳跃Boss (小跳/大跳循环)
 };
 
 // 怪物配置数据库 (异步从 JSON 加载)
@@ -1121,7 +1122,7 @@ let MONSTER_POOL_ALL = [];
 
 function _rebuildMonsterPools() {
   const keys = Object.keys(MONSTER_DB);
-  MONSTER_POOL_NORMAL = keys.filter(k => MONSTER_DB[k].aiType !== 'boss_chase');
+  MONSTER_POOL_NORMAL = keys.filter(k => MONSTER_DB[k].aiType !== 'boss_chase' && MONSTER_DB[k].aiType !== 'boss_jumper');
   MONSTER_POOL_ALL = keys;
 }
 
@@ -1232,6 +1233,8 @@ let monsters = [];  // [{id, cfgId, name, col, row, hp, maxHp, predictedPath, mo
 let monsterIdCounter = 0;
 let monsterFlashTimer = 0;  // 路径箭头闪烁计时器
 let visitedRooms = new Set(); // 已进入过的房间ID集合
+// 跳跃Boss大跳延迟落地数据 { monster, targetCol, targetRow, targetPlayerCol, targetPlayerRow }
+let pendingBossLanding = null;
 
 // ==================== 道具系统状态 ====================
 let itemsOnGround = [];     // [{id, cfgId, col, row, px, py, name, icon, quality, ...}]
@@ -1265,9 +1268,18 @@ function saveTurnSnapshot() {
         predictedPath: m.predictedPath ? m.predictedPath.map(s => ({ fromCol: s.fromCol, fromRow: s.fromRow, toCol: s.toCol, toRow: s.toRow })) : [],
         moveSpeed: m.moveSpeed,
         hitFlash: m.hitFlash, shakeX: m.shakeX, shakeY: m.shakeY,
+        size: m.size || 1,
+        jumperPhase: m.jumperPhase, jumperRepeatCount: m.jumperRepeatCount,
+        jumperCheckRepeated: m.jumperCheckRepeated, jumperVanished: m.jumperVanished,
+        jumperJustLanded: m.jumperJustLanded || false,
       };
     }),
     monsterTurnCounter: turnState.monsterTurnCounter,
+    pendingBossLanding: pendingBossLanding ? {
+      monsterId: pendingBossLanding.monster ? pendingBossLanding.monster.id : null,
+      targetCol: pendingBossLanding.targetCol,
+      targetRow: pendingBossLanding.targetRow,
+    } : null,
   };
 }
 
@@ -1287,11 +1299,25 @@ function restoreTurnSnapshot() {
     col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
     px: m.px, py: m.py, displayHp: m.displayHp,
     damage: m.damage, moveCycle: m.moveCycle, aiType: m.aiType, tint: m.tint,
-    predictedPath: m.predictedPath.map(p => ({ fromCol: p.fromCol, fromRow: p.fromRow, toCol: p.toCol, toRow: p.toRow })),
+    predictedPath: (m.predictedPath || []).map(p => ({ fromCol: p.fromCol, fromRow: p.fromRow, toCol: p.toCol, toRow: p.toRow })),
     moveSpeed: m.moveSpeed,
     hitFlash: 0, shakeX: 0, shakeY: 0,
+    size: m.size || 1,
+    jumperPhase: m.jumperPhase, jumperRepeatCount: m.jumperRepeatCount,
+    jumperCheckRepeated: m.jumperCheckRepeated, jumperVanished: m.jumperVanished || false,
+    jumperJustLanded: m.jumperJustLanded || false,
   }));
   turnState.monsterTurnCounter = s.monsterTurnCounter;
+  // 恢复pendingBossLanding
+  if (s.pendingBossLanding && s.pendingBossLanding.monsterId) {
+    const landingMonster = monsters.find(m2 => m2.id === s.pendingBossLanding.monsterId);
+    pendingBossLanding = landingMonster ? {
+      monster: landingMonster, targetCol: s.pendingBossLanding.targetCol,
+      targetRow: s.pendingBossLanding.targetRow,
+    } : null;
+  } else {
+    pendingBossLanding = null;
+  }
   bullets = [];
   particles = [];
   damageNumbers = [];
@@ -1383,7 +1409,7 @@ function recalcContactDamage(nx, ny) {
 
   // --- 新接触：踩到怪物格且无敌结束 → 扣血+无敌 ---
   if (turnContactStepIdx < 0 && player.invincibleSteps <= 0) {
-    const onMonster = monsters.find(m => m.col === nx && m.row === ny && m.hp > 0);
+    const onMonster = monsters.find(m => !m.jumperVanished && isInMonsterFootprint(m, nx, ny) && m.hp > 0);
     if (onMonster) {
       turnContactPrevInvincible = player.invincibleSteps;
       const dmg = onMonster.damage || 1;
@@ -1415,8 +1441,55 @@ function resetTurnAP() {
 }
 
 // ==================== 怪物系统辅助 ====================
+// 返回占用指定格子的怪物（支持2×2怪物）
 function isMonsterAt(col, row, excludeId = -1) {
-  return monsters.some(m => m.col === col && m.row === row && m.id !== excludeId);
+  return monsters.some(m => {
+    if (m.id === excludeId) return false;
+    const sz = m.size || 1;
+    return col >= m.col && col < m.col + sz && row >= m.row && row < m.row + sz;
+  });
+}
+
+// 返回指定格子上的怪物对象（支持2×2）
+function getMonsterAt(col, row) {
+  return monsters.find(m => {
+    const sz = m.size || 1;
+    return col >= m.col && col < m.col + sz && row >= m.row && row < m.row + sz;
+  });
+}
+
+// 获取怪物占据的所有格子坐标
+function monsterCells(m) {
+  const sz = m.size || 1;
+  const cells = [];
+  for (let dc = 0; dc < sz; dc++)
+    for (let dr = 0; dr < sz; dr++)
+      cells.push({ col: m.col + dc, row: m.row + dr });
+  return cells;
+}
+
+// 检查2×2落脚区域是否有效（不能全深坑，单格怪物检查该格是否可行走）
+function isValidLandingZone(topLeftCol, topLeftRow, size = 1) {
+  let pitCount = 0, totalCells = size * size;
+  for (let dc = 0; dc < size; dc++) {
+    for (let dr = 0; dr < size; dr++) {
+      const c = topLeftCol + dc, r = topLeftRow + dr;
+      // 越界
+      if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return false;
+      // 墙壁不可落
+      if (isWall(c, r)) return false;
+      // 统计深坑
+      if (currentRoomGrid && currentRoomGrid[c][r] === TILE.PIT) pitCount++;
+    }
+  }
+  // 不能全是深坑
+  return pitCount < totalCells;
+}
+
+// 检查格子是否在怪物占据范围内
+function isInMonsterFootprint(m, col, row) {
+  const sz = m.size || 1;
+  return col >= m.col && col < m.col + sz && row >= m.row && row < m.row + sz;
 }
 
 // 怪物回合开始时: 所有怪物计算向玩家实时位置的移动路径
@@ -1444,6 +1517,10 @@ function calcAllMonsterPaths() {
         // Boss追踪: 每4回合额外+1移速
         if (turnIdx % 4 === 0) m.moveSpeed += 1;
         m.predictedPath = calcMonsterPath(m, player.col, player.row);
+        break;
+      case 'boss_jumper':
+        // 跳跃Boss不参与逐步移动（在startMonsterTurn中一次性处理）
+        m.predictedPath = [];
         break;
       case 'patrol':
         // 简化巡逻: 玩家在5格内才追击, 否则原地不动
@@ -1753,6 +1830,213 @@ function spawnBossRoomItem() {
   }
 }
 
+// ==================== Boss Jumper 行动系统 ====================
+// 小跳跃：中心距离判定 → 向远方向移动1格 ×3次
+function calcJumperSmallJump(m) {
+  const sz = m.size || 2;
+  let tCol = m.col, tRow = m.row;
+  const px = player.col + 0.5, py = player.row + 0.5;
+
+  for (let step = 0; step < 3; step++) {
+    const cx = tCol + sz / 2, cy = tRow + sz / 2;
+    const dx = px - cx, dy = py - cy;
+    const adx = Math.abs(dx), ady = Math.abs(dy);
+
+    if (adx > ady) {
+      tCol += Math.sign(dx);
+    } else if (ady > adx) {
+      tRow += Math.sign(dy);
+    } else {
+      if (Math.random() < 0.5) tCol += (Math.sign(dx) || (Math.random() < 0.5 ? 1 : -1));
+      else tRow += (Math.sign(dy) || (Math.random() < 0.5 ? 1 : -1));
+    }
+  }
+
+  // 边界约束
+  tCol = Math.max(0, Math.min(COLS - sz, tCol));
+  tRow = Math.max(0, Math.min(ROWS - sz, tRow));
+
+  // 验证落点并微调
+  if (!isValidLandingZone(tCol, tRow, sz)) {
+    const offsets = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+    let found = false;
+    for (const [dc, dr] of offsets) {
+      const nc = tCol + dc, nr = tRow + dr;
+      if (nc >= 0 && nc <= COLS - sz && nr >= 0 && nr <= ROWS - sz && isValidLandingZone(nc, nr, sz)) {
+        tCol = nc; tRow = nr; found = true; break;
+      }
+    }
+    if (!found) return false; // 无有效落点，跳过
+  }
+
+  // 检查落点是否与其他怪物2×2重叠
+  const otherMonsters = monsters.filter(x => x.id !== m.id && !x.jumperVanished);
+  for (const om of otherMonsters) {
+    const osz = om.size || 1;
+    if (tCol < om.col + osz && tCol + sz > om.col && tRow < om.row + osz && tRow + sz > om.row) {
+      return false; // 重叠，跳过
+    }
+  }
+
+  // 跳跃动画记录
+  m.jumpFrom = { col: m.col, row: m.row };
+  m.jumpTo = { col: tCol, row: tRow };
+  m.jumpAnimTimer = 0.4; // 小跳跃动画时长
+  m.jumpType = 'small';
+
+  // 对落点区域内单位造成0.5伤害（玩家只扣一次）
+  let playerHit = false;
+  for (let dc = 0; dc < sz; dc++)
+    for (let dr = 0; dr < sz; dr++) {
+      const tc = tCol + dc, tr = tRow + dr;
+      if (!playerHit && tc === player.col && tr === player.row) { damagePlayer(0.5); playerHit = true; }
+    }
+
+  // 移动Boss
+  m.col = tCol; m.row = tRow;
+  const newPix = gridToPixel(m.col, m.row);
+  m.px = newPix.x; m.py = newPix.y;
+  return true;
+}
+
+// 大跳跃：找到包含玩家位置的2×2区域 → 消失 → 等待落地
+function calcJumperBigJump(m) {
+  const pCol = player.col, pRow = player.row;
+
+  // 找到所有包含玩家位置的2×2方格
+  const sz = m.size || 2;
+  const candidates = [];
+  for (let dc = -(sz - 1); dc <= 0; dc++) {
+    for (let dr = -(sz - 1); dr <= 0; dr++) {
+      const tc = pCol + dc, tr = pRow + dr;
+      if (tc >= 0 && tc + sz - 1 < COLS && tr >= 0 && tr + sz - 1 < ROWS) {
+        if (isValidLandingZone(tc, tr, sz)) candidates.push({ col: tc, row: tr });
+      }
+    }
+  }
+
+  if (candidates.length === 0) {
+    // 无有效落点，退化为小跳跃
+    return calcJumperSmallJump(m);
+  }
+
+  const target = candidates[Math.floor(Math.random() * candidates.length)];
+
+  // 设置延迟落地
+  pendingBossLanding = {
+    monster: m,
+    targetCol: target.col,
+    targetRow: target.row,
+  };
+
+  // Boss消失（保留动画计时器用于残影渲染）
+  m.jumperVanished = true;
+  m.jumpAnimTimer = 0.35; // 消失动画
+  m.jumpType = 'vanish';
+  m.jumpFrom = { col: m.col, row: m.row };
+  m.jumpTo = { col: m.col, row: m.row };
+  return true;
+}
+
+// 执行一次跳跃Boss行动（在startMonsterTurn中调用）
+function processJumperAction(m) {
+  if (m.jumperVanished) return;
+
+  // 大跳刚落地：本回合休息，下回合开始循环
+  if (m.jumperJustLanded) {
+    m.jumperJustLanded = false;
+    m.predictedPath = [];
+    return;
+  }
+
+  const phase = m.jumperPhase || 1;
+  let advanced = false;
+
+  if (phase === 1 || phase === 2) {
+    // 小跳跃
+    calcJumperSmallJump(m);
+    if (phase === 1) m.jumperPhase = 2;
+    else if (phase === 2) {
+      // 进入检查阶段：50%重复1+2，50%进入大跳
+      if (Math.random() < 0.5 && !m.jumperCheckRepeated) {
+        m.jumperPhase = 1;
+        m.jumperCheckRepeated = true;
+      } else {
+        m.jumperPhase = 4;
+        m.jumperCheckRepeated = false;
+      }
+    }
+    advanced = true;
+  } else if (phase === 4) {
+    // 大跳跃：消失
+    calcJumperBigJump(m);
+    advanced = true;
+  }
+
+  // 清除路径（jumper不参与逐步移动）
+  m.predictedPath = [];
+}
+
+// 处理大跳跃延迟落地（在玩家回合结束时调用）
+function executeBossLanding() {
+  if (!pendingBossLanding) return;
+
+  const { monster: m, targetCol, targetRow } = pendingBossLanding;
+  const sz = m.size || 2;
+
+  // Boss出现在目标位置
+  m.col = targetCol; m.row = targetRow;
+  const newPix = gridToPixel(m.col, m.row);
+  m.px = newPix.x; m.py = newPix.y;
+  m.jumperVanished = false;
+  m.jumperPhase = 1;
+  m.jumperJustLanded = true; // 落地回合不行动，下回合再循环
+  m.jumpFrom = { col: targetCol, row: targetRow }; // 落地位置
+  m.jumpTo = { col: targetCol, row: targetRow };
+  m.jumpAnimTimer = 0.55; // 大跳落地动画延长
+  m.jumpType = 'big_land';
+
+  // 大跳伤害范围：目标2×2 + 周围8格 = 最多12格
+  const damageCells = new Set();
+  // 目标2×2
+  for (let dc = 0; dc < sz; dc++)
+    for (let dr = 0; dr < sz; dr++)
+      damageCells.add(`${targetCol + dc},${targetRow + dr}`);
+
+  // 四角的相邻格
+  const corners = [
+    { c: targetCol, r: targetRow, adj: [{ dc: -1, dr: 0 }, { dc: 0, dr: -1 }] },           // 左上
+    { c: targetCol + sz - 1, r: targetRow, adj: [{ dc: 1, dr: 0 }, { dc: 0, dr: -1 }] },    // 右上
+    { c: targetCol, r: targetRow + sz - 1, adj: [{ dc: -1, dr: 0 }, { dc: 0, dr: 1 }] },    // 左下
+    { c: targetCol + sz - 1, r: targetRow + sz - 1, adj: [{ dc: 1, dr: 0 }, { dc: 0, dr: 1 }] }  // 右下
+  ];
+  for (const corner of corners) {
+    for (const a of corner.adj) {
+      const ac = corner.c + a.dc, ar = corner.r + a.dr;
+      if (ac >= 0 && ac < COLS && ar >= 0 && ar < ROWS) damageCells.add(`${ac},${ar}`);
+    }
+  }
+
+  // 对范围内角色造成1点伤害
+  for (const key of damageCells) {
+    const [c, r] = key.split(',').map(Number);
+    if (c === player.col && r === player.row) damagePlayer(1);
+    // 对其他怪物也造成伤害
+    for (const om of monsters) {
+      if (om.id === m.id || om.jumperVanished) continue;
+      if (isInMonsterFootprint(om, c, r)) {
+        const alreadyHit = damageCells.has(`hit_${om.id}`);
+        if (!alreadyHit) {
+          damageMonster(om, 1);
+          // 标记已处理（避免对一个1×1怪物多次伤害，但允许一个2×2怪物中多个格子触发）
+        }
+      }
+    }
+  }
+
+  pendingBossLanding = null;
+}
+
 // 怪物回合执行
 let monsterExecTimer = 0;
 let monsterExecStepIdx = 0;
@@ -1760,11 +2044,22 @@ let monsterExecStepIdx = 0;
 function startMonsterTurn() {
   monsterExecStepIdx = 0;
   monsterExecTimer = 0;
+
+  // 先处理跳跃Boss行动（一次性完成，不参与逐步移动）
+  for (const m of monsters) {
+    if (m.aiType === 'boss_jumper' && !m.jumperVanished) {
+      processJumperAction(m);
+    }
+  }
+
   calcAllMonsterPaths();  // 怪物回合开始时计算路径, 追踪玩家实时位置
 }
 
 function updateMonsterTurn(dt) {
-  if (monsters.length === 0) { finishMonsterTurn(); return; }
+  // vanished boss不算活跃怪物
+  const activeMonsters = monsters.filter(m => !m.jumperVanished);
+  if (activeMonsters.length === 0 && !pendingBossLanding) { finishMonsterTurn(); return; }
+  // 如果有pendingBossLanding，等待下个回合处理（大跳落地后继续怪物回合）
 
   monsterExecTimer += dt;
   if (monsterExecTimer < 0.15) return; // 加速: 0.25→0.15
@@ -1776,6 +2071,7 @@ function updateMonsterTurn(dt) {
   let anyStepLeft = false;
 
   for (const m of monsters) {
+    if (m.jumperVanished) continue; // 跳跃Boss已消失
     if (!m.predictedPath || monsterExecStepIdx >= m.predictedPath.length) continue;
     anyStepLeft = true;
     const step = m.predictedPath[monsterExecStepIdx];
@@ -1786,8 +2082,11 @@ function updateMonsterTurn(dt) {
 
   // 第二遍：应用移动 (已占用的格子不能再被其他怪物占据)
   const occupied = new Set();
-  // 把玩家和静止怪物当前位置标记为占用(移动后腾出)
-  for (const m of monsters) occupied.add(`${m.col},${m.row}`);
+  // 把玩家和静止怪物当前位置标记为占用(移动后腾出)，支持2×2
+  for (const m of monsters) {
+    if (m.jumperVanished) continue;
+    for (const mc of monsterCells(m)) occupied.add(`${mc.col},${mc.row}`);
+  }
 
   // 先标记起始位置 (避免怪物踩到另一个怪物的起点)
 
@@ -2485,6 +2784,96 @@ function drawDamageNumbers() {
 }
 function drawMonsters() {
   for (const m of monsters) {
+    // 跳跃Boss消失中：渲染残影动画
+    if (m.jumperVanished) {
+      if (m.jumpAnimTimer > 0 && m.jumpType === 'vanish' && m.jumpFrom) {
+        const vanishT = 1 - m.jumpAnimTimer / 0.35; // 0→1 消失进度
+        const fromPix = gridToPixel(m.jumpFrom.col, m.jumpFrom.row);
+        const centerPx = fromPix.x + CELL * ((m.size || 1) - 1) / 2;
+        const centerPy = fromPix.y + CELL * ((m.size || 1) - 1) / 2;
+        const pp = project(centerPx, centerPy);
+        const scaledSize = Math.round(CELL * (m.size || 1) * pp.s * (1 - vanishT * 0.6));
+        const vcx = Math.round(pp.x), vcy = Math.round(pp.y);
+        const vhalf = Math.floor(scaledSize / 2);
+        ctx.save();
+        ctx.globalAlpha = 1 - vanishT; // 渐渐透明
+        // 缩小的紫色块
+        prect(vcx - vhalf, vcy - vhalf, scaledSize, scaledSize, '#6a3093');
+        prect(vcx - vhalf + 2, vcy - vhalf + 2, scaledSize - 4, scaledSize - 4, '#8e44ad');
+        ctx.restore();
+      }
+      continue;
+    }
+
+    // 跳跃动画插值（jumpAnimTimer 从初始值递减到0，progress 0→1）
+    let drawPx = m.px, drawPy = m.py;
+    let jumpScale = 1.0; // 缩放系数（大跳落地用）
+    if (m.jumpAnimTimer > 0 && m.jumpFrom && m.jumpTo) {
+      const totalDur = m.jumpType === 'big_land' ? 0.55 : 0.4;
+      const t = 1 - m.jumpAnimTimer / totalDur; // progress: 0→1
+      const fromPix = gridToPixel(m.jumpFrom.col, m.jumpFrom.row);
+      const toPix = gridToPixel(m.jumpTo.col, m.jumpTo.row);
+
+      if (m.jumpType === 'big_land') {
+        // 大跳落地：从0.25缩放到1.05再弹回1.0
+        const landT = Math.min(1, t * 1.4); // 加速
+        jumpScale = 0.25 + 0.8 * (1 - Math.pow(1 - landT, 3)); // ease-out cubic
+        if (t > 0.8) jumpScale = 1.0 + 0.1 * Math.sin((t - 0.8) / 0.2 * Math.PI); // 过弹回弹
+        drawPx = toPix.x;
+        drawPy = toPix.y;
+      } else {
+        // 小跳跃：弧线效果
+        const easeT = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; // ease in-out
+        const arcY = -25 * Math.sin(t * Math.PI); // 跳跃弧线
+        drawPx = fromPix.x + (toPix.x - fromPix.x) * easeT;
+        drawPy = fromPix.y + (toPix.y - fromPix.y) * easeT + arcY;
+        // 轻微缩放弹跳（跳起时缩小，落地时正常）
+        jumpScale = 1.0 + 0.12 * Math.sin(t * Math.PI);
+      }
+    }
+
+    // 2×2怪物：渲染4格区域底色（从左上角开始）
+    const sz = m.size || 1;
+    if (sz > 1) {
+      const footprintX = drawPx - CELL / 2; // gridToPixel返回格子中心，回到左上角
+      const footprintY = drawPy - CELL / 2;
+      const tl = project(footprintX, footprintY);
+      const br = project(footprintX + CELL * sz, footprintY + CELL * sz);
+      const bw = br.x - tl.x, bh = br.y - tl.y;
+      // 半透明紫色底色表示占地区域
+      ctx.save();
+      ctx.globalAlpha = 0.2 + 0.08 * Math.sin(Date.now() / 400);
+      prect(Math.round(tl.x), Math.round(tl.y), Math.round(bw), Math.round(bh), 'rgba(180,60,220,0.4)');
+      ctx.restore();
+    }
+
+    // 大跳落地冲击波环
+    if (m.jumpAnimTimer > 0 && m.jumpType === 'big_land' && m.jumpFrom) {
+      const totalDur = 0.55;
+      const t = 1 - m.jumpAnimTimer / totalDur; // progress: 0→1
+      if (t < 0.5) {
+        const shockT = t / 0.5;
+        const ringR = shockT * CELL * 3; // 扩散半径
+        const centerPx = drawPx + CELL * (sz - 1) / 2;
+        const centerPy = drawPy + CELL * (sz - 1) / 2;
+        const ppRing = project(centerPx, centerPy);
+        const rx = Math.round(ppRing.x), ry = Math.round(ppRing.y);
+        ctx.save();
+        ctx.globalAlpha = 0.5 * (1 - shockT);
+        ctx.strokeStyle = '#c060e0';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(rx, ry, ringR, 0, Math.PI * 2);
+        ctx.stroke();
+        // 第二圈
+        ctx.globalAlpha = 0.25 * (1 - shockT);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(rx, ry, ringR * 1.5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
     // 血条动画: displayHp 平滑追赶真实 hp
     if (m.displayHp !== m.hp) {
       const diff = m.hp - m.displayHp;
@@ -2497,16 +2886,22 @@ function drawMonsters() {
       m.shakeX *= 0.85; m.shakeY *= 0.85;
     }
 
-    const pp = project(m.px + m.shakeX, m.py + m.shakeY);
+    // 2×2怪物：渲染位置为中心点（gridToPixel返回格子中心，4格中心需偏移 CELL*(sz-1)/2）
+    const szRender = m.size || 1;
+    const renderPx = szRender > 1 ? drawPx + CELL * (szRender - 1) / 2 : drawPx;
+    const renderPy = szRender > 1 ? drawPy + CELL * (szRender - 1) / 2 : drawPy;
+    const pp = project(renderPx + m.shakeX, renderPy + m.shakeY);
     const cx = Math.round(pp.x), cy = Math.round(pp.y);
     const s = pp.s;
-    const size = Math.round(SPRITE.BASE_SIZE * s * 1.1);
+    const baseSize = szRender > 1 ? Math.round(CELL * szRender * s) : Math.round(SPRITE.BASE_SIZE * s * 1.1);
+    const size = Math.round(baseSize);
     const half = Math.floor(size / 2);
 
     // 怪物名已迁移到 DOM 覆盖层 (updateTextOverlay)
 
     // --- HP 条 ---
-    const barW = Math.max(16, Math.round(size * 1.0));
+    let barW = Math.max(16, Math.round(size * 1.0));
+    if (szRender > 1) barW = Math.max(28, Math.round(size * 1.2));
     const barH = Math.max(3, Math.round(5 * s));
     const barY = cy - half - Math.round(9 * s);
     const barX = cx - Math.floor(barW / 2);
@@ -2542,7 +2937,31 @@ function drawMonsters() {
     }
     const sx2 = m.hitFlash > 0 ? m.shakeX : 0;
     const sy2 = m.hitFlash > 0 ? m.shakeY : 0;
-    drawCharacterAt(m.px + sx2, m.py + sy2, facing, 0, 0, 1, m.tint);
+
+    if (szRender > 1) {
+      // 2×2怪物：渲染大型方块Boss（支持缩放动画）
+      ctx.save();
+      if (jumpScale !== 1.0) {
+        ctx.translate(cx, cy);
+        ctx.scale(jumpScale, jumpScale);
+        ctx.translate(-cx, -cy);
+      }
+      const bossRectX = cx - half + 2, bossRectY = cy - half + 2;
+      const bossRectW = size - 4, bossRectH = size - 4;
+      prect(bossRectX, bossRectY, bossRectW, bossRectH, '#6a3093');
+      prect(bossRectX + 2, bossRectY + 2, bossRectW - 4, bossRectH - 4, '#8e44ad');
+      // 边框
+      ctx.strokeStyle = '#c060e0'; ctx.lineWidth = 2;
+      ctx.strokeRect(bossRectX, bossRectY, bossRectW, bossRectH);
+      // 眼睛（两个大白点）
+      const eyeY = bossRectY + Math.round(bossRectH * 0.35);
+      const eyeR = Math.max(3, Math.round(size * 0.08));
+      prect(Math.round(bossRectX + bossRectW * 0.28) - eyeR, eyeY - eyeR, eyeR * 2, eyeR * 2, '#ffffff');
+      prect(Math.round(bossRectX + bossRectW * 0.72) - eyeR, eyeY - eyeR, eyeR * 2, eyeR * 2, '#ffffff');
+      ctx.restore();
+    } else {
+      drawCharacterAt(renderPx + sx2, renderPy + sy2, facing, 0, 0, 1, m.tint);
+    }
 
     // 白闪覆盖 (受击瞬间)
     if (m.hitFlash > 0) {
@@ -2649,7 +3068,7 @@ function traceBulletCells(originCol, originRow, dir, breath) {
     cx += vec.dx; cy += vec.dy;
     if (isWall(cx, cy)) break;
     drawGridOverlay(cx, cy, '#4488ff', breath * 1.3, breath * 0.6);
-    if (monsters.some(m => m.col === cx && m.row === cy)) break; // 命中怪物停止
+    if (monsters.some(m => !m.jumperVanished && isInMonsterFootprint(m, cx, cy))) break; // 命中怪物停止
   }
 }
 
@@ -2664,7 +3083,7 @@ function drawMonsterPaths() {
   ctx.globalAlpha = flash;
 
   for (const m of monsters) {
-    if (!m.predictedPath || m.predictedPath.length === 0) continue;
+    if (m.jumperVanished || !m.predictedPath || m.predictedPath.length === 0) continue;
 
     for (const step of m.predictedPath) {
       const fromPx = gridToPixel(step.fromCol, step.fromRow);
@@ -3171,16 +3590,20 @@ function updateTextOverlay() {
   let nameIdx = 0;
   const existingNames = overlay.querySelectorAll('.txt-monster-name');
   for (const m of monsters) {
-    if (m.hp <= 0) continue;
-    const pp = project(m.px, m.py);
+    if (m.hp <= 0 || m.jumperVanished) continue;
+    const sz = m.size || 1;
+    // gridToPixel返回格子中心，4格区域中心需偏移 CELL*(sz-1)/2
+    const centerPx = sz > 1 ? m.px + CELL * (sz - 1) / 2 : m.px;
+    const centerPy = sz > 1 ? m.py + CELL * (sz - 1) / 2 : m.py;
+    const pp = project(centerPx, centerPy);
     const sx = Math.round(pp.x * DISPLAY_SCALE);
-    const cy = Math.round(pp.y * DISPLAY_SCALE);
+    const cy2 = Math.round(pp.y * DISPLAY_SCALE);
     const half = Math.round(SPRITE.BASE_SIZE * pp.s * DISPLAY_SCALE / 2);
-    const sy = cy - half - 12;
+    const sy = cy2 - half - 12;
 
     let el = existingNames[nameIdx];
     if (!el) { el = document.createElement('div'); el.className = 'txt-monster-name'; overlay.appendChild(el); }
-    if (m.aiType === 'boss_chase') { el.className = 'txt-monster-name boss'; } else { el.className = 'txt-monster-name'; }
+    if (m.aiType === 'boss_chase' || m.aiType === 'boss_jumper') { el.className = 'txt-monster-name boss'; } else { el.className = 'txt-monster-name'; }
     el.textContent = m.name;
     el.style.left = sx + 'px';
     el.style.top = sy + 'px';
@@ -3317,7 +3740,8 @@ function spawnBullet(dir, fromPx, fromPy) {
 function bulletHitMonster(bx, by, bullet) {
   const g = pixelToGrid(bx, by);
   for (const m of monsters) {
-    if (m.col === g.col && m.row === g.row) {
+    if (m.jumperVanished) continue; // 跳跃Boss消失中
+    if (isInMonsterFootprint(m, g.col, g.row)) {
       // 穿透子弹：跳过已经命中过的怪物
       if (bullet && bullet.hitMonsters && bullet.hitMonsters.has(m.id)) continue;
       return m;
@@ -3580,6 +4004,8 @@ document.addEventListener('keydown', (e) => {
         if (player.invincibleSteps > 0 && turnState.mAP > 0) {
           player.invincibleSteps = Math.max(0, player.invincibleSteps - turnState.mAP);
         }
+        // 处理大跳Boss延迟落地
+        executeBossLanding();
         startMonsterTurn();
         updateUI();
         return;
@@ -3774,6 +4200,13 @@ function gameLoop(timestamp) {
     monsterFlashTimer += dt;
   }
 
+  // 跳跃Boss动画计时器
+  for (const m of monsters) {
+    if (m.jumpAnimTimer > 0) {
+      m.jumpAnimTimer = Math.max(0, m.jumpAnimTimer - dt);
+    }
+  }
+
   // 伤害飘字更新
   updateDamageNumbers(dt);
 
@@ -3829,15 +4262,27 @@ function spawnMonsterAtRandomPos(cfgId) {
   const cfg = MONSTER_DB[cfgId];
   if (!cfg) return false;
 
+  const sz = cfg.size || 1;
   const occupied = new Set();
   occupied.add(`${player.col},${player.row}`);
-  for (const m of monsters) occupied.add(`${m.col},${m.row}`);
+  for (const m of monsters) {
+    for (const mc of monsterCells(m)) occupied.add(`${mc.col},${mc.row}`);
+  }
 
   const candidates = [];
   for (let c = 0; c < COLS; c++)
-    for (let r = 0; r < ROWS; r++)
-      if (!occupied.has(`${c},${r}`) && TILE_WALKABLE[currentRoomGrid[c][r]])
-        candidates.push({ col: c, row: r });
+    for (let r = 0; r < ROWS; r++) {
+      // 检查sz×sz区域是否完全未被占用且可落脚
+      let valid = true;
+      for (let dc = 0; dc < sz && valid; dc++)
+        for (let dr = 0; dr < sz && valid; dr++) {
+          const nc = c + dc, nr = r + dr;
+          if (nc >= COLS || nr >= ROWS) { valid = false; break; }
+          if (occupied.has(`${nc},${nr}`)) { valid = false; break; }
+          if (!TILE_WALKABLE[currentRoomGrid[nc][nr]]) { valid = false; break; }
+        }
+      if (valid && isValidLandingZone(c, r, sz)) candidates.push({ col: c, row: r });
+    }
 
   if (candidates.length === 0) return false;
 
@@ -3858,8 +4303,15 @@ function spawnMonsterAtRandomPos(cfgId) {
     tint: cfg.tint,
     predictedPath: [], moveSpeed: cfg.moveCycle[0],
     hitFlash: 0, shakeX: 0, shakeY: 0,
+    size: sz,
+    // boss_jumper 状态机
+    jumperPhase: (cfg.aiType === 'boss_jumper') ? 1 : undefined,
+    jumperRepeatCount: (cfg.aiType === 'boss_jumper') ? 0 : undefined,
+    jumperCheckRepeated: (cfg.aiType === 'boss_jumper') ? false : undefined,
+    jumperVanished: false,
+    jumperJustLanded: false,
   });
-  occupied.add(`${pos.col},${pos.row}`);
+  for (const mc of monsterCells(monsters[monsters.length - 1])) occupied.add(`${mc.col},${mc.row}`);
   return true;
 }
 
@@ -3881,16 +4333,16 @@ function spawnRoomMonsters() {
   const tpl = getTpl(room.tplKey);
   const spawnCfg = tpl.spawnConfig || { allowedMovement: ['地面', '飞行'], minMonsters: 1, maxMonsters: 3, budget: 8 };
 
-  // Boss 房间：只生成 Boss
+  // Boss 房间：生成跳跃巨兽 Boss
   if (roomType === 'boss') {
-    spawnMonsterAtRandomPos('boss_maw_king');
+    spawnMonsterAtRandomPos('boss_jumper');
     calcAllMonsterPaths();
     updateRoomCombatState();
     return;
   }
 
-  // 起点房间：不生成怪物
-  if (roomType === 'start') {
+  // 起点/宝藏房间：不生成怪物
+  if (roomType === 'start' || roomType === 'treasure') {
     updateRoomCombatState();
     return;
   }
