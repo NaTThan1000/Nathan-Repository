@@ -1114,131 +1114,117 @@ const AI_TYPE = {
   BOSS_CHASE:   'boss_chase',    // 追踪+特殊攻击
 };
 
-// 怪物配置数据库
-const MONSTER_DB = {
-  // ===== 普通怪物 =====
-  'crack_maw': {
-    id: 'crack_maw',
-    name: '裂口尸',
-    hp: 10,
-    moveCycle: [2, 1],        // 双回合交替移速
-    damage: 0.5,              // 碰撞伤害 (基础=半心)
-    aiType: 'chase',
-    tint: null,               // 颜色叠加(rgba)
-    dropTable: 'common',
-    dropRate: 0.4,
-    roomTypes: ['normal'],
-    movementTags: ['地面'],
-    role: 'melee',
-    threat: 3,
-  },
-  'flying_eye': {
-    id: 'flying_eye',
-    name: '浮游眼',
-    hp: 6,
-    moveCycle: [1, 1],        // 每回合1格
-    damage: 0.5,
-    aiType: 'ranged_kite',
-    aiRange: 3,               // 偏好距离
-    tint: 'rgba(180,180,255,0.35)',
-    dropTable: 'ranged',
-    dropRate: 0.5,
-    roomTypes: ['normal'],
-    movementTags: ['飞行'],
-    role: 'ranged',
-    threat: 2,
-  },
-  'rock_golem': {
-    id: 'rock_golem',
-    name: '岩石魔像',
-    hp: 20,
-    moveCycle: [1, 1],        // 每回合1格
-    damage: 1,                // 高伤害 (1心=特殊伤害)
-    aiType: 'chase',
-    tint: 'rgba(180,160,140,0.45)',
-    dropTable: 'heavy',
-    dropRate: 0.7,
-    roomTypes: ['normal', 'treasure'],
-    movementTags: ['地面'],
-    role: 'tank',
-    threat: 5,
-  },
+// 怪物配置数据库 (异步从 JSON 加载)
+let MONSTER_DB = {};
+let MONSTER_POOL_NORMAL = [];
+let MONSTER_POOL_ALL = [];
 
-  // ===== Boss 怪物 =====
-  'boss_maw_king': {
-    id: 'boss_maw_king',
-    name: '裂口之王',
-    hp: 45,
-    moveCycle: [3, 2],        // 双回合交替: 3格, 2格
-    damage: 1,                // Boss伤害 (1心=特殊伤害)
-    aiType: 'boss_chase',
-    tint: 'rgba(255,100,50,0.45)',
-    dropTable: 'boss',
-    dropRate: 1.0,
-    roomTypes: ['boss'],
-    movementTags: ['地面', '飞行'],
-    role: 'boss',
-    threat: 15,
-  },
-};
+function _rebuildMonsterPools() {
+  const keys = Object.keys(MONSTER_DB);
+  MONSTER_POOL_NORMAL = keys.filter(k => MONSTER_DB[k].aiType !== 'boss_chase');
+  MONSTER_POOL_ALL = keys;
+}
 
-// 随机生成时可选的普通怪物池(排除Boss)
-const MONSTER_POOL_NORMAL = Object.keys(MONSTER_DB).filter(k => MONSTER_DB[k].aiType !== 'boss_chase');
-// 全部怪物池
-const MONSTER_POOL_ALL = Object.keys(MONSTER_DB);
-
-// ==================== 道具数据库 ====================
-const ITEMS_DB = {
-  // ===== 普通品质 (Common) - 单属性加成 =====
-  'sad_onion': { id:'sad_onion', name:'伤心洋葱', icon:'🧅', desc:'射速 +1', quality:'common', effects:{fireRate:1} },
-  'the_belt': { id:'the_belt', name:'皮带', icon:'🟤', desc:'移动速度 +1', quality:'common', effects:{moveSpeed:1} },
-  'jesus_juice': { id:'jesus_juice', name:'耶稣果汁', icon:'🍷', desc:'攻击+0.5 射程+1', quality:'common', effects:{attack:0.5, range:1} },
-  'iron_bar': { id:'iron_bar', name:'铁块', icon:'🔩', desc:'攻击+0.5', quality:'common', effects:{attack:0.5} },
-  'wire_coat_hanger': { id:'wire_coat_hanger', name:'铁丝衣架', icon:'🪝', desc:'射速 +1', quality:'common', effects:{fireRate:1} },
-  'breakfast': { id:'breakfast', name:'早餐', icon:'🥛', desc:'HP上限+1 回满血', quality:'common', effects:{maxHp:1} },
-  'lunch': { id:'lunch', name:'午餐', icon:'🍖', desc:'HP上限+1 回满血', quality:'common', effects:{maxHp:1} },
-  'dinner': { id:'dinner', name:'晚餐', icon:'🍗', desc:'HP上限+1 回满血', quality:'common', effects:{maxHp:1} },
-  'dessert': { id:'dessert', name:'甜点', icon:'🍰', desc:'HP上限+1 回满血', quality:'common', effects:{maxHp:1} },
-  'roid_rage': { id:'roid_rage', name:'狂暴针', icon:'💉', desc:'移动速度 +1', quality:'common', effects:{moveSpeed:1} },
-  'speed_ball': { id:'speed_ball', name:'速度针', icon:'💊', desc:'移动速度 +1', quality:'common', effects:{moveSpeed:1} },
-  'screw': { id:'screw', name:'螺钉', icon:'🔧', desc:'射速 +1', quality:'common', effects:{fireRate:1} },
-  'synthol': { id:'synthol', name:'合成针', icon:'💪', desc:'攻击+0.5 射程+1', quality:'common', effects:{attack:0.5, range:1} },
-  'pentagram': { id:'pentagram', name:'五芒星', icon:'⭐', desc:'攻击+1', quality:'common', effects:{attack:1} },
-  'meat': { id:'meat', name:'肉！', icon:'🥩', desc:'HP上限+1 攻击+0.5', quality:'common', effects:{maxHp:1, attack:0.5} },
-
-  // ===== 稀有品质 (Rare) - 多属性或多重加成 =====
-  'the_halo': { id:'the_halo', name:'光环', icon:'👼', desc:'全属性+1 HP上限+1', quality:'rare', effects:{maxHp:1, attack:0.5, fireRate:0.5, moveSpeed:0.5, range:1} },
-  'magic_mushroom': { id:'magic_mushroom', name:'魔法蘑菇', icon:'🍄', desc:'全属性大幅提升 回满血', quality:'rare', effects:{maxHp:1, attack:1, moveSpeed:0.5, range:2} },
-  'stigmata': { id:'stigmata', name:'圣痕', icon:'✝️', desc:'HP上限+1 攻击+0.5', quality:'rare', effects:{maxHp:1, attack:0.5} },
-  'growth_hormones': { id:'growth_hormones', name:'生长激素', icon:'🧬', desc:'攻击+1 移速+1', quality:'rare', effects:{attack:1, moveSpeed:1} },
-  'cupids_arrow': { id:'cupids_arrow', name:'丘比特之箭', icon:'🏹', desc:'攻击+1 子弹穿透敌人', quality:'rare', effects:{attack:1}, special:'piercing' },
-  'champion_belt': { id:'champion_belt', name:'冠军腰带', icon:'🏆', desc:'攻击+1.5', quality:'rare', effects:{attack:1.5} },
-  'the_mark': { id:'the_mark', name:'印记', icon:'👿', desc:'攻击+1 移速+0.5', quality:'rare', effects:{attack:1, moveSpeed:0.5} },
-
-  // ===== 传说品质 (Legendary) - 大幅提升 =====
-  'sacred_heart': { id:'sacred_heart', name:'圣心', icon:'❤️', desc:'攻击大幅提升 回满血', quality:'legendary', effects:{attack:2.5, maxHp:2} },
-  'crickets_head': { id:'crickets_head', name:'蟋蟀的头', icon:'🐕', desc:'攻击+1 伤害×1.5倍', quality:'legendary', effects:{attack:1}, special:'damage_mult_1.5' },
-  'deaths_touch': { id:'deaths_touch', name:'死神的镰刀', icon:'💀', desc:'攻击+2 子弹穿透', quality:'legendary', effects:{attack:2}, special:'piercing' },
-};
-
-// 分类道具池
-const ITEM_POOL_COMMON = Object.keys(ITEMS_DB).filter(k => ITEMS_DB[k].quality === 'common');
-const ITEM_POOL_RARE = Object.keys(ITEMS_DB).filter(k => ITEMS_DB[k].quality === 'rare');
-const ITEM_POOL_LEGENDARY = Object.keys(ITEMS_DB).filter(k => ITEMS_DB[k].quality === 'legendary');
-const ITEM_POOL_ALL = Object.keys(ITEMS_DB);
-
-function rollItem(qualityOverride) {
-  // 60% common, 30% rare, 10% legendary
-  let pool;
-  if (qualityOverride === 'common') pool = ITEM_POOL_COMMON;
-  else if (qualityOverride === 'rare') pool = ITEM_POOL_RARE;
-  else if (qualityOverride === 'legendary') pool = ITEM_POOL_LEGENDARY;
-  else {
-    const roll = Math.random();
-    if (roll < 0.10) pool = ITEM_POOL_LEGENDARY;
-    else if (roll < 0.40) pool = ITEM_POOL_RARE;
-    else pool = ITEM_POOL_COMMON;
+async function loadMonsterDB() {
+  try {
+    const r = await fetch('Configs/monster-db.json?' + Date.now());
+    if (r.ok) {
+      MONSTER_DB = await r.json();
+      _rebuildMonsterPools();
+      console.log('✅ 已从 JSON 加载怪物数据库 (' + MONSTER_POOL_ALL.length + ' 种)');
+      return true;
+    }
+  } catch(e) {
+    console.warn('⚠ 无法加载 monster-db.json:', e.message);
   }
+  return false;
+}
+
+// ==================== 道具数据库 (异步加载) ====================
+let ITEMS_DB = {};
+let ITEM_DROP_TABLES = {};
+let ITEM_POOL_COMMON = [];
+let ITEM_POOL_RARE = [];
+let ITEM_POOL_LEGENDARY = [];
+let ITEM_POOL_ALL = [];
+
+// ==================== 特殊效果注册表 ====================
+const SPECIAL_EFFECT_HANDLERS = {
+  'piercing': {
+    apply(state) { state.hasPiercing = true; },
+    reset(state) { state.hasPiercing = false; },
+  },
+  'damage_mult': {
+    apply(state, params) { state.damageMultiplier *= (params.mult || 1.0); },
+    reset(state) { state.damageMultiplier = 1.0; },
+  },
+  'heal_full': {
+    // 在 applyItem 中处理，此处仅标记
+    apply() {},
+    reset() {},
+  },
+};
+
+function _rebuildItemPools() {
+  const keys = Object.keys(ITEMS_DB);
+  ITEM_POOL_COMMON = keys.filter(k => ITEMS_DB[k].quality === 'common');
+  ITEM_POOL_RARE = keys.filter(k => ITEMS_DB[k].quality === 'rare');
+  ITEM_POOL_LEGENDARY = keys.filter(k => ITEMS_DB[k].quality === 'legendary');
+  ITEM_POOL_ALL = keys;
+}
+
+async function loadItemDB() {
+  try {
+    const r = await fetch('Configs/item-db.json?' + Date.now());
+    if (r.ok) {
+      ITEMS_DB = await r.json();
+      _rebuildItemPools();
+      console.log('✅ 已从 JSON 加载道具数据库 (' + ITEM_POOL_ALL.length + ' 件)');
+      return true;
+    }
+  } catch(e) {
+    console.warn('⚠ 无法加载 item-db.json:', e.message);
+  }
+  return false;
+}
+
+async function loadDropTables() {
+  try {
+    const r = await fetch('Configs/item-drop-tables.json?' + Date.now());
+    if (r.ok) {
+      ITEM_DROP_TABLES = await r.json();
+      console.log('✅ 已加载道具掉落表');
+      return true;
+    }
+  } catch(e) {}
+  ITEM_DROP_TABLES = { default: { common: 0.6, rare: 0.3, legendary: 0.1 } };
+  console.warn('⚠ 使用内置默认掉落表');
+  return false;
+}
+
+/**
+ * 按掉落表或品质覆盖随机一个道具 cfgId
+ * @param {string|null} qualityOverride - 强制品质 (common/rare/legendary)，传 null 则用掉落表随机
+ * @param {string} dropTable - 掉落表名，对应 ITEM_DROP_TABLES 的 key
+ * @returns {string} 道具 cfgId
+ */
+function rollItem(qualityOverride, dropTable = 'default') {
+  let quality;
+  if (qualityOverride) {
+    quality = qualityOverride;
+  } else {
+    const table = ITEM_DROP_TABLES[dropTable] || ITEM_DROP_TABLES['default'] || { common: 0.6, rare: 0.3, legendary: 0.1 };
+    const roll = Math.random();
+    if (roll < (table.legendary || 0)) quality = 'legendary';
+    else if (roll < (table.legendary || 0) + (table.rare || 0)) quality = 'rare';
+    else quality = 'common';
+  }
+
+  const pool = quality === 'legendary' ? ITEM_POOL_LEGENDARY
+    : quality === 'rare' ? ITEM_POOL_RARE
+    : ITEM_POOL_COMMON;
+
+  if (pool.length === 0) return ITEM_POOL_ALL[Math.floor(Math.random() * ITEM_POOL_ALL.length)] || null;
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
@@ -1608,30 +1594,51 @@ function applyItem(cfgId) {
   // 记录改变前的HP百分比
   const hpRatio = playerStats.hp / playerStats.maxHp;
 
-  // 应用属性
+  // 应用数值属性
   if (cfg.effects.maxHp) playerStats.maxHp += cfg.effects.maxHp;
   if (cfg.effects.attack) playerStats.attack = Math.round((playerStats.attack + cfg.effects.attack) * 10) / 10;
   if (cfg.effects.fireRate) playerStats.fireRate += cfg.effects.fireRate;
   if (cfg.effects.moveSpeed) playerStats.moveSpeed += cfg.effects.moveSpeed;
   if (cfg.effects.range) playerStats.range += cfg.effects.range;
 
-  // HP上限增加时按比例恢复
-  if (cfg.effects.maxHp) {
+  // 处理特殊效果：heal_full（拾取时立即回满血）
+  if (cfg.specials && Array.isArray(cfg.specials)) {
+    for (const sp of cfg.specials) {
+      if (sp.type === 'heal_full') {
+        playerStats.hp = playerStats.maxHp;
+      }
+    }
+  }
+  // 向后兼容旧格式 special 字符串
+  if (cfg.special) {
+    if (cfg.special === 'heal_full') playerStats.hp = playerStats.maxHp;
+  }
+
+  // HP上限增加时按比例恢复（未在 specials 中声明 heal_full 时的默认行为）
+  if (cfg.effects.maxHp && !_hasHealFull(cfg)) {
     playerStats.hp = Math.min(playerStats.maxHp, Math.ceil(playerStats.maxHp * hpRatio) + 1);
   }
 
-  // 确保属性不小于0
+  // 确保属性不小于下限
   playerStats.fireRate = Math.max(1, playerStats.fireRate);
   playerStats.moveSpeed = Math.max(1, playerStats.moveSpeed);
   playerStats.range = Math.max(3, playerStats.range);
 
-  // 重新应用所有道具以计算最终属性（处理特殊效果）
+  // 重新应用所有道具以计算最终属性（处理特殊效果如 piercing / damage_mult）
   recalcAllStats();
 
   console.log(`✅ 拾取道具: ${cfg.name} (${cfg.quality}) - ${cfg.desc}`);
 }
 
-// 重新计算所有属性（包括特殊效果）
+// 检查道具配置中是否声明了 heal_full 效果
+function _hasHealFull(cfg) {
+  if (cfg.specials && Array.isArray(cfg.specials)) {
+    return cfg.specials.some(sp => sp.type === 'heal_full');
+  }
+  return cfg.special === 'heal_full';
+}
+
+// 重新计算所有属性（遍历所有已拥有道具，同时处理特效注册表）
 function recalcAllStats() {
   // 从基准值开始
   playerStats.attack = 3.5;
@@ -1640,26 +1647,40 @@ function recalcAllStats() {
   playerStats.range = 6;
   playerStats.maxHp = 3;
 
-  let hasPiercing = false;
-  let damageMultiplier = 1.0;
+  // 初始化特效状态
+  const effectState = { hasPiercing: false, damageMultiplier: 1.0 };
 
   for (const cfgId of playerInventory) {
     const cfg = ITEMS_DB[cfgId];
     if (!cfg) continue;
+
+    // 累加数值属性
     if (cfg.effects.maxHp) playerStats.maxHp += cfg.effects.maxHp;
     if (cfg.effects.attack) playerStats.attack += cfg.effects.attack;
     if (cfg.effects.fireRate) playerStats.fireRate += cfg.effects.fireRate;
     if (cfg.effects.moveSpeed) playerStats.moveSpeed += cfg.effects.moveSpeed;
     if (cfg.effects.range) playerStats.range += cfg.effects.range;
-    if (cfg.special === 'piercing') hasPiercing = true;
-    if (cfg.special === 'damage_mult_1.5') damageMultiplier *= 1.5;
+
+    // 处理 specials[] 结构化特效
+    if (cfg.specials && Array.isArray(cfg.specials)) {
+      for (const sp of cfg.specials) {
+        const handler = SPECIAL_EFFECT_HANDLERS[sp.type];
+        if (handler && handler.apply) handler.apply(effectState, sp);
+      }
+    }
+
+    // 向后兼容旧格式 special 字符串
+    if (cfg.special) {
+      if (cfg.special === 'piercing') SPECIAL_EFFECT_HANDLERS['piercing'].apply(effectState, {});
+      else if (cfg.special === 'damage_mult_1.5') SPECIAL_EFFECT_HANDLERS['damage_mult'].apply(effectState, { mult: 1.5 });
+    }
   }
 
-  // 应用倍率
-  playerStats.attack = Math.round(playerStats.attack * damageMultiplier * 10) / 10;
+  // 应用伤害倍率
+  playerStats.attack = Math.round(playerStats.attack * effectState.damageMultiplier * 10) / 10;
 
   // 穿透标识 (存储在player对象上)
-  player.hasPiercing = hasPiercing;
+  player.hasPiercing = effectState.hasPiercing;
 
   // 确保下限
   playerStats.fireRate = Math.max(1, playerStats.fireRate);
@@ -1710,7 +1731,7 @@ function spawnTreasureRoomItem() {
     bestCol = pos.c; bestRow = pos.r;
   }
 
-  const cfgId = rollItem('rare'); // 宝箱房至少稀有
+  const cfgId = rollItem(null, 'treasure_room'); // 宝箱房按掉落表
   spawnItemOnGrid(bestCol, bestRow, cfgId);
   room.itemSpawned = true;
 }
@@ -1721,10 +1742,7 @@ function spawnBossRoomItem() {
   if (!room || room.type !== 'boss') return;
   if (room.itemDropped) return;
 
-  let cfgId = rollItem();
-  // Boss房有几率出传说
-  if (Math.random() < 0.2) cfgId = rollItem('legendary');
-  else if (Math.random() < 0.5) cfgId = rollItem('rare');
+  const cfgId = rollItem(null, 'boss_room'); // Boss房按掉落表
 
   // 在Boss房中央生成道具
   let col = 6, row = 3;
@@ -3780,6 +3798,9 @@ function gameLoop(timestamp) {
 // ==================== 启动 ====================
 async function bootGame(){
   await loadTemplates();
+  await loadMonsterDB();    // 加载怪物数据库
+  await loadItemDB();       // 加载道具数据库
+  await loadDropTables();   // 加载道具掉落表
   await loadOrGenerateFloors(false);
   currentRoomGrid=parseGrid(BUILTIN_TEMPLATES()['open'].tiles);
   

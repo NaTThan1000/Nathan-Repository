@@ -1,6 +1,6 @@
 # 以撒·半回合制战斗 — 项目总览
 
-> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html`（v2基础版）+ `isaac-turnbased-demo2.html`（v3道具系统版） | 单文件 ~3900+ 行 | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/monster-db.json` 怪物配置表 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层(绕过Canvas像素缩放) + 战斗开始交叉剑动画 + Esc时间倒流动画
+> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html`（v2基础版）+ `isaac-turnbased-demo2.html`（v3道具系统版） | 单文件 ~4000+ 行 | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/monster-db.json` 怪物配置表 + `Configs/item-db.json` 道具数据库 + `Configs/item-drop-tables.json` 掉落表 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层(绕过Canvas像素缩放) + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表系统 + 掉落表机制
 
 ---
 
@@ -258,6 +258,48 @@ player_select ──→ monster_turn ──→ player_select
 - Esc 全重置本回合 → `restoreTurnSnapshot()` + 时间倒流动画
 - Space 直接进入 `monster_turn`（无二次确认弹窗）
 
+### 2.12 道具系统
+
+**道具数据库** `ITEMS_DB`（25种被动道具），数据来源 `Configs/item-db.json` 外部 JSON 配置文件，通过 `loadItemDB()` 异步加载。
+
+| 品质 | 数量 | 边框颜色 | 示例 |
+|------|------|---------|------|
+| 普通(common) | 15 | 棕色 | 伤心洋葱、皮带、耶稣果汁、铁块、铁丝衣架、早餐、午餐、晚餐、甜点、狂暴针、速度针、螺钉、合成针、五芒星、肉！ |
+| 稀有(rare) | 7 | 蓝色 | 光环、魔法蘑菇、圣痕、生长激素、丘比特之箭、冠军腰带、印记 |
+| 传说(legendary) | 3 | 金色+呼吸光效 | 圣心、蟋蟀的头、死神的镰刀 |
+
+**属性效果** `effects`：
+- `maxHp`：HP 上限增加
+- `attack`：攻击力增加
+- `fireRate`：射速增加（→ 对应 A-AP 上限）
+- `moveSpeed`：移速增加（→ 对应 M-AP 上限）
+- `range`：射程增加
+
+**特殊效果** `specials[]`（结构化声明，经 `SPECIAL_EFFECT_HANDLERS` 注册表分发）：
+
+| 特效类型 | 效果 | 拥有道具 |
+|---------|------|---------|
+| `piercing` | 子弹穿透敌人（不销毁，不重复伤害同一目标） | 丘比特之箭、死神的镰刀 |
+| `damage_mult` | 伤害倍率（mult 参数） | 蟋蟀的头(×1.5) |
+| `heal_full` | 拾取时回复全部 HP | 早餐/午餐/晚餐/甜点/肉！/魔法蘑菇/圣心 |
+
+**掉落系统** `item-drop-tables.json`：
+- 三张掉落表按房间类型分配品质权重：
+
+| 掉落表 | common | rare | legendary | 适用场景 |
+|--------|--------|------|-----------|---------|
+| `default` | 60% | 30% | 10% | 普通房间清怪 |
+| `treasure_room` | 0% | 75% | 25% | 宝箱房 |
+| `boss_room` | 25% | 45% | 30% | Boss房清怪 |
+
+**拾取与叠加**：
+- F 键拾取道具，加入 `playerInventory` 数组
+- `recalcAllStats()` 遍历背包，累加 `effects` 数值属性 + 遍历 `specials[]` 调用注册表 handler
+- 穿透不叠加（布尔值），伤害倍率可叠加（`damageMultiplier *= mult`）
+- HP 上限提升后当前 HP 等比增加
+
+**道具栏 UI**：底部图标横排（品质边框颜色），悬浮显示道具名+描述+来源提示
+
 ---
 
 ## 3. 界面与交互
@@ -343,6 +385,9 @@ player_select ──→ monster_turn ──→ player_select
     ├── 子弹系统 (spawnBullet, updateBullets, shatterBullet)
     ├── 粒子系统 (updateParticles) & 受伤系统 (damagePlayer)
     ├── 怪物系统 (MONSTER_DB 配置表 + AI_TYPE 枚举 + AI行为路由 + calcAllMonsterPaths/startMonsterTurn/updateMonsterTurn/spawnMonster)
+    ├── 道具系统 (ITEMS_DB 道具数据库 + SPECIAL_EFFECT_HANDLERS 特效注册表 + playerInventory 背包 + recalcAllStats 属性重算)
+    ├── 掉落系统 (item-drop-tables.json 掉落表 + rollItem 按品质权重随机)
+    ├── 数据加载层 (loadMonsterDB/loadItemDB/loadDropTables — 异步fetch JSON配置文件)
     ├── UI 更新 (updateUI, updateActionBar, updateFloorUI)
     ├── 输入处理 (keydown — WASD移动/箭头射击/Esc重置/Space结束/R重置/F拾取)
     └── 游戏循环 (gameLoop → requestAnimationFrame)
@@ -402,6 +447,12 @@ function project(wx, wy) {
 | `calcReachableTiles(fromCol, fromRow, maxSteps)` | BFS 计算可移动方格集（排除墙壁和怪物） |
 | `refreshReachableTiles()` | 从当前位置以剩余 M-AP 刷新可移动范围 |
 | `loadTemplates()` | 加载 `pool.json` 关卡池模板→`poolTemplates` |
+| `loadMonsterDB()` | 异步 fetch `monster-db.json` → `MONSTER_DB` + `_rebuildMonsterPools()` |
+| `loadItemDB()` | 异步 fetch `item-db.json` → `ITEMS_DB` 道具数据库 |
+| `loadDropTables()` | 异步 fetch `item-drop-tables.json` → `DROP_TABLES` 掉落表 |
+| `rollItem(quality?, tableKey?)` | 按品质/掉落表权重随机抽取道具配置ID |
+| `spawnItemOnGrid(col, row, cfgId)` | 在指定网格位置生成道具实体 |
+| `recalcAllStats()` | 遍历背包重算所有属性（effects 数值累加 + specials[] 注册表分发） |
 | `getTpl(key)` | 按 key 获取模板，优先 poolTemplates，回退内置 |
 | `generateFloor(floorNum)` | 随机生成单层地牢：图生成+BFS连通+布局+门分配+模板填充 |
 | `generateAllFloors()` | 生成全部 6 层地牢 |
@@ -436,6 +487,9 @@ function project(wx, wy) {
 ```
 启动:
   loadTemplates() → poolTemplates
+  loadMonsterDB() → MONSTER_DB (异步fetch monster-db.json)
+  loadItemDB() → ITEMS_DB (异步fetch item-db.json)
+  loadDropTables() → DROP_TABLES (异步fetch item-drop-tables.json)
   loadOrGenerateFloors() → allFloors (从 floor-data.json / 兜底 generateAllFloors)
   enterFloor(1) → 设置 currentFloor/currentRoomId/currentRoomGrid → spawnRoomMonsters()
 
@@ -488,6 +542,8 @@ function project(wx, wy) {
 | `pool.json` | JSON | 关卡池数据文件（模板定义 + spawnConfig 刷怪配置，编辑器读写） |
 | `floor-data.json` | JSON | 楼层生成数据（房间结构+grid，编辑器/游戏加载） |
 | `monster-db.json` | JSON | 怪物配置数据（4种怪物 + movementTags/role/threat 混合刷怪字段） |
+| `item-db.json` | JSON | 道具数据库（25种被动道具：effects 数值属性 + specials[] 结构化特效） |
+| `item-drop-tables.json` | JSON | 道具掉落表（三张表：default/treasure_room/boss_room 按品质权重） |
 | `isaac-room-pool - original backup.json` | JSON | 原始关卡池备份 |
 
 ### Documents/ (文档)
@@ -506,7 +562,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
-| 2026-07-21(晚) | **文档体系同步**。global-rules 新增 §2.8(文档写入前验证流程)、§2.9(规则传播检查)、§4.4(AI数据真实性规范)。对应的 memory 修改规则2(不编造数据)+规则3(写入前排序)正式化。创建 Memory 78482030。 |
+| 2026-07-21(晚) | **数据外置 + 特效系统结构化 + 掉落表机制**。①MONSTER_DB 从内联 JS 改为 `loadMonsterDB()` 异步 fetch `monster-db.json`，新增 `_rebuildMonsterPools()`。②创建 `Configs/item-db.json`（25种道具完整配置）+ `Configs/item-drop-tables.json`（三张掉落表）。③`cfg.special` 字符串改为 `cfg.specials[]` 结构化数组，新增 `SPECIAL_EFFECT_HANDLERS` 注册表（piercing/damage_mult/heal_full），向后兼容旧格式。④`spawnTreasureRoomItem()` / `spawnBossRoomItem()` 改用掉落表机制。⑤monster-db.json 伤害值全面同步半心制。⑥新增 §2.12 道具系统策划章节。 |
 | 2026-07-20 | **godot-setup-checklist.md 移至根目录 Documents/**。文件从项目专属文档升级为跨项目通用参考文档，从 context.md 文件清单中移除引用。 |
 | 2026-07-20 | **三层记忆体系建立**。①新增 `Documents/isaac-memory.md`：从 context.md 全部历史记录 + chat-log + 当前会话三个数据源提取所有重要决策，按功能领域系统化整理（AP演变/无敌X→Y/怪物三次重构/尖刺调整/编辑器去服务器/道具系统等）。②新增根目录 `Documents/global-rules.md`：从 6 条 CodeBuddy Memories 迁移跨项目通用规范，补充时间戳和详细说明。③文件清单新增 isaac-memory.md 引用。④删除 `chat-log-2026-07-20.md`（内容已迁移到 memory.md）。⑤CodeBuddy Memories 新增"多端开发记忆同步"规则。 |
 | 2026-07-20 | **道具系统 + 小地图 + 访问记录 + AP动态 + 编辑器文件直读 + demo2 + 服务器彻底移除**。①创建 `isaac-turnbased-demo2.html`（v3道具版），新增 25 种被动道具（15普通/7稀有/3传说），宝箱房必定掉落稀有道具、Boss房清怪后掉落。②道具属性叠加系统：攻击/射速/移速/射程/HP上限，其中射速→A-AP、移速→M-AP（Math.floor 向下取整），拾取道具后动态调整 AP。③特殊道具效果：穿透子弹（丘比特之箭/死神的镰刀）、伤害倍率（蟋蟀头 ×1.5）。④道具栏 UI（底部图标+悬浮提示）+ 拾取交互（F键）+ 品质区分（金/蓝/棕边框）。⑤右下角小地图（100×80px）：根据 floor.layout 绘制已探索房间（起点S/BossB/宝箱T），当前房间金色边框，未探索深色方块。⑥已进入房间不再刷怪：visitedRooms(Set) 追踪，finishTransition 检测重复进入。⑦编辑器彻底移除 server.js 依赖：模板池/楼层数据改用 File System Access API 直读直写（showOpenFilePicker + IndexedDB 记住句柄），"生成json"按钮弹出文本框供手动复制覆盖。⑧demo.html/demo2.html/map-viewer.html 三文件统一清理所有服务器相关代码（localhost:8080/BroadcastChannel），`loadTemplates` 和 `loadOrGenerateFloors` 改为直接 fetch `Configs/pool.json` 和 `Configs/floor-data.json`。⑨删除 `Configs/server.js`、`test-save.html`、`server.py`、`server.ps1`。 |
@@ -524,4 +580,4 @@ function project(wx, wy) {
 
 ---
 
-> **下一步方向**：完善 AI 行为（ranged_kite 远程射击 / stationary 远程攻击需子弹系统）、掉落系统（道具/消耗品）、商店房间交易功能、Sound/FX 音效系统。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。
+> **下一步方向**：完善 AI 行为（ranged_kite 远程射击 / stationary 远程攻击需子弹系统）、掉落系统扩展（消耗品/饰品）、商店房间交易功能、Sound/FX 音效系统。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。物品掉落基础已完成（道具掉落表 + 品质权重分配）。

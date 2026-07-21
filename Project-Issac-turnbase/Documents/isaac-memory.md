@@ -258,11 +258,32 @@
 - **[原因]** 同步文档本身即系统性审查节点，在此处追加传播检查最自然、遗漏率最低
 - **[Memory]** 创建 Memory ID 78482030
 
+### 怪物配置异步加载 [当前方案]
+- **[决策]** MONSTER_DB 从内联 JS 常量改为 `let MONSTER_DB = {};` + `async loadMonsterDB()` 从 `Configs/monster-db.json` fetch 异步填充，`_rebuildMonsterPools()` 重建 `MONSTER_POOL_NORMAL` / `MONSTER_POOL_ALL` 过滤池
+- **[原因]** 彻底解耦配置与代码，monster-db.json 为单一数据源，后续修改怪物只需改 JSON 不碰 HTML
+
+### 道具数据库外置 [当前方案]
+- **[决策]** 创建 `Configs/item-db.json`（25种被动道具完整配置：effects 数值属性 + specials[] 结构化特效）+ `Configs/item-drop-tables.json`（三张掉落表按品质权重分配）
+- **[原因]** 道具配置从内联 JS 迁移到外部 JSON，与怪物配置保持一致的数据外置策略
+
+### 特效系统结构化 [当前方案]
+- **[决策]** `cfg.special` 字符串（`"piercing"` / `"damage_mult_1.5"`）改为 `cfg.specials[]` 结构化数组，新增 `SPECIAL_EFFECT_HANDLERS` 注册表（piercing/damage_mult/heal_full）
+- **[原因]** 旧字符串方案每加一种特效要改多处（recalcAllStats、配置定义等），注册表模式只需在 handlers 中加一个 key，注册表分发统一处理
+- **[向后兼容]** `recalcAllStats()` 保留对旧 `cfg.special` 字符串的判断分支
+
+### 掉落系统改造 [当前方案]
+- **[决策]** `spawnTreasureRoomItem()` / `spawnBossRoomItem()` 从硬编码概率改为掉落表机制（`rollItem(null, 'treasure_room')` / `rollItem(null, 'boss_room')`），由 `item-drop-tables.json` 控制品质分配
+- **[原因]** 掉落表可独立配置和热更新，无需改代码
+
+### 怪物伤害同步修正 [当前方案]
+- **[决策]** monster-db.json 中全部怪物伤害同步半心制：裂口尸 1→0.5 / 浮游眼 1→0.5 / 岩石魔像 2→1 / 裂口之王 2→1
+- **[原因]** HP系统改为3心制时 monster-db.json 伤害值未同步修正，导致实际伤害比预期高2倍
+
 ## 最近更新记录
 
 | 日期 | 更新内容 |
 |------|---------|
-| 2026-07-21 | **文档规范强化 + 设计三要素评估 + UI精简 + 动画系统 + 文字DOM化 + 碰撞系统重构**。新增 memory 修改规则(不编造数据/写入前排序)，对应 global-rules §4.4+§2.8。建立 §2.9 规则传播检查(Memory 78482030)。去掉Space弹窗和起始幽灵+交叉剑战斗开始动画+Esc时间倒流动画。Canvas文字全面迁移到DOM覆盖层。移除击退/反弹，基于turnMovePath轨迹的接触伤害回溯。demo.html补全visitedRooms修复。 |
+| 2026-07-21(晚) | **数据外置 + 特效结构化 + 掉落表改造 + 怪物伤害修正**。①MONSTER_DB 从内联JS改为异步fetch JSON。②item-db.json + item-drop-tables.json 独立配置。③specials[] 结构化 + SPECIAL_EFFECT_HANDLERS 注册表。④宝箱/Boss掉落改用掉落表机制。⑤monster-db.json 伤害值同步半心制。 |
 | 2026-07-20 | **SSH推送替代HTTPS**。DPI防火墙拦截git/curl HTTPS连接，诊断确认SSH 22端口正常。生成ed25519密钥，利用Deploy Key API绕行token scope限制（repo scope够用），remote永久改为SSH。记录完整诊断过程+跨电脑注意事项。 |
 | 2026-07-20 | **global-rules §1.4 正式化**。将 AI 禁止自动 Git 写入操作写入 global-rules.md 作为正式跨项目规范，创建 Memory ID 70076756。 |
 | 2026-07-20 | **HP心形改造 + AI提交行为纠正**。①HP系统改为3心制+半心显示，所有玩家伤害减半。②记录AI自动提交行为被纠正事件，确认Git操作需用户明确指令。 |

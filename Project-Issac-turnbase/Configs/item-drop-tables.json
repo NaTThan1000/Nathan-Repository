@@ -1,0 +1,17 @@
+{
+  "default": {
+    "common": 0.6,
+    "rare": 0.3,
+    "legendary": 0.1
+  },
+  "treasure_room": {
+    "common": 0.0,
+    "rare": 0.75,
+    "legendary": 0.25
+  },
+  "boss_room": {
+    "common": 0.25,
+    "rare": 0.45,
+    "legendary": 0.3
+  }
+}
