@@ -1,6 +1,6 @@
 # 以撒·半回合制战斗 — 项目总览
 
-> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html`（v2基础版）+ `isaac-turnbased-demo2.html`（v3道具系统版） | 单文件 ~3700+ 行 | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/monster-db.json` 怪物配置表 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态属性绑定
+> 文件: `Project-Issac-turnbase/isaac-turnbased-demo.html`（v2基础版）+ `isaac-turnbased-demo2.html`（v3道具系统版） | 单文件 ~3900+ 行 | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/monster-db.json` 怪物配置表 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层(绕过Canvas像素缩放) + 战斗开始交叉剑动画 + Esc时间倒流动画
 
 ---
 
@@ -16,12 +16,11 @@
 - 回合开始时计算可移动范围（BFS，考虑墙壁和怪物阻挡），浅蓝色呼吸闪烁标示
 - WASD 在可移动范围内**即时移动本体**（非预览），消耗 M-AP
 - ↑↓←→ **即时射击**（非预览），立即发射子弹，消耗 A-AP
-- 首次射击触发 checkpoint：锁定位置 + 刷新可移动范围从当前位置重新计算
-- 回合开始位置保留半透明幽灵作视觉参考（非操作体）
-- Esc **全重置**本回合所有操作和结果（角色/怪物/环境回到回合开始时）
-- Space 结束回合 → 切换怪物回合；有剩余 AP 时弹窗二次确认
-- 操作键：WASD 移动(探索)/WASD 战斗移动、↑↓←→ 射击、Space 结束回合、Esc 全重置、C 随机生怪、B 放boss梯子、R 重置游戏
-- 标准矩形像素风格渲染
+- 射击后锁定可移动范围从当前位置重新计算（内部 checkpoint，玩家无需感知概念）
+- Esc **全重置**本回合所有操作和结果（角色/怪物/环境回到回合开始时），触发时间倒流动画
+- Space **直接结束回合** → 切换怪物回合（无二次确认弹窗）
+- 操作键：WASD 移动、↑↓←→ 射击、Space 结束回合、Esc 全重置、R 重置游戏
+- 标准矩形像素风格渲染，文字通过独立 DOM 覆盖层渲染保证清晰度
 
 ### 1.3 玩家属性
 
@@ -135,9 +134,8 @@
 
 - **移动**：WASD 在可移动范围内即时移动本体，M-AP-1，范围动态刷新
 - **射击**：↑↓←→ 立即发射子弹，A-AP-1
-- **射击 Checkpoint**：首次射击时保存位置（`checkpointPos`），之后可移动范围从当前位置重新计算
-- **回合起始幽灵**：回合开始位置留 40% 透明度幽灵，作为视觉参考（非操作体）
-- **Esc 全重置**：恢复完整回合快照（`turnSnapshot`），玩家/怪物/HP 全部回到回合开始时状态
+- **射击 Checkpoint**：首次射击时保存位置（`checkpointPos`），之后可移动范围从当前位置重新计算（内部机制，玩家无需认知）
+- **Esc 全重置**：恢复完整回合快照（`turnSnapshot`），玩家/怪物/HP 全部回到回合开始时状态，伴随时间倒流动画
 - **回合快照**：`saveTurnSnapshot()` 保存玩家坐标/HP、怪物坐标/HP 等；`restoreTurnSnapshot()` 恢复
 - **可移动范围计算**：`calcReachableTiles(fromCol, fromRow, maxSteps)` BFS，排除墙壁和怪物占据格
 
@@ -145,8 +143,7 @@
 
 - 玩家占据网格坐标 (col, row)，初始位置 (6, 3)
 - **探索模式**：WASD 自由移动（无 AP 限制），按方向键切换房间
-- **战斗模式**：WASD 在可移动范围(浅蓝呼吸)内即时移动本体，每步消耗 1 M-AP；方向键射击消耗 A-AP
-- 回合起始位置保留半透明幽灵(40%透明度)作视觉参考
+- **战斗模式**：WASD 在可移动范围(浅蓝呼吸)内即时移动本体，每步消耗 1 M-AP；方向键射击消耗 A-AP；角色右上角黄色圆点实时显示剩余 A-AP
 - **走路动画**：移动时播放精灵图集 10 帧走路循环（80ms/帧）
 - 移动受限：网格边界外不可移动，墙壁/怪物格不可通行
 - 朝向跟踪：记录最后移动/射击方向，决定精灵帧方向
@@ -241,20 +238,19 @@
 ```
 player_select ──→ monster_turn ──→ player_select
      │    ↑
-     │    └── Esc (重置回合)
-     └── Space (结束回合)
+     │    └── Esc (重置回合 + 时间倒流动画)
+     └── Space (直接结束回合)
 ```
 
 | 阶段 | 说明 |
 |------|------|
-| `player_select` | 即时操作：WASD移动本体、↑↓←→即时射击、Esc全重置、Space结束回合(未消耗M-AP计无敌)、C随机生怪 |
-| `turn_end_confirm` | 弹窗确认结束回合（仅剩余AP时触发） |
+| `player_select` | 即时操作：WASD移动本体、↑↓←→即时射击、Esc全重置、Space直接结束回合(未消耗M-AP计无敌) |
 | `monster_turn` | 怪物AI路由分发→逐步移动(每怪独立移速/dmg)→碰撞+尖刺检测，完成后重置AP |
 
 - 无预操作队列，所有行为即时生效
-- `hasShot` 标记首次射击（触发 checkpoint，`checkpointPos` 保存位置）
-- Esc 全重置本回合 → `restoreTurnSnapshot()` 恢复回合开始时状态
-- 0AP 时 Space 直接进入 `monster_turn`（无弹窗）
+- `hasShot` 标记首次射击（内部 checkpoint）
+- Esc 全重置本回合 → `restoreTurnSnapshot()` + 时间倒流动画
+- Space 直接进入 `monster_turn`（无二次确认弹窗）
 
 ---
 
@@ -266,27 +262,27 @@ player_select ──→ monster_turn ──→ player_select
 |------|------|------|
 | W / A / S / D | 探索/战斗 | 探索模式自由移动；战斗模式在可移动范围(浅蓝呼吸)内即时移动本体 |
 | W/A/S/D + 门前格 | 探索 | 站在门前格+按门方向键 → 切换房间(带滑动过渡动画) |
-| ↑ / ↓ / ← / → | 战斗 | 即时射击（按即发射），首次射击触发 checkpoint |
-| 空格 | 战斗 | 结束回合（有剩余 AP 时弹窗确认，无剩余直接进入怪物回合） |
-| Esc | 战斗 | 全重置本回合 → 恢复回合快照（角色/怪物/HP 全部回到回合开始时） |
-| C | 探索/战斗 | 随机生成怪物 (95%普通, 5%含Boss) |
-| B | 探索 | 在 Boss 房间放置梯子格(踩上进入下一层) |
+| ↑ / ↓ / ← / → | 战斗 | 即时射击（按即发射） |
+| 空格 | 战斗 | 直接结束回合 → 进入怪物回合（无二次确认弹窗） |
+| Esc | 战斗 | 全重置本回合 + 时间倒流动画（角色/怪物/HP 全部回到回合开始时） |
+| F | 任意 | 拾取道具（demo2） |
 | R | 任意 | 重置游戏 → 回到第1层起点 |
 
 ### 3.2 UI 面板
 
 | 面板 | 内容 |
 |------|------|
-| HP | 当前血量/上限 (6/6) |
-| A-AP | 剩余攻击点数/上限 (高亮橙色圆点) |
-| M-AP | 剩余移动点数/上限 (高亮蓝色圆点) |
+| HP | 当前血量/上限 (3心形制，支持.5半心) |
+| A-AP | 剩余攻击点数/上限 (橙色圆点) |
+| M-AP | 剩余移动点数/上限 (蓝色圆点) |
+| A-AP 圆点 | 战斗时角色右上角黄色圆点 + 数字，用尽变灰色空心 |
 | 阶段 | 当前回合阶段文字 + 颜色标记 |
 | 回合 | 当前回合编号 |
 | 属性 | 攻击力3.5 射程6 运气0 |
-| **状态栏** | 棋盘下方，显示 [自由]/[已锁定] + 当前 M-AP, A-AP 剩余/上限 |
+| **状态栏** | 棋盘下方，显示 [自由]/[已锁定] + 当前 M-AP, A-AP 剩余/上限（探索模式隐藏） |
 | **楼层信息** | 左上角显示当前楼层名+房间类型+tplKey |
 | **可移动范围** | BFS 计算的浅蓝色呼吸闪烁方格（仅战斗模式） |
-| **回合起始幽灵** | 40% 透明度角色，标示回合开始位置（仅战斗模式） |
+| **DOM 覆盖层** | Canvas 上方独立的 HTML 文字层，绕过 `image-rendering:pixelated` 渲染清晰文字 |
 
 ---
 
@@ -297,14 +293,16 @@ player_select ──→ monster_turn ──→ player_select
 3. **探索模式**：
    - WASD 自由移动，不受 AP 限制
    - 走到门前格+按方向键 → 滑动过渡切换房间
-   - 进入新房间 → `updateRoomCombatState()`：无怪则探索，有怪则战斗
+   - 进入新房间 → `updateRoomCombatState()`：已访问过且清空则不刷怪，有怪则进入战斗
    - 踩到梯子 → `enterFloor()` 进入下一层
-   - 踩到尖刺 → `damagePlayer(2)`；无敌保护：移速×2步（战斗/探索统一）
+   - 踩到尖刺 → `damagePlayer(1心)`；无敌保护：移速×2步
+   - AP 面板在探索模式下隐藏
 4. **战斗模式** `player_select`：
-   - WASD 在浅蓝可移动范围内即时移动本体，每步 -1 M-AP，`invincibleSteps--`
-   - ↑↓←→ 即时射击，-1 A-AP，首次射击触发 checkpoint
-   - Esc → 恢复回合快照（角色/怪物/HP 全部重置）
-   - Space → 结束确认（未消耗M-AP计入无敌步数）→ monster_turn
+   - 进入战斗触发"交叉剑"动画（两剑从左右飞入旋转碰撞）
+   - WASD 在浅蓝可移动范围内即时移动本体，每步 -1 M-AP
+   - ↑↓←→ 即时射击，-1 A-AP，角色右上角黄色圆点实时显示 A-AP
+   - Esc → 时间倒流动画 + 恢复回合快照
+   - Space → 直接结束回合（无弹窗）→ monster_turn
 5. `monster_turn` → 每怪独立移速/AI路由 → 怪物逐步移动 + 碰撞(按类型伤害) + 尖刺5伤害 → `updateRoomCombatState()`
    - 清怪 → 门打开 → 回到探索模式
    - 有怪 → 继续战斗，回合数+1
@@ -317,9 +315,9 @@ player_select ──→ monster_turn ──→ player_select
 ## 1. 架构概览
 
 ```
-单文件 HTML (isaac-turnbased-demo.html) ~2400 行
-├── CSS: 像素风 UI (Press Start 2P 字体)
-├── HTML: Canvas 游戏容器 + 状态栏 (#action-bar) + UI 面板
+单文件 HTML (isaac-turnbased-demo.html ~2400行, demo2.html ~3900行)
+├── CSS: UI 样式 + DOM 文字覆盖层样式 (.txt-monster-name/.txt-damage/.txt-aap)
+├── HTML: Canvas 游戏容器 + #text-overlay 覆盖层 + 状态栏 (#action-bar) + UI 面板
 └── JavaScript
     ├── 渲染配置 & 精灵图集 (SPRITE)
     ├── 投影系统 & 坐标转换
@@ -330,15 +328,17 @@ player_select ──→ monster_turn ──→ player_select
     ├── 快照系统 (saveTurnSnapshot, restoreTurnSnapshot — 支撑Esc全重置)
     ├── 可移动范围 (calcReachableTiles BFS, refreshReachableTiles)
     ├── AP 管理 (resetTurnAP)
+    ├── 动画系统 (battleStartAnim 交叉剑 / rewindAnim 时间倒流)
     ├── 房间/楼层系统 (loadTemplates/generateFloor/enterFloor/updateDoorsLocked/tryWalkIntoDoor)
-    ├── 渲染系统 (drawWalls/Floor/Tiles/Doors/Grid/ReachableOverlay/Ghost/Player/Bullets/Particles/Monsters)
-    ├── 角色渲染 (drawCharacterAt — 本体和幽灵复用)
+    ├── 渲染系统 (drawWalls/Floor/Tiles/Doors/Grid/ReachableOverlay/Player/Bullets/Particles/Monsters)
+    ├── 角色渲染 (drawCharacterAt — 统一角色绘制)
+    ├── DOM 文字覆盖层 (updateTextOverlay — 怪物名/伤害飘字/A-AP圆点，绕过Canvas像素缩放)
     ├── 移动系统 (探索自由移动 + 战斗AP移动 + 场景过渡动画)
     ├── 子弹系统 (spawnBullet, updateBullets, shatterBullet)
     ├── 粒子系统 (updateParticles) & 受伤系统 (damagePlayer)
     ├── 怪物系统 (MONSTER_DB 配置表 + AI_TYPE 枚举 + AI行为路由 + calcAllMonsterPaths/startMonsterTurn/updateMonsterTurn/spawnMonster)
     ├── UI 更新 (updateUI, updateActionBar, updateFloorUI)
-    ├── 输入处理 (keydown — WASD移动/箭头射击/Esc重置/Space结束/C生怪/B梯子/R重置)
+    ├── 输入处理 (keydown — WASD移动/箭头射击/Esc重置/Space结束/R重置/F拾取)
     └── 游戏循环 (gameLoop → requestAnimationFrame)
 ```
 
@@ -350,8 +350,9 @@ WALL = 16, CELL = 22, COLS = 13, ROWS = 7
 BULLET_MAX_DIST = 6.0, BULLET_SPEED = 560
 MOVE_SPEED = 140, EXEC_MOVE_SPEED = 170, GRAVITY = 360
 SHATTER_PARTICLES = 10, SHATTER_DURATION = 0.25
-GHOST_ALPHA = 0.4
 VP_SCALE_TOP = 1.00, VP_SCALE_BOT = 1.00
+// 动画常量
+BATTLE_START_DURATION = 0.55, REWIND_DURATION = 0.35
 ```
 
 ## 3. SPRITE 精灵图集配置
@@ -405,21 +406,23 @@ function project(wx, wy) {
 | `updateRoomCombatState()` | 更新战斗/探索状态，触发回合初始化或结束 |
 | `updateDoorsLocked()` | 根据 inCombat 开关门（战斗=锁/探索=开） |
 | `damagePlayer(amount)` | 玩家受伤：战斗/探索统一无敌移速×2步（战斗中结束回合时未消耗M-AP也计入） |
-| `drawCharacterAt(px,py,facing,walkFrame,shootTimer,alpha,tint)` | 通用角色渲染（本体和幽灵复用），支持透明度/无敌闪烁/tint色彩叠加 |
-| `drawTurnStartGhost()` | 渲染 40% 透明度回合起始位置幽灵 |
+| `drawCharacterAt(px,py,facing,walkFrame,shootTimer,alpha,tint)` | 通用角色渲染，支持透明度/无敌闪烁/tint色彩叠加 |
 | `drawReachableOverlay()` | 渲染浅蓝色呼吸闪烁可移动方格 |
+| `drawBattleStartSwords()` | 战斗开始交叉剑动画：两剑从左右飞入旋转碰撞火花 |
+| `drawRewindEffect()` | Esc全重置时间倒流动画：蓝色收缩光圈 + 白色闪光 |
+| `updateTextOverlay()` | 管理 DOM 覆盖层文字（怪物名/伤害飘字/A-AP圆点） |
 | `drawTiles()` | 渲染六种 TILE（岩/便/坑/刺/梯），使用 `cellRect()` 透视坐标 |
 | `drawDoors()` | 房门渲染：开=通道+门框/关=铁栏纹理，区分上下左右 |
 | `cellRect(col,row)` | 透视投影后格子中心坐标+尺寸，供 TILE/门渲染 |
 | `drawWalls/Floor/GridHighlight/Bullets/Particles` | 各渲染子系统 |
 | `spawnBullet(dir,fromPx,fromPy)` / `updateBullets(dt)` / `shatterBullet(b)` | 子弹生命周期 |
 | `updateParticles(dt)` | 粒子物理+淡出 |
-| `spawnMonster(cfgId?)` | 调试生怪：生成 1 只地面标签随机怪（C键/按钮） |
+| `spawnMonster(cfgId?)` | 调试生怪：生成 1 只地面标签随机怪 |
 | `spawnMonsterAtRandomPos(cfgId)` | 在随机可行走位置生成指定怪物，返回是否成功 |
 | `spawnRoomMonsters()` | 混合刷怪主函数：标签过滤+组合规则+点数预算，进入房间/楼层时自动调用 |
 | `calcAllMonsterPaths()` / `startMonsterTurn()` / `updateMonsterTurn(dt)` | 怪物回合系统：AI路由分发+每怪独立移速/移动路径计算 |
-| `updateActionBar()` | 更新底部状态栏（自由/锁定 + AP 剩余） |
-| `updateUI()` / `updateFloorUI()` | 更新所有 DOM UI 面板（含楼层信息栏） |
+| `updateActionBar()` | 更新底部状态栏（探索模式隐藏 / 战斗模式显示 AP） |
+| `updateUI()` / `updateFloorUI()` | 更新所有 DOM UI 面板（含AP面板显隐、楼层信息栏） |
 | `gameLoop(timestamp)` | 主循环：动画→输入→子弹→粒子→怪物回合→渲染 |
 
 ## 6. 数据流
@@ -448,7 +451,9 @@ function project(wx, wy) {
   gameLoop → render()
            → 墙壁 → 地板 → TILE瓷砖(岩/便/坑/刺/梯) → 房门(开/关)
            → 网格高亮 → 可移动范围(浅蓝呼吸) → 子弹 → 粒子
-           → 怪物 → 起始幽灵(40%透明度) → 角色本体(无敌闪烁) → 飘字
+           → 怪物 → 角色本体(无敌闪烁)
+           → 战斗开始剑动画 → Esc时间倒流动画
+           → DOM 覆盖层独立渲染文字(怪物名/伤害飘字/A-AP圆点)
 ```
 
 ## 7. 项目文件清单
@@ -495,7 +500,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
-| 2026-07-20 | **HP系统心形改造**。①血量上限从 6/6 改为 3/3 心形制，内部 hp 支持 .5 浮点值。②所有玩家伤害减半：普通怪物 0.5 心（crack_maw/flying_eye）、高级怪物/Boss/尖刺 1 心（rock_golem/boss_maw_king）。③UI 新增半心显示（`.heart.half` CSS），左半红色右半暗色，两次半心伤害=1整心。④满心/半心/空心三态可看出血上限。⑤demo.html + demo2.html 同步修改：playerStats/MONSTER_DB damage/buildHearts/updateHearts/recalcAllStats/spike damage。 |
+| 2026-07-21 | **UI精简 + 动画系统 + 文字渲染重构**。①去掉 Space 二次确认弹窗和回合起始幽灵，简化操作流程。②新增战斗开始交叉剑动画（两剑从左右飞入旋转碰撞、0.55秒渐隐）和 Esc 全重置时间倒流动画（蓝色收缩光圈+闪光）。③Canvas 文字全面迁移到 DOM 覆盖层（`#text-overlay`），绕过 `image-rendering:pixelated` 确保清晰渲染。④怪物名称/伤害飘字/A-AP圆点全部通过 DOM (`updateTextOverlay()`) 管理，`drawDamageNumbers/怪物名/A-AP` Canvas 绘制已移除。⑤探索模式隐藏 AP 面板，`updateUI()` 根据 `inCombat` 控制。⑥Canvas CSS 移除 `image-rendering:pixelated`。⑦`finishTransition` 增加 `updateUI()` 调用确保 AP 面板同步。⑧demo.html 补全 `visitedRooms` 逻辑（之前缺失导致已清怪房间重新刷怪）。⑨修复 `drawDebugOverlay` 函数声明被误删的 bug。 |
 | 2026-07-20 | **godot-setup-checklist.md 移至根目录 Documents/**。文件从项目专属文档升级为跨项目通用参考文档，从 context.md 文件清单中移除引用。 |
 | 2026-07-20 | **三层记忆体系建立**。①新增 `Documents/isaac-memory.md`：从 context.md 全部历史记录 + chat-log + 当前会话三个数据源提取所有重要决策，按功能领域系统化整理（AP演变/无敌X→Y/怪物三次重构/尖刺调整/编辑器去服务器/道具系统等）。②新增根目录 `Documents/global-rules.md`：从 6 条 CodeBuddy Memories 迁移跨项目通用规范，补充时间戳和详细说明。③文件清单新增 isaac-memory.md 引用。④删除 `chat-log-2026-07-20.md`（内容已迁移到 memory.md）。⑤CodeBuddy Memories 新增"多端开发记忆同步"规则。 |
 | 2026-07-20 | **道具系统 + 小地图 + 访问记录 + AP动态 + 编辑器文件直读 + demo2 + 服务器彻底移除**。①创建 `isaac-turnbased-demo2.html`（v3道具版），新增 25 种被动道具（15普通/7稀有/3传说），宝箱房必定掉落稀有道具、Boss房清怪后掉落。②道具属性叠加系统：攻击/射速/移速/射程/HP上限，其中射速→A-AP、移速→M-AP（Math.floor 向下取整），拾取道具后动态调整 AP。③特殊道具效果：穿透子弹（丘比特之箭/死神的镰刀）、伤害倍率（蟋蟀头 ×1.5）。④道具栏 UI（底部图标+悬浮提示）+ 拾取交互（F键）+ 品质区分（金/蓝/棕边框）。⑤右下角小地图（100×80px）：根据 floor.layout 绘制已探索房间（起点S/BossB/宝箱T），当前房间金色边框，未探索深色方块。⑥已进入房间不再刷怪：visitedRooms(Set) 追踪，finishTransition 检测重复进入。⑦编辑器彻底移除 server.js 依赖：模板池/楼层数据改用 File System Access API 直读直写（showOpenFilePicker + IndexedDB 记住句柄），"生成json"按钮弹出文本框供手动复制覆盖。⑧demo.html/demo2.html/map-viewer.html 三文件统一清理所有服务器相关代码（localhost:8080/BroadcastChannel），`loadTemplates` 和 `loadOrGenerateFloors` 改为直接 fetch `Configs/pool.json` 和 `Configs/floor-data.json`。⑨删除 `Configs/server.js`、`test-save.html`、`server.py`、`server.ps1`。 |

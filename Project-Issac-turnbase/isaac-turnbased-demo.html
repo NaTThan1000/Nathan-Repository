@@ -108,12 +108,49 @@
     box-shadow: 0 0 40px rgba(0,0,0,0.8), inset 0 0 2px rgba(255,200,100,0.15);
     background: #111;
     line-height: 0;
+    width: 954px;
+    height: 558px;
   }
 
-  canvas {
-    display: block;
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
+  canvas { display: block; }
+
+  /* DOM 文字覆盖层 — 绕过 canvas pixelated 缩放 */
+  #text-overlay {
+    position: absolute; top: 0; left: 0;
+    width: 954px; height: 558px;
+    pointer-events: none;
+    z-index: 5;
+    overflow: hidden;
+  }
+  .txt-monster-name {
+    position: absolute;
+    font: bold 12px 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    color: #ccaa88; text-align: center;
+    text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+    white-space: nowrap; transform: translate(-50%, -50%);
+  }
+  .txt-monster-name.boss { color: #ff6644; font-size: 13px; }
+  .txt-damage {
+    position: absolute;
+    font: bold 14px 'Arial', sans-serif;
+    color: #ffdd44; text-align: center;
+    text-shadow: 1px 1px 0 #000, -1px -1px 0 #000;
+    white-space: nowrap; transform: translate(-50%, -50%);
+    transition: none;
+  }
+  .txt-aap {
+    position: absolute;
+    width: 18px; height: 18px;
+    border-radius: 50%; background: #ffcc44;
+    font: bold 11px 'Arial', sans-serif;
+    color: #332200; text-align: center; line-height: 18px;
+    text-shadow: none;
+    transform: translate(-50%, -50%);
+  }
+  .txt-aap.empty {
+    background: transparent;
+    border: 2px solid #555544;
+    color: transparent;
   }
 
   /* ===== 调试信息 ===== */
@@ -365,40 +402,6 @@
   }
   #help-close:hover { background: #ffcc44; color: #1a1410; }
 
-  /* 回合结束确认弹窗 */
-  #end-turn-modal {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,0.7);
-    display: none;
-    align-items: center; justify-content: center;
-    z-index: 100; padding: 20px;
-  }
-  #end-turn-modal.open { display: flex; }
-  #end-turn-box {
-    background: #1a1410;
-    border: 4px solid #5a3a18;
-    border-radius: 6px;
-    padding: 28px 36px;
-    max-width: 480px; width: 100%;
-    color: #d4b87a;
-    font-family: var(--font-cn);
-    box-shadow: 0 0 30px rgba(0,0,0,0.8);
-    text-align: center;
-  }
-  #end-turn-box h2 { color: #ffcc44; font-size: 20px; margin-bottom: 20px; letter-spacing: 2px; }
-  #end-turn-confirm, #end-turn-cancel {
-    background: #15151a;
-    border: 2px solid #3a3020;
-    color: #d4b87a;
-    font-family: var(--font-cn);
-    font-size: 16px;
-    padding: 8px 20px;
-    cursor: pointer;
-    letter-spacing: 1px;
-  }
-  #end-turn-confirm:hover { border-color: #88ff66; color: #aaff88; }
-  #end-turn-cancel:hover { border-color: #ee6644; color: #ff8866; }
-
   #spawn-monster-btn { border-color: #aa4444; color: #ff7766; }
   #spawn-monster-btn:hover { border-color: #ff6644; color: #ffaa88; background: #1a1010; }
 </style>
@@ -430,6 +433,7 @@
 
 <div id="game-container">
   <canvas id="game"></canvas>
+  <div id="text-overlay"></div>
 </div>
 
 <div id="debug-info">
@@ -447,11 +451,11 @@
       <div class="card-label">HP</div>
       <div class="hearts" id="ui-hearts"></div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card" id="ui-aap-card">
       <div class="card-label">攻击 A-AP</div>
       <div class="ap-dots" id="ui-aap-dots"></div>
     </div>
-    <div class="stat-card">
+    <div class="stat-card" id="ui-map-card">
       <div class="card-label">移动 M-AP</div>
       <div class="ap-dots" id="ui-map-dots"></div>
     </div>
@@ -514,15 +518,7 @@
   </div>
 </div>
 
-<div id="end-turn-modal">
-  <div id="end-turn-box">
-    <h2 id="end-turn-msg" style="text-align:center;font-size:20px;color:#ffcc44;margin-bottom:20px;">是否结束回合？</h2>
-    <div style="display:flex;gap:20px;justify-content:center;">
-      <button id="end-turn-confirm">Space 确认</button>
-      <button id="end-turn-cancel">Esc 取消</button>
-    </div>
-  </div>
-</div>
+
 
 <script>
 console.log('✅ isaac-turnbased-demo v2 已加载 - 门在门前格+方向键触发');
@@ -675,8 +671,12 @@ function updateRoomCombatState(){
     turnState.phase='player_select';
     turnState.turnNumber=0;
     resetTurnAP();
+    // 触发交叉剑战斗开始动画
+    battleStartAnim.active = true;
+    battleStartAnim.timer = 0;
   }
   updateDoorsLocked();
+  updateUI(); // 同步 AP 面板显隐
 }
 
 function updateDoorsLocked(){
@@ -760,8 +760,10 @@ function resetGameToFloor1(){
   player.col=6;player.row=3;const p=gridToPixel(6,3);player.px=p.x;player.py=p.y;
   player.targetPx=null;player.targetPy=null;player.animTime=0;player.facing='down';player.walkFrame=0;
   player.shootTimer=0;player.hitFlash=0;player.shakeX=0;player.shakeY=0;player.invincibleSteps=0;
+  visitedRooms = new Set(); // 重置已访问记录
   playerStats.hp=playerStats.maxHp;
   currentFloor=allFloors[1];currentRoomId=currentFloor.startRoomId;
+  visitedRooms.add(currentRoomId); // 起始房间已访问
   const room=currentFloor.rooms.find(r=>r.id===currentRoomId);currentRoomGrid=room.grid;
   initTileData();inCombat=false;
   turnState.phase='player_select';turnState.turnNumber=0;resetTurnAP();turnState.reachableTiles=new Set();
@@ -798,6 +800,7 @@ function enterFloor(floorNum){
   const p=gridToPixel(6,3);player.px=p.x;player.py=p.y;player.facing='down';
   player.targetPx=null;player.targetPy=null;player.animTime=0; // 防残留滑动
   initTileData();
+  visitedRooms.add(currentRoomId); // 起始房间标记已访问
   turnState.turnNumber=0;resetTurnAP();
   spawnRoomMonsters();  // 混合刷怪
   updateUI();updateFloorUI();
@@ -838,7 +841,18 @@ function finishTransition(){
   player.facing='down';player.walkFrame=0;
   initTileData();
   transition=null;
-  spawnRoomMonsters();  // 混合刷怪
+
+  const alreadyVisited = visitedRooms.has(currentRoomId);
+  visitedRooms.add(currentRoomId);
+
+  if (!alreadyVisited) {
+    spawnRoomMonsters();  // 首次进入才刷怪
+  } else {
+    monsters.length = 0;  // 再次进入：不刷怪
+    inCombat = false;
+    updateDoorsLocked();
+    updateUI(); // 同步AP面板
+  }
   updateFloorUI();
 }
 
@@ -947,7 +961,7 @@ const player = {
 
 // ==================== AP 与回合状态 ====================
 let turnState = {
-  phase: 'player_select',     // player_select | turn_end_confirm | monster_turn
+  phase: 'player_select',     // player_select | monster_turn
   mAP: 0, maxMAP: 0,
   aAP: 0, maxAAP: 0,
   hasShot: false,              // 是否已进行过射击(触发checkpoint)
@@ -964,6 +978,10 @@ let totalShots    = 0;
 let checkpointPos = null;       // {col, row} 射击后checkpoint位置
 let turnSnapshot  = null;       // 回合开始时完整快照
 let pendingReachableRefresh = false;  // 怪物死亡后需刷新可移动范围
+
+// ==================== 动画/视觉状态 ====================
+let battleStartAnim = { active: false, timer: 0, duration: 0.55 };  // 交叉剑战斗开始动画
+let rewindAnim = { active: false, timer: 0, duration: 0.35 };     // Esc全重置时间倒流动画
 
 // ==================== 怪物系统 ====================
 // AI 行为类型枚举
@@ -1052,6 +1070,7 @@ const MONSTER_POOL_ALL = Object.keys(MONSTER_DB);
 let monsters = [];  // [{id, cfgId, name, col, row, hp, maxHp, predictedPath, moveSpeed, moveCycle, damage, aiType, tint, ...}]
 let monsterIdCounter = 0;
 let monsterFlashTimer = 0;  // 路径箭头闪烁计时器
+let visitedRooms = new Set(); // 已进入过的房间ID集合
 
 // ==================== 调试模式 ====================
 let debugMode     = false;
@@ -1771,7 +1790,7 @@ function drawGhost() {
   ctx.save();
   ctx.globalAlpha = CFG.GHOST_ALPHA;
   ctx.fillStyle = '#ffcc88';
-  ctx.font = `${Math.max(5, Math.round(6 * s))}px 'Press Start 2P'`;
+  ctx.font = `${Math.max(5, Math.round(6 * s))}px sans-serif`;
   ctx.textAlign = 'center';
   ctx.fillText(`(${ghost.col},${ghost.row})`, Math.round(gpp.x), Math.round(gpp.y - SPRITE.BASE_SIZE * s * 0.5 - 6 * s));
   ctx.restore();
@@ -1803,6 +1822,8 @@ function drawPlayer() {
     prect(Math.round(pp.x) - half, Math.round(pp.y) - half, size, size, '#ffffff');
     ctx.restore();
   }
+
+  // A-AP 圆点已迁移到 DOM 覆盖层 (updateTextOverlay)
 }
 
 // --- 像素风子弹 ---
@@ -1954,9 +1975,10 @@ function render() {
   drawBullets();
   drawParticles();
   drawMonsters();
-  if(inCombat)drawTurnStartGhost(); // 仅战斗模式显示回合起始幽灵
   drawPlayer();
   drawDamageNumbers();
+  drawBattleStartSwords();  // 战斗开始交叉剑
+  drawRewindEffect();       // Esc全重置时间倒流
   drawDebugOverlay();
 }
 
@@ -1989,18 +2011,7 @@ function updateDamageNumbers(dt) {
   }
 }
 function drawDamageNumbers() {
-  for (const d of damageNumbers) {
-    const pp = project(d.x, d.y);
-    const alpha = Math.max(0, d.life / d.maxLife);
-    const s = pp.s;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.fillStyle = '#ffdd44';
-    ctx.font = `bold ${Math.max(8, Math.round(10 * s))}px VT323, monospace`;
-    ctx.textAlign = 'center';
-    ctx.fillText(d.text, Math.round(pp.x), Math.round(pp.y));
-    ctx.restore();
-  }
+  // 伤害飘字已迁移到 DOM 覆盖层 (updateTextOverlay)
 }
 function drawMonsters() {
   for (const m of monsters) {
@@ -2022,14 +2033,7 @@ function drawMonsters() {
     const size = Math.round(SPRITE.BASE_SIZE * s * 1.1);
     const half = Math.floor(size / 2);
 
-    // --- 名称标签 ---
-    ctx.save();
-    ctx.fillStyle = m.aiType === 'boss_chase' ? '#ff6644' : '#ccaa88';
-    ctx.font = `bold ${Math.max(4, Math.round(5.5 * s))}px 'Press Start 2P'`;
-    ctx.textAlign = 'center';
-    const nameY = cy - half - Math.round(15 * s);
-    ctx.fillText(m.name, cx, nameY);
-    ctx.restore();
+    // 怪物名已迁移到 DOM 覆盖层 (updateTextOverlay)
 
     // --- HP 条 ---
     const barW = Math.max(16, Math.round(size * 1.0));
@@ -2248,6 +2252,135 @@ function drawMonsterPaths() {
   ctx.restore();
 }
 
+// --- 交叉剑战斗开始动画 ---
+// 阶段: 0→0.4s 两剑从左右飞入旋转 | 0.38→0.45s 碰撞火花 | 0.43→0.55s 渐隐
+function drawBattleStartSwords() {
+  if (!battleStartAnim.active) return;
+  const t = battleStartAnim.timer / battleStartAnim.duration; // 0→1
+  const flyT = Math.min(1, t / 0.72);            // 飞入阶段 0→1
+  const hitT = Math.max(0, Math.min(1, (t - 0.69) / 0.12)); // 碰撞阶段
+  const fadeT = Math.max(0, Math.min(1, (t - 0.78) / 0.22)); // 渐隐阶段
+  const alpha = fadeT > 0 ? 1 - fadeT : (flyT < 1 ? 1 : Math.max(0, 1 - (t - 0.72) * 2));
+  if (alpha <= 0) return;
+
+  const cx = Math.round(GAME_W / 2), cy = Math.round(GAME_H / 2);
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // 碰撞火花 (hitT: 0→1)
+  if (hitT > 0) {
+    const sa = Math.min(1, hitT * 2);
+    ctx.globalAlpha = sa;
+    // 放射光芒
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const ln = 12 + sa * 20 + Math.sin(t * 30 + i) * 3;
+      const color = i % 3 === 0 ? '#ffffff' : i % 3 === 1 ? '#ffcc44' : '#ff6622';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(Math.round(cx + Math.cos(angle) * ln), Math.round(cy + Math.sin(angle) * ln));
+      ctx.stroke();
+    }
+    // 中心爆点
+    const br = 2 + sa * 5;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(cx, cy, br, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffcc44';
+    ctx.beginPath(); ctx.arc(cx, cy, br * 0.6, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = alpha;
+  }
+
+  // 画单把剑 (水平指向右边，原点在剑格)
+  const drawSwordRaw = (bladeC, hiltC) => {
+    // 剑身三角
+    ctx.fillStyle = bladeC;
+    ctx.beginPath();
+    ctx.moveTo(34, 0);           // 剑尖
+    ctx.lineTo(4, -3);           // 剑根 上
+    ctx.lineTo(4, 3);            // 剑根 下
+    ctx.closePath(); ctx.fill();
+    // 剑脊高光
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(33, 0); ctx.lineTo(5, 0); ctx.stroke();
+    // 剑格
+    ctx.strokeStyle = hiltC;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(2, -5); ctx.lineTo(2, 5); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(1, -1, 2, 2);
+    // 剑柄
+    ctx.strokeStyle = '#665544';
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(-1, 0); ctx.lineTo(-18, 0); ctx.stroke();
+    ctx.strokeStyle = hiltC;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(-1, 0); ctx.lineTo(-17, 0); ctx.stroke();
+    // 剑柄缠绕纹
+    ctx.strokeStyle = '#443322';
+    ctx.lineWidth = 1;
+    for (let w = 0; w < 3; w++) {
+      const wx = -4 - w * 5;
+      ctx.beginPath(); ctx.moveTo(wx, -2); ctx.lineTo(wx, 2); ctx.stroke();
+    }
+    // 剑首
+    ctx.fillStyle = hiltC;
+    ctx.beginPath(); ctx.arc(-18, 0, 3, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(-19, -1, 1, 1);
+  };
+
+  // 左剑: 从左边飞入, 顺时针旋转, 剑尖朝右(喷入)
+  {
+    const startX = -25;
+    const posX = startX + (cx - startX) * flyT;
+    const spin = flyT * Math.PI * 3; // 1.5圈旋转
+    ctx.save();
+    ctx.translate(posX, cy);
+    ctx.rotate(spin);
+    drawSwordRaw('#ee5544', '#884433');
+    ctx.restore();
+  }
+
+  // 右剑: 从右边飞入, 逆时针旋转, 剑尖朝左(需翻转)
+  {
+    const startX = GAME_W + 25;
+    const posX = startX - (startX - cx) * flyT;
+    const spin = -flyT * Math.PI * 3; // 反向1.5圈
+    ctx.save();
+    ctx.translate(posX, cy);
+    ctx.rotate(spin - Math.PI); // 多转180度让剑尖朝左
+    drawSwordRaw('#eecc44', '#997722');
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+// --- Esc全重置时间倒流动画 ---
+function drawRewindEffect() {
+  if (!rewindAnim.active) return;
+  const t = rewindAnim.timer / rewindAnim.duration; // 0→1
+  const alpha = 1 - t; // 淡出
+  if (alpha <= 0) { rewindAnim.active = false; return; }
+
+  ctx.save();
+  ctx.globalAlpha = alpha * 0.5;
+  const margin = GAME_W * 0.05 + t * GAME_W * 0.15;
+  ctx.strokeStyle = '#aaccff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.rect(margin, margin, GAME_W - margin * 2, GAME_H - margin * 2);
+  ctx.stroke();
+  ctx.globalAlpha = alpha * 0.12;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, GAME_W, GAME_H);
+  ctx.restore();
+}
+
 // --- 可移动范围渲染 (浅蓝色呼吸闪烁) ---
 function drawReachableOverlay() {
   if (turnState.phase !== 'player_select') return;
@@ -2278,14 +2411,6 @@ function drawReachableOverlay() {
 }
 
 // --- 回合开始位置幽灵 (半透明提示) ---
-function drawTurnStartGhost() {
-  if (turnState.phase !== 'player_select') return;
-  if (!turnSnapshot) return;
-  if (turnSnapshot.playerCol === player.col && turnSnapshot.playerRow === player.row) return;
-  const gp = gridToPixel(turnSnapshot.playerCol, turnSnapshot.playerRow);
-  drawCharacterAt(gp.x, gp.y, turnSnapshot.playerFacing || 'down', 0, 0, CFG.GHOST_ALPHA);
-}
-
 // --- 调试渲染 ---
 function drawDebugOverlay() {
   if (!debugMode) return;
@@ -2358,7 +2483,10 @@ function drawDebugOverlay() {
 function updateActionBar() {
   const bar = document.getElementById('action-bar');
   bar.innerHTML = '';
-  if (turnState.phase === 'player_select') {
+  if (!inCombat) {
+    // 非战斗模式不显示 AP 信息
+    bar.innerHTML = '<span class="action-bar-placeholder"></span>';
+  } else if (turnState.phase === 'player_select') {
     const lockedTag = turnState.hasShot ? '<span style="color:#ee6644;">[已锁定]</span>' : '<span style="color:#88ccff;">[自由]</span>';
     bar.innerHTML = `<span class="action-bar-placeholder">${lockedTag} M-AP:${turnState.mAP}/${turnState.maxMAP} A-AP:${turnState.aAP}/${turnState.maxAAP}</span>`;
   } else {
@@ -2423,16 +2551,89 @@ function updateUI() {
   phaseEl.className = 'pill-value';
   switch (turnState.phase) {
     case 'player_select':    phaseEl.textContent = '行为选择'; phaseEl.classList.add('phase-player'); break;
-    case 'turn_end_confirm': phaseEl.textContent = '确认结束'; phaseEl.classList.add('phase-monster'); break;
     case 'monster_turn':     phaseEl.textContent = '怪物行动'; phaseEl.classList.add('phase-monster'); break;
   }
 
   // HP 心形
   updateHearts();
 
-  // AP 圆点
-  updateApDots('ui-aap-dots', turnState.aAP, turnState.maxAAP, 'aap');
-  updateApDots('ui-map-dots', turnState.mAP, turnState.maxMAP, 'map');
+  // AP 圆点 (非战斗模式隐藏)
+  const aapCard = document.getElementById('ui-aap-card');
+  const mapCard = document.getElementById('ui-map-card');
+  if (aapCard) aapCard.style.display = inCombat ? '' : 'none';
+  if (mapCard) mapCard.style.display = inCombat ? '' : 'none';
+  if (inCombat) {
+    updateApDots('ui-aap-dots', turnState.aAP, turnState.maxAAP, 'aap');
+    updateApDots('ui-map-dots', turnState.mAP, turnState.maxMAP, 'map');
+  }
+}
+
+// ==================== DOM 文字覆盖层（绕过 Canvas pixelated 缩放） ====================
+function updateTextOverlay() {
+  const overlay = document.getElementById('text-overlay');
+  if (!overlay) return;
+
+  // --- 怪物名称 ---
+  let nameIdx = 0;
+  const existingNames = overlay.querySelectorAll('.txt-monster-name');
+  for (const m of monsters) {
+    if (m.hp <= 0) continue;
+    const pp = project(m.px, m.py);
+    const sx = Math.round(pp.x * DISPLAY_SCALE);
+    const cy = Math.round(pp.y * DISPLAY_SCALE);
+    const half = Math.round(SPRITE.BASE_SIZE * pp.s * DISPLAY_SCALE / 2);
+    const sy = cy - half - 12;
+
+    let el = existingNames[nameIdx];
+    if (!el) { el = document.createElement('div'); el.className = 'txt-monster-name'; overlay.appendChild(el); }
+    if (m.aiType === 'boss_chase') { el.className = 'txt-monster-name boss'; } else { el.className = 'txt-monster-name'; }
+    el.textContent = m.name;
+    el.style.left = sx + 'px';
+    el.style.top = sy + 'px';
+    el.style.display = '';
+    nameIdx++;
+  }
+  for (let i = nameIdx; i < existingNames.length; i++) existingNames[i].style.display = 'none';
+
+  // --- 伤害飘字 ---
+  let dmgIdx = 0;
+  const existingDmgs = overlay.querySelectorAll('.txt-damage');
+  for (const d of damageNumbers) {
+    const pp = project(d.x, d.y);
+    const alpha = Math.max(0, d.life / d.maxLife);
+    const sx = Math.round(pp.x * DISPLAY_SCALE);
+    const sy = Math.round(pp.y * DISPLAY_SCALE);
+
+    let el = existingDmgs[dmgIdx];
+    if (!el) { el = document.createElement('div'); el.className = 'txt-damage'; overlay.appendChild(el); }
+    el.textContent = d.text;
+    el.style.left = sx + 'px';
+    el.style.top = sy + 'px';
+    el.style.opacity = alpha;
+    el.style.display = '';
+    dmgIdx++;
+  }
+  for (let i = dmgIdx; i < existingDmgs.length; i++) existingDmgs[i].style.display = 'none';
+
+  // --- A-AP 圆点 (角色右上角，仅战斗模式) ---
+  const aapEl = overlay.querySelector('.txt-aap') || (() => { const e = document.createElement('div'); e.className = 'txt-aap'; overlay.appendChild(e); return e; })();
+  if (inCombat && turnState.phase === 'player_select') {
+    const pp = project(player.px, player.py);
+    const sx = Math.round(pp.x * DISPLAY_SCALE + SPRITE.BASE_SIZE * pp.s * DISPLAY_SCALE * 0.45);
+    const sy = Math.round(pp.y * DISPLAY_SCALE - SPRITE.BASE_SIZE * pp.s * DISPLAY_SCALE * 0.5);
+    aapEl.style.left = sx + 'px';
+    aapEl.style.top = sy + 'px';
+    aapEl.style.display = '';
+    if (turnState.aAP > 0) {
+      aapEl.className = 'txt-aap';
+      aapEl.textContent = turnState.aAP;
+    } else {
+      aapEl.className = 'txt-aap empty';
+      aapEl.textContent = '';
+    }
+  } else {
+    aapEl.style.display = 'none';
+  }
 }
 
 // ==================== 移动系统 ====================
@@ -2649,22 +2850,8 @@ function executeNextAction() {
   }
 }
 
-// ==================== 回合结束确认弹窗 ====================
-function showEndTurnConfirm() {
-  turnState.phase = 'turn_end_confirm';
-  const modal = document.getElementById('end-turn-modal');
-  const msg = document.getElementById('end-turn-msg');
-  const hasRemaining = turnState.mAP > 0 || turnState.aAP > 0;
-  if (hasRemaining) {
-    msg.innerHTML = '还有未使用点数<br><span style="color:#ffcc44;font-size:18px;">M-AP:' + turnState.mAP + ' A-AP:' + turnState.aAP + '</span><br>是否结束回合？';
-  } else {
-    msg.innerHTML = '是否结束回合？';
-  }
-  modal.classList.add('open');
-}
-
-function confirmEndTurn() {
-  document.getElementById('end-turn-modal').classList.remove('open');
+// ==================== 回合结束 ====================
+function finishPlayerTurn() {
   bullets = [];
   particles = [];
   damageNumbers = [];
@@ -2678,12 +2865,6 @@ function confirmEndTurn() {
   updateUI();
 }
 
-function cancelEndTurn() {
-  document.getElementById('end-turn-modal').classList.remove('open');
-  turnState.phase = 'player_select';
-  updateUI();
-}
-
 // ==================== 输入处理 ====================
 document.addEventListener('keydown', (e) => {
   const actionKeys = ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','Escape','KeyC','KeyB','KeyR'];
@@ -2691,13 +2872,6 @@ document.addEventListener('keydown', (e) => {
 
   // ---- 场景过渡中禁止操作 ----
   if(transition&&transition.active)return;
-
-  // ---- 阶段：回合结束确认弹窗 ----
-  if (turnState.phase === 'turn_end_confirm') {
-    if (e.code === 'Space') { confirmEndTurn(); }
-    else if (e.code === 'Escape') { cancelEndTurn(); }
-    return;
-  }
 
   // ---- 阶段：怪物回合禁止操作 ----
   if (turnState.phase === 'monster_turn') return;
@@ -2758,22 +2932,17 @@ document.addEventListener('keydown', (e) => {
       }
 
       case 'Space': {
-        if(!inCombat)return; // 非战斗模式不需要结束回合
-        if (turnState.mAP > 0 || turnState.aAP > 0) {
-          showEndTurnConfirm();
-        } else {
-          bullets = [];
-          particles = [];
-          damageNumbers = [];
-          turnState.phase = 'monster_turn';
-          document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">-</span>';
-          // 未消耗的M-AP计入无敌步数消耗 (此时mAP=0, 但保持一致性)
-          if (player.invincibleSteps > 0 && turnState.mAP > 0) {
-            player.invincibleSteps = Math.max(0, player.invincibleSteps - turnState.mAP);
-          }
-          startMonsterTurn();
-          updateUI();
+        if(!inCombat)return;
+        bullets = [];
+        particles = [];
+        damageNumbers = [];
+        turnState.phase = 'monster_turn';
+        document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">-</span>';
+        if (player.invincibleSteps > 0 && turnState.mAP > 0) {
+          player.invincibleSteps = Math.max(0, player.invincibleSteps - turnState.mAP);
         }
+        startMonsterTurn();
+        updateUI();
         return;
       }
 
@@ -2788,6 +2957,9 @@ document.addEventListener('keydown', (e) => {
           turnState.phase = 'player_select';
           turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
           saveTurnSnapshot();
+          // 触发时间倒流动画
+          rewindAnim.active = true;
+          rewindAnim.timer = 0;
           updateActionBar();
           updateUI();
         }
@@ -2898,6 +3070,17 @@ function gameLoop(timestamp) {
     }
   }
 
+  // 战斗开始剑动画
+  if (battleStartAnim.active) {
+    battleStartAnim.timer += dt;
+    if (battleStartAnim.timer >= battleStartAnim.duration) battleStartAnim.active = false;
+  }
+  // Esc倒流动画
+  if (rewindAnim.active) {
+    rewindAnim.timer += dt;
+    if (rewindAnim.timer >= rewindAnim.duration) rewindAnim.active = false;
+  }
+
   // 更新移动动画 (本体移动)
   if (player.targetPx !== null) {
     updateMove(dt);
@@ -2945,6 +3128,9 @@ function gameLoop(timestamp) {
 
   // 伤害飘字更新
   updateDamageNumbers(dt);
+
+  // DOM 文字覆盖层 (绕过 canvas pixelated 缩放)
+  updateTextOverlay();
 
   render();
   requestAnimationFrame(gameLoop);
@@ -3149,12 +3335,7 @@ document.getElementById('help-modal').addEventListener('click', (e) => {
   }
 });
 
-// ==================== 回合结束确认弹窗按钮 ====================
-document.getElementById('end-turn-confirm').addEventListener('click', confirmEndTurn);
-document.getElementById('end-turn-cancel').addEventListener('click', cancelEndTurn);
-document.getElementById('end-turn-modal').addEventListener('click', (e) => {
-  if (e.target.id === 'end-turn-modal') cancelEndTurn();
-});
+
 
 console.log('⚔ 以撒半回合制 Demo — 即时操作+全重置 已就绪');
 console.log('  WASD = 移动  |  ↑↓←→ = 射击  |  Space = 结束回合  |  Esc = 全重置');
