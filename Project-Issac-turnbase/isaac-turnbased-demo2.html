@@ -816,48 +816,6 @@ function BUILTIN_TEMPLATES(){
   };
 }
 
-// 楼层生成 (从地图编辑器移植)
-function randInt(min,max){return Math.floor(Math.random()*(max-min+1))+min;}
-function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-
-function generateFloor(floorNum){
-  const cfg=FLOOR_CONFIG[floorNum];const N=randInt(cfg.roomCount[0],cfg.roomCount[1]);
-  const rooms=[];for(let i=0;i<N;i++)rooms.push({id:`f${floorNum}_r${i}`,type:null,tplKey:null,grid:null,connections:[],doors:{up:null,down:null,left:null,right:null},bossLadderPlaced:false});
-  const nodeIds=rooms.map(r=>r.id);const shuffledIds=shuffle(nodeIds);
-  const degCount={};nodeIds.forEach(id=>degCount[id]=0);
-  const connected=new Set([shuffledIds[0]]);const unconnected=new Set(shuffledIds.slice(1));const edges=[];
-  while(unconnected.size>0){const ca=[...connected].filter(id=>degCount[id]<4);const ua=[...unconnected];if(ca.length===0){const a=[...connected][0];const b=ua[0];edges.push([a,b]);degCount[a]++;degCount[b]++;connected.add(b);unconnected.delete(b);}else{const a=ca[Math.floor(Math.random()*ca.length)];const b=ua[Math.floor(Math.random()*ua.length)];edges.push([a,b]);degCount[a]++;degCount[b]++;connected.add(b);unconnected.delete(b);}}
-  const maxExtra=Math.floor(N*0.25);for(let e=0;e<randInt(0,maxExtra);e++){const s2=shuffle(nodeIds);if(edges.some(ed=>(ed[0]===s2[0]&&ed[1]===s2[1])||(ed[0]===s2[1]&&ed[1]===s2[0]))||s2[0]===s2[1]||degCount[s2[0]]>=4||degCount[s2[1]]>=4)continue;
-    const testEdges=[...edges,[s2[0],s2[1]]];const td={};nodeIds.forEach(id=>td[id]=0);testEdges.forEach(([a,b])=>{td[a]++;td[b]++;});
-    if(nodeIds.filter(id=>td[id]===1).length>=3){edges.push([s2[0],s2[1]]);degCount[s2[0]]++;degCount[s2[1]]++;}}
-  const degree={};nodeIds.forEach(id=>degree[id]=0);edges.forEach(([a,b])=>{degree[a]++;degree[b]++;});
-  const sortedByDeg=[...nodeIds].sort((a,b)=>degree[a]-degree[b]);const startId=sortedByDeg[0];
-  const distFrom={},bfsQ=[startId],bfsV=new Set([startId]);distFrom[startId]=0;
-  while(bfsQ.length>0){const cur=bfsQ.shift();for(const[a,b]of edges){const nb=a===cur?b:(b===cur?a:null);if(nb&&!bfsV.has(nb)){bfsV.add(nb);distFrom[nb]=distFrom[cur]+1;bfsQ.push(nb);}}}
-  const bossCands=nodeIds.filter(id=>id!==startId&&degree[id]===1).sort((a,b)=>(distFrom[b]||0)-(distFrom[a]||0));
-  const bossId=bossCands.length>0?bossCands[0]:sortedByDeg.filter(id=>id!==startId).pop();
-  const t1=nodeIds.filter(id=>id!==startId&&id!==bossId&&degree[id]===1);
-  const treasureCands=shuffle(t1);const treasureIds=new Set(treasureCands.slice(0,Math.min(randInt(1,2),treasureCands.length)));
-  const roomMap={};rooms.forEach(r=>{roomMap[r.id]=r;});
-  rooms.forEach(r=>{if(r.id===startId)r.type='start';else if(r.id===bossId)r.type='boss';else if(treasureIds.has(r.id))r.type='treasure';else r.type='normal';});
-  rooms.forEach(r=>{const tpl=getTpl(r.type==='start'?'open':r.type==='boss'?'boss_arena':null);
-    const cands=Object.keys(poolTemplates).length>0?Object.keys(poolTemplates).filter(k=>{if(r.type==='start')return k==='open';if(r.type==='boss')return k==='boss_arena';return poolTemplates[k].types.includes(r.type);}):Object.keys(BUILTIN_TEMPLATES()).filter(k=>{const t=getTpl(k);if(r.type==='start')return k==='open';if(r.type==='boss')return k==='boss_arena';return t.types.includes(r.type);});
-    if(cands.length===0){r.tplKey='open';r.grid=parseGrid(BUILTIN_TEMPLATES()['open'].tiles);}else{const k=cands[Math.floor(Math.random()*cands.length)];r.tplKey=k;r.grid=parseGrid(getTpl(k).tiles);}});
-  const DIRS={up:{dx:0,dy:-1,opp:'down'},down:{dx:0,dy:1,opp:'up'},left:{dx:-1,dy:0,opp:'right'},right:{dx:1,dy:0,opp:'left'}};
-  let layout=null,gridOcc=null,layoutOk=false;
-  for(let attempt=0;attempt<30&&!layoutOk;attempt++){layout={};gridOcc=new Set();const lq=[startId],lv=new Set([startId]);let fail=false;const reg=(id,gx,gy)=>{layout[id]={gx,gy};gridOcc.add(`${gx},${gy}`);};reg(startId,0,0);
-    while(lq.length>0&&!fail){const cur=lq.shift(),cp=layout[cur];const el=shuffle([...edges]);for(const[a,b]of el){const nb=a===cur?b:(b===cur?a:null);if(!nb||lv.has(nb))continue;lv.add(nb);
-      const pns=[];for(const[x,y]of edges){const o=x===nb?y:(y===nb?x:null);if(o&&layout[o])pns.push(o);}if(!pns.includes(cur))pns.unshift(cur);
-      const cands=[];for(const pnId of pns){const pn=layout[pnId];for(const d of Object.keys(DIRS)){const nx=pn.gx+DIRS[d].dx,ny=pn.gy+DIRS[d].dy;if(gridOcc.has(`${nx},${ny}`))continue;let ok=true;for(const chkId of pns){if(chkId===pnId)continue;const chk=layout[chkId];if(chk.gx!==nx&&chk.gy!==ny){ok=false;break;}}if(ok)cands.push({gx:nx,gy:ny,dist:Math.abs(nx-cp.gx)+Math.abs(ny-cp.gy)});}}
-      if(cands.length>0){cands.sort((a,b)=>a.dist-b.dist);const best=cands[0];reg(nb,best.gx,best.gy);}else{fail=true;}
-    lq.push(nb);}}if(!fail)layoutOk=true;}
-  if(!layoutOk){layout={};gridOcc=new Set();const lq=[startId],lv=new Set([startId]);const reg2=(id,gx,gy)=>{layout[id]={gx,gy};gridOcc.add(`${gx},${gy}`);};reg2(startId,0,0);
-    while(lq.length>0){const cur=lq.shift(),cp=layout[cur];for(const[a,b]of edges){const nb=a===cur?b:(b===cur?a:null);if(!nb||lv.has(nb))continue;lv.add(nb);const dOrder=shuffle(['up','down','left','right']);let ok=false;for(const d of dOrder){const nx=cp.gx+DIRS[d].dx,ny=cp.gy+DIRS[d].dy;if(!gridOcc.has(`${nx},${ny}`)){reg2(nb,nx,ny);ok=true;break;}}if(!ok){for(let r=2;r<10;r++){const cs=[];for(let x=-r;x<=r;x++)for(let y=-r;y<=r;y++)if(Math.abs(x)+Math.abs(y)===r&&(x===0||y===0)&&!gridOcc.has(`${cp.gx+x},${cp.gy+y}`))cs.push({gx:cp.gx+x,gy:cp.gy+y});if(cs.length>0){const p=cs[Math.floor(Math.random()*cs.length)];reg2(nb,p.gx,p.gy);ok=true;break;}}}
-    lq.push(nb);}}}
-  edges.forEach(([idA,idB])=>{const pa=layout[idA],pb=layout[idB],dx=pb.gx-pa.gx,dy=pb.gy-pa.gy;const dA=dx>0?'right':dx<0?'left':dy>0?'down':'up';const dB=dx>0?'left':dx<0?'right':dy>0?'up':'down';roomMap[idA].doors[dA]={targetRoomId:idB,open:true};roomMap[idB].doors[dB]={targetRoomId:idA,open:true};roomMap[idA].connections.push({targetId:idB,dir:dA});roomMap[idB].connections.push({targetId:idA,dir:dB});});
-  return{floorNum,name:cfg.name,rooms,edges,layout,startRoomId:startId,bossRoomId:bossId,treasureRoomIds:[...treasureIds]};}
-
-function generateAllFloors(){for(let f=1;f<=6;f++)allFloors[f]=generateFloor(f);}
 function resetGameToFloor1(){
   monsters=[];bullets.length=0;particles.length=0;damageNumbers.length=0;transition=null;
   player.col=6;player.row=3;const p=gridToPixel(6,3);player.px=p.x;player.py=p.y;
@@ -892,11 +850,10 @@ async function loadOrGenerateFloors(forceReload){
       return true;
     }
   }catch(e){}
-  // 兜底生成
-  generateAllFloors();return false;
+  console.error('❌ 无法加载 floor-data.json，请先在地图编辑器中生成并导出楼层数据。');
+  return false;
 }
 // 每隔3秒检测楼层文件变化
-setInterval(()=>{if(document.visibilityState==='visible')loadOrGenerateFloors(true);},3000);
 setInterval(()=>{if(document.visibilityState==='visible')loadOrGenerateFloors(true);},3000);
 
 function enterFloor(floorNum){
@@ -1651,6 +1608,11 @@ function pickUpItems() {
   }
   if (picked) {
     updateItemBar();
+    // 拾取道具后同步AP上限（recalcAllStats已更新playerStats）
+    turnState.maxMAP = Math.floor(playerStats.moveSpeed);
+    turnState.maxAAP = Math.floor(playerStats.fireRate);
+    turnState.mAP = Math.min(turnState.mAP, turnState.maxMAP);
+    turnState.aAP = Math.min(turnState.aAP, turnState.maxAAP);
     updateUI();
     buildHearts(playerStats.maxHp);
     buildApDots('ui-aap-dots', turnState.maxAAP);

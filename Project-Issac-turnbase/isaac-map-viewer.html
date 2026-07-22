@@ -1353,58 +1353,99 @@ function shuffle(arr){const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Mat
 
 function generateFloor(floorNum){
   const cfg=FLOOR_CONFIG[floorNum];const N=randInt(cfg.roomCount[0],cfg.roomCount[1]);
-  const rooms=[];for(let i=0;i<N;i++)rooms.push({id:`f${floorNum}_r${i}`,type:null,tplKey:null,grid:null,connections:[],doors:{up:null,down:null,left:null,right:null}});
-  const nodeIds=rooms.map(r=>r.id);const shuffledIds=shuffle(nodeIds);
-  const degCount={};nodeIds.forEach(id=>degCount[id]=0);
-  // 生成树：每个房间最多 4 条边（对应 4 个方向），防止一门连多个房间
-  const connected=new Set([shuffledIds[0]]);const unconnected=new Set(shuffledIds.slice(1));const edges=[];
-  while(unconnected.size>0){const ca=[...connected].filter(id=>degCount[id]<4);const ua=[...unconnected];if(ca.length===0){const a=[...connected][0];const b=ua[0];edges.push([a,b]);degCount[a]++;degCount[b]++;connected.add(b);unconnected.delete(b);}else{const a=ca[Math.floor(Math.random()*ca.length)];const b=ua[Math.floor(Math.random()*ua.length)];edges.push([a,b]);degCount[a]++;degCount[b]++;connected.add(b);unconnected.delete(b);}}
-  // 额外边：保证至少 3 个叶节点 + 所有节点度数 ≤ 4
-  const maxExtra=Math.floor(N*0.25);for(let e=0;e<randInt(0,maxExtra);e++){const s2=shuffle(nodeIds);if(edges.some(ed=>(ed[0]===s2[0]&&ed[1]===s2[1])||(ed[0]===s2[1]&&ed[1]===s2[0]))||s2[0]===s2[1]||degCount[s2[0]]>=4||degCount[s2[1]]>=4)continue;
-    const testEdges=[...edges,[s2[0],s2[1]]];const td={};nodeIds.forEach(id=>td[id]=0);testEdges.forEach(([a,b])=>{td[a]++;td[b]++;});
-    if(nodeIds.filter(id=>td[id]===1).length>=3){edges.push([s2[0],s2[1]]);degCount[s2[0]]++;degCount[s2[1]]++;}}
-  const degree={};nodeIds.forEach(id=>degree[id]=0);edges.forEach(([a,b])=>{degree[a]++;degree[b]++;});
-  const sortedByDeg=[...nodeIds].sort((a,b)=>degree[a]-degree[b]);const startId=sortedByDeg[0];
-  const distFrom={},bfsQ=[startId],bfsV=new Set([startId]);distFrom[startId]=0;
-  while(bfsQ.length>0){const cur=bfsQ.shift();for(const[a,b]of edges){const nb=a===cur?b:(b===cur?a:null);if(nb&&!bfsV.has(nb)){bfsV.add(nb);distFrom[nb]=distFrom[cur]+1;bfsQ.push(nb);}}}
-  // Boss房：强制度数=1 (单门)，从所有叶节点中选距离起点最远的
-  const bossCands=nodeIds.filter(id=>id!==startId&&degree[id]===1).sort((a,b)=>(distFrom[b]||0)-(distFrom[a]||0));
-  const bossId=bossCands.length>0?bossCands[0]:sortedByDeg.filter(id=>id!==startId).pop();
-  // 宝箱房：强制度数=1 (单门)，与Boss房同等约束
-  const treasureCands=nodeIds.filter(id=>id!==startId&&id!==bossId&&degree[id]===1);
-  const shufT=shuffle(treasureCands);
-  const treasureIds=new Set(shufT.slice(0,Math.min(randInt(1,2),shufT.length)));
-  const roomMap={};rooms.forEach(r=>{roomMap[r.id]=r;});
-  rooms.forEach(r=>{if(r.id===startId)r.type='start';else if(r.id===bossId)r.type='boss';else if(treasureIds.has(r.id))r.type='treasure';else r.type='normal';});
-  const validTpls={};for(const[k,v]of Object.entries(allTemplates)){if(validateTiles(v.tiles).pass)validTpls[k]=v;}if(Object.keys(validTpls).length===0)validTpls['open']=BUILTIN_TEMPLATES['open'];
-  rooms.forEach(r=>{const cands=Object.keys(validTpls).filter(k=>{if(r.type==='start')return k==='open';if(r.type==='boss')return k==='boss_arena'&&validateTiles(validTpls[k].tiles).pass;return validTpls[k].types.includes(r.type);});
-    if(cands.length===0){r.tplKey='open';r.grid=parseGrid(BUILTIN_TEMPLATES['open'].tiles);}else{r.tplKey=cands[Math.floor(Math.random()*cands.length)];r.grid=parseGrid(validTpls[r.tplKey].tiles);}});
   const DIRS={up:{dx:0,dy:-1,opp:'down'},down:{dx:0,dy:1,opp:'up'},left:{dx:-1,dy:0,opp:'right'},right:{dx:1,dy:0,opp:'left'}};
-  // 相邻强制布局：失败时换随机顺序重试（树结构 + 度数≤4 理论上总能成功）
-  let layout=null,gridOcc=null,layoutOk=false;
-  for(let attempt=0;attempt<30&&!layoutOk;attempt++){
-    layout={};gridOcc=new Set();const lq=[startId],lv=new Set([startId]);let fail=false;
-    const register=(id,gx,gy)=>{layout[id]={gx,gy};gridOcc.add(`${gx},${gy}`);};register(startId,0,0);
-    while(lq.length>0&&!fail){const cur=lq.shift(),cp=layout[cur];const edgeList=shuffle([...edges]);
-      for(const[a,b]of edgeList){const nb=a===cur?b:(b===cur?a:null);if(!nb||lv.has(nb))continue;lv.add(nb);
-        const pns=[];for(const[x,y]of edges){const o=x===nb?y:(y===nb?x:null);if(o&&layout[o])pns.push(o);}if(!pns.includes(cur))pns.unshift(cur);
-        const cands=[];for(const pnId of pns){const pn=layout[pnId];for(const d of Object.keys(DIRS)){const nx=pn.gx+DIRS[d].dx,ny=pn.gy+DIRS[d].dy;if(gridOcc.has(`${nx},${ny}`))continue;let ok=true;for(const chkId of pns){if(chkId===pnId)continue;const chk=layout[chkId];if(chk.gx!==nx&&chk.gy!==ny){ok=false;break;}}if(ok)cands.push({gx:nx,gy:ny,dist:Math.abs(nx-cp.gx)+Math.abs(ny-cp.gy)});}}
-        if(cands.length>0){cands.sort((a,b)=>a.dist-b.dist);const best=cands[0];register(nb,best.gx,best.gy);}else{fail=true;}
-      lq.push(nb);}}if(!fail)layoutOk=true;}
-  // 兜底：若所有重试都失败（高概率不发生），用紧靠父节点的简单方法
-  if(!layoutOk){layout={};gridOcc=new Set();const lq=[startId],lv=new Set([startId]);const reg=(id,gx,gy)=>{layout[id]={gx,gy};gridOcc.add(`${gx},${gy}`);};reg(startId,0,0);
-    while(lq.length>0){const cur=lq.shift(),cp=layout[cur];for(const[a,b]of edges){const nb=a===cur?b:(b===cur?a:null);if(!nb||lv.has(nb))continue;lv.add(nb);const dOrder=shuffle(['up','down','left','right']);let ok=false;for(const d of dOrder){const nx=cp.gx+DIRS[d].dx,ny=cp.gy+DIRS[d].dy;if(!gridOcc.has(`${nx},${ny}`)){reg(nb,nx,ny);ok=true;break;}}if(!ok){for(let r=2;r<10;r++){const cs=[];for(let x=-r;x<=r;x++)for(let y=-r;y<=r;y++)if(Math.abs(x)+Math.abs(y)===r&&(x===0||y===0)&&!gridOcc.has(`${cp.gx+x},${cp.gy+y}`))cs.push({gx:cp.gx+x,gy:cp.gy+y});if(cs.length>0){const p=cs[Math.floor(Math.random()*cs.length)];reg(nb,p.gx,p.gy);ok=true;break;}}}
-    lq.push(nb);}}}
-  // 门分配 + 验证
-  edges.forEach(([idA,idB])=>{const pa=layout[idA],pb=layout[idB],dx=pb.gx-pa.gx,dy=pb.gy-pa.gy;const dirA=dx>0?'right':dx<0?'left':dy>0?'down':'up';const dirB=dx>0?'left':dx<0?'right':dy>0?'up':'down';
-    // 防止同一方向覆盖旧门（记录冲突）
-    if(roomMap[idA].doors[dirA]&&roomMap[idA].doors[dirA].targetRoomId!==idB)console.warn('⚠ 门冲突:',idA,dirA,'已有→',roomMap[idA].doors[dirA].targetRoomId,'新→',idB);
-    if(roomMap[idB].doors[dirB]&&roomMap[idB].doors[dirB].targetRoomId!==idA)console.warn('⚠ 门冲突:',idB,dirB,'已有→',roomMap[idB].doors[dirB].targetRoomId,'新→',idA);
-    roomMap[idA].doors[dirA]={targetRoomId:idB,open:true};roomMap[idB].doors[dirB]={targetRoomId:idA,open:true};
-    roomMap[idA].connections.push({targetId:idB,dir:dirA});roomMap[idB].connections.push({targetId:idA,dir:dirB});});
-  // 验证边 ↔ 门 一一对应
-  for(const r of rooms){const dc=Object.values(r.doors).filter(d=>d!==null).length;const ec=edges.filter(([a,b])=>a===r.id||b===r.id).length;if(dc!==ec)console.warn('⚠ 房间',r.id,'边数='+ec+'门数='+dc,'(门覆盖/丢失)');}
-  return{floorNum,name:cfg.name,rooms,edges,layout,startRoomId:startId,bossRoomId:bossId,treasureRoomIds:[...treasureIds]};
+  const DIR_KEYS=Object.keys(DIRS);
+
+  // 1. 创建N个房间
+  const rooms=[];for(let i=0;i<N;i++)rooms.push({id:`f${floorNum}_r${i}`,type:null,tplKey:null,grid:null,connections:[],doors:{up:null,down:null,left:null,right:null}});
+  const nodeIds=rooms.map(r=>r.id);const roomMap={};rooms.forEach(r=>{roomMap[r.id]=r;});
+
+  // 2. 拆分：骨架房（普通+起点）vs 特殊房（boss+宝箱）
+  const bossCount=1;
+  const treasureCount=randInt(1,2);
+  const skeletonCount=N-bossCount-treasureCount;
+  const shuffledIds=shuffle(nodeIds);
+  const skeletonIds=shuffledIds.slice(0,skeletonCount);
+  const specialIds=shuffledIds.slice(skeletonCount); // [bossId, ...treasureIds]
+
+  // 3. 骨架房布局：从(0,0)开始，从所有已放房间的相邻空位扩展
+  const layout={},occ=new Set();
+  const placedSkeleton=[];
+  layout[skeletonIds[0]]={gx:0,gy:0};occ.add('0,0');placedSkeleton.push(skeletonIds[0]);
+  for(let pi=1;pi<skeletonIds.length;pi++){
+    const cands=[];
+    for(const pid of placedSkeleton){const p=layout[pid];
+      for(const d of DIR_KEYS){const nx=p.gx+DIRS[d].dx,ny=p.gy+DIRS[d].dy;
+        if(!occ.has(`${nx},${ny}`))cands.push({gx:nx,gy:ny});}}
+    const uniq=[...new Map(cands.map(c=>[`${c.gx},${c.gy}`,c])).values()];
+    const pick=uniq[Math.floor(Math.random()*uniq.length)];
+    layout[skeletonIds[pi]]=pick;occ.add(`${pick.gx},${pick.gy}`);placedSkeleton.push(skeletonIds[pi]);
+  }
+
+  // 4. 骨架房间相邻全连通（上下左右紧邻都连边）
+  const edges=[],deg={};nodeIds.forEach(id=>deg[id]=0);const eSet=new Set();
+  for(const idA of skeletonIds){const pa=layout[idA];
+    for(const d of DIR_KEYS){const nx=pa.gx+DIRS[d].dx,ny=pa.gy+DIRS[d].dy;
+      const nb=skeletonIds.find(id=>id!==idA&&layout[id].gx===nx&&layout[id].gy===ny);
+      if(!nb)continue;const ek=idA<nb?`${idA}|${nb}`:`${nb}|${idA}`;
+      if(eSet.has(ek))continue;edges.push([idA,nb]);eSet.add(ek);deg[idA]++;deg[nb]++;}}
+
+  // 5. 骨架房类型分配：度数最小→起点，其余→普通
+  const degSorted=skeletonIds.map(id=>({id,deg:deg[id]})).sort((a,b)=>a.deg-b.deg);
+  const startId=degSorted[0].id;
+  skeletonIds.forEach(id=>{roomMap[id].type=id===startId?'start':'normal';});
+
+  // 6. BFS 计算骨架房到起点的路径距离
+  const bfsD={},bfsQ=[startId],bfsV=new Set([startId]);bfsD[startId]=0;
+  while(bfsQ.length>0){const cur=bfsQ.shift();for(const[a,b]of edges){const nb=a===cur?b:(b===cur?a:null);if(nb&&!bfsV.has(nb)){bfsV.add(nb);bfsD[nb]=bfsD[cur]+1;bfsQ.push(nb);}}}
+
+  // 7. 收集所有骨架房周边的空位 → boss/宝箱候选挂载点
+  const perimeterCands=[];
+  for(const sid of skeletonIds){const p=layout[sid];
+    for(const d of DIR_KEYS){const nx=p.gx+DIRS[d].dx,ny=p.gy+DIRS[d].dy;
+      if(!occ.has(`${nx},${ny}`)&&!perimeterCands.some(c=>c.gx===nx&&c.gy===ny)){
+        perimeterCands.push({gx:nx,gy:ny,adjacentTo:sid,dir:d,distance:(bfsD[sid]||0)+1});
+      }}}
+
+  // 按距离排序 → Boss选最远的，宝箱从剩余随机选
+  perimeterCands.sort((a,b)=>b.distance-a.distance);
+
+  // 8. 放置 Boss：取距离起点最远的空位，挂到相邻骨架房上
+  let bossId=null;
+  if(specialIds.length>0&&perimeterCands.length>0){
+    const bossSlot=perimeterCands.shift();
+    bossId=specialIds[0];
+    layout[bossId]=bossSlot;occ.add(`${bossSlot.gx},${bossSlot.gy}`);
+    edges.push([bossSlot.adjacentTo,bossId]);deg[bossSlot.adjacentTo]++;deg[bossId]=1;
+    roomMap[bossId].type='boss';
+  }
+
+  // 9. 放置宝箱：从剩余空位中随机打乱后选取
+  const treasureIds=[];
+  const shuffledCands=shuffle(perimeterCands);
+  for(let ti=1;ti<specialIds.length;ti++){
+    if(shuffledCands.length===0)break;
+    const slot=shuffledCands.shift();
+    const tid=specialIds[ti];
+    layout[tid]=slot;occ.add(`${slot.gx},${slot.gy}`);
+    edges.push([slot.adjacentTo,tid]);deg[slot.adjacentTo]++;deg[tid]=1;
+    treasureIds.push(tid);
+    roomMap[tid].type='treasure';
+  }
+
+  // 10. 选择模板（使用地图编辑器自己的模板系统）
+  const validTpls={};for(const[k,v]of Object.entries(allTemplates)){if(validateTiles(v.tiles).pass)validTpls[k]=v;}if(Object.keys(validTpls).length===0)validTpls['open']=BUILTIN_TEMPLATES['open'];
+  rooms.forEach(r=>{if(!r.type)r.type='normal'; // 兜底：未放置的特殊房降级为普通
+    const cands=Object.keys(validTpls).filter(k=>{if(r.type==='start')return k==='open';if(r.type==='boss')return k==='boss_arena'&&validateTiles(validTpls[k].tiles).pass;return validTpls[k].types.includes(r.type);});
+    if(cands.length===0){r.tplKey='open';r.grid=parseGrid(BUILTIN_TEMPLATES['open'].tiles);}else{r.tplKey=cands[Math.floor(Math.random()*cands.length)];r.grid=parseGrid(validTpls[r.tplKey].tiles);}});
+
+  // 11. 边转门
+  edges.forEach(([idA,idB])=>{const pa=layout[idA],pb=layout[idB],dx=pb.gx-pa.gx,dy=pb.gy-pa.gy;
+    const dA=dx>0?'right':dx<0?'left':dy>0?'down':'up';const dB=dx>0?'left':dx<0?'right':dy>0?'up':'down';
+    roomMap[idA].doors[dA]={targetRoomId:idB,open:true};roomMap[idB].doors[dB]={targetRoomId:idA,open:true};
+    roomMap[idA].connections.push({targetId:idB,dir:dA});roomMap[idB].connections.push({targetId:idA,dir:dB});});
+
+  return{floorNum,name:cfg.name,rooms,edges,layout,startRoomId:startId,bossRoomId:bossId,treasureRoomIds:treasureIds};
 }
 
 function generateAllFloors(){for(let f=1;f<=6;f++)allFloors[f]=generateFloor(f);saveFloorToFile();}

@@ -203,7 +203,8 @@
 
 ### 2.8 多房间楼层系统
 
-- **楼层结构**：随机图生成 6 层地牢，每层 8~15 个房间，BFS 全连通验证
+- **楼层结构**：两步法生成 6 层地牢，每层 8~15 个房间，BFS 全连通验证
+- **生成算法 [2026-07-22 更新]**：①先布局骨架房（起点+普通房），从所有已放房间的相邻空位扩展；②骨架房全连通后，Boss 从边界最远空位挂载，宝箱从剩余边界随机挂载。Boss/宝箱天然只有 1 个连接（始终在集群外围），无需裁边修复。
 - **房间类型**：start(起点)/normal(普通)/treasure(宝箱)/boss(Boss)/shop(商店)
 - **模板系统**：每个房间引用 `pool.json` 中的模板(tplKey)，生成时解析 TILE 布局
 - **门系统**：每房间最多 4 扇门(每个方向一扇)，房间清怪后门自动打开(`updateDoorsLocked()`)
@@ -477,7 +478,7 @@ function project(wx, wy) {
 | `spawnItemOnGrid(col, row, cfgId)` | 在指定网格位置生成道具实体 |
 | `recalcAllStats()` | 遍历背包重算所有属性（effects 数值累加 + specials[] 注册表分发） |
 | `getTpl(key)` | 按 key 获取模板，优先 poolTemplates，回退内置 |
-| `generateFloor(floorNum)` | 随机生成单层地牢：图生成+BFS连通+布局+门分配+模板填充 |
+| `generateFloor(floorNum)` | 两步法生成单层地牢：骨架房扩展布局→Boss/宝箱挂载到集群边界→模板填充→边转门 |
 | `generateAllFloors()` | 生成全部 6 层地牢 |
 | `loadOrGenerateFloors(forceReload)` | 从 `floor-data.json` 加载楼层数据（hash 变化时触发重置） |
 | `resetGameToFloor1()` | 重置游戏状态回到第1层起点（R键调用） |
@@ -591,6 +592,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-22 | **楼层生成两步法重构**。`generateFloor()` 改为骨架房优先扩展布局 → Boss/宝箱从集群边界空位挂载。Boss选距离起点最远的边界位置，宝箱从剩余边界随机选。Boss/宝箱始终在集群外围且天然只有1个连接，彻底消除旧方案的裁边+连通性修复逻辑。 |
 | 2026-07-21(晚) | **Boss Jumper 2×2跳跃Boss系统**。①新增 `boss_jumper` 怪物（size:2占据4格），替代旧boss为每层Boss房唯一Boss。②行动循环：小跳×2（中心距离判定+3步目标+弧线动画）→50%重复判定→大跳（消失淡出+延迟落地+12格范围1心伤害+冲击波动画）。③2×2全系统适配：渲染（中心偏移公式修正）、碰撞（子弹4格检测）、接触伤害（0.5心）、快照/占用/标签。④`pendingBossLanding` 跨回合延迟执行 + `jumperJustLanded` 落地休息。⑤宝藏房不刷怪。⑥新增 §2.13 Boss Jumper 章节 + AI类型表。 |
 | 2026-07-20 | **godot-setup-checklist.md 移至根目录 Documents/**。文件从项目专属文档升级为跨项目通用参考文档，从 context.md 文件清单中移除引用。 |
 | 2026-07-20 | **三层记忆体系建立**。①新增 `Documents/isaac-memory.md`：从 context.md 全部历史记录 + chat-log + 当前会话三个数据源提取所有重要决策，按功能领域系统化整理（AP演变/无敌X→Y/怪物三次重构/尖刺调整/编辑器去服务器/道具系统等）。②新增根目录 `Documents/global-rules.md`：从 6 条 CodeBuddy Memories 迁移跨项目通用规范，补充时间戳和详细说明。③文件清单新增 isaac-memory.md 引用。④删除 `chat-log-2026-07-20.md`（内容已迁移到 memory.md）。⑤CodeBuddy Memories 新增"多端开发记忆同步"规则。 |
