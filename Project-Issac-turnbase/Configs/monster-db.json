@@ -7,6 +7,7 @@
     "damage": 0.5,
     "aiType": "chase",
     "aiRange": null,
+    "aiParams": {},
     "tint": null,
     "dropTable": "common",
     "dropRate": 0.4,
@@ -23,6 +24,12 @@
     "damage": 0.5,
     "aiType": "ranged_kite",
     "aiRange": 3,
+    "aiParams": {
+      "moveWeight": 0.7,
+      "moveDistMin": 1,
+      "moveDistMax": 3,
+      "shootRange": 4
+    },
     "tint": "rgba(180,180,255,0.35)",
     "dropTable": "ranged",
     "dropRate": 0.5,
@@ -31,14 +38,18 @@
     "role": "ranged",
     "threat": 2
   },
-  "rock_golem": {
-    "id": "rock_golem",
-    "name": "岩石魔像",
-    "hp": 20,
+  "charge_golem": {
+    "id": "charge_golem",
+    "name": "蓄力魔像",
+    "hp": 30,
     "moveCycle": [1, 1],
     "damage": 1,
-    "aiType": "chase",
+    "aiType": "charge",
     "aiRange": null,
+    "aiParams": {
+      "chargeDistMin": 3,
+      "chargeDistMax": 6
+    },
     "tint": "rgba(180,160,140,0.45)",
     "dropTable": "heavy",
     "dropRate": 0.7,
@@ -55,6 +66,9 @@
     "damage": 1,
     "aiType": "boss_chase",
     "aiRange": null,
+    "aiParams": {
+      "speedBoostInterval": 4
+    },
     "tint": "rgba(255,100,50,0.45)",
     "dropTable": "boss",
     "dropRate": 1.0,
@@ -71,6 +85,11 @@
     "damage": 0.5,
     "aiType": "boss_jumper",
     "aiRange": null,
+    "aiParams": {
+      "smallJumpSteps": 3,
+      "repeatChance": 0.5,
+      "landDamage": 1
+    },
     "tint": "rgba(200,80,200,0.45)",
     "dropTable": "boss",
     "dropRate": 1.0,

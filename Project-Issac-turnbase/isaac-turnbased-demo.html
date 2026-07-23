@@ -1015,6 +1015,7 @@ const MONSTER_DB = {
     movementTags: ['地面'],
     role: 'melee',
     threat: 3,
+    aiParams: {},
   },
   'flying_eye': {
     id: 'flying_eye',
@@ -1031,14 +1032,20 @@ const MONSTER_DB = {
     movementTags: ['飞行'],
     role: 'ranged',
     threat: 2,
+    aiParams: {
+      moveWeight: 0.7,
+      moveDistMin: 1,
+      moveDistMax: 3,
+      shootRange: 4
+    },
   },
-  'rock_golem': {
-    id: 'rock_golem',
-    name: '岩石魔像',
+  'charge_golem': {
+    id: 'charge_golem',
+    name: '蓄力魔像',
     hp: 20,
     moveCycle: [1, 1],        // 每回合1格
     damage: 1,                // 高伤害 (1心=特殊伤害)
-    aiType: 'chase',
+    aiType: 'charge',
     tint: 'rgba(180,160,140,0.45)',
     dropTable: 'heavy',
     dropRate: 0.7,
@@ -1046,6 +1053,10 @@ const MONSTER_DB = {
     movementTags: ['地面'],
     role: 'tank',
     threat: 5,
+    aiParams: {
+      chargeDistMin: 3,
+      chargeDistMax: 6
+    },
   },
 
   // ===== Boss 怪物 =====
@@ -1063,6 +1074,9 @@ const MONSTER_DB = {
     movementTags: ['地面', '飞行'],
     role: 'boss',
     threat: 15,
+    aiParams: {
+      speedBoostInterval: 4
+    },
   },
 };
 
@@ -1098,7 +1112,7 @@ function saveTurnSnapshot() {
         col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
         px: gp.x, py: gp.y,                      // 对齐网格 (静止状态)
         displayHp: m.displayHp,
-        damage: m.damage, moveCycle: m.moveCycle, aiType: m.aiType, tint: m.tint,
+        damage: m.damage, moveCycle: m.moveCycle, aiType: m.aiType, aiParams: m.aiParams, tint: m.tint,
         predictedPath: m.predictedPath ? m.predictedPath.map(s => ({ fromCol: s.fromCol, fromRow: s.fromRow, toCol: s.toCol, toRow: s.toRow })) : [],
         moveSpeed: m.moveSpeed,
         hitFlash: m.hitFlash, shakeX: m.shakeX, shakeY: m.shakeY,
@@ -1123,7 +1137,7 @@ function restoreTurnSnapshot() {
     id: m.id, cfgId: m.cfgId, name: m.name,
     col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
     px: m.px, py: m.py, displayHp: m.displayHp,
-    damage: m.damage, moveCycle: m.moveCycle, aiType: m.aiType, tint: m.tint,
+    damage: m.damage, moveCycle: m.moveCycle, aiType: m.aiType, aiParams: m.aiParams, tint: m.tint,
     predictedPath: m.predictedPath.map(p => ({ fromCol: p.fromCol, fromRow: p.fromRow, toCol: p.toCol, toRow: p.toRow })),
     moveSpeed: m.moveSpeed,
     hitFlash: 0, shakeX: 0, shakeY: 0,
@@ -1264,20 +1278,95 @@ function calcAllMonsterPaths() {
       case 'stationary':
         m.predictedPath = [];  // 不移动
         break;
-      case 'ranged_kite':
-        // 保持距离: 如果太近就远离, 如果太远就靠近
+      case 'ranged_kite': {
+        const ap = m.aiParams || {};
+        if (Math.random() < (ap.moveWeight ?? 0.7)) {
+          const dirs = [
+            { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+            { dx: -1, dy: 0 }, { dx: 1, dy: 0 }
+          ];
+          const d = dirs[Math.floor(Math.random() * dirs.length)];
+          const distMin = ap.moveDistMin ?? 1, distMax = ap.moveDistMax ?? 3;
+          const dist = distMin + Math.floor(Math.random() * (distMax - distMin + 1));
+          const path = [];
+          let col = m.col, row = m.row;
+          for (let step = 0; step < dist; step++) {
+            const nc = col + d.dx, nr = row + d.dy;
+            if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) break;
+            if (isMonsterAt(nc, nr, m.id)) break;
+            path.push({ fromCol: col, fromRow: row, toCol: nc, toRow: nr });
+            col = nc; row = nr;
+          }
+          m.predictedPath = path;
+        } else {
+          m.predictedPath = [];
+          const dx = player.col - m.col;
+          const dy = player.row - m.row;
+          const adx = Math.abs(dx), ady = Math.abs(dy);
+          let shootDir;
+          if (adx > ady || (adx === ady && Math.random() < 0.5)) {
+            shootDir = dx > 0 ? 'right' : 'left';
+          } else {
+            shootDir = dy > 0 ? 'down' : 'up';
+          }
+          const gp = gridToPixel(m.col, m.row);
+          spawnMonsterBullet(shootDir, gp.x, gp.y, ap.shootRange ?? 4);
+        }
+        break;
+      }
+      case 'charge': {
+        const ap = m.aiParams || {};
+        const randChargeDist = () => (ap.chargeDistMin ?? 3) + Math.floor(Math.random() * ((ap.chargeDistMax ?? 6) - (ap.chargeDistMin ?? 3) + 1));
+        // 每回合冲刺：先冲刺→立刻为下回合蓄力，冲刺和蓄力在同一回合完成
+        if (m.chargePhase === undefined) {
+          m.chargePhase = 'dash';
+          m.chargeDir = null;
+          m.chargeDistance = 0;
+          m.chargeAnimTimer = 0;
+        }
+        if (m.chargeDir === null) {
+          const dx = player.col - m.col;
+          const dy = player.row - m.row;
+          const adx = Math.abs(dx), ady = Math.abs(dy);
+          if (adx > ady || (adx === ady && Math.random() < 0.5)) {
+            m.chargeDir = { dx: Math.sign(dx) || 1, dy: 0 };
+          } else {
+            m.chargeDir = { dx: 0, dy: Math.sign(dy) || 1 };
+          }
+          m.chargeDistance = randChargeDist();
+          m.predictedPath = [];
+        } else {
+          const path = [];
+          let col = m.col, row = m.row;
+          for (let step = 0; step < m.chargeDistance; step++) {
+            const nc = col + m.chargeDir.dx;
+            const nr = row + m.chargeDir.dy;
+            if (isWall(nc, nr)) break;
+            if (isMonsterAt(nc, nr, m.id)) break;
+            path.push({ fromCol: col, fromRow: row, toCol: nc, toRow: nr });
+            col = nc; row = nr;
+          }
+          m.predictedPath = path;
+          const dx2 = player.col - col;
+          const dy2 = player.row - row;
+          const adx2 = Math.abs(dx2), ady2 = Math.abs(dy2);
+          if (adx2 > ady2 || (adx2 === ady2 && Math.random() < 0.5)) {
+            m.chargeDir = { dx: Math.sign(dx2) || 1, dy: 0 };
+          } else {
+            m.chargeDir = { dx: 0, dy: Math.sign(dy2) || 1 };
+          }
+          m.chargeDistance = randChargeDist();
+        }
+        break;
+      }
+      case 'boss_chase': {
+        // Boss追踪: 周期性额外+1移速
+        const ap = m.aiParams || {};
+        const interval = ap.speedBoostInterval ?? 4;
+        if (turnIdx % interval === 0) m.moveSpeed += 1;
         m.predictedPath = calcMonsterPath(m, player.col, player.row);
         break;
-      case 'charge':
-        // 每3回合冲锋一次(移动速度加倍), 其他回合正常追踪
-        if (turnIdx % 3 === 0) m.moveSpeed = Math.min(m.moveSpeed * 2, 4);
-        m.predictedPath = calcMonsterPath(m, player.col, player.row);
-        break;
-      case 'boss_chase':
-        // Boss追踪: 每4回合额外+1移速
-        if (turnIdx % 4 === 0) m.moveSpeed += 1;
-        m.predictedPath = calcMonsterPath(m, player.col, player.row);
-        break;
+      }
       case 'patrol':
         // 简化巡逻: 玩家在5格内才追击, 否则原地不动
         const dist = manhattanDist(m.col, m.row, player.col, player.row);
@@ -1827,17 +1916,23 @@ function drawBullets() {
     const bx = Math.round(bp.x), by = Math.round(bp.y + b.vOff);
     const s = bp.s;
     const size = Math.max(1, Math.round(2 * s));
-    prect(bx - size * 2, by - size * 2, size * 4, size * 4, 'rgba(255,200,60,0.35)');
-    prect(bx - size, by - size, size * 2, size * 2, 'rgba(255,220,100,0.55)');
-    prect(bx - Math.floor(size / 2), by - Math.floor(size / 2), size, size, '#ffeebb');
+    const isMonster = b.source === 'monster';
+    const cOuter = isMonster ? 'rgba(255,80,60,0.35)'  : 'rgba(255,200,60,0.35)';
+    const cMid   = isMonster ? 'rgba(255,120,80,0.55)' : 'rgba(255,220,100,0.55)';
+    const cCore  = isMonster ? '#ff9988'               : '#ffeebb';
+    const cTrail = isMonster ? 'rgba(255,90,60,0.5)'   : 'rgba(255,200,80,0.5)';
+    const cTrail2= isMonster ? 'rgba(255,70,40,0.3)'   : 'rgba(255,180,60,0.3)';
+    prect(bx - size * 2, by - size * 2, size * 4, size * 4, cOuter);
+    prect(bx - size, by - size, size * 2, size * 2, cMid);
+    prect(bx - Math.floor(size / 2), by - Math.floor(size / 2), size, size, cCore);
     prect(bx - Math.floor(size / 2), by - Math.floor(size / 2), 1, 1, '#ffffff');
     if (b.distTraveled > 2) {
       const tx = bx - b.dirX * Math.round(3 * s);
       const ty = by - b.dirY * Math.round(3 * s);
-      prect(tx, ty, 1, 1, 'rgba(255,200,80,0.5)');
+      prect(tx, ty, 1, 1, cTrail);
       const tx2 = bx - b.dirX * Math.round(5 * s);
       const ty2 = by - b.dirY * Math.round(5 * s);
-      prect(tx2, ty2, 1, 1, 'rgba(255,180,60,0.3)');
+      prect(tx2, ty2, 1, 1, cTrail2);
     }
   }
 }
@@ -2116,6 +2211,30 @@ function drawMonsters() {
           ctx.restore();
         }
       }
+    }
+
+    // --- 蓄力感叹号 (像素风, HP条之上) ---
+    if (m.aiType === 'charge' && m.chargePhase === 'dash') {
+      const ct = m.chargeAnimTimer || 0;
+      const bounceY = Math.abs(Math.sin(ct * 8)) * Math.round(3 * s);
+      const pulse = 1.0 + 0.15 * Math.sin(ct * 10);
+      const px = Math.max(2, Math.round(2 * s * pulse));
+      const exCx = cx + half - Math.round(2 * s);
+      const exCy = cy - half - Math.round(14 * s) - bounceY;
+
+      const barW = Math.round(px * 4);
+      const barH = Math.round(px * 7);
+      const dotW = Math.round(px * 3);
+      const dotH = Math.round(px * 2);
+      const barTop = exCy - Math.round(px * 6);
+      prect(exCx - Math.floor(barW / 2), barTop, barW, barH, '#ff2222');
+      prect(exCx - Math.floor(barW / 2) + px, barTop, barW - px * 2, px, '#ff6644');
+      const dotY = exCy + Math.round(px * 2);
+      prect(exCx - Math.floor(dotW / 2), dotY, dotW, dotH, '#ff2222');
+      ctx.strokeStyle = '#990000';
+      ctx.lineWidth = Math.max(1, Math.round(px * 0.8));
+      ctx.strokeRect(exCx - Math.floor(barW / 2), barTop, barW, barH);
+      ctx.strokeRect(exCx - Math.floor(dotW / 2), dotY, dotW, dotH);
     }
   }
 }
@@ -2681,8 +2800,24 @@ function spawnBullet(dir, fromPx, fromPy) {
     phase: 'flying',
     decayTimer: 0, vOff: 0, vVel: 0,
     maxDist: CFG.BULLET_MAX_DIST * CELL,
+    source: 'player',
   });
   totalShots++;
+}
+
+// 怪物发射子弹
+function spawnMonsterBullet(dir, fromPx, fromPy, rangeTiles = 4) {
+  const vec = DIR_VEC[dir];
+  bullets.push({
+    x: fromPx, y: fromPy,
+    dirX: vec.dx, dirY: vec.dy,
+    speed: CFG.BULLET_SPEED * 0.6,
+    distTraveled: 0,
+    phase: 'flying',
+    decayTimer: 0, vOff: 0, vVel: 0,
+    maxDist: rangeTiles * CELL,
+    source: 'monster',
+  });
 }
 
 function bulletHitMonster(bx, by) {
@@ -2742,12 +2877,34 @@ function spawnBloodParticles(cx, cy, count) {
 function updateBullets(dt) {
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
+    // --- 怪物子弹处理 ---
+    if (b.source === 'monster') {
+      if (b.phase === 'flying') {
+        const s = b.speed * dt;
+        b.x += b.dirX * s; b.y += b.dirY * s;
+        b.distTraveled += s;
+        if (bulletHitWall(b.x, b.y)) { shatterBullet(b); continue; }
+        const g = pixelToGrid(b.x, b.y);
+        if (g.col === player.col && g.row === player.row) {
+          damagePlayer(0.5);
+          shatterBullet(b); continue;
+        }
+        if (b.distTraveled >= b.maxDist) {
+          b.distTraveled = b.maxDist;
+          shatterBullet(b);
+        }
+      } else if (b.phase === 'dying') {
+        b.shatterTimer -= dt;
+        if (b.shatterTimer <= 0) bullets.splice(i, 1);
+      }
+      continue;
+    }
+    // --- 玩家子弹处理 ---
     if (b.phase === 'flying') {
       const s = b.speed * dt;
       b.x += b.dirX * s; b.y += b.dirY * s;
       b.distTraveled += s;
       if (bulletHitWall(b.x, b.y)) { shatterBullet(b); continue; }
-      // 子弹碰撞怪物
       const hitMon = bulletHitMonster(b.x, b.y);
       if (hitMon) { damageMonster(hitMon, playerStats.attack); shatterBullet(b); continue; }
       const decayDist = b.maxDist - CFG.DECAY_START_BEFORE * CELL;
@@ -2779,6 +2936,7 @@ function updateBullets(dt) {
 function shatterBullet(b) {
   b.phase = 'dying'; b.shatterTimer = CFG.SHATTER_DURATION;
   const n = CFG.SHATTER_PARTICLES;
+  const isMonster = b.source === 'monster';
   for (let j = 0; j < n; j++) {
     const angle = (Math.PI * 2 * j) / n + (Math.random() - 0.5) * 0.8;
     const spd = 30 + Math.random() * 60;
@@ -2787,7 +2945,10 @@ function shatterBullet(b) {
       vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd - 15,
       life: CFG.SHATTER_DURATION + Math.random() * 0.25,
       maxLife: CFG.SHATTER_DURATION + Math.random() * 0.25,
-      size: 1, color: Math.random() < 0.5 ? '#ffdd88' : '#ff9944',
+      size: 1,
+      color: isMonster
+        ? (Math.random() < 0.5 ? '#ff6666' : '#cc4444')
+        : (Math.random() < 0.5 ? '#ffdd88' : '#ff9944'),
     });
   }
 }
@@ -3120,6 +3281,24 @@ function gameLoop(timestamp) {
     monsterFlashTimer += dt;
   }
 
+  // charge蓄力怪动画计时器
+  for (const m of monsters) {
+    if (m.aiType === 'charge' && m.chargeAnimTimer !== undefined) {
+      m.chargeAnimTimer += dt;
+      // 实时面朝玩家更远的轴向
+      if (m.chargePhase === 'dash') {
+        const dx = player.col - m.col;
+        const dy = player.row - m.row;
+        const adx = Math.abs(dx), ady = Math.abs(dy);
+        if (adx > ady || (adx === ady && Math.random() < 0.5)) {
+          m.chargeDir = { dx: Math.sign(dx) || 1, dy: 0 };
+        } else {
+          m.chargeDir = { dx: 0, dy: Math.sign(dy) || 1 };
+        }
+      }
+    }
+  }
+
   // 伤害飘字更新
   updateDamageNumbers(dt);
 
@@ -3187,9 +3366,15 @@ function spawnMonsterAtRandomPos(cfgId) {
     damage: cfg.damage,
     moveCycle: cfg.moveCycle,
     aiType: cfg.aiType,
+    aiParams: cfg.aiParams || null,
     tint: cfg.tint,
     predictedPath: [], moveSpeed: cfg.moveCycle[0],
     hitFlash: 0, shakeX: 0, shakeY: 0,
+    // charge 蓄力怪状态机
+    chargePhase: (cfg.aiType === 'charge') ? 'dash' : undefined,
+    chargeDir: (cfg.aiType === 'charge') ? null : undefined,
+    chargeDistance: (cfg.aiType === 'charge') ? 0 : undefined,
+    chargeAnimTimer: (cfg.aiType === 'charge') ? 0 : undefined,
   });
   occupied.add(`${pos.col},${pos.row}`);
   return true;

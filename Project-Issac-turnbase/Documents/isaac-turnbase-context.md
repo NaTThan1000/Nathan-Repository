@@ -45,7 +45,7 @@
 |-------|------|-----|------|----------|--------|---------------|:--:|:--:|:--:|:--:|
 | `crack_maw` | 裂口尸 | 10 | 0.5 (半心) | [2,1] | chase | 无 | 地面 | melee | 3 | 1×1 |
 | `flying_eye` | 浮游眼 | 6 | 0.5 (半心) | [1,1] | ranged_kite | 蓝紫半透 | 飞行 | ranged | 2 | 1×1 |
-| `rock_golem` | 岩石魔像 | 20 | 1 (1心) | [1,1] | chase | 棕半透 | 地面 | tank | 5 | 1×1 |
+| `charge_golem` | 蓄力魔像 | 30 | 1 (1心) | [1,1] | charge | 棕半透 | 地面 | tank | 5 | 1×1 |
 | `boss_maw_king` | 裂口之王 | 45 | 1 (1心) | [3,2] | boss_chase | 红橙半透 | 地面,飞行 | boss | 15 | 1×1 |
 | `boss_jumper` | 跳跃巨兽 | 60 | 0.5 (半心) | [1,1] | boss_jumper | 紫半透 | 地面,飞行 | boss | 20 | **2×2** |
 
@@ -53,16 +53,17 @@
 - `movementTags`：怪物移动特征标签，用于与房间 `allowedMovement` 做标签匹配。`地面` 表示只能在地面行走（无法穿越深坑），`飞行` 表示可无视地形障碍
 - `role`：战斗角色定位（melee/ranged/tank/boss），用于组合规则保证类型多样性
 - `threat`：威胁值，用于点数预算消耗，控制每房间怪物总体难度
+- `aiParams`：AI 行为参数（可选），按怪物类型包含不同配置项。例如浮游眼的 `moveWeight`/`moveDistMin`/`moveDistMax`/`shootRange`、蓄力魔像的 `chargeDistMin`/`chargeDistMax`、Boss的 `speedBoostInterval`/`smallJumpSteps`/`repeatChance`/`landDamage`。仅有特殊AI参数的怪物需要此字段（`crack_maw` 的 `aiParams` 为 `{}`）
 
 **AI 行为类型枚举** `AI_TYPE`（7种）：
 
 | aiType | 行为描述 |
 |--------|---------|
 | `chase` | 向玩家追踪移动（默认） |
-| `ranged_kite` | 保持距离追踪 |
-| `charge` | 每3回合双倍移速冲锋（上限4格） |
-| `boss_chase` | 追踪 + 每4回合额外+1移速 |
-| `boss_jumper` | 2×2跳跃Boss：小跳×2→判定→大跳消失→落地12格AOE（专用行动循环） |
+| `ranged_kite` | 按权重随机移动/朝玩家射击（权重、距离、射程由 `aiParams` 配置） |
+| `charge` | 每回合沿蓄力方向冲锋（距离由 `aiParams.chargeDistMin/Max` 配置） |
+| `boss_chase` | 追踪 + 周期额外+1移速（间隔由 `aiParams.speedBoostInterval` 配置） |
+| `boss_jumper` | 2×2跳跃Boss：小跳×2→判定→大跳消失→落地12格AOE（步数/概率由 `aiParams` 配置） |
 | `patrol` | 5格内感知追击，否则原地 |
 | `stationary` | 不移动 |
 
@@ -174,10 +175,10 @@
 | 属性 | 值 |
 |------|-----|
 | 最大飞行距离 | 6.0 格 (对应射程属性) |
-| 飞行速度 | 280 像素/秒 |
+| 飞行速度 | 560 像素/秒 |
 | 提前下落距离 | 0.2 格 |
 | 下落水平速度比例 | 7% |
-| 下落重力加速度 | 550 像素/秒² |
+| 下落重力加速度 | 1100 像素/秒² |
 
 - 即时射击：按方向键立即从角色位置发射子弹
 - 子弹三阶段：飞行（匀速）→ 下落（水平减速+垂直加速）→ 碎裂为粒子
@@ -235,7 +236,7 @@
 
 | 属性 | 值 |
 |------|-----|
-| 重力加速度 | 180 像素/秒² |
+| 重力加速度 | 360 像素/秒² |
 | 碎裂粒子数 | 10 个 |
 | 持续时间 | 0.25 秒 |
 
@@ -571,7 +572,7 @@ function project(wx, wy) {
 |------|------|------|
 | `pool.json` | JSON | 关卡池数据文件（模板定义 + spawnConfig 刷怪配置，编辑器读写） |
 | `floor-data.json` | JSON | 楼层生成数据（房间结构+grid，编辑器/游戏加载） |
-| `monster-db.json` | JSON | 怪物配置数据（5种怪物：4普通+1 Boss Jumper 2×2跳跃Boss + size字段） |
+| `monster-db.json` | JSON | 怪物配置数据（5种怪物：3普通+2 Boss，含 `aiParams` AI行为参数配置，如移动权重/冲刺距离/跳跃步数等） |
 | `item-db.json` | JSON | 道具数据库（25种被动道具：effects 数值属性 + specials[] 结构化特效） |
 | `item-drop-tables.json` | JSON | 道具掉落表（三张表：default/treasure_room/boss_room 按品质权重） |
 | `isaac-room-pool - original backup.json` | JSON | 原始关卡池备份 |
@@ -592,6 +593,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-23 | **AI行为参数外置到 monster-db.json**。5个怪物全部新增 `aiParams` 字段，将所有AI硬编码值移入JSON配置。浮游眼：`moveWeight`/`moveDistMin`/`moveDistMax`/`shootRange`；蓄力魔像：`chargeDistMin`/`chargeDistMax`；裂口之王：`speedBoostInterval`；跳跃巨兽：`smallJumpSteps`/`repeatChance`/`landDamage`。代码统一通过 `m.aiParams` 读取（`??` 兜底默认值）。demo.html 和 demo2.html 同步修改。修复怪物表名称（rock_golem→charge_golem）和HP值（20→30）。校正子弹速度（280→560）、子弹重力（550→1100）、粒子重力（180→360）等过时常量值。 |
 | 2026-07-22 | **楼层生成两步法重构**。`generateFloor()` 改为骨架房优先扩展布局 → Boss/宝箱从集群边界空位挂载。Boss选距离起点最远的边界位置，宝箱从剩余边界随机选。Boss/宝箱始终在集群外围且天然只有1个连接，彻底消除旧方案的裁边+连通性修复逻辑。 |
 | 2026-07-21(晚) | **Boss Jumper 2×2跳跃Boss系统**。①新增 `boss_jumper` 怪物（size:2占据4格），替代旧boss为每层Boss房唯一Boss。②行动循环：小跳×2（中心距离判定+3步目标+弧线动画）→50%重复判定→大跳（消失淡出+延迟落地+12格范围1心伤害+冲击波动画）。③2×2全系统适配：渲染（中心偏移公式修正）、碰撞（子弹4格检测）、接触伤害（0.5心）、快照/占用/标签。④`pendingBossLanding` 跨回合延迟执行 + `jumperJustLanded` 落地休息。⑤宝藏房不刷怪。⑥新增 §2.13 Boss Jumper 章节 + AI类型表。 |
 | 2026-07-20 | **godot-setup-checklist.md 移至根目录 Documents/**。文件从项目专属文档升级为跨项目通用参考文档，从 context.md 文件清单中移除引用。 |
@@ -611,4 +613,4 @@ function project(wx, wy) {
 
 ---
 
-> **下一步方向**：完善 AI 行为（ranged_kite 远程射击 / stationary 远程攻击需子弹系统）、更多Boss类型、掉落系统扩展（消耗品/饰品）、商店房间交易功能、Sound/FX 音效系统。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。物品掉落基础已完成，Boss Jumper 2×2系统已完成。
+> **下一步方向**：更多Boss类型、掉落系统扩展（消耗品/饰品）、商店房间交易功能、Sound/FX 音效系统。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。AI行为参数已外置到 `monster-db.json` 的 `aiParams` 配置。

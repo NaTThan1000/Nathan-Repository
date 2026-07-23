@@ -299,10 +299,21 @@
 - **[结论]** Boss/宝箱始终在集群外围，天然只有 1 个门连接，不再需要裁边 (`finalEdges`/`keptFor`/`skipped`/`isConnected` 全部移除)。代码更简洁、逻辑更清晰。
 - **[影响文件]** `isaac-map-viewer.html` — `generateFloor()` 函数重写（约80行新逻辑）
 
+---
+
+## 2026-07-23
+
+### AI行为参数外置 — monster-db.json `aiParams` 字段 [当前方案]
+- **[问题]** 怪物AI行为参数（浮游眼移动/射击权重、蓄力魔像冲刺距离范围、Boss提速间隔、跳跃Boss步数/概率）全部硬编码在 `calcAllMonsterPaths()` 和 `processJumperAction()` 中，策划无法调参
+- **[决策]** 在 `monster-db.json` 每个怪物条目新增 `aiParams` 结构化对象，将AI参数全部外置为JSON配置。代码统一通过 `const ap = m.aiParams || {}` + `??` 兜底读取，兼容旧存档
+- **[影响范围]** 5个怪物（crack_maw空对象、flying_eye移动权重+距离+射程、charge_golem冲刺距离、boss_maw_king提速间隔、boss_jumper跳跃步数+概率+伤害）。双HTML文件同步修改（ranged_kite/charge/boss_chase/boss_jumper AI分支 + 存档序列化）。monster-db.json 新增 aiParams 字段
+- **[同步修复]** context.md 中过时常量：rock_golem→charge_golem、HP 20→30、子弹速度 280→560、子弹重力 550→1100、粒子重力 180→360
+
 ## 最近更新记录
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-23 | **AI行为参数外置到 monster-db.json `aiParams`**。5种怪物全部新增结构化AI参数，彻底消除代码中AI行为硬编码（浮游眼70%/30%权重、1~3格距离、射程4；蓄力魔像3~6格冲刺；Boss提速4回合间隔；跳跃Boss步数3/概率50%）。统一通过 `m.aiParams` 读取，`??` 兜底旧默认值。同步修复 context.md 中过时常量（怪物名/HP/子弹速度/重力）。 |
 | 2026-07-22 | **楼层生成两步法重构**。`generateFloor()` 改为骨架房优先→Boss/宝箱从集群边界挂载。Boss选最远边界位，宝箱随机选剩余边界。彻底消除旧方案裁边+连通性修复逻辑，Boss/宝箱天然单门在外围。 |
 | 2026-07-21(晚) | **Boss Jumper 2×2跳跃Boss系统**。新增 `boss_jumper` 怪物（size:2占据4格），替代旧裂口之王为每层Boss房Boss。行动循环：小跳×2→50%重复→大跳消失→落地12格伤害。配套跳跃动画（弧线/消失残影/落地冲击波）。宝藏房不再刷怪。修复渲染中心偏移和落地回合额外行动。 |
 | 2026-07-20 | **SSH推送替代HTTPS**。DPI防火墙拦截git/curl HTTPS连接，诊断确认SSH 22端口正常。生成ed25519密钥，利用Deploy Key API绕行token scope限制（repo scope够用），remote永久改为SSH。记录完整诊断过程+跨电脑注意事项。 |
