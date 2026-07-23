@@ -593,7 +593,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
-| 2026-07-23 | **AI行为参数外置到 monster-db.json**。5个怪物全部新增 `aiParams` 字段，将所有AI硬编码值移入JSON配置。浮游眼：`moveWeight`/`moveDistMin`/`moveDistMax`/`shootRange`；蓄力魔像：`chargeDistMin`/`chargeDistMax`；裂口之王：`speedBoostInterval`；跳跃巨兽：`smallJumpSteps`/`repeatChance`/`landDamage`。代码统一通过 `m.aiParams` 读取（`??` 兜底默认值）。demo.html 和 demo2.html 同步修改。修复怪物表名称（rock_golem→charge_golem）和HP值（20→30）。校正子弹速度（280→560）、子弹重力（550→1100）、粒子重力（180→360）等过时常量值。 |
+| 2026-07-23 | **AI行为参数外置 + 配置外置审计标准 + global-rules 规范扩充**。①monster-db.json 新增 `aiParams` 字段，5种怪物AI参数全部外置消除硬编码。②系统性审计6个JSON+2个HTML，确立分类标准：策划数据→JSON、引擎/渲染/算法内部调参→代码（渲染常量/动画时长/刷怪算法明确保留代码不挪JSON）。③建立双HTML同步策略（demo.html内联 + demo2.html JSON加载双轨维护）。④global-rules 新增 §2.10 Memory记录完整性要求（不遗漏讨论深度）+ §4.5 疑问句与指令区分（只建议不抢先执行）。⑤context.md全覆盖交叉比对：8处过时常量修正（怪物名/HP/子弹速度/重力）。 |
 | 2026-07-22 | **楼层生成两步法重构**。`generateFloor()` 改为骨架房优先扩展布局 → Boss/宝箱从集群边界空位挂载。Boss选距离起点最远的边界位置，宝箱从剩余边界随机选。Boss/宝箱始终在集群外围且天然只有1个连接，彻底消除旧方案的裁边+连通性修复逻辑。 |
 | 2026-07-21(晚) | **Boss Jumper 2×2跳跃Boss系统**。①新增 `boss_jumper` 怪物（size:2占据4格），替代旧boss为每层Boss房唯一Boss。②行动循环：小跳×2（中心距离判定+3步目标+弧线动画）→50%重复判定→大跳（消失淡出+延迟落地+12格范围1心伤害+冲击波动画）。③2×2全系统适配：渲染（中心偏移公式修正）、碰撞（子弹4格检测）、接触伤害（0.5心）、快照/占用/标签。④`pendingBossLanding` 跨回合延迟执行 + `jumperJustLanded` 落地休息。⑤宝藏房不刷怪。⑥新增 §2.13 Boss Jumper 章节 + AI类型表。 |
 | 2026-07-20 | **godot-setup-checklist.md 移至根目录 Documents/**。文件从项目专属文档升级为跨项目通用参考文档，从 context.md 文件清单中移除引用。 |
@@ -613,4 +613,4 @@ function project(wx, wy) {
 
 ---
 
-> **下一步方向**：更多Boss类型、掉落系统扩展（消耗品/饰品）、商店房间交易功能、Sound/FX 音效系统。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。AI行为参数已外置到 `monster-db.json` 的 `aiParams` 配置。
+> **下一步方向**：更多Boss类型、掉落系统扩展（消耗品/饰品）、商店房间交易功能、Sound/FX 音效系统。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。
