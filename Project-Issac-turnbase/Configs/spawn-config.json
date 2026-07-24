@@ -1,0 +1,21 @@
+{
+  "_comment": "楼层刷怪配置。修改此文件即可调整各楼层难度，无需改代码。",
+
+  "floorBudgets": {
+    "1": { "bonus": 0,  "_totalHint": "房间基础预算 + 0" },
+    "2": { "bonus": 2,  "_totalHint": "房间基础预算 + 2" },
+    "3": { "bonus": 4,  "_totalHint": "房间基础预算 + 4" },
+    "4": { "bonus": 6,  "_totalHint": "房间基础预算 + 6" },
+    "5": { "bonus": 8,  "_totalHint": "房间基础预算 + 8" },
+    "6": { "bonus": 10, "_totalHint": "房间基础预算 + 10" }
+  },
+
+  "bossMonsters": {
+    "1": ["boss_jumper_i"],
+    "2": ["boss_jumper_i"],
+    "3": ["boss_jumper_ii"],
+    "4": ["boss_jumper_ii"],
+    "5": ["boss_jumper_iii"],
+    "6": ["boss_jumper_iii"]
+  }
+}

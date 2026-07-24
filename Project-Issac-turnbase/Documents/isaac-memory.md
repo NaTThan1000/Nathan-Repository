@@ -362,10 +362,21 @@
   2. **AI 建议的采纳状态**：当用户发起方向性讨论（如"游戏下一步该做什么"），AI 提供建议后，需要标注每条建议的用户反馈——采纳（并执行）、否定（并说明原因）、无视（未回应）。这确保将来回溯时能知道当时有哪些路径被考虑过、哪些走了哪些没走、为什么。
 - **[影响]** global-rules §2.10 二次更新：新增"想法推进的完整轨迹""AI 建议的采纳状态"两条具体要求，记忆触发标准新增"AI 建议列表及其采纳/否定/无视状态""想法演变轨迹"两项。
 
+### 怪物移动配置统一重构 [当前方案]
+- **[问题]** 怪物移动步数配置用 4 套不同字段各自为政：`moveCycle` 节奏数组（chase/boss_chase）、`moveDistMin`~`moveDistMax` 随机区间（ranged_kite）、`chargeDistMin`~`chargeDistMax` 区间（charge）、硬编码固定值（boss_jumper/patrol）。同一概念（"怪物每回合走多少格"）参数名不一致。且浮游眼的 `moveCycle:[1,1]` 纯属废字段（ranged_kite 从不读取 moveSpeed）。
+- **[讨论过程]** 最初方案是只在外层加 `movement` 统一记录步数，方向模式仍依附于 aiType。用户指出"移动方向不同应该单独有个参数来区分"，最终确立两个维度完全解耦的结构。
+- **[决策]** 新增统一 `movement` 结构：`mode`（朝哪走：chase/random_wander/charge_dir/jump/none）+ `steps`（步数池数组）+ `stepMode`（如何取值：sequence按序轮换 / random随机抽）+ `weight`（仅 random_wander 模式，移动概率）。所有 12 只怪物全部迁移。
+- **[结构设计]** 两个维度职责分明：`mode` 决定移动方向策略（追玩家BFS/随机方向/直线冲刺/跳跃），`stepMode` 决定步数取值方式（按序循环/随机抽选），`steps` 为步数池。两者可灵活组合产生丰富行为（如"偶尔冲刺的追人怪"=chase+sequence+[1,1,3]）。
+- **[浮游眼 AI 优化]** 新增切比雪夫距离射程判断：玩家在 `shootRange`（aiParams）内→按 `weight` 概率决定射击或移动；射程外→100% 只移动。解决"玩家太远浮游眼还在原地对射"的问题，使远程怪行为更符合直觉。
+- **[巡逻怪修复]** 硬编码 5 格感知范围 → `aiParams.patrolRange` 可配置，默认值保持 5。
+- **[影响范围]** monster-db.json 完全重写（移除 moveCycle / moveWeight / moveDistMin-Max / chargeDistMin-Max，统一为 movement；aiParams 精简仅保留 AI 特有参数）；demo2.html 6 处改造（movement 统一读取 + ranged_kite 射程判断 + charge 步数源切换 + patrol 可配范围 + 怪物创建 + 存档序列化）。旧字段引用全部清理，搜索验证 0 残留。
+- **[兼容性]** 代码层 `movement` 带完整默认值兜底（`{ mode:'chase', steps:[2,1], stepMode:'sequence' }`），确保读不到配置时不崩。
+
 ## 最近更新记录
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-24(晚) | **怪物移动配置统一重构 + 浮游眼 AI 优化**。①统一 `movement` 结构（mode/steps/stepMode/weight）替代 4 套分散步数字段，12 只怪物全部迁移。②浮游眼新增切比雪夫距离射程判断（射程外不射击只移动）。③巡逻范围从硬编码改为 `aiParams.patrolRange`。④monster-db.json 完全重写 + demo2.html 6 处改造 + 旧字段 0 残留。⑤context.md 全覆盖交叉比对：怪物表重写、AI表更新、文件清单新增 spawn-config.json。 |
 | 2026-07-24 | **验证列表遗漏事件 + Memory 对话驱动标准确立**。①7/23讨论的"验证列表"未记录到memory（因无代码变更），暴露AI以"代码变更驱动"写memory的惯性偏离了对话记忆初衷。②用户明确memory设计初衷："在任何电脑上都能像跟同一个有统一记忆的AI聊天"。③记忆触发标准从"代码变更→记录"扩展为"聊过的重要事→记录"（设计验证/待办任务/设计疑问/创意方向等）。④global-rules §2.10 更新补充此规则。⑤验证列表具体内容已不可溯源（cb_summary压缩丢失）。 |
 | 2026-07-23 | **AI行为参数外置 + 配置外置全面审计 + 双HTML同步策略 + global-rules §2.10 §4.5**。①monster-db.json 新增 `aiParams` 字段，5种怪物AI参数全部外置消除硬编码。②系统性审计6JSON+2HTML，确立分类标准：策划→JSON / 引擎/渲染/算法→代码。③建立双HTML同步策略，验证0处AI硬编码残留。④context.md全覆盖比对修正8处过时常量。⑤因AI首轮memory遗漏审计/策略讨论，触发global-rules §2.10（Memory记录完整性）。⑥因AI将疑问句误判为指令，触发global-rules §4.5（疑问句vs指令区分）。 |
 | 2026-07-22 | **楼层生成两步法重构**。`generateFloor()` 改为骨架房优先→Boss/宝箱从集群边界挂载。Boss选最远边界位，宝箱随机选剩余边界。彻底消除旧方案裁边+连通性修复逻辑，Boss/宝箱天然单门在外围。 |
