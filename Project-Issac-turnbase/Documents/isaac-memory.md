@@ -10,7 +10,7 @@
 >
 > **组织方式**：纯时间顺序，不做模块分类。给 AI 快速浏览聊天记忆用。
 >
-> 最后更新: 2026-07-24
+> 最后更新: 2026-07-27
 
 ---
 
@@ -372,10 +372,35 @@
 - **[影响范围]** monster-db.json 完全重写（移除 moveCycle / moveWeight / moveDistMin-Max / chargeDistMin-Max，统一为 movement；aiParams 精简仅保留 AI 特有参数）；demo2.html 6 处改造（movement 统一读取 + ranged_kite 射程判断 + charge 步数源切换 + patrol 可配范围 + 怪物创建 + 存档序列化）。旧字段引用全部清理，搜索验证 0 残留。
 - **[兼容性]** 代码层 `movement` 带完整默认值兜底（`{ mode:'chase', steps:[2,1], stepMode:'sequence' }`），确保读不到配置时不崩。
 
+---
+
+## 2026-07-27
+
+### 怪物行动系统重构：actionMode + actions[] [当前方案]
+- **[问题]** 7/24 统一了 `movement` 结构（mode/steps/stepMode/weight），但移动方向策略和 AI 参数仍然分属两个维度——`movement.mode` 管方向、`aiType`+`aiParams` 管具体行为参数。浮游眼既需要 `movement.weight`（移动概率）又需要 `aiParams.shootRange`（射程），配置分散在两个对象中。Boss Jumper 的跳跃参数也在 `aiParams` 中，与实际的行动逻辑分离。
+- **[决策]** 全面重构为行动列表系统：每个怪物定义 `actionMode`（行为选择模式）+ `actions[]`（行为列表），每个 action 独立携带所有参数。
+- **[结构设计]**
+  - `actionMode: { mode: "sequence"|"random" [, weights: []] }` — sequence 按索引顺序循环；random 按 weights 加权随机选（权重默认 1 = 均匀随机）
+  - `actions[]` — 每个 action 含 `type` + 通用字段（`steps`/`stepMode`）+ 类型专有字段（`range`/`condition`/`directMode`/`landDamage`/`repeatChance`/`disappearSteps`）
+  - `condition` — `"in_range"` 仅当玩家在 action 的 `range`（切比雪夫距离）内时该 action 可选。无 condition 则始终可选。当前仅 `shoot_fan` 使用
+  - `aiType` 保留为行为标签（不再携带参数），仅用于特殊路由（如 boss_jumper 跳过普通 `calcAllMonsterPaths` 进入 `processJumperAction`）
+- **[迁移结果]**
+  - **裂口尸**：`{mode:"sequence"}` + `[{type:"chase", steps:[2,1], stepMode:"sequence"}]`（最简单的一追到底）
+  - **浮游眼**：`{mode:"random", weights:[0.7,0.3]}` + `[{type:"random_wander", steps:[1,2,3], stepMode:"random"}, {type:"shoot_fan", range:4/5/6, condition:"in_range"}]`（70%移动/30%射击，仅射程内可射击）
+  - **蓄力魔像**：`{mode:"sequence"}` + `[{type:"charge_line", steps:[3,4,5,6]→[5,6,7,8], stepMode:"random"}]`
+  - **Boss Jumper**：`{mode:"sequence"}` + `[{type:"jump_small", steps:[3]}, {type:"jump_small", steps:[3]}, {type:"jump_big_land", disappearSteps:1, landDamage:1, repeatChance:0.5}]`（小跳×2→大跳×1 循环）
+- **[代码改动]** 新增 `resolveMonsterAction(cfg, turnIdx, mCol, mRow, pCol, pRow)` — 按 condition 过滤 eligible → actionMode 选择 → stepMode/stepWeights 解析步数。`calcAllMonsterPaths()` 改为调 `resolveMonsterAction` 获取 action + 步数后按 `action.type` 分发。`processJumperAction` / `calcJumperSmallJump` 改为从 `cfg.actions` 读取跳跃参数。怪物创建 (`spawnMonsterAtRandomPos`) 移除 `movement`/`aiType`/`aiParams` 复制。
+- **[向下兼容]** 旧字段 (`movement`/`aiParams`/`aiRange`) 全部删除，monster-db.json 为单一数据源。
+
+### stepWeights 默认行为澄清 [当前方案]
+- **[问题]** 用户问浮游眼 `random_wander` action 中 `stepMode:"random"` 但未配 `stepWeights`，是否默认为均匀随机？
+- **[确认]** 是。`resolveMonsterAction()` 中的步数解析逻辑：有 stepWeights 且长度匹配 → 加权随机；否则走 `Math.floor(Math.random() * steps.length)` 纯均匀随机。浮游眼 `steps:[1,2,3]` → 走 1/2/3 格各 1/3 概率。需要非均匀权重时才显式配 `stepWeights`。
+
 ## 最近更新记录
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-27 | **怪物行动系统重构：actionMode + actions[]**。①移除旧 `movement`/`aiParams` 分散字段，统一为 `actionMode`（sequence/random weighted）+ `actions[]`（独立配置 type + steps/range/condition 等全部参数）。②新增 `resolveMonsterAction()`：condition 过滤 → actionMode 选择 → stepMode/stepWeights 解析。③5种12只怪物全部迁移到新 actions 体系。④Boss Jumper 参数从 aiParams 移至 `actions[].jump_big_land`。⑤确认 stepWeights 未配时默认均匀随机行为。 |
 | 2026-07-24(晚) | **怪物移动配置统一重构 + 浮游眼 AI 优化**。①统一 `movement` 结构（mode/steps/stepMode/weight）替代 4 套分散步数字段，12 只怪物全部迁移。②浮游眼新增切比雪夫距离射程判断（射程外不射击只移动）。③巡逻范围从硬编码改为 `aiParams.patrolRange`。④monster-db.json 完全重写 + demo2.html 6 处改造 + 旧字段 0 残留。⑤context.md 全覆盖交叉比对：怪物表重写、AI表更新、文件清单新增 spawn-config.json。 |
 | 2026-07-24 | **验证列表遗漏事件 + Memory 对话驱动标准确立**。①7/23讨论的"验证列表"未记录到memory（因无代码变更），暴露AI以"代码变更驱动"写memory的惯性偏离了对话记忆初衷。②用户明确memory设计初衷："在任何电脑上都能像跟同一个有统一记忆的AI聊天"。③记忆触发标准从"代码变更→记录"扩展为"聊过的重要事→记录"（设计验证/待办任务/设计疑问/创意方向等）。④global-rules §2.10 更新补充此规则。⑤验证列表具体内容已不可溯源（cb_summary压缩丢失）。 |
 | 2026-07-23 | **AI行为参数外置 + 配置外置全面审计 + 双HTML同步策略 + global-rules §2.10 §4.5**。①monster-db.json 新增 `aiParams` 字段，5种怪物AI参数全部外置消除硬编码。②系统性审计6JSON+2HTML，确立分类标准：策划→JSON / 引擎/渲染/算法→代码。③建立双HTML同步策略，验证0处AI硬编码残留。④context.md全覆盖比对修正8处过时常量。⑤因AI首轮memory遗漏审计/策略讨论，触发global-rules §2.10（Memory记录完整性）。⑥因AI将疑问句误判为指令，触发global-rules §4.5（疑问句vs指令区分）。 |

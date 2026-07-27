@@ -1245,7 +1245,7 @@ function saveTurnSnapshot() {
         col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
         px: gp.x, py: gp.y,                      // 对齐网格 (静止状态)
         displayHp: m.displayHp,
-        damage: m.damage, movement: m.movement, aiType: m.aiType, aiParams: m.aiParams, tint: m.tint,
+        damage: m.damage, aiType: m.aiType, tint: m.tint,
         predictedPath: m.predictedPath ? m.predictedPath.map(s => ({ fromCol: s.fromCol, fromRow: s.fromRow, toCol: s.toCol, toRow: s.toRow })) : [],
         moveSpeed: m.moveSpeed,
         hitFlash: m.hitFlash, shakeX: m.shakeX, shakeY: m.shakeY,
@@ -1279,7 +1279,7 @@ function restoreTurnSnapshot() {
     id: m.id, cfgId: m.cfgId, name: m.name,
     col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
     px: m.px, py: m.py, displayHp: m.displayHp,
-    damage: m.damage, movement: m.movement, aiType: m.aiType, aiParams: m.aiParams, tint: m.tint,
+    damage: m.damage, aiType: m.aiType, tint: m.tint,
     predictedPath: (m.predictedPath || []).map(p => ({ fromCol: p.fromCol, fromRow: p.fromRow, toCol: p.toCol, toRow: p.toRow })),
     moveSpeed: m.moveSpeed,
     hitFlash: 0, shakeX: 0, shakeY: 0,
@@ -1576,108 +1576,164 @@ function pickChargeDir(fromCol, fromRow, playerCol, playerRow, chargeDist = 4) {
   return null;
 }
 
+// ==================== 通用 Action 解析引擎 ====================
+// 从怪物配置的 actions + actionMode 中，根据当前游戏状态解析出本回合应执行的动作和步数
+function resolveMonsterAction(cfg, turnIdx, mCol, mRow, pCol, pRow) {
+  const actions = cfg.actions || [];
+  const actionMode = cfg.actionMode || { mode: 'sequence' };
+  const origWeights = actionMode.mode === 'random' ? (actionMode.weights || []) : [];
+
+  // 按 condition 过滤合适的 action
+  const eligible = [];
+  for (let i = 0; i < actions.length; i++) {
+    const a = actions[i];
+    if (!a.condition) {
+      eligible.push({ action: a, idx: i });
+    } else if (a.condition === 'in_range') {
+      const range = a.range ?? 5;
+      const dist = Math.max(Math.abs(pCol - mCol), Math.abs(pRow - mRow));
+      if (dist <= range) eligible.push({ action: a, idx: i });
+    }
+  }
+
+  if (eligible.length === 0) return { action: null, steps: 0 };
+
+  // 按 actionMode 选择一个 action
+  let selected;
+  if (actionMode.mode === 'random') {
+    const pool = eligible.map(e => ({
+      action: e.action,
+      weight: origWeights[e.idx] !== undefined ? origWeights[e.idx] : 1
+    }));
+    const totalW = pool.reduce((s, p) => s + p.weight, 0);
+    let roll = Math.random() * totalW;
+    for (const p of pool) {
+      roll -= p.weight;
+      if (roll <= 0) { selected = p.action; break; }
+    }
+    if (!selected) selected = pool[pool.length - 1].action;
+  } else {
+    selected = eligible[turnIdx % eligible.length].action;
+  }
+
+  // 解析步数
+  let steps = 0;
+  if (selected.steps && selected.steps.length > 0) {
+    if (selected.stepMode === 'random') {
+      if (selected.stepWeights && selected.stepWeights.length === selected.steps.length) {
+        const totalW = selected.stepWeights.reduce((s, w) => s + w, 0);
+        let roll = Math.random() * totalW;
+        for (let i = 0; i < selected.steps.length; i++) {
+          roll -= selected.stepWeights[i];
+          if (roll <= 0) { steps = selected.steps[i]; break; }
+        }
+        if (steps === 0) steps = selected.steps[selected.steps.length - 1];
+      } else {
+        steps = selected.steps[Math.floor(Math.random() * selected.steps.length)];
+      }
+    } else {
+      steps = selected.steps[turnIdx % selected.steps.length];
+    }
+  }
+
+  return { action: selected, steps };
+}
+
 // 怪物回合开始时: 所有怪物计算向玩家实时位置的移动路径
 function calcAllMonsterPaths() {
   const turnIdx = turnState.monsterTurnCounter;
 
   for (const m of monsters) {
-    const mov = m.movement || { mode: 'chase', steps: [2, 1], stepMode: 'sequence' };
-    const steps = mov.steps || [2, 1];
-    if (mov.stepMode === 'random') {
-      m.moveSpeed = steps[Math.floor(Math.random() * steps.length)];
-    } else {
-      m.moveSpeed = steps[turnIdx % steps.length];
+    // Boss Jumper 的移动由 processJumperAction 单独处理，此处只清空路径
+    if (m.aiType === 'boss_jumper') {
+      m.predictedPath = [];
+      continue;
     }
-    // AI行为路由: 不同AI类型使用不同寻路策略
-    switch (m.aiType) {
-      case 'stationary':
-        m.predictedPath = [];  // 不移动
+
+    const cfg = MONSTER_DB[m.cfgId];
+    const resolved = resolveMonsterAction(cfg, turnIdx, m.col, m.row, player.col, player.row);
+    const selectedAction = resolved.action;
+    const stepCount = resolved.steps;
+
+    m.moveSpeed = stepCount;
+    m._turnAction = selectedAction;
+
+    if (!selectedAction) {
+      m.predictedPath = [];
+      continue;
+    }
+
+    // 按 actionType 分发执行
+    switch (selectedAction.type) {
+      case 'chase':
+        m.predictedPath = calcMonsterPath(m, player.col, player.row);
         break;
-      case 'ranged_kite': {
-        const ap = m.aiParams || {};
-        const shootRange = ap.shootRange ?? 4;
-        const mov = m.movement || { mode: 'random_wander', steps: [1, 2, 3], stepMode: 'random', weight: 0.7 };
 
-        // 切比雪夫距离判断玩家是否在射程内
-        const chebDist = Math.max(Math.abs(player.col - m.col), Math.abs(player.row - m.row));
-        const inRange = chebDist <= shootRange;
+      case 'random_wander': {
+        const dirs = [
+          { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+          { dx: -1, dy: 0 }, { dx: 1, dy: 0 }
+        ];
+        const d = dirs[Math.floor(Math.random() * dirs.length)];
+        const path = [];
+        let col = m.col, row = m.row;
+        for (let step = 0; step < stepCount; step++) {
+          const nc = col + d.dx, nr = row + d.dy;
+          // 飞行属性：仅房间边界阻挡（墙壁），不挡岩石/深坑/尖刺
+          if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) break;
+          if (isMonsterAt(nc, nr, m.id)) break;
+          path.push({ fromCol: col, fromRow: row, toCol: nc, toRow: nr });
+          col = nc; row = nr;
+        }
+        m.predictedPath = path;
+        break;
+      }
 
-        // 射程内：按权重决定射击/移动；射程外：只移动
-        const shouldMove = !inRange || Math.random() < (mov.weight ?? 0.7);
-
-        if (shouldMove) {
-          // 移动：随机选择一个方向（飞行：不挡障碍物，仅墙壁阻挡）
-          const dirs = [
-            { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
-            { dx: -1, dy: 0 }, { dx: 1, dy: 0 }
-          ];
-          const d = dirs[Math.floor(Math.random() * dirs.length)];
-          const moveSteps = mov.steps || [1, 2, 3];
-          const dist = mov.stepMode === 'random'
-            ? moveSteps[Math.floor(Math.random() * moveSteps.length)]
-            : moveSteps[turnIdx % moveSteps.length];
-          const path = [];
-          let col = m.col, row = m.row;
-          for (let step = 0; step < dist; step++) {
-            const nc = col + d.dx, nr = row + d.dy;
-            // 飞行属性：仅房间边界阻挡（墙壁），不挡岩石/深坑/尖刺
-            if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) break;
-            if (isMonsterAt(nc, nr, m.id)) break;
-            path.push({ fromCol: col, fromRow: row, toCol: nc, toRow: nr });
-            col = nc; row = nr;
-          }
-          m.predictedPath = path;
+      case 'shoot_fan': {
+        m.predictedPath = [];
+        const dx = player.col - m.col;
+        const dy = player.row - m.row;
+        const adx = Math.abs(dx), ady = Math.abs(dy);
+        let shootDir;
+        if (adx > ady || (adx === ady && Math.random() < 0.5)) {
+          shootDir = dx > 0 ? 'right' : 'left';
         } else {
-          // 射击：扇形三连射（主方向 + 两个对角线）
-          m.predictedPath = [];
-          const dx = player.col - m.col;
-          const dy = player.row - m.row;
-          const adx = Math.abs(dx), ady = Math.abs(dy);
-          let shootDir;
-          if (adx > ady || (adx === ady && Math.random() < 0.5)) {
-            shootDir = dx > 0 ? 'right' : 'left';
-          } else {
-            shootDir = dy > 0 ? 'down' : 'up';
-          }
-          const gp = gridToPixel(m.col, m.row);
-          if (turnState.phase === 'monster_turn') {
-            spawnMonsterBullet(shootDir, gp.x, gp.y, shootRange);
-            const spread = getSpreadDirs(shootDir);
-            for (const sd of spread) {
-              spawnMonsterBullet(sd, gp.x, gp.y, shootRange);
-            }
+          shootDir = dy > 0 ? 'down' : 'up';
+        }
+        const range = selectedAction.range || 4;
+        const gp = gridToPixel(m.col, m.row);
+        if (turnState.phase === 'monster_turn') {
+          spawnMonsterBullet(shootDir, gp.x, gp.y, range);
+          const spread = getSpreadDirs(shootDir);
+          for (const sd of spread) {
+            spawnMonsterBullet(sd, gp.x, gp.y, range);
           }
         }
         break;
       }
-      case 'charge': {
-        const mov = m.movement || { mode: 'charge_dir', steps: [3, 4, 5, 6], stepMode: 'random' };
-        const chargeSteps = mov.steps || [3, 4, 5, 6];
+
+      case 'charge_line': {
+        const chargeSteps = selectedAction.steps || [3, 4, 5, 6];
         const randChargeDist = () => chargeSteps[Math.floor(Math.random() * chargeSteps.length)];
-        // 每回合冲刺：先冲刺→立刻为下回合蓄力，冲刺和蓄力在同一回合完成
         if (m.chargePhase === undefined) {
           m.chargePhase = 'dash';
           m.chargeDir = null;
           m.chargeDistance = 0;
           m.chargeAnimTimer = 0;
         }
-
         if (m.chargeDir === null) {
-          // 首回合：无历史方向，障碍物感知选择方向
           const cd = randChargeDist();
           const newDir = pickChargeDir(m.col, m.row, player.col, player.row, cd);
           m.chargeDir = newDir;
           m.chargeDistance = newDir ? cd : 0;
           m.predictedPath = [];
         } else {
-          // 冲刺：沿上回合蓄力方向直线/斜向冲刺（含对角线间隙检查）
           const path = [];
           let col = m.col, row = m.row;
           for (let step = 0; step < m.chargeDistance; step++) {
             const nc = col + m.chargeDir.dx;
             const nr = row + m.chargeDir.dy;
             if (isWall(nc, nr)) break;
-            // 斜向间隙检查：对角线移动时检查穿行间隙是否有障碍
             if (m.chargeDir.dx !== 0 && m.chargeDir.dy !== 0) {
               if (isWall(nc, row)) break;
               if (isWall(col, nr)) break;
@@ -1687,40 +1743,18 @@ function calcAllMonsterPaths() {
             col = nc; row = nr;
           }
           m.predictedPath = path;
-
-          // 冲刺结束后立刻为下回合蓄力：支持斜向方向选择
           const cd = randChargeDist();
           const newDir = pickChargeDir(col, row, player.col, player.row, cd);
           m.chargeDir = newDir;
           m.chargeDistance = newDir ? cd : 0;
         }
-        // chargePhase 始终为 'dash'，保证玩家回合一直可见蓄力预警
         break;
       }
-      case 'boss_chase': {
-        // Boss追踪: 周期性额外+1移速
-        const ap = m.aiParams || {};
-        const interval = ap.speedBoostInterval ?? 4;
-        if (turnIdx % interval === 0) m.moveSpeed += 1;
-        m.predictedPath = calcMonsterPath(m, player.col, player.row);
-        break;
-      }
-      case 'boss_jumper':
-        // 跳跃Boss不参与逐步移动（在startMonsterTurn中一次性处理）
+
+      case 'stationary':
         m.predictedPath = [];
         break;
-      case 'patrol': {
-        // 巡逻: 玩家在巡逻范围内才追击, 否则原地不动
-        const patrolRange = (m.aiParams?.patrolRange) ?? 5;
-        const dist = manhattanDist(m.col, m.row, player.col, player.row);
-        if (dist <= patrolRange) {
-          m.predictedPath = calcMonsterPath(m, player.col, player.row);
-        } else {
-          m.predictedPath = [];
-        }
-        break;
-      }
-      case 'chase':
+
       default:
         m.predictedPath = calcMonsterPath(m, player.col, player.row);
         break;
@@ -2078,11 +2112,12 @@ function spawnBossRoomItem() {
 // ==================== Boss Jumper 行动系统 ====================
 // 小跳跃：中心距离判定 → 向远方向移动1格 ×3次
 function calcJumperSmallJump(m) {
-  const ap = m.aiParams || {};
+  const cfg = MONSTER_DB[m.cfgId];
+  const jumpAction = (cfg.actions || []).find(a => a.type === 'jump_small');
   const sz = m.size || 2;
   let tCol = m.col, tRow = m.row;
   const px = player.col + 0.5, py = player.row + 0.5;
-  const steps = ap.smallJumpSteps ?? 3;
+  const steps = (jumpAction && jumpAction.steps && jumpAction.steps.length > 0) ? jumpAction.steps[0] : 3;
 
   for (let step = 0; step < steps; step++) {
     const cx = tCol + sz / 2, cy = tRow + sz / 2;
@@ -2205,8 +2240,10 @@ function processJumperAction(m) {
     if (phase === 1) m.jumperPhase = 2;
     else if (phase === 2) {
       // 进入检查阶段：按repeatChance概率重复1+2，否则进入大跳
-      const ap = m.aiParams || {};
-      if (Math.random() < (ap.repeatChance ?? 0.5) && !m.jumperCheckRepeated) {
+      const cfg = MONSTER_DB[m.cfgId];
+      const landAction = (cfg.actions || []).find(a => a.type === 'jump_big_land');
+      const repeatChance = (landAction && landAction.repeatChance !== undefined) ? landAction.repeatChance : 0.5;
+      if (Math.random() < repeatChance && !m.jumperCheckRepeated) {
         m.jumperPhase = 1;
         m.jumperCheckRepeated = true;
       } else {
@@ -4684,11 +4721,9 @@ function spawnMonsterAtRandomPos(cfgId) {
     hp: cfg.hp, maxHp: cfg.hp,
     displayHp: cfg.hp,
     damage: cfg.damage,
-    movement: cfg.movement ? { ...cfg.movement } : { mode: 'chase', steps: [2, 1], stepMode: 'sequence' },
     aiType: cfg.aiType,
-    aiParams: cfg.aiParams || {},
     tint: cfg.tint,
-    predictedPath: [], moveSpeed: (cfg.movement?.steps || [2, 1])[0],
+    predictedPath: [], moveSpeed: (cfg.actions?.[0]?.steps || [2, 1])[0],
     hitFlash: 0, shakeX: 0, shakeY: 0,
     size: sz,
     // boss_jumper 状态机

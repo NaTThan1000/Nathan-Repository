@@ -1,6 +1,6 @@
 # 以撒·半回合制战斗 — 项目总览
 
-> 文件: `Project-Issac-turnbase/isaac-turnbased-demo2.html`（v3道具系统版，主开发文件） | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/monster-db.json` 怪物配置表 + `Configs/item-db.json` 道具数据库 + `Configs/item-drop-tables.json` 掉落表 + `Configs/spawn-config.json` 楼层刷怪配置 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层 + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表 + 掉落表机制 + Boss Jumper 2×2跳跃Boss + 怪物移动配置统一(movement对象)
+> 文件: `Project-Issac-turnbase/isaac-turnbased-demo2.html`（v3道具系统版，主开发文件） | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/monster-db.json` 怪物配置表 + `Configs/item-db.json` 道具数据库 + `Configs/item-drop-tables.json` 掉落表 + `Configs/spawn-config.json` 楼层刷怪配置 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层 + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表 + 掉落表机制 + Boss Jumper 2×2跳跃Boss + 怪物行动系统重构(actionMode+actions[])
 
 ---
 
@@ -41,31 +41,33 @@
 
 **怪物配置数据库** `MONSTER_DB`（4种基础类型 × 3等级 = 12只怪物），数据来源 `Configs/monster-db.json` 外部 JSON 配置文件：
 
-| cfgId | 名称(I/II/III) | HP | 伤害 | 移动 (mode/stepMode/steps) | AI类型 | 颜色叠加(tint) | 移动标签 | 角色 | 威胁值 | 体型 |
-|-------|------|-----|------|------|--------|---------------|:--:|:--:|:--:|:--:|
-| `crack_maw` | 裂口尸 | 10/20/30 | 0.5/1/1 | chase / seq / [2,1]→[3,2] | chase | 无 | 地面 | melee | 3/5/7 | 1×1 |
-| `flying_eye` | 浮游眼 | 6/12/20 | 0.5/0.5/1 | random_wander / rand(weight 0.7→0.3) / [1,2,3] | ranged_kite | 蓝紫半透 | 飞行 | ranged | 2/4/6 | 1×1 |
-| `charge_golem` | 蓄力魔像 | 30/45/65 | 1/1/1.5 | charge_dir / rand / [3~6]→[5~8] | charge | 棕半透 | 地面 | tank | 5/8/12 | 1×1 |
-| `boss_jumper` | 跳跃巨兽 | 60/80/105 | 0.5/0.5/1 | jump / seq / [0] | boss_jumper | 紫半透 | 地面,飞行 | boss | 20/22/25 | **2×2** |
+| cfgId | 名称(I/II/III) | HP | 伤害 | actionMode | actions[] (type + 核心参数) | 颜色叠加(tint) | 移动标签 | 角色 | 威胁值 | 体型 |
+|-------|------|-----|------|------------|------|---------------|:--:|:--:|:--:|:--:|
+| `crack_maw` | 裂口尸 | 10/20/30 | 0.5/1/1 | sequence | `chase` steps:[2,1]→[3,2], stepMode:seq | 无 | 地面 | melee | 3/5/7 | 1×1 |
+| `flying_eye` | 浮游眼 | 6/12/20 | 0.5/0.5/1 | random weights:[0.7,0.3]→[0.3,0.7] | `random_wander` steps:[1,2,3], stepMode:rand + `shoot_fan` range:4→5→6, cond:in_range | 蓝紫半透 | 飞行 | ranged | 2/4/6 | 1×1 |
+| `charge_golem` | 蓄力魔像 | 30/45/65 | 1/1/1.5 | sequence | `charge_line` steps:[3,4,5,6]→[5,6,7,8], stepMode:rand | 棕半透 | 地面 | tank | 5/8/12 | 1×1 |
+| `boss_jumper` | 跳跃巨兽 | 60/80/105 | 0.5/0.5/1 | sequence | `jump_small` steps:[3] ×2 + `jump_big_land` landDamage:1, repeatChance:0.5, disappearSteps:1 | 紫半透 | 地面,飞行 | boss | 20/22/25 | **2×2** |
 
 **怪物配置字段说明**：
-- `movement`：统一移动配置对象 `{ mode, steps, stepMode [, weight] }`。`mode` 移动方向策略（chase/random_wander/charge_dir/jump/none）；`steps` 步数池数组；`stepMode` 取值方式（sequence按序轮换 / random随机抽一个）；`weight` 移动概率（仅 random_wander 模式，如浮游眼 0.7=70%移动）
+- `actionMode`：行为选择模式 `{ mode, [weights] }`。`mode: "sequence"` 按索引顺序循环执行 actions；`mode: "random"` 按 `weights[]` 加权随机选一个 action（`resolveMonsterAction()` 中根据 `condition` 过滤 eligible actions 后加权抽取）。权重默认 1（均匀随机）
+- `actions[]`：行为列表，每行为独立配置对象。通用字段：`type`（行为类型标识）、`steps`（步数池数组）、`stepMode`（sequence按序轮换 / random均匀随机）。每个 action 类型可携带额外专有参数（如 `range`/`condition`/`directMode`/`landDamage`/`repeatChance`/`disappearSteps` 等）
+- `condition`（action 可选字段）：`"in_range"` → 仅当玩家在 action 的 `range`（切比雪夫距离）内时该 action 可选。无 condition 则始终可选。当前仅 `shoot_fan` action 使用
+- `aiType`：行为标签（chase/ranged_kite/charge/boss_jumper），保留用于特殊路由（如 boss_jumper 跳过普通 AI 分发进入 `processJumperAction`），但不再携带参数
 - `movementTags`：怪物移动特征标签，用于与房间 `allowedMovement` 做标签匹配。`地面` 表示只能在地面行走（无法穿越深坑），`飞行` 表示可无视地形障碍
 - `role`：战斗角色定位（melee/ranged/tank/boss），用于组合规则保证类型多样性
 - `threat`：威胁值，用于点数预算消耗，控制每房间怪物总体难度
-- `aiParams`：AI特有参数（与 movement 解耦）。浮游眼 `shootRange`（射程，切比雪夫距离）；蓄力魔像无额外参数 `{}`；Boss的 `speedBoostInterval`/`smallJumpSteps`/`repeatChance`/`landDamage`；巡逻怪 `patrolRange`
 
-**AI 行为类型枚举** `AI_TYPE`（7种）：
+**Action 类型枚举**（7种，替代旧 `movement.mode` + `aiType` 的分离结构）：
 
-| aiType | 行为描述 |
-|--------|---------|
-| `chase` | 向玩家追踪移动（BFS寻路，步数由 `movement` 控制） |
-| `ranged_kite` | 切比雪夫距离判定：射程内按 `weight` 概率射击/移动；射程外只移动。移动随机方向，步数从 `movement.steps` 取。射击为扇形三连射，射程由 `aiParams.shootRange` 配 |
-| `charge` | 每回合沿蓄力方向冲锋（冲刺距离从 `movement.steps` 随机取值） |
-| `boss_chase` | 追踪 + 周期额外+1移速（间隔由 `aiParams.speedBoostInterval` 配置，步数由 `movement` 控制） |
-| `boss_jumper` | 2×2跳跃Boss：小跳×2→判定→大跳消失→落地12格AOE（步数/概率由 `aiParams` 配置，`movement.mode: "jump"` 不参与逐步移动） |
-| `patrol` | 巡逻范围内感知追击，范围由 `aiParams.patrolRange` 配置（默认5），否则原地 |
-| `stationary` | 不移动 |
+| action type | 行为描述 |
+|------------|---------|
+| `chase` | 向玩家追踪移动（BFS寻路），步数从 `steps`/`stepMode` 取 |
+| `random_wander` | 随机方向漫步，步数从 `steps`/`stepMode` 取。`stepMode:"random"` + 无 `stepWeights` → 均匀随机（每步等权重） |
+| `shoot_fan` | 扇形三连射，`range` 控制射程，`directMode:"toward_player_axis"` 朝玩家主轴向射击。通常配 `condition:"in_range"` 仅射程内可选 |
+| `charge_line` | 沿蓄力方向冲锋，`steps` 从池中随机取冲刺距离 |
+| `jump_small` | Boss Jumper 小跳跃，中心距离判定 × `steps`[0] 步 |
+| `jump_big_land` | Boss Jumper 大跳+落地，`disappearSteps`消失回合数、`landDamage`落地伤害、`repeatChance`重复小跳概率 |
+| (patrol/stationary) | 巡逻/不移动（通过 `aiType` 路由，暂无独立 action 配置） |
 
 **生成方式**：
 - **自动刷怪**：`spawnRoomMonsters()` — 进入房间/楼层切换时自动调用，三层递进：
@@ -90,10 +92,9 @@
 - 死亡：18颗血粒子爆浆特效
 
 **每只怪物独立属性**：
-- `movement`：统一移动配置 `{ mode, steps, stepMode [, weight] }`，替代旧 `moveCycle` 等分散字段
+- `actionMode` + `actions[]`：行动列表 + 选择模式，统一替代旧 `movement`/`aiType`/`aiParams` 分散字段。每个 action 独立配置步数、射程、条件等全部参数
 - `damage`：每个怪物独立的碰撞伤害
-- `aiType`：AI 行为路由（`calcAllMonsterPaths()` 中 switch 分发）
-- `aiParams`：AI特有可选参数（与 movement 解耦，如 shootRange/patrolRange/jumpSteps 等）
+- `aiType`：行为标签（用于特殊路由，如 boss_jumper 跳过普通 AI 分发）
 - `tint`：RGBA 色彩叠加，渲染时传入 `drawCharacterAt()`
 
 **无敌系统**：`invincibleSteps = 移速×2` 步数制，固定时长不刷新。
@@ -307,20 +308,21 @@ player_select ──→ monster_turn ──→ player_select
 
 ### 2.13 Boss Jumper — 2×2跳跃Boss系统
 
-Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），不参与普通移动。
+Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），不参与普通移动。行为参数全部配置在 `actions[]` 中（`jump_small` 的小跳步数、`jump_big_land` 的伤害/重复概率/消失步数）。
 
 **行动循环**：`1(小跳) → 2(小跳) → 3(50%重复1+2) → 4(大跳) → 1`
 
 | 行动 | 机制 | 伤害 | 动画 |
 |------|------|------|------|
-| **小跳跃** | Boss中心与玩家坐标比较 → 横向/纵向选远的走1格 ×3次 → 落点4格内单位0.5伤害。无视岩石/尖刺/深坑，但不能全深坑 | 0.5心(玩家) | 弧线跳跃(sin弧线+ease-in-out+缩放弹跳) |
-| **大跳跃** | Boss消失1回合（缩小淡出残影）→ 跳起时判定玩家位置选2×2落点 → 玩家回合结束时落下 → 对12格(目标2×2+8邻格)造成1点伤害 | 1心(12格范围) | 消失:缩小淡出 / 落地:缩放弹出+双圈冲击波 |
+| **小跳跃** | Boss中心与玩家坐标比较 → 横向/纵向选远的走 N 格（`jump_small.steps[0]`，默认3）→ 落点4格内单位0.5伤害。无视岩石/尖刺/深坑，但不能全深坑 | 0.5心(玩家) | 弧线跳跃(sin弧线+ease-in-out+缩放弹跳) |
+| **大跳跃** | Boss消失1回合（缩小淡出残影）→ 跳起时判定玩家位置选2×2落点 → 玩家回合结束时落下 → 对12格(目标2×2+8邻格)造成 `jump_big_land.landDamage` 伤害（默认1） | 1心(12格范围) | 消失:缩小淡出 / 落地:缩放弹出+双圈冲击波 |
 
 **关键设计**：
 - `pendingBossLanding`：大跳落点跳起时即确定（不依赖落下时玩家位置），跨回合延迟执行
 - `jumperJustLanded`：落地回合Boss休息不行动，下个怪物回合才循环回phase 1
 - 无需BFS寻路（`predictedPath` 永久为空），跳跃一次性完成
 - 接触伤害0.5心（玩家走入2×2区域），子弹碰撞4格检测
+- `jump_big_land.repeatChance`（默认0.5）控制小跳后50%概率重复小跳而非进入大跳
 
 **2×2适配**：`monsterCells()` / `isInMonsterFootprint()` / `isValidLandingZone()` 辅助函数。全系统适配（渲染中心偏移 `CELL*(sz-1)/2`、碰撞、快照、占用、DOM标签）。
 
@@ -409,7 +411,7 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
     ├── 移动系统 (探索自由移动 + 战斗AP移动 + 场景过渡动画)
     ├── 子弹系统 (spawnBullet, updateBullets, shatterBullet)
     ├── 粒子系统 (updateParticles) & 受伤系统 (damagePlayer)
-    ├── 怪物系统 (MONSTER_DB 配置表 + AI_TYPE 枚举 + movement 统一移动配置 + AI行为路由 + calcAllMonsterPaths/startMonsterTurn/updateMonsterTurn/spawnMonster + 2×2怪物辅助函数)
+    ├── 怪物系统 (MONSTER_DB 配置表 + actionMode/actions[] 行动列表 + resolveMonsterAction 行为选择 + AI行为路由 + calcAllMonsterPaths/startMonsterTurn/updateMonsterTurn/spawnMonster + 2×2怪物辅助函数)
     ├── Boss Jumper系统 (processJumperAction/calcJumperSmallJump/calcJumperBigJump/executeBossLanding — 状态机驱动2×2跳跃Boss)
     ├── 道具系统 (ITEMS_DB 道具数据库 + SPECIAL_EFFECT_HANDLERS 特效注册表 + playerInventory 背包 + recalcAllStats 属性重算)
     ├── 掉落系统 (item-drop-tables.json 掉落表 + rollItem 按品质权重随机)
@@ -509,7 +511,8 @@ function project(wx, wy) {
 | `calcJumperSmallJump(m)` | 小跳跃计算：中心距离判定×3步 → 落点验证 → 移动Boss → 0.5范围伤害 |
 | `calcJumperBigJump(m)` | 大跳跃计算：记录玩家位置 → 选2×2落点 → 标记vanished + pendingBossLanding |
 | `executeBossLanding()` | 大跳落地执行：Boss出现 → 12格1点伤害 → 重置phase → 标记justLanded |
-| `calcAllMonsterPaths()` / `startMonsterTurn()` / `updateMonsterTurn(dt)` | 怪物回合系统：统一 `movement` 读取步数 + AI路由分发 + 每怪移动路径计算 + ranged_kite 射程判断 |
+| `calcAllMonsterPaths()` / `startMonsterTurn()` / `updateMonsterTurn(dt)` | 怪物回合系统：`resolveMonsterAction()` 选择行为（按 actionMode 过滤+加权）→ AI路由分发 → 每怪移动路径计算 + ranged_kite 射程判断 |
+| `resolveMonsterAction(cfg, turnIdx, mCol, mRow, pCol, pRow)` | 解析怪物本回合行为：按 action.condition 过滤 eligible → 按 actionMode (sequence/random weight) 选择一个 action → 按 stepMode/stepWeights 解析步数 |
 | `updateActionBar()` | 更新底部状态栏（探索模式隐藏 / 战斗模式显示 AP） |
 | `updateUI()` / `updateFloorUI()` | 更新所有 DOM UI 面板（含AP面板显隐、楼层信息栏） |
 | `gameLoop(timestamp)` | 主循环：动画→输入→子弹→粒子→怪物回合→渲染 |
@@ -536,7 +539,9 @@ function project(wx, wy) {
   ↑↓←→ → 即时 spawnBullet → A-AP-1 → 首次? 设 hasShot + checkpointPos
   Esc  → restoreTurnSnapshot() → 重置所有状态
   Space → 结束回合 → 未消耗M-AP计入invincibleSteps → monster_turn:
-         calcAllMonsterPaths() → AI路由分发(每怪独立移速+dmg) → 怪物逐步移动+碰撞+尖刺5 → finishMonsterTurn
+         calcAllMonsterPaths() → resolveMonsterAction(按condition过滤+actionMode选择)
+         → AI路由分发(action type: chase/random_wander/shoot_fan/charge_line)
+         → 怪物逐步移动+碰撞+尖刺5 → finishMonsterTurn
        → updateRoomCombatState (清怪则门开+切回探索)
 
 渲染层序:
@@ -595,6 +600,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-27 | **怪物行动系统重构：actionMode + actions[]**。①移除旧 `movement`/`aiParams`/`aiRange` 分散字段，统一为 `actionMode`（行为选择模式：sequence按序/random加权随机）+ `actions[]`（行为列表，每个 action 独立携带 type + steps/stepMode/range/condition 等全部参数）。②新增 `resolveMonsterAction()` 函数：按 condition 过滤 eligible → actionMode 挑选 → stepMode/stepWeights 解析步数。stepWeights 未配时默认均匀随机。③5种怪物12条全部迁移。裂口尸→chase、浮游眼→random_wander+shoot_fan（actionMode.random + condition.in_range）、蓄力魔像→charge_line、Boss Jumper→jump_small+jump_big_land。④Boss Jumper 参数从 `aiParams` 移至 `actions[].jump_big_land`（landDamage/repeatChance/disappearSteps）。⑤context.md 全覆盖交叉比对：怪物表重写、AI类型表→Action类型表、配置字段说明重写、Boss Jumper 参数来源更新、架构概览/函数索引/数据流更新。 |
 | 2026-07-24 | **怪物移动配置统一重构 + 浮游眼AI行为优化**。①新增统一 `movement` 结构（`mode`/`steps`/`stepMode`/`weight`），替代旧 `moveCycle`/`moveDistMin-Max`/`chargeDistMin-Max` 等分散字段。12只怪物全部迁移，同一概念（步数）不再各自为政。②浮游眼 AI 新增切比雪夫距离射程判断：射程内按权重射击/移动，射程外强制只移动，不走无意义的远程对射。③巡逻怪硬编码 5 格 → `aiParams.patrolRange` 可配置。④context.md 全文交叉比对：怪物表重写（boss_maw_king 移除、I/II/III 三级标注、移动列重写）、AI类型表更新、文件清单新增 spawn-config.json + demo.html 标记废弃、函数索引/独立属性描述更新。 |
 | 2026-07-23 | **AI行为参数外置 + 配置外置审计标准 + global-rules 规范扩充**。①monster-db.json 新增 `aiParams` 字段，5种怪物AI参数全部外置消除硬编码。②系统性审计6个JSON+2个HTML，确立分类标准：策划数据→JSON、引擎/渲染/算法内部调参→代码（渲染常量/动画时长/刷怪算法明确保留代码不挪JSON）。③建立双HTML同步策略（demo.html内联 + demo2.html JSON加载双轨维护）。④global-rules 新增 §2.10 Memory记录完整性要求（不遗漏讨论深度）+ §4.5 疑问句与指令区分（只建议不抢先执行）。⑤context.md全覆盖交叉比对：8处过时常量修正（怪物名/HP/子弹速度/重力）。 |
 | 2026-07-22 | **楼层生成两步法重构**。`generateFloor()` 改为骨架房优先扩展布局 → Boss/宝箱从集群边界空位挂载。Boss选距离起点最远的边界位置，宝箱从剩余边界随机选。Boss/宝箱始终在集群外围且天然只有1个连接，彻底消除旧方案的裁边+连通性修复逻辑。 |
@@ -616,4 +622,4 @@ function project(wx, wy) {
 
 ---
 
-> **下一步方向**：更多Boss类型、掉落系统扩展（消耗品/饰品）、商店房间交易功能、Sound/FX 音效系统。验证新版浮游眼 AI 行为（射程判断+统一移动）。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。
+> **下一步方向**：更多Boss类型、掉落系统扩展（消耗品/饰品）、商店房间交易功能、Sound/FX 音效系统、patrol/stationary 迁移到 actions[] 体系。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。
