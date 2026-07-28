@@ -445,10 +445,23 @@
 - **[原因]** 代码改动是高频实验性的，文档更新是低频确认性的。程序化地在每次代码改动后跟文档浪费 token
 - **[关联]** 与 global-rules §1.4（禁止自动 Git 写入）、§4.5（疑问句vs指令区分）同类——都是管理 AI 的"自动收尾冲动"
 
+### 浮游眼行为模式重构 — condition actionMode + after_effect + 动态感叹号 [当前方案]
+- **[触发]** 用户要求浮游眼不再按权重随机选行为，改为按 condition 条件判断触发
+- **[actionMode 新增]** `mode: "condition"`：按 actions[] 顺序逐条评估 condition，选中第一个满足条件的 action。与 `sequence`（轮询）、`random`（加权随机）并列第三种选择模式
+- **[condition 新增]** `out_of_range`：`dist > range`（与 `in_range` 的 `dist <= range` 互补）
+- **[after_effect 机制]** action 新增可选的 `after_effect` 字段（`{ type, steps, stepMode }`）：主 action 执行完毕后追加执行附加行为
+- **[浮游眼新行为]**
+  - 玩家在射程外 → Action 1: `random_wander`（漫步）
+  - 玩家在射程内 → Action 2: `shoot_fan` → after_effect: `random_wander`（射击后立刻随机移动）
+- **[动态感叹号]** 新增 `updateFlyingEyeExclaim()` 函数：玩家回合中每次 WASD 移动后实时检测与浮游眼距离，进入射程显示感叹号，移出隐藏。回合开始时（`resetTurnAP()`）也调用一次
+- **[代码重构]** 抽出 `checkActionCondition(a, pCol, pRow, mCol, mRow)` 和 `resolveSteps(stepsArr, stepMode, stepWeights, turnIdx)` 两个辅助函数，消除 `resolveMonsterAction` 内重复代码
+- **[影响范围]** monster-db.json(3只浮游眼 actionMode+actions) + demo2.html(`resolveMonsterAction` 函数重写 + `calcAllMonsterPaths` shoot_fan case 新增 after_effect 处理 + `updateFlyingEyeExclaim` 新函数)
+
 ## 最近更新记录
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-28(晚) | **浮游眼行为模式重构**。①新增 condition actionMode(按顺序条件判断) + out_of_range 条件 + after_effect 机制(shoot_fan后立刻random_wander)。②玩家回合动态感叹号(进出射程实时显示/隐藏)。③抽出 checkActionCondition + resolveSteps 辅助函数。 |
 | 2026-07-28(晚) | **蓄力魔像行为优化 + 感叹号像素风 + 文档同步触发规则**。①蓄力魔像 actions 改为4步sequence(random_wander×2+charge_up+charge_line)，新增 charge_up type(感叹号脉动)，charge_line 简化为单步执行。②感叹号改为56px Courier New像素风大号样式，8方向像素描边+3层光晕+0.5s脉动。③memory.md 新增修改规则#4：context.md和memory.md更新必须由用户"同步文档"指令触发，不得在代码任务中附带执行。 |
 | 2026-07-28(晚) | **掉落系统全面重构+资源系统建立**。①用户8条掉落需求驱动全面重配。②确立weight vs rate 语义区分。③新建 resource-db.json（资源定义+8张掉落表+宝箱loot）。④全部12只怪物loot重配：小怪极少道具(~0.9%/只)+小概率资源(~25%)；Boss纯道具无资源。⑤宝箱改为必掉1~4个道具(roll_all模式)。⑥品质表合并至item-db.json，删除 item-drop-tables.json。⑦资源掉落表全面降低概率匹配各场景。⑧用户后续手动微调数值。 |
 | 2026-07-28 | **代码-文档不一致处理约定确立**。①当 AI 发现代码与文档矛盾时，必须主动提醒用户列出差异清单，待用户决策后才行动（三个选项：代码为准/文档为准/都保留）。②明确与"同步文档"指令为独立触发路径（同步时默认以代码为准）。③确认 Ask/Craft 模式边界：都不擅自修改文件。④创建 Memory ID 32213721。⑤context.md 文件清单修正 monster-db.json 过时描述。 |

@@ -44,14 +44,15 @@
 | cfgId | 名称(I/II/III) | HP | 伤害 | actionMode | actions[] (type + 核心参数) | 颜色叠加(tint) | 移动标签 | 角色 | 威胁值 | 体型 |
 |-------|------|-----|------|------------|------|---------------|:--:|:--:|:--:|:--:|
 | `crack_maw` | 裂口尸 | 10/20/30 | 0.5/1/1 | sequence | `chase` steps:[2,1]→[3,2], stepMode:seq | 无 | 地面 | melee | 3/5/7 | 1×1 |
-| `flying_eye` | 浮游眼 | 6/12/20 | 0.5/0.5/1 | random weights:[0.7,0.3]→[0.3,0.7] | `random_wander` steps:[1,2,3], stepMode:rand + `shoot_fan` range:4→5→6, cond:in_range | 蓝紫半透 | 飞行 | ranged | 2/4/6 | 1×1 |
+| `flying_eye` | 浮游眼 | 6/12/20 | 0.5/0.5/1 | condition | `random_wander` steps:[2,2,2]→[3,3,3]→[4,4,4], cond:out_of_range + `shoot_fan` range:4→5→6, cond:in_range, after_effect:random_wander | 蓝紫半透 | 飞行 | ranged | 2/4/6 | 1×1 |
 | `charge_golem` | 蓄力魔像 | 30/45/65 | 1/1/1.5 | sequence | `random_wander` steps:2/3/4 ×2 + `charge_up`(蓄力+感叹号) + `charge_line` steps:[3,13], stepMode:rand | 棕半透 | 地面 | tank | 5/8/12 | 1×1 |
 | `boss_jumper` | 跳跃巨兽 | 60/80/105 | 0.5/0.5/1 | sequence | `jump_small` steps:[3] ×2 + `jump_big_land` landDamage:1, repeatChance:0.5, disappearSteps:1 | 紫半透 | 地面,飞行 | boss | 20/22/25 | **2×2** |
 
 **怪物配置字段说明**：
-- `actionMode`：行为选择模式 `{ mode, [weights] }`。`mode: "sequence"` 按索引顺序循环执行 actions；`mode: "random"` 按 `weights[]` 加权随机选一个 action（`resolveMonsterAction()` 中根据 `condition` 过滤 eligible actions 后加权抽取）。权重默认 1（均匀随机）
-- `actions[]`：行为列表，每行为独立配置对象。通用字段：`type`（行为类型标识）、`steps`（步数池数组）、`stepMode`（sequence按序轮换 / random均匀随机）。每个 action 类型可携带额外专有参数（如 `range`/`condition`/`directMode`/`landDamage`/`repeatChance`/`disappearSteps` 等）
-- `condition`（action 可选字段）：`"in_range"` → 仅当玩家在 action 的 `range`（切比雪夫距离）内时该 action 可选。无 condition 则始终可选。当前仅 `shoot_fan` action 使用
+- `actionMode`：行为选择模式 `{ mode, [weights] }`。`mode: "sequence"` 按索引顺序循环执行 actions；`mode: "random"` 按 `weights[]` 加权随机选一个 action；`mode: "condition"` 按顺序逐条评估 action 的 condition，选中第一个满足条件的 action。权重默认 1（均匀随机）
+- `actions[]`：行为列表，每行为独立配置对象。通用字段：`type`（行为类型标识）、`steps`（步数池数组）、`stepMode`（sequence按序轮换 / random均匀随机）。每个 action 类型可携带额外专有参数（如 `range`/`condition`/`directMode`/`landDamage`/`repeatChance`/`disappearSteps`/`after_effect` 等）
+- `condition`（action 可选字段）：`"in_range"` → 仅当玩家在 action 的 `range`（切比雪夫距离）内时该 action 可选；`"out_of_range"` → 仅当玩家在射程外时可选。无 condition 则始终可选
+- `after_effect`（action 可选字段）：主 action 执行完毕后追加执行的附加行为，结构为 `{ type, steps, stepMode }`。当前仅 `shoot_fan`（浮游眼射程内）使用，指向 `random_wander`（射击后立刻移动）
 - `aiType`：行为标签（chase/ranged_kite/charge/boss_jumper），保留用于特殊路由（如 boss_jumper 跳过普通 AI 分发进入 `processJumperAction`），但不再携带参数
 - `movementTags`：怪物移动特征标签，用于与房间 `allowedMovement` 做标签匹配。`地面` 表示只能在地面行走（无法穿越深坑），`飞行` 表示可无视地形障碍
 - `role`：战斗角色定位（melee/ranged/tank/boss），用于组合规则保证类型多样性
@@ -618,6 +619,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-28(晚) | **浮游眼行为模式重构**。①新增 `condition` actionMode：按顺序逐条评估 condition，选中第一个满足的 action（替代旧 random 权重随机）。②新增 `out_of_range` 条件（与 `in_range` 互补）。③新增 `after_effect` 机制：主 action 执行完毕后追加执行附加行为（shoot_fan→after_effect:random_wander → 射击后立刻移动）。④玩家回合动态感叹号：WASD移动时实时检测与浮游眼切比雪夫距离，进入射程显示"!"，移出消失。⑤抽出 `checkActionCondition` + `resolveSteps` 辅助函数。 |
 | 2026-07-28(晚) | **蓄力魔像行为优化**。①蓄力魔像 actions 从单一 `charge_line` 改为 4 步 sequence：`random_wander`(2步) → `random_wander`(2步) → `charge_up`(蓄力+感叹号) → `charge_line`(冲刺)。I/II/III级 wander 步数分别为 2/3/4。②新增 `charge_up` action 类型：原地不动+头顶红色闪烁感叹号(!)脉动动画（DOM覆盖层渲染）。③`charge_line` 简化为单步执行（选方向+直接冲刺，不再分两阶段）。④感叹号状态纳入回合快照。⑤action 类型枚举从 7 种增至 8 种。⑥感叹号样式优化：56px Courier New大号像素风，8方向黑色像素描边+3层红色光晕脉动（0.5s，0.85→1.25缩放）。 |
 | 2026-07-28(晚) | **掉落系统全面重构 + 资源系统建立**。①新建 `resource-db.json`：6种资源定义(金币/黑币/银币/炸弹/红心/蓝心/宝箱/钥匙) + 8张资源掉落表(monster_default/monster_heavy/boss_drop/room_clear_default/room_clear_boss/terrain_rock/terrain_poop/chest_normal/chest_golden/shop_stock) + 宝箱loot配置。②怪物loot全面重配：所有非Boss怪改为极少道具(weight 0.03 + monster_very_rare 品质表 none:0.70 → 有效约0.9%/只) + 小概率资源(约22-30%)；Boss纯道具无资源(boss品质表)。③宝箱改为必掉1~4个道具(roll_all模式，保底1个+3次55-60%判定)。④房间清空→中概率资源(约43%)，岩石→极小概率(约3.5%)，便便→小概率(约15%)。⑤删除 `item-drop-tables.json`，品质表合并至 `item-db.json > qualityTables`，新增 `monster_very_rare`。⑥新增统一掉落调度器 rollLoot/executeDropEntry 及资源掉落 rollResourceDrop。 |
 | 2026-07-28 | **文档体系补充：代码-文档不一致处理约定**。①确立约定：AI 发现实际代码和项目文档不一致时，必须主动提醒用户，列出具体差异清单让用户决策（①以代码为准更新文档 / ②以文档为准修正代码 / ③两者都保留（设计变更过渡期）），不得在用户未表态的情况下擅自修改代码或修改文档。②确认 Ask/Craft 模式分工边界：Ask 模式只分析/提醒差异，不动文件；文档更新需用户明确指令。③文件清单修正：monster-db.json 描述从旧 `movement`+`aiParams` 更新为 `actionMode`+`actions[]`。 |

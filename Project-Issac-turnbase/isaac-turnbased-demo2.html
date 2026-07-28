@@ -1672,6 +1672,7 @@ function resetTurnAP() {
   turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
   saveTurnSnapshot();
   recalcContactDamage(player.col, player.row); // 回合开始检查是否已站在怪物上
+  updateFlyingEyeExclaim();  // 回合开始时更新浮游眼感叹号
   updateActionBar();
 }
 
@@ -1893,8 +1894,59 @@ function pickChargeDir(fromCol, fromRow, playerCol, playerRow, chargeDist = 4) {
   return null;
 }
 
+// ==================== 浮游眼动态感叹号 ====================
+// 在玩家回合中，根据角色与浮游眼的距离实时显示/隐藏感叹号
+function updateFlyingEyeExclaim() {
+  for (const m of monsters) {
+    if (m.hp <= 0 || m.jumperVanished) continue;
+    // 仅处理浮游眼类型（actionMode.mode === 'condition' 且有 in_range 条件）
+    const cfg = MONSTER_DB[m.cfgId];
+    if (!cfg) continue;
+    const am = cfg.actionMode;
+    if (!am || am.mode !== 'condition') continue;
+    // 查找有 in_range 条件的 action
+    const inRangeAction = (cfg.actions || []).find(a => a.condition === 'in_range');
+    if (!inRangeAction) continue;
+    const range = inRangeAction.range ?? 5;
+    const dist = Math.max(Math.abs(player.col - m.col), Math.abs(player.row - m.row));
+    if (dist <= range) {
+      m._showingExclaim = true;
+    } else {
+      m._showingExclaim = false;
+    }
+  }
+}
+
 // ==================== 通用 Action 解析引擎 ====================
 // 从怪物配置的 actions + actionMode 中，根据当前游戏状态解析出本回合应执行的动作和步数
+// 辅助：检查 action 的 condition 是否满足
+function checkActionCondition(a, pCol, pRow, mCol, mRow) {
+  if (!a.condition) return true;
+  const range = a.range ?? 5;
+  const dist = Math.max(Math.abs(pCol - mCol), Math.abs(pRow - mRow));
+  if (a.condition === 'in_range') return dist <= range;
+  if (a.condition === 'out_of_range') return dist > range;
+  return true; // 未知 condition → 默认通过
+}
+
+// 辅助：从 action 的 steps 配置中解析步数
+function resolveSteps(stepsArr, stepMode, stepWeights, turnIdx) {
+  if (!stepsArr || stepsArr.length === 0) return 0;
+  if (stepMode === 'random') {
+    if (stepWeights && stepWeights.length === stepsArr.length) {
+      const totalW = stepWeights.reduce((s, w) => s + w, 0);
+      let roll = Math.random() * totalW;
+      for (let i = 0; i < stepsArr.length; i++) {
+        roll -= stepWeights[i];
+        if (roll <= 0) return stepsArr[i];
+      }
+      return stepsArr[stepsArr.length - 1];
+    }
+    return stepsArr[Math.floor(Math.random() * stepsArr.length)];
+  }
+  return stepsArr[turnIdx % stepsArr.length];
+}
+
 function resolveMonsterAction(cfg, turnIdx, mCol, mRow, pCol, pRow) {
   const actions = cfg.actions || [];
   const actionMode = cfg.actionMode || { mode: 'sequence' };
@@ -1904,16 +1956,12 @@ function resolveMonsterAction(cfg, turnIdx, mCol, mRow, pCol, pRow) {
   const eligible = [];
   for (let i = 0; i < actions.length; i++) {
     const a = actions[i];
-    if (!a.condition) {
+    if (checkActionCondition(a, pCol, pRow, mCol, mRow)) {
       eligible.push({ action: a, idx: i });
-    } else if (a.condition === 'in_range') {
-      const range = a.range ?? 5;
-      const dist = Math.max(Math.abs(pCol - mCol), Math.abs(pRow - mRow));
-      if (dist <= range) eligible.push({ action: a, idx: i });
     }
   }
 
-  if (eligible.length === 0) return { action: null, steps: 0 };
+  if (eligible.length === 0) return { action: null, steps: 0, afterAction: null };
 
   // 按 actionMode 选择一个 action
   let selected;
@@ -1929,31 +1977,18 @@ function resolveMonsterAction(cfg, turnIdx, mCol, mRow, pCol, pRow) {
       if (roll <= 0) { selected = p.action; break; }
     }
     if (!selected) selected = pool[pool.length - 1].action;
+  } else if (actionMode.mode === 'condition') {
+    // condition 模式：按顺序选中第一个满足条件的 action
+    selected = eligible[0].action;
   } else {
+    // sequence 模式：按 turnIdx 循环
     selected = eligible[turnIdx % eligible.length].action;
   }
 
   // 解析步数
-  let steps = 0;
-  if (selected.steps && selected.steps.length > 0) {
-    if (selected.stepMode === 'random') {
-      if (selected.stepWeights && selected.stepWeights.length === selected.steps.length) {
-        const totalW = selected.stepWeights.reduce((s, w) => s + w, 0);
-        let roll = Math.random() * totalW;
-        for (let i = 0; i < selected.steps.length; i++) {
-          roll -= selected.stepWeights[i];
-          if (roll <= 0) { steps = selected.steps[i]; break; }
-        }
-        if (steps === 0) steps = selected.steps[selected.steps.length - 1];
-      } else {
-        steps = selected.steps[Math.floor(Math.random() * selected.steps.length)];
-      }
-    } else {
-      steps = selected.steps[turnIdx % selected.steps.length];
-    }
-  }
+  const steps = resolveSteps(selected.steps, selected.stepMode, selected.stepWeights, turnIdx);
 
-  return { action: selected, steps };
+  return { action: selected, steps, afterAction: selected.after_effect || null };
 }
 
 // 怪物回合开始时: 所有怪物计算向玩家实时位置的移动路径
@@ -1971,9 +2006,11 @@ function calcAllMonsterPaths() {
     const resolved = resolveMonsterAction(cfg, turnIdx, m.col, m.row, player.col, player.row);
     const selectedAction = resolved.action;
     const stepCount = resolved.steps;
+    const afterAction = resolved.afterAction;
 
     m.moveSpeed = stepCount;
     m._turnAction = selectedAction;
+    m._turnAfterAction = afterAction;  // 存储 after_effect 供 shoot_fan 等处理
 
     if (!selectedAction) {
       m.predictedPath = [];
@@ -2025,6 +2062,28 @@ function calcAllMonsterPaths() {
           for (const sd of spread) {
             spawnMonsterBullet(sd, gp.x, gp.y, range);
           }
+        }
+
+        // after_effect: 射击后执行附加行为（如随机移动）
+        const ae = m._turnAfterAction;
+        if (ae && ae.type === 'random_wander') {
+          const aeSteps = resolveSteps(ae.steps, ae.stepMode, ae.stepWeights, turnIdx);
+          const dirs = [
+            { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+            { dx: -1, dy: 0 }, { dx: 1, dy: 0 }
+          ];
+          const d = dirs[Math.floor(Math.random() * dirs.length)];
+          const path = [];
+          let col = m.col, row = m.row;
+          for (let step = 0; step < aeSteps; step++) {
+            const nc = col + d.dx, nr = row + d.dy;
+            if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) break;
+            if (isMonsterAt(nc, nr, m.id)) break;
+            path.push({ fromCol: col, fromRow: row, toCol: nc, toRow: nr });
+            col = nc; row = nr;
+          }
+          m.predictedPath = path;
+          m._showingExclaim = false; // after_effect 执行后清除感叹号
         }
         break;
       }
@@ -5472,6 +5531,7 @@ document.addEventListener('keydown', (e) => {
         // 自动拾取脚下资源
         autoPickupResources();
         updateActionBar();updateUI();
+        updateFlyingEyeExclaim();  // 动态更新浮游眼感叹号
         return;
       }
 
