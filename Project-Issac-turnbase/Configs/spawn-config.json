@@ -1,5 +1,11 @@
 {
-  "_comment": "楼层刷怪配置。修改此文件即可调整各楼层难度，无需改代码。",
+  "_schema": {
+    "_description": "楼层刷怪配置 — 各楼层难度预算与Boss安排",
+    "_fields": {
+      "floorBudgets.*.bonus": { "_desc": "该楼层的额外怪物预算，加到房间 base budget 上" },
+      "bossMonsters.*": { "_desc": "该楼层 Boss 房刷出的怪物 cfgId 列表，对应 monster-db.json" }
+    }
+  },
 
   "floorBudgets": {
     "1": { "bonus": 0,  "_totalHint": "房间基础预算 + 0" },

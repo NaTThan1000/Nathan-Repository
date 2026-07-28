@@ -1,254 +1,338 @@
 {
-  "sad_onion": {
-    "id": "sad_onion",
-    "name": "伤心洋葱",
-    "icon": "🧅",
-    "desc": "射速 +1",
-    "quality": "common",
-    "tags": ["属性提升", "射速"],
-    "effects": { "fireRate": 1 },
-    "specials": []
-  },
-  "the_belt": {
-    "id": "the_belt",
-    "name": "皮带",
-    "icon": "🟤",
-    "desc": "移动速度 +1",
-    "quality": "common",
-    "tags": ["属性提升", "移速"],
-    "effects": { "moveSpeed": 1 },
-    "specials": []
-  },
-  "jesus_juice": {
-    "id": "jesus_juice",
-    "name": "耶稣果汁",
-    "icon": "🍷",
-    "desc": "攻击+0.5 射程+1",
-    "quality": "common",
-    "tags": ["属性提升", "攻击", "射程"],
-    "effects": { "attack": 0.5, "range": 1 },
-    "specials": []
-  },
-  "iron_bar": {
-    "id": "iron_bar",
-    "name": "铁块",
-    "icon": "🔩",
-    "desc": "攻击+0.5",
-    "quality": "common",
-    "tags": ["属性提升", "攻击"],
-    "effects": { "attack": 0.5 },
-    "specials": []
-  },
-  "wire_coat_hanger": {
-    "id": "wire_coat_hanger",
-    "name": "铁丝衣架",
-    "icon": "🪝",
-    "desc": "射速 +1",
-    "quality": "common",
-    "tags": ["属性提升", "射速"],
-    "effects": { "fireRate": 1 },
-    "specials": []
-  },
-  "breakfast": {
-    "id": "breakfast",
-    "name": "早餐",
-    "icon": "🥛",
-    "desc": "HP上限+1 回满血",
-    "quality": "common",
-    "tags": ["属性提升", "HP"],
-    "effects": { "maxHp": 1 },
-    "specials": [{ "type": "heal_full" }]
-  },
-  "lunch": {
-    "id": "lunch",
-    "name": "午餐",
-    "icon": "🍖",
-    "desc": "HP上限+1 回满血",
-    "quality": "common",
-    "tags": ["属性提升", "HP"],
-    "effects": { "maxHp": 1 },
-    "specials": [{ "type": "heal_full" }]
-  },
-  "dinner": {
-    "id": "dinner",
-    "name": "晚餐",
-    "icon": "🍗",
-    "desc": "HP上限+1 回满血",
-    "quality": "common",
-    "tags": ["属性提升", "HP"],
-    "effects": { "maxHp": 1 },
-    "specials": [{ "type": "heal_full" }]
-  },
-  "dessert": {
-    "id": "dessert",
-    "name": "甜点",
-    "icon": "🍰",
-    "desc": "HP上限+1 回满血",
-    "quality": "common",
-    "tags": ["属性提升", "HP"],
-    "effects": { "maxHp": 1 },
-    "specials": [{ "type": "heal_full" }]
-  },
-  "roid_rage": {
-    "id": "roid_rage",
-    "name": "狂暴针",
-    "icon": "💉",
-    "desc": "移动速度 +1",
-    "quality": "common",
-    "tags": ["属性提升", "移速"],
-    "effects": { "moveSpeed": 1 },
-    "specials": []
-  },
-  "speed_ball": {
-    "id": "speed_ball",
-    "name": "速度针",
-    "icon": "💊",
-    "desc": "移动速度 +1",
-    "quality": "common",
-    "tags": ["属性提升", "移速"],
-    "effects": { "moveSpeed": 1 },
-    "specials": []
-  },
-  "screw": {
-    "id": "screw",
-    "name": "螺钉",
-    "icon": "🔧",
-    "desc": "射速 +1",
-    "quality": "common",
-    "tags": ["属性提升", "射速"],
-    "effects": { "fireRate": 1 },
-    "specials": []
-  },
-  "synthol": {
-    "id": "synthol",
-    "name": "合成针",
-    "icon": "💪",
-    "desc": "攻击+0.5 射程+1",
-    "quality": "common",
-    "tags": ["属性提升", "攻击", "射程"],
-    "effects": { "attack": 0.5, "range": 1 },
-    "specials": []
-  },
-  "pentagram": {
-    "id": "pentagram",
-    "name": "五芒星",
-    "icon": "⭐",
-    "desc": "攻击+1",
-    "quality": "common",
-    "tags": ["属性提升", "攻击"],
-    "effects": { "attack": 1 },
-    "specials": []
-  },
-  "meat": {
-    "id": "meat",
-    "name": "肉！",
-    "icon": "🥩",
-    "desc": "HP上限+1 攻击+0.5",
-    "quality": "common",
-    "tags": ["属性提升", "HP", "攻击"],
-    "effects": { "maxHp": 1, "attack": 0.5 },
-    "specials": [{ "type": "heal_full" }]
+  "_schema": {
+    "_description": "道具数据库 — 所有可拾取道具的属性与效果定义 + 品质掉落表",
+    "_structure": {
+      "items": "所有道具定义 (key=cgId, value=道具属性)",
+      "qualityTables": "品质概率表 (key=表名, value={common,rare,legendary})"
+    },
+    "_fields": {
+      "quality": {
+        "_values": ["common", "rare", "legendary"],
+        "_desc": "道具品质等级，决定出现在哪个掉落池"
+      },
+      "tags": {
+        "_values_examples": ["属性提升", "攻击", "HP", "射速", "射程", "移速", "穿透", "回复", "全属性", "伤害倍率"],
+        "_desc": "道具标签，用于分类筛选"
+      },
+      "specials[].type": {
+        "_values": ["heal_full", "piercing", "damage_mult"],
+        "_desc": "heal_full=回满血, piercing=子弹穿透, damage_mult=伤害倍率"
+      },
+      "effects": {
+        "_keys": ["maxHp", "attack", "fireRate", "moveSpeed", "range"],
+        "_desc": "追加的属性修正值"
+      },
+      "qualityTables.*.none": { "_desc": "不掉落道具概率 (0~1), 0=必定掉落, 1=完全不掉落", "_type": "number" },
+      "qualityTables.*.common": { "_desc": "普通品质概率 (0~1)", "_type": "number" },
+      "qualityTables.*.rare": { "_desc": "稀有品质概率 (0~1)", "_type": "number" },
+      "qualityTables.*.legendary": { "_desc": "传说品质概率 (0~1)", "_type": "number" }
+    }
   },
 
-  "the_halo": {
-    "id": "the_halo",
-    "name": "光环",
-    "icon": "👼",
-    "desc": "全属性+1 HP上限+1",
-    "quality": "rare",
-    "tags": ["属性提升", "HP", "攻击", "射速", "移速", "射程", "全属性"],
-    "effects": { "maxHp": 1, "attack": 0.5, "fireRate": 0.5, "moveSpeed": 0.5, "range": 1 },
-    "specials": []
-  },
-  "magic_mushroom": {
-    "id": "magic_mushroom",
-    "name": "魔法蘑菇",
-    "icon": "🍄",
-    "desc": "全属性大幅提升 回满血",
-    "quality": "rare",
-    "tags": ["属性提升", "HP", "攻击", "移速", "射程", "全属性", "回复"],
-    "effects": { "maxHp": 1, "attack": 1, "moveSpeed": 0.5, "range": 2 },
-    "specials": [{ "type": "heal_full" }]
-  },
-  "stigmata": {
-    "id": "stigmata",
-    "name": "圣痕",
-    "icon": "✝️",
-    "desc": "HP上限+1 攻击+0.5",
-    "quality": "rare",
-    "tags": ["属性提升", "HP", "攻击"],
-    "effects": { "maxHp": 1, "attack": 0.5 },
-    "specials": []
-  },
-  "growth_hormones": {
-    "id": "growth_hormones",
-    "name": "生长激素",
-    "icon": "🧬",
-    "desc": "攻击+1 移速+1",
-    "quality": "rare",
-    "tags": ["属性提升", "攻击", "移速"],
-    "effects": { "attack": 1, "moveSpeed": 1 },
-    "specials": []
-  },
-  "cupids_arrow": {
-    "id": "cupids_arrow",
-    "name": "丘比特之箭",
-    "icon": "🏹",
-    "desc": "攻击+1 子弹穿透敌人",
-    "quality": "rare",
-    "tags": ["属性提升", "攻击", "穿透"],
-    "effects": { "attack": 1 },
-    "specials": [{ "type": "piercing" }]
-  },
-  "champion_belt": {
-    "id": "champion_belt",
-    "name": "冠军腰带",
-    "icon": "🏆",
-    "desc": "攻击+1.5",
-    "quality": "rare",
-    "tags": ["属性提升", "攻击"],
-    "effects": { "attack": 1.5 },
-    "specials": []
-  },
-  "the_mark": {
-    "id": "the_mark",
-    "name": "印记",
-    "icon": "👿",
-    "desc": "攻击+1 移速+0.5",
-    "quality": "rare",
-    "tags": ["属性提升", "攻击", "移速"],
-    "effects": { "attack": 1, "moveSpeed": 0.5 },
-    "specials": []
+  "items": {
+    "sad_onion": {
+      "id": "sad_onion",
+      "name": "伤心洋葱",
+      "icon": "🧅",
+      "desc": "射速 +1",
+      "quality": "common",
+      "tags": ["属性提升", "射速"],
+      "effects": { "fireRate": 1 },
+      "specials": []
+    },
+    "the_belt": {
+      "id": "the_belt",
+      "name": "皮带",
+      "icon": "🟤",
+      "desc": "移动速度 +1",
+      "quality": "common",
+      "tags": ["属性提升", "移速"],
+      "effects": { "moveSpeed": 1 },
+      "specials": []
+    },
+    "jesus_juice": {
+      "id": "jesus_juice",
+      "name": "耶稣果汁",
+      "icon": "🍷",
+      "desc": "攻击+0.5 射程+1",
+      "quality": "common",
+      "tags": ["属性提升", "攻击", "射程"],
+      "effects": { "attack": 0.5, "range": 1 },
+      "specials": []
+    },
+    "iron_bar": {
+      "id": "iron_bar",
+      "name": "铁块",
+      "icon": "🔩",
+      "desc": "攻击+0.5",
+      "quality": "common",
+      "tags": ["属性提升", "攻击"],
+      "effects": { "attack": 0.5 },
+      "specials": []
+    },
+    "wire_coat_hanger": {
+      "id": "wire_coat_hanger",
+      "name": "铁丝衣架",
+      "icon": "🪝",
+      "desc": "射速 +1",
+      "quality": "common",
+      "tags": ["属性提升", "射速"],
+      "effects": { "fireRate": 1 },
+      "specials": []
+    },
+    "breakfast": {
+      "id": "breakfast",
+      "name": "早餐",
+      "icon": "🥛",
+      "desc": "HP上限+1 回满血",
+      "quality": "common",
+      "tags": ["属性提升", "HP"],
+      "effects": { "maxHp": 1 },
+      "specials": [{ "type": "heal_full" }]
+    },
+    "lunch": {
+      "id": "lunch",
+      "name": "午餐",
+      "icon": "🍖",
+      "desc": "HP上限+1 回满血",
+      "quality": "common",
+      "tags": ["属性提升", "HP"],
+      "effects": { "maxHp": 1 },
+      "specials": [{ "type": "heal_full" }]
+    },
+    "dinner": {
+      "id": "dinner",
+      "name": "晚餐",
+      "icon": "🍗",
+      "desc": "HP上限+1 回满血",
+      "quality": "common",
+      "tags": ["属性提升", "HP"],
+      "effects": { "maxHp": 1 },
+      "specials": [{ "type": "heal_full" }]
+    },
+    "dessert": {
+      "id": "dessert",
+      "name": "甜点",
+      "icon": "🍰",
+      "desc": "HP上限+1 回满血",
+      "quality": "common",
+      "tags": ["属性提升", "HP"],
+      "effects": { "maxHp": 1 },
+      "specials": [{ "type": "heal_full" }]
+    },
+    "roid_rage": {
+      "id": "roid_rage",
+      "name": "狂暴针",
+      "icon": "💉",
+      "desc": "移动速度 +1",
+      "quality": "common",
+      "tags": ["属性提升", "移速"],
+      "effects": { "moveSpeed": 1 },
+      "specials": []
+    },
+    "speed_ball": {
+      "id": "speed_ball",
+      "name": "速度针",
+      "icon": "💊",
+      "desc": "移动速度 +1",
+      "quality": "common",
+      "tags": ["属性提升", "移速"],
+      "effects": { "moveSpeed": 1 },
+      "specials": []
+    },
+    "screw": {
+      "id": "screw",
+      "name": "螺钉",
+      "icon": "🔧",
+      "desc": "射速 +1",
+      "quality": "common",
+      "tags": ["属性提升", "射速"],
+      "effects": { "fireRate": 1 },
+      "specials": []
+    },
+    "synthol": {
+      "id": "synthol",
+      "name": "合成针",
+      "icon": "💪",
+      "desc": "攻击+0.5 射程+1",
+      "quality": "common",
+      "tags": ["属性提升", "攻击", "射程"],
+      "effects": { "attack": 0.5, "range": 1 },
+      "specials": []
+    },
+    "pentagram": {
+      "id": "pentagram",
+      "name": "五芒星",
+      "icon": "⭐",
+      "desc": "攻击+1",
+      "quality": "common",
+      "tags": ["属性提升", "攻击"],
+      "effects": { "attack": 1 },
+      "specials": []
+    },
+    "meat": {
+      "id": "meat",
+      "name": "肉！",
+      "icon": "🥩",
+      "desc": "HP上限+1 攻击+0.5",
+      "quality": "common",
+      "tags": ["属性提升", "HP", "攻击"],
+      "effects": { "maxHp": 1, "attack": 0.5 },
+      "specials": [{ "type": "heal_full" }]
+    },
+
+    "the_halo": {
+      "id": "the_halo",
+      "name": "光环",
+      "icon": "👼",
+      "desc": "全属性+1 HP上限+1",
+      "quality": "rare",
+      "tags": ["属性提升", "HP", "攻击", "射速", "移速", "射程", "全属性"],
+      "effects": { "maxHp": 1, "attack": 0.5, "fireRate": 0.5, "moveSpeed": 0.5, "range": 1 },
+      "specials": []
+    },
+    "magic_mushroom": {
+      "id": "magic_mushroom",
+      "name": "魔法蘑菇",
+      "icon": "🍄",
+      "desc": "全属性大幅提升 回满血",
+      "quality": "rare",
+      "tags": ["属性提升", "HP", "攻击", "移速", "射程", "全属性", "回复"],
+      "effects": { "maxHp": 1, "attack": 1, "moveSpeed": 0.5, "range": 2 },
+      "specials": [{ "type": "heal_full" }]
+    },
+    "stigmata": {
+      "id": "stigmata",
+      "name": "圣痕",
+      "icon": "✝️",
+      "desc": "HP上限+1 攻击+0.5",
+      "quality": "rare",
+      "tags": ["属性提升", "HP", "攻击"],
+      "effects": { "maxHp": 1, "attack": 0.5 },
+      "specials": []
+    },
+    "growth_hormones": {
+      "id": "growth_hormones",
+      "name": "生长激素",
+      "icon": "🧬",
+      "desc": "攻击+1 移速+1",
+      "quality": "rare",
+      "tags": ["属性提升", "攻击", "移速"],
+      "effects": { "attack": 1, "moveSpeed": 1 },
+      "specials": []
+    },
+    "cupids_arrow": {
+      "id": "cupids_arrow",
+      "name": "丘比特之箭",
+      "icon": "🏹",
+      "desc": "攻击+1 子弹穿透敌人",
+      "quality": "rare",
+      "tags": ["属性提升", "攻击", "穿透"],
+      "effects": { "attack": 1 },
+      "specials": [{ "type": "piercing" }]
+    },
+    "champion_belt": {
+      "id": "champion_belt",
+      "name": "冠军腰带",
+      "icon": "🏆",
+      "desc": "攻击+1.5",
+      "quality": "rare",
+      "tags": ["属性提升", "攻击"],
+      "effects": { "attack": 1.5 },
+      "specials": []
+    },
+    "the_mark": {
+      "id": "the_mark",
+      "name": "印记",
+      "icon": "👿",
+      "desc": "攻击+1 移速+0.5",
+      "quality": "rare",
+      "tags": ["属性提升", "攻击", "移速"],
+      "effects": { "attack": 1, "moveSpeed": 0.5 },
+      "specials": []
+    },
+
+    "sacred_heart": {
+      "id": "sacred_heart",
+      "name": "圣心",
+      "icon": "❤️",
+      "desc": "攻击大幅提升 回满血",
+      "quality": "legendary",
+      "tags": ["属性提升", "攻击", "HP", "回复"],
+      "effects": { "attack": 2.5, "maxHp": 2 },
+      "specials": [{ "type": "heal_full" }]
+    },
+    "crickets_head": {
+      "id": "crickets_head",
+      "name": "蟋蟀的头",
+      "icon": "🐕",
+      "desc": "攻击+1 伤害×1.5倍",
+      "quality": "legendary",
+      "tags": ["属性提升", "攻击", "伤害倍率"],
+      "effects": { "attack": 1 },
+      "specials": [{ "type": "damage_mult", "mult": 1.5 }]
+    },
+    "deaths_touch": {
+      "id": "deaths_touch",
+      "name": "死神的镰刀",
+      "icon": "💀",
+      "desc": "攻击+2 子弹穿透",
+      "quality": "legendary",
+      "tags": ["属性提升", "攻击", "穿透"],
+      "effects": { "attack": 2 },
+      "specials": [{ "type": "piercing" }]
+    }
   },
 
-  "sacred_heart": {
-    "id": "sacred_heart",
-    "name": "圣心",
-    "icon": "❤️",
-    "desc": "攻击大幅提升 回满血",
-    "quality": "legendary",
-    "tags": ["属性提升", "攻击", "HP", "回复"],
-    "effects": { "attack": 2.5, "maxHp": 2 },
-    "specials": [{ "type": "heal_full" }]
-  },
-  "crickets_head": {
-    "id": "crickets_head",
-    "name": "蟋蟀的头",
-    "icon": "🐕",
-    "desc": "攻击+1 伤害×1.5倍",
-    "quality": "legendary",
-    "tags": ["属性提升", "攻击", "伤害倍率"],
-    "effects": { "attack": 1 },
-    "specials": [{ "type": "damage_mult", "mult": 1.5 }]
-  },
-  "deaths_touch": {
-    "id": "deaths_touch",
-    "name": "死神的镰刀",
-    "icon": "💀",
-    "desc": "攻击+2 子弹穿透",
-    "quality": "legendary",
-    "tags": ["属性提升", "攻击", "穿透"],
-    "effects": { "attack": 2 },
-    "specials": [{ "type": "piercing" }]
+  "qualityTables": {
+    "default": {
+      "none": 0,
+      "common": 0.6,
+      "rare": 0.3,
+      "legendary": 0.1
+    },
+    "common": {
+      "none": 0,
+      "common": 0.70,
+      "rare": 0.25,
+      "legendary": 0.05
+    },
+    "ranged": {
+      "none": 0,
+      "common": 0.55,
+      "rare": 0.35,
+      "legendary": 0.10
+    },
+    "heavy": {
+      "none": 0,
+      "common": 0.40,
+      "rare": 0.42,
+      "legendary": 0.18
+    },
+    "boss": {
+      "none": 0,
+      "common": 0.20,
+      "rare": 0.45,
+      "legendary": 0.35
+    },
+    "treasure_room": {
+      "none": 0,
+      "common": 0.0,
+      "rare": 0.75,
+      "legendary": 0.25
+    },
+    "boss_room": {
+      "none": 0,
+      "common": 0.25,
+      "rare": 0.45,
+      "legendary": 0.3
+    },
+    "monster_very_rare": {
+      "_desc": "普通怪物极低概率掉落道具表，none=0.70 意味着 70% 不掉任何道具",
+      "none": 0.70,
+      "common": 0.20,
+      "rare": 0.08,
+      "legendary": 0.02
+    }
   }
 }

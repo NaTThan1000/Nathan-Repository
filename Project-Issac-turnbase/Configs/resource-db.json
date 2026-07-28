@@ -1,0 +1,318 @@
+{
+  "_schema": {
+    "_description": "资源数据库 — 金币、炸弹、红心、蓝心、宝箱、钥匙等可拾取资源的定义与掉落配置",
+    "_fields": {
+      "resources.*.type": {
+        "_values": ["coin", "bomb", "heart", "blue_heart", "chest", "key"],
+        "_desc": "资源类型"
+      },
+      "dropTables": {
+        "_desc": "资源掉落表，被 monster-db.json > loot > entries[].pool 引用",
+        "_tables": {
+          "monster_default": "普通小怪 (threat<3) 掉落",
+          "monster_heavy": "重型小怪 (threat≥3) 掉落",
+          "boss_drop": "Tank怪/Boss怪击杀掉落",
+          "room_clear_default": "普通房间清空奖励",
+          "room_clear_boss": "Boss房间清空奖励",
+          "terrain_rock": "破坏岩石掉落",
+          "terrain_poop": "破坏便便掉落",
+          "chest_normal": "普通宝箱",
+          "chest_golden": "金宝箱(需钥匙)",
+          "shop_stock": "商店商品生成"
+        }
+      },
+      "_limits": {
+        "_desc": "玩家资源上限",
+        "coinMax": "金币上限",
+        "bombMax": "炸弹上限",
+        "keyMax": "钥匙上限"
+      }
+    }
+  },
+
+  "resources": {
+    "coin_gold": {
+      "type": "coin",
+      "id": "coin_gold",
+      "name": "金币(1元)",
+      "icon": "$",
+      "value": 1,
+      "color": "#ffd700",
+      "desc": "金色硬币，价值1元"
+    },
+    "coin_black": {
+      "type": "coin",
+      "id": "coin_black",
+      "name": "黑币(5元)",
+      "icon": "$",
+      "value": 5,
+      "color": "#555555",
+      "desc": "黑色硬币，价值5元"
+    },
+    "coin_silver": {
+      "type": "coin",
+      "id": "coin_silver",
+      "name": "银币(10元)",
+      "icon": "$",
+      "value": 10,
+      "color": "#e8e8e8",
+      "desc": "银白色硬币，价值10元"
+    },
+
+    "bomb_single": {
+      "type": "bomb",
+      "id": "bomb_single",
+      "name": "炸弹",
+      "icon": "@",
+      "amount": 1,
+      "desc": "可放置的炸弹，爆炸造成50伤害",
+      "damage": 50,
+      "radius": 2,
+      "detonateTurns": 3
+    },
+    "bomb_double": {
+      "type": "bomb",
+      "id": "bomb_double",
+      "name": "双炸弹",
+      "icon": "@@",
+      "amount": 2,
+      "desc": "两个炸弹，爆炸造成50伤害",
+      "damage": 50,
+      "radius": 2,
+      "detonateTurns": 3
+    },
+
+    "heart_half": {
+      "type": "heart",
+      "id": "heart_half",
+      "name": "半颗红心",
+      "icon": "v",
+      "heal": 0.5,
+      "color": "#ff4444",
+      "desc": "回复半颗红心生命值"
+    },
+    "heart_full": {
+      "type": "heart",
+      "id": "heart_full",
+      "name": "一颗红心",
+      "icon": "V",
+      "heal": 1,
+      "color": "#ff3333",
+      "desc": "回复一颗红心生命值"
+    },
+    "heart_double": {
+      "type": "heart",
+      "id": "heart_double",
+      "name": "两颗红心",
+      "icon": "W",
+      "heal": 2,
+      "color": "#ff2222",
+      "desc": "回复两颗红心生命值"
+    },
+
+    "blue_heart_half": {
+      "type": "blue_heart",
+      "id": "blue_heart_half",
+      "name": "半颗蓝心",
+      "icon": "b",
+      "amount": 0.5,
+      "color": "#4488ff",
+      "desc": "获得半颗临时蓝心，受伤优先扣除"
+    },
+    "blue_heart_full": {
+      "type": "blue_heart",
+      "id": "blue_heart_full",
+      "name": "一颗蓝心",
+      "icon": "B",
+      "amount": 1,
+      "color": "#3366ff",
+      "desc": "获得一颗临时蓝心，受伤优先扣除"
+    },
+    "blue_heart_double": {
+      "type": "blue_heart",
+      "id": "blue_heart_double",
+      "name": "两颗蓝心",
+      "icon": "8",
+      "amount": 2,
+      "color": "#2255ff",
+      "desc": "获得两颗临时蓝心，受伤优先扣除"
+    },
+
+    "chest_normal": {
+      "type": "chest",
+      "id": "chest_normal",
+      "name": "宝箱",
+      "icon": "c",
+      "locked": false,
+      "color": "#aa8855",
+      "dropTable": "chest_normal",
+      "desc": "碰触打开，获得随机资源或道具",
+      "loot": {
+        "rounds": [
+          {
+            "mode": "roll_all",
+            "_comment": "必掉1~4个道具 (roll_all: 第1个rate=1.0必出, 后3个各55%)",
+            "entries": [
+              { "type": "item", "qualityTable": "treasure_room", "rate": 1.0,
+                "_desc": "保底1个道具" },
+              { "type": "item", "qualityTable": "treasure_room", "rate": 0.55,
+                "_desc": "55%多1个道具" },
+              { "type": "item", "qualityTable": "treasure_room", "rate": 0.55,
+                "_desc": "55%再多1个道具" },
+              { "type": "item", "qualityTable": "treasure_room", "rate": 0.55,
+                "_desc": "55%再多1个道具，最多4个" }
+            ]
+          }
+        ]
+      }
+    },
+    "chest_golden": {
+      "type": "chest",
+      "id": "chest_golden",
+      "name": "上锁金宝箱",
+      "icon": "C",
+      "locked": true,
+      "color": "#ffcc44",
+      "dropTable": "chest_golden",
+      "desc": "需要1把钥匙才能打开，必出1~4个道具",
+      "loot": {
+        "rounds": [
+          {
+            "mode": "roll_all",
+            "_comment": "金宝箱：必掉1~4个道具 (保底1个 + 3次60%判定)",
+            "entries": [
+              { "type": "item", "qualityTable": "treasure_room", "rate": 1.0,
+                "_desc": "保底1个道具" },
+              { "type": "item", "qualityTable": "treasure_room", "rate": 0.60,
+                "_desc": "60%多1个道具" },
+              { "type": "item", "qualityTable": "treasure_room", "rate": 0.60,
+                "_desc": "60%再多1个道具" },
+              { "type": "item", "qualityTable": "treasure_room", "rate": 0.60,
+                "_desc": "60%再多1个道具，最多4个" }
+            ]
+          }
+        ]
+      }
+    },
+
+    "key_single": {
+      "type": "key",
+      "id": "key_single",
+      "name": "钥匙",
+      "icon": "k",
+      "amount": 1,
+      "color": "#cccc88",
+      "desc": "用来打开上锁的门或宝箱"
+    },
+    "key_double": {
+      "type": "key",
+      "id": "key_double",
+      "name": "双钥匙",
+      "icon": "K",
+      "amount": 2,
+      "color": "#ddaa44",
+      "desc": "两把钥匙，用来打开上锁的门或宝箱"
+    }
+  },
+
+  "_limits": {
+    "coinMax": 99,
+    "bombMax": 99,
+    "keyMax": 99
+  },
+
+  "dropTables": {
+    "monster_default": {
+      "_desc": "普通小怪(威胁<3)掉落 — 小概率出1种资源",
+      "coin_gold":   0.06,
+      "coin_black":  0.03,
+      "heart_half":  0.06,
+      "heart_full":  0.02,
+      "bomb_single": 0.03,
+      "key_single":  0.02
+    },
+    "monster_heavy": {
+      "_desc": "重型小怪(威胁≥3)掉落 — 小概率出1种资源",
+      "coin_gold":   0.05,
+      "coin_black":  0.03,
+      "coin_silver": 0.01,
+      "heart_half":  0.05,
+      "heart_full":  0.02,
+      "blue_heart_half": 0.02,
+      "bomb_single": 0.02,
+      "key_single":  0.02
+    },
+    "boss_drop": {
+      "_desc": "蓄力魔像类坦克怪掉落 — 小概率出1种资源",
+      "coin_silver": 0.02,
+      "coin_gold":   0.05,
+      "coin_black":  0.03,
+      "heart_full":  0.04,
+      "heart_double": 0.01,
+      "blue_heart_full": 0.01,
+      "bomb_double": 0.01,
+      "key_double":  0.01
+    },
+
+    "room_clear_default": {
+      "_desc": "普通房间清空奖励 — 中概率出1种资源",
+      "coin_gold":   0.12,
+      "coin_black":  0.08,
+      "heart_half":  0.12,
+      "key_single":  0.06,
+      "bomb_single": 0.05
+    },
+    "room_clear_boss": {
+      "_desc": "Boss房间清空奖励 — 极低概率(击杀Boss已给道具)",
+      "coin_silver": 0.04,
+      "coin_black":  0.04,
+      "heart_full":  0.04,
+      "bomb_single": 0.02,
+      "key_single":  0.02
+    },
+
+    "terrain_rock": {
+      "_desc": "破坏岩石掉落 — 极小概率出1种资源",
+      "coin_gold":    0.01,
+      "coin_black":   0.005,
+      "heart_half":   0.01,
+      "bomb_single":  0.005,
+      "key_single":   0.005
+    },
+    "terrain_poop": {
+      "_desc": "破坏便便掉落 — 小概率出1种资源",
+      "coin_gold":    0.05,
+      "heart_half":   0.04,
+      "blue_heart_half": 0.03,
+      "key_single":   0.03
+    },
+
+    "chest_normal": {
+      "coin_gold":   1.0,
+      "coin_black":  0.50,
+      "coin_silver": 0.12,
+      "heart_full":  0.40,
+      "blue_heart_half": 0.25,
+      "bomb_single": 0.30,
+      "key_single":  0.25
+    },
+    "chest_golden": {
+      "coin_silver": 1.0,
+      "coin_black":  0.80,
+      "coin_gold":   1.0,
+      "heart_double": 0.50,
+      "blue_heart_full": 0.40,
+      "bomb_double": 0.35,
+      "key_double":  0.30
+    },
+
+    "shop_stock": {
+      "heart_full":       0.80,
+      "heart_half":       0.60,
+      "blue_heart_full":  0.50,
+      "blue_heart_half":  0.40,
+      "bomb_single":      0.40,
+      "key_single":       0.35
+    }
+  }
+}

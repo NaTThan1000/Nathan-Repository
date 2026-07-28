@@ -28,6 +28,74 @@
     color: #d4b87a;
   }
 
+  /* ===== 顶部内容行: 资源列 + 主内容列 ===== */
+  #top-content-row {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 12px;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  /* 资源侧边栏：独立占据左边一列，顶部与棋盘上边对齐 */
+  #resources-sidebar {
+    width: 120px;
+    flex-shrink: 0;
+    padding-top: 90px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+  }
+  .res-stack-row {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    font-family: var(--font-mono);
+  }
+  .res-stack-row .stack-icon-img {
+    width: 36px; height: 36px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+  .res-stack-row .stack-num {
+    font-weight: bold; font-size: 24px; min-width: 32px; text-align: left;
+  }
+  .res-stack-row.coins .stack-num  { color: #ffcc44; }
+  .res-stack-row.bombs .stack-num  { color: #ff8855; }
+  .res-stack-row.keys  .stack-num  { color: #dddd55; }
+
+  /* 角色属性区域 */
+  #stats-divider {
+    width: 80%; height: 1px;
+    background: #3a3020;
+    margin: 8px 0 6px;
+  }
+  .stats-row {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    font-family: var(--font-mono);
+    color: #6b5e44;
+  }
+  .stats-row .stat-label {
+    font-size: 18px; min-width: 46px; text-align: right; line-height: 1;
+  }
+  .stats-row .stat-value {
+    font-weight: bold; font-size: 22px; min-width: 28px; text-align: left; line-height: 1;
+  }
+  .stats-row.atk .stat-value { color: #ff8866; }
+  .stats-row.rng .stat-value { color: #66aadd; }
+  .stats-row.lck .stat-value { color: #aacc66; }
+
+  /* 主内容列：top-bar + canvas + 下方UI */
+  #main-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 0 0 auto;
+  }
+
   /* ===== 顶部标题栏 ===== */
   #top-bar {
     width: 100%;
@@ -40,21 +108,75 @@
     flex-wrap: wrap;
   }
 
-  h1 {
-    color: #c9a96e;
-    font-size: 22px;
-    letter-spacing: 2px;
-    text-shadow: 2px 2px 0 #000, 0 0 12px rgba(201,169,110,0.4);
-    line-height: 1;
-    margin: 0;
+  #top-resource-bar {
+    display: flex;
+    align-items: flex-start;
+    flex-shrink: 0;
+    padding-top: 2px;
   }
 
+  /* ==== HP + AP 区 (flex流中，左侧对齐棋盘) ==== */
+  #res-hp-ap {
+    display: flex; flex-direction: row; gap: 30px; align-items: center;
+  }
+  #res-hp-block { display: flex; flex-direction: column; gap: 8px; min-width: 260px; }
+  #res-ap-block { display: flex; flex-direction: column; gap: 8px; }
+
+  /* 血量心形 - 红心蓝心，紧挨排列，一行最多6心，超出自换第二行 */
+  .hearts-row {
+    display: flex; gap: 0px; align-items: center;
+    flex-wrap: wrap;
+    max-width: 240px;
+  }
+  .heart-img {
+    width: 40px; height: 35px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+  .heart-img.empty {
+    opacity: 0.25;
+    filter: brightness(0.5) drop-shadow(0 0 2px rgba(180,80,80,0.4));
+  }
+
+  /* AP 圆点 */
+  .ap-dots-row { display: flex; gap: 6px; align-items: center; height: 36px; }
+  .ap-dot-compact {
+    width: 24px; height: 24px;
+    border: 3px solid #3a2a1a;
+    background: #1a1410;
+    border-radius: 50%;
+  }
+  .ap-dot-compact.full-aap {
+    background: #ff8833; border-color: #ffaa55;
+    box-shadow: 0 0 8px rgba(255,136,51,0.6);
+  }
+  .ap-dot-compact.full-map {
+    background: #4488cc; border-color: #66aadd;
+    box-shadow: 0 0 8px rgba(68,136,204,0.6);
+  }
+  .ap-dot-compact.empty { background: #1a1410; border-color: #2a1e14; }
+  .ap-label {
+    font-family: var(--font-mono); font-size: 28px; font-weight: bold;
+    width: 40px; text-align: center; line-height: 1;
+  }
+  .ap-label.map { color: #55aadd; }
+  .ap-label.aap { color: #ff9966; }
+
+  /* ===== 右侧组合：状态pills + 操作按钮 ===== */
+  #top-right-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+  }
   #top-status {
     display: flex;
     gap: 8px;
-    flex: 1;
-    justify-content: center;
     flex-wrap: wrap;
+    justify-content: flex-end;
   }
   .status-pill {
     background: #15151a;
@@ -76,6 +198,7 @@
   #status-phase .pill-value.phase-shoot   { color: #ff8866; }
   #status-phase .pill-value.phase-exec    { color: #ffcc44; }
   #status-phase .pill-value.phase-monster { color: #ff4444; }
+  #status-phase .pill-value.phase-bomb    { color: #ff6622; }
 
   /* ===== 右上角按钮区 ===== */
   #top-right {
@@ -213,127 +336,7 @@
     padding: 6px 12px;
   }
 
-  /* ===== 状态面板 (HP/AP/属性) ===== */
-  #status-panel {
-    margin-top: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    align-items: center;
-  }
-  #status-row-1, #status-row-2 {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
 
-  .stat-card {
-    background: #1a1410;
-    border: 3px solid #5a3a18;
-    border-radius: 4px;
-    padding: 10px 18px;
-    min-width: 180px;
-    text-align: center;
-  }
-  .stat-card .card-label {
-    font-size: 14px;
-    color: #887755;
-    margin-bottom: 8px;
-    letter-spacing: 1px;
-  }
-
-  /* HP 心形 */
-  .hearts {
-    display: flex;
-    gap: 4px;
-    justify-content: center;
-    align-items: center;
-  }
-  .heart {
-    width: 22px; height: 22px;
-    position: relative;
-  }
-  .heart::before, .heart::after {
-    content: '';
-    position: absolute;
-    left: 11px; top: 0;
-    width: 11px; height: 16px;
-    background: #d43a3a;
-    border-radius: 11px 11px 0 0;
-    transform: rotate(-45deg);
-    transform-origin: 0 100%;
-    box-shadow: inset 0 -2px 0 #8a1f1f;
-  }
-  .heart::after {
-    left: 0;
-    transform: rotate(45deg);
-    transform-origin: 100% 100%;
-  }
-  .heart.empty::before, .heart.empty::after {
-    background: #3a2020;
-    box-shadow: inset 0 -2px 0 #2a1414;
-  }
-  .heart.half::before {
-    background: #3a2020;
-    box-shadow: inset 0 -2px 0 #2a1414;
-  }
-  .heart.half::after {
-    background: #d43a3a;
-    box-shadow: inset 0 -2px 0 #8a1f1f;
-  }
-  .heart::after {
-    /* 高光点 */
-    border-top: 4px solid rgba(255,255,255,0.3);
-    border-radius: 11px 11px 0 0;
-  }
-  .heart .shine {
-    position: absolute;
-    top: 4px; left: 6px;
-    width: 3px; height: 3px;
-    background: rgba(255,255,255,0.7);
-    border-radius: 50%;
-    z-index: 2;
-  }
-
-  /* AP 圆点 */
-  .ap-dots {
-    display: flex;
-    gap: 6px;
-    justify-content: center;
-    align-items: center;
-  }
-  .ap-dot {
-    width: 22px; height: 22px;
-    border-radius: 50%;
-    border: 2px solid #443322;
-  }
-  .ap-dot.full-aap { background: #ff9933; border-color: #aa6622; box-shadow: 0 0 6px rgba(255,153,51,0.4); }
-  .ap-dot.full-map { background: #3399ff; border-color: #2266aa; box-shadow: 0 0 6px rgba(51,153,255,0.4); }
-  .ap-dot.empty    { background: #1a1410; border-color: #2a2520; box-shadow: none; }
-
-  /* 攻击/射程/运气 三列 */
-  .stats-card {
-    display: flex;
-    gap: 28px;
-    align-items: center;
-    padding: 10px 28px;
-  }
-  .stat-cell {
-    text-align: center;
-    min-width: 60px;
-  }
-  .stat-cell .cell-label {
-    font-size: 14px;
-    color: #887755;
-    margin-bottom: 6px;
-  }
-  .stat-cell .cell-value {
-    font-size: 22px;
-    color: #d4b87a;
-    font-family: var(--font-mono);
-    line-height: 1;
-  }
 
   /* ===== 操作弹窗 ===== */
   #help-modal {
@@ -489,85 +492,118 @@
     0%, 100% { opacity: 0.4; }
     50% { opacity: 1; }
   }
+
+  /* ===== 炸弹倒计时 ===== */
+  .bomb-countdown {
+    position: absolute;
+    font: bold 12px 'Arial', sans-serif;
+    color: #ff4422;
+    text-align: center;
+    text-shadow: 0 0 6px rgba(255,60,0,0.8);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 5;
+  }
+
 </style>
 </head>
 <body>
 
-<div id="top-bar">
-  <h1>⚔ 以撒 · 半回合制战斗 v3</h1>
-  <div id="top-status">
-    <div class="status-pill" id="status-floor" style="border-color:#448866;">
-      <span class="pill-label" style="color:#66cc88;">楼层</span>
-      <span class="pill-value" style="color:#88eebb;" id="ui-floor-info">加载中...</span>
+<div id="top-content-row">
+  <!-- 资源侧边栏：独立占左边一列 -->
+  <div id="resources-sidebar">
+    <div class="res-stack-row coins" title="金币">
+      <img class="stack-icon-img" src="Assets/usable_assets/one_coin.png" alt="金币">
+      <span class="stack-num" id="ui-res-coins">0</span>
     </div>
-    <div class="status-pill" id="status-phase">
-      <span class="pill-label">阶段</span>
-      <span class="pill-value phase-player" id="ui-phase">行为选择</span>
+    <div class="res-stack-row bombs" title="炸弹">
+      <img class="stack-icon-img" src="Assets/usable_assets/one_bomb.png" alt="炸弹">
+      <span class="stack-num" id="ui-res-bombs">0</span>
     </div>
-    <div class="status-pill" id="status-turn">
-      <span class="pill-label">回合</span>
-      <span class="pill-value" id="ui-turn">1</span>
+    <div class="res-stack-row keys" title="钥匙">
+      <img class="stack-icon-img" src="Assets/usable_assets/one_key.png" alt="钥匙">
+      <span class="stack-num" id="ui-res-keys">0</span>
     </div>
-  </div>
-  <div id="top-right">
-    <button class="corner-btn" id="debug-btn" title="切换调试模式">调试:关</button>
-    <button class="corner-btn" id="help-btn" title="查看操作说明">操作?</button>
-    <button class="corner-btn" id="spawn-monster-btn" title="随机生成怪物">生怪</button>
-  </div>
-</div>
-
-<div id="game-container">
-  <canvas id="game"></canvas>
-  <div id="text-overlay"></div>
-  <canvas id="minimap" width="100" height="80"></canvas>
-</div>
-
-<div id="debug-info">
-  像素: (<span id="debug-px">0</span>, <span id="debug-py">0</span>)
-  &nbsp;网格: (<span id="debug-col">0</span>, <span id="debug-row">0</span>)
-</div>
-
-<div id="action-bar">
-  <span class="action-bar-placeholder">行为序列</span>
-</div>
-
-<div id="status-panel">
-  <div id="status-row-1">
-    <div class="stat-card">
-      <div class="card-label">HP</div>
-      <div class="hearts" id="ui-hearts"></div>
+    <div id="stats-divider"></div>
+    <div class="stats-row atk" title="攻击力">
+      <span class="stat-label">攻击</span>
+      <span class="stat-value" id="ui-stat-atk">3.5</span>
     </div>
-    <div class="stat-card" id="ui-aap-card">
-      <div class="card-label">攻击 A-AP</div>
-      <div class="ap-dots" id="ui-aap-dots"></div>
+    <div class="stats-row rng" title="射程">
+      <span class="stat-label">射程</span>
+      <span class="stat-value" id="ui-stat-rng">6</span>
     </div>
-    <div class="stat-card" id="ui-map-card">
-      <div class="card-label">移动 M-AP</div>
-      <div class="ap-dots" id="ui-map-dots"></div>
+    <div class="stats-row lck" title="运气">
+      <span class="stat-label">运气</span>
+      <span class="stat-value" id="ui-stat-lck">0</span>
     </div>
   </div>
-  <div id="status-row-2">
-    <div class="stat-card stats-card">
-      <div class="stat-cell">
-        <div class="cell-label">攻击力</div>
-        <div class="cell-value" id="ui-attack">3.5</div>
+
+  <!-- 主内容列：top-bar + canvas + 下方面板 -->
+  <div id="main-column">
+    <div id="top-bar">
+      <div id="top-resource-bar">
+        <!-- HP + AP 区 -->
+        <div id="res-hp-ap">
+          <div id="res-hp-block">
+            <div class="hearts-row" id="ui-hearts-row"></div>
+          </div>
+          <div id="res-ap-block">
+            <div style="display:flex;align-items:center;gap:5px;">
+              <span class="ap-label map">M</span>
+              <span class="ap-dots-row" id="ui-map-row"></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:5px;">
+              <span class="ap-label aap">A</span>
+              <span class="ap-dots-row" id="ui-aap-row"></span>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="stat-cell">
-        <div class="cell-label">射程</div>
-        <div class="cell-value" id="ui-range">6</div>
-      </div>
-      <div class="stat-cell">
-        <div class="cell-label">运气</div>
-        <div class="cell-value" id="ui-luck">0</div>
+      <div id="top-right-group">
+        <div id="top-status">
+          <div class="status-pill" id="status-floor" style="border-color:#448866;">
+            <span class="pill-label" style="color:#66cc88;">楼层</span>
+            <span class="pill-value" style="color:#88eebb;" id="ui-floor-info">加载中...</span>
+          </div>
+          <div class="status-pill" id="status-phase">
+            <span class="pill-label">阶段</span>
+            <span class="pill-value phase-player" id="ui-phase">行为选择</span>
+          </div>
+          <div class="status-pill" id="status-turn">
+            <span class="pill-label">回合</span>
+            <span class="pill-value" id="ui-turn">1</span>
+          </div>
+        </div>
+        <div id="top-right">
+          <button class="corner-btn" id="debug-btn" title="切换调试模式">调试:关</button>
+          <button class="corner-btn" id="help-btn" title="查看操作说明">操作?</button>
+          <button class="corner-btn" id="spawn-monster-btn" title="随机生成怪物">生怪</button>
+        </div>
       </div>
     </div>
-  </div>
-</div>
 
-<div id="item-bar">
-  <span id="item-bar-label">🎒 道具:</span>
-  <span id="item-bar-empty" style="color:#443322;font-size:13px;">空</span>
-</div>
+    <div id="game-container">
+      <canvas id="game"></canvas>
+      <div id="text-overlay"></div>
+      <canvas id="minimap" width="100" height="80"></canvas>
+    </div>
+
+    <div id="debug-info">
+      像素: (<span id="debug-px">0</span>, <span id="debug-py">0</span>)
+      &nbsp;网格: (<span id="debug-col">0</span>, <span id="debug-row">0</span>)
+    </div>
+
+    <div id="action-bar">
+      <span class="action-bar-placeholder">行为序列</span>
+    </div>
+
+    <div id="item-bar">
+      <span id="item-bar-label">道具:</span>
+      <span id="item-bar-empty" style="color:#443322;font-size:13px;">空</span>
+    </div>
+  </div><!-- #main-column -->
+</div><!-- #top-content-row -->
 
 <div id="help-modal">
   <div id="help-box">
@@ -591,6 +627,10 @@
     <div class="help-row">
       <div class="help-keys"><span class="help-key">F</span></div>
       <div class="help-desc">拾取脚下道具 / 宝箱房物品</div>
+    </div>
+    <div class="help-row">
+      <div class="help-keys"><span class="help-key">E</span></div>
+      <div class="help-desc">在当前位置放置炸弹 (需要拥有炸弹)</div>
     </div>
     <div class="help-row">
       <div class="help-keys"><span class="help-key">B</span></div>
@@ -662,6 +702,39 @@ const SPRITE = {
 };
 SPRITE.img.onload = () => { SPRITE.loaded = true; };
 SPRITE.img.src = 'Assets/issac-idle.png';
+
+// ==================== 掉落资源图片预加载 ====================
+const RES_IMG_MAP = {
+  coin_gold:       'Assets/usable_assets/one_coin.png',
+  coin_black:      'Assets/usable_assets/five_coin.png',
+  coin_silver:     'Assets/usable_assets/ten_coin.png',
+  bomb_single:     'Assets/usable_assets/one_bomb.png',
+  bomb_double:     'Assets/usable_assets/double_bomb.png',
+  key_single:      'Assets/usable_assets/one_key.png',
+  key_double:      'Assets/usable_assets/double_key.png',
+  heart_half:      'Assets/usable_assets/half_red_heart.png',
+  heart_full:      'Assets/usable_assets/one_red_heart.png',
+  heart_double:    'Assets/usable_assets/double_red_heart.png',
+  blue_heart_half: 'Assets/usable_assets/half_blue_heart.png',
+  blue_heart_full: 'Assets/usable_assets/one_blue_heart.png',
+  chest_normal:    'Assets/usable_assets/normal_box.png',
+  chest_golden:    'Assets/usable_assets/golden_box.png',
+  ui_heart:        'Assets/usable_assets/UI_heart.png',
+  ui_half_heart:   'Assets/usable_assets/UI_half_heart.png',
+  ui_blue_heart:   'Assets/usable_assets/UI_blue_heart.png',
+  ui_half_blue_heart: 'Assets/usable_assets/UI_half_blue_heart.png',
+};
+const RES_IMAGES = {};      // { cfgId: Image }
+let RES_IMAGES_LOADED = 0;
+let RES_IMAGES_TOTAL = Object.keys(RES_IMG_MAP).length;
+
+for (const [cfgId, src] of Object.entries(RES_IMG_MAP)) {
+  const img = new Image();
+  img.src = src;
+  img.onload = () => { RES_IMAGES_LOADED++; };
+  img.onerror = () => { RES_IMAGES_LOADED++; }; // 加载失败也计数，避免永久等待
+  RES_IMAGES[cfgId] = img;
+}
 
 // ==================== 游戏常量 ====================
 const CFG = {
@@ -745,11 +818,14 @@ function hitTile(col,row,dmg){
   if(!td)return false;
   td.hp-=dmg;
   if(td.hp<=0){
+    const terrainType = td.type; // 'rock' 或 'poop'
     delete tileData[k];
     currentRoomGrid[col][row]=TILE.FLOOR;
     // 刷新 BFS
     if(turnState.phase==='player_select')pendingReachableRefresh=true;
     spawnBloodParticles(gridToPixel(col,row).x,gridToPixel(col,row).y,5);
+    // 地形破坏掉落
+    rollTerrainDestroyDrop(col, row, terrainType);
     return true;
   }
   return false;
@@ -767,6 +843,20 @@ function updateRoomCombatState(){
     monsterExecTimer=0;monsterExecStepIdx=0;
     saveTurnSnapshot();updateActionBar();updateUI();
 
+    // 房间清空掉落
+    rollRoomClearDrop();
+    // 战斗模式下清空怪物后如果还有炸弹，进入炸弹模式
+    if (bombs.some(b => b.roomId === currentRoomId)) {
+      bombMode = true;
+      bombModeTurnsFrom = 0;
+      // 设置炸弹模式移动行动力
+      turnState.maxMAP = Math.floor(playerStats.moveSpeed);
+      turnState.mAP = turnState.maxMAP;
+      turnState.aAP = 0;
+      turnState.maxAAP = 0;
+      turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
+      updateActionBar();
+    }
     // Boss房清怪后掉落道具
     const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
     if(room&&room.type==='boss'){
@@ -790,7 +880,14 @@ function updateDoorsLocked(){
   const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
   if(!room)return;
   for(const dir of['up','down','left','right']){
-    if(room.doors[dir])room.doors[dir].open=!inCombat;
+    if(room.doors[dir]){
+      // 被炸弹破坏的门始终保持打开
+      if(room.doors[dir].destroyed) {
+        room.doors[dir].open = true;
+      } else {
+        room.doors[dir].open = !inCombat;
+      }
+    }
   }
 }
 
@@ -826,9 +923,14 @@ function resetGameToFloor1(){
   player.targetPx=null;player.targetPy=null;player.animTime=0;player.facing='down';player.walkFrame=0;
   player.shootTimer=0;player.hitFlash=0;player.shakeX=0;player.shakeY=0;player.invincibleSteps=0;
   clearInventory();
+  // 清空资源
+  resourcesOnGround = []; bombs = []; bombMode = false; bombModeTurnsFrom = 0;
+  playerResources.coins = 0; playerResources.bombs = 0; playerResources.keys = 0;
+  playerResources.blueHearts = 0;
+  updateResourceUI();
   visitedRooms = new Set(); // 重置已访问记录
-  // 清除所有房间的道具生成标记
-  for(let f=1;f<=6;f++){if(allFloors[f])allFloors[f].rooms.forEach(r=>{r.itemSpawned=false;r.itemDropped=false;});}
+  // 清除所有房间的道具生成标记，恢复初始锁状态
+  for(let f=1;f<=6;f++){if(allFloors[f])allFloors[f].rooms.forEach(r=>{r.itemSpawned=false;r.itemDropped=false;r.locked=r._initLocked||false;});}
   playerStats.hp=playerStats.maxHp;
   currentFloor=allFloors[1];currentRoomId=currentFloor.startRoomId;
   visitedRooms.add(currentRoomId); // 起始房间已访问
@@ -836,7 +938,7 @@ function resetGameToFloor1(){
   initTileData();inCombat=false;
   turnState.phase='player_select';turnState.turnNumber=0;resetTurnAP();turnState.reachableTiles=new Set();
   updateDoorsLocked();updateUI();updateFloorUI();
-  buildHearts(playerStats.maxHp);buildApDots('ui-aap-dots',turnState.maxAAP);buildApDots('ui-map-dots',turnState.maxMAP);
+  buildHearts(playerStats.maxHp);buildBlueHearts();buildApDots('ui-aap-row',turnState.maxAAP);buildApDots('ui-map-row',turnState.maxMAP);
   updateItemBar();
 }
 let _lastFloorHash='';
@@ -849,7 +951,7 @@ async function loadOrGenerateFloors(forceReload){
       if(_lastFloorHash===text&&Object.keys(allFloors).length>0)return false;
       _lastFloorHash=text;
       const data=JSON.parse(text);
-      for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(r.tplKey?getTpl(r.tplKey).tiles:BUILTIN_TEMPLATES()['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;});}
+      for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(r.tplKey?getTpl(r.tplKey).tiles:BUILTIN_TEMPLATES()['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;r.type=r.type||'normal';r._initLocked=r.locked;});}
       if(forceReload){console.log('🔄 检测到楼层更新，已重新加载');resetGameToFloor1();}
       return true;
     }
@@ -865,6 +967,13 @@ function enterFloor(floorNum){
   const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
   currentRoomGrid=room.grid;
   monsters.length=0;
+  // 清空当前楼层所有炸弹和地面资源
+  bombs = [];
+  bombMode = false;
+  bombModeTurnsFrom = 0;
+  // 重置所有房间的地面资源
+  for (const r of currentFloor.rooms) r._groundResources = [];
+  resourcesOnGround = room._groundResources || [];
   player.col=6;player.row=3;
   const p=gridToPixel(6,3);player.px=p.x;player.py=p.y;player.facing='down';
   player.targetPx=null;player.targetPy=null;player.animTime=0; // 防残留滑动
@@ -879,8 +988,19 @@ function switchRoom(dir, fromPos){
   const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
   const door=room.doors[dir];
   if(!door||!door.open)return false;
+  // 被炸弹破坏的门：直接通过
+  if(door.destroyed){/* 已破坏的门永久开启，do nothing */}
   const targetRoom=currentFloor.rooms.find(r=>r.id===door.targetRoomId);
   if(!targetRoom)return false;
+  // 检查目标房间是否需要钥匙
+  if(targetRoom.locked && playerResources.keys > 0) {
+    playerResources.keys--;
+    targetRoom.locked = false; // 永久解锁
+    updateResourceUI();
+    console.log('🔑 用钥匙打开了上锁的房间!');
+  } else if(targetRoom.locked && playerResources.keys <= 0) {
+    return false; // 需要钥匙但没有
+  }
   // 计算玩家在新房间的入口位置
   const oppDir=DOOR_FROM_DIR[dir];
   const dp=DOOR_POS[oppDir];
@@ -915,9 +1035,16 @@ function finishTransition(){
   initTileData();
   transition=null;
 
-  // 恢复/初始化新房间的地上道具(每个房间独立保存)
+  // 恢复/初始化新房间的地上道具和资源(每个房间独立保存)
   if(!room._groundItems)room._groundItems=[];
   itemsOnGround=room._groundItems;
+  if(!room._groundResources)room._groundResources=[];
+  resourcesOnGround=room._groundResources;
+
+  // 切换房间时检查炸弹模式状态
+  if(bombMode && bombs.filter(b => b.roomId === currentRoomId).length === 0 && !inCombat) {
+    bombMode = false;
+  }
 
   const alreadyVisited = visitedRooms.has(currentRoomId);
   visitedRooms.add(currentRoomId); // 标记为已访问
@@ -1088,7 +1215,8 @@ let MONSTER_POOL_NORMAL = [];
 let MONSTER_POOL_ALL = [];
 
 function _rebuildMonsterPools() {
-  const keys = Object.keys(MONSTER_DB);
+  // skip meta keys like _schema, _comment etc.
+  const keys = Object.keys(MONSTER_DB).filter(k => !k.startsWith('_'));
   MONSTER_POOL_NORMAL = keys.filter(k => MONSTER_DB[k].aiType !== 'boss_chase' && MONSTER_DB[k].aiType !== 'boss_jumper');
   MONSTER_POOL_ALL = keys;
 }
@@ -1159,9 +1287,11 @@ async function loadItemDB() {
   try {
     const r = await fetch('Configs/item-db.json?' + Date.now());
     if (r.ok) {
-      ITEMS_DB = await r.json();
+      const data = await r.json();
+      ITEMS_DB = data.items || {};
+      ITEM_DROP_TABLES = data.qualityTables || {};
       _rebuildItemPools();
-      console.log('✅ 已从 JSON 加载道具数据库 (' + ITEM_POOL_ALL.length + ' 件)');
+      console.log('✅ 已从 JSON 加载道具数据库 (' + ITEM_POOL_ALL.length + ' 件 + ' + Object.keys(ITEM_DROP_TABLES).length + ' 张品质表)');
       return true;
     }
   } catch(e) {
@@ -1170,18 +1300,96 @@ async function loadItemDB() {
   return false;
 }
 
-async function loadDropTables() {
+// ==================== 资源数据库 (异步加载) ====================
+let RESOURCE_DB = {};       // 资源定义 { coin_gold: {...}, ... }
+let RES_DROP_TABLES = {};   // 资源掉落表
+let RES_LIMITS = {};        // 上限配置
+let playerResources = {
+  coins: 0,          // 金币数
+  bombs: 0,          // 炸弹数
+  keys: 0,           // 钥匙数
+  blueHearts: 0,     // 蓝心HP
+};
+
+async function loadResourceDB() {
   try {
-    const r = await fetch('Configs/item-drop-tables.json?' + Date.now());
+    const r = await fetch('Configs/resource-db.json?' + Date.now());
     if (r.ok) {
-      ITEM_DROP_TABLES = await r.json();
-      console.log('✅ 已加载道具掉落表');
+      const data = await r.json();
+      RESOURCE_DB = data.resources || {};
+      RES_DROP_TABLES = data.dropTables || {};
+      RES_LIMITS = data._limits || { coinMax: 99, bombMax: 99, keyMax: 99 };
+      console.log('✅ 已加载资源数据库 (' + Object.keys(RESOURCE_DB).length + ' 种资源)');
       return true;
     }
-  } catch(e) {}
-  ITEM_DROP_TABLES = { default: { common: 0.6, rare: 0.3, legendary: 0.1 } };
-  console.warn('⚠ 使用内置默认掉落表');
+  } catch(e) { console.warn('⚠ 无法加载 resource-db.json:', e.message); }
   return false;
+}
+
+// ==================== 资源掉落系统 (通用) ====================
+/**
+ * 按掉落表随机一批资源ID
+ * @param {string} tableKey - 掉落表key
+ * @returns {string[]} 资源cfgId数组 (可能为空)
+ */
+function rollResourceDrop(tableKey) {
+  const table = RES_DROP_TABLES[tableKey];
+  if (!table) return [];
+  const result = [];
+  for (const [resId, prob] of Object.entries(table)) {
+    if (Math.random() < prob) {
+      result.push(resId);
+    }
+  }
+  return result;
+}
+
+/**
+ * 在指定格子生成一个资源实体 (可拾取物)
+ */
+function spawnResourceOnGrid(col, row, resCfgId) {
+  const cfg = RESOURCE_DB[resCfgId];
+  if (!cfg) return null;
+  // 检查该格子是否已有资源或道具
+  const occupied = resourcesOnGround.some(r => r.col === col && r.row === row)
+    || itemsOnGround.some(it => it.col === col && it.row === row);
+  if (occupied) return null;
+  const pix = gridToPixel(col, row);
+  const res = {
+    id: ++resourceIdCounter,
+    cfgId: resCfgId,
+    type: cfg.type,
+    name: cfg.name,
+    icon: cfg.icon,
+    color: cfg.color || '#ffffff',
+    col, row,
+    px: pix.x, py: pix.y,
+    roomId: currentRoomId,
+    liftY: 0,
+    liftDir: 1,
+    sparkTimer: Math.random() * Math.PI * 2,
+  };
+  resourcesOnGround.push(res);
+  return res;
+}
+
+/**
+ * 在房间随机可行走位置生成多个资源
+ */
+function spawnResourcesInRoom(resIds, maxAttempts = 20) {
+  for (const rid of resIds) {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const c = 1 + Math.floor(Math.random() * (COLS - 2));
+      const r = 1 + Math.floor(Math.random() * (ROWS - 2));
+      if (!isWall(c, r) && !isMonsterAt(c, r)
+        && !(c === player.col && r === player.row)
+        && !resourcesOnGround.some(res => res.col === c && res.row === r)
+        && !itemsOnGround.some(it => it.col === c && it.row === r)) {
+        spawnResourceOnGrid(c, r, rid);
+        break;
+      }
+    }
+  }
 }
 
 /**
@@ -1195,10 +1403,19 @@ function rollItem(qualityOverride, dropTable = 'default') {
   if (qualityOverride) {
     quality = qualityOverride;
   } else {
-    const table = ITEM_DROP_TABLES[dropTable] || ITEM_DROP_TABLES['default'] || { common: 0.6, rare: 0.3, legendary: 0.1 };
-    const roll = Math.random();
-    if (roll < (table.legendary || 0)) quality = 'legendary';
-    else if (roll < (table.legendary || 0) + (table.rare || 0)) quality = 'rare';
+    const table = ITEM_DROP_TABLES[dropTable] || ITEM_DROP_TABLES['default'] || { none: 0, common: 0.6, rare: 0.3, legendary: 0.1 };
+    const n = table.none || 0;
+    const L = table.legendary || 0;
+    const R = table.rare || 0;
+    const C = table.common || 0;
+    const total = n + L + R + C;
+
+    if (total <= 0) return null;
+
+    const roll = Math.random() * total;
+    if (roll < n) return null;
+    if (roll < n + L) quality = 'legendary';
+    else if (roll < n + L + R) quality = 'rare';
     else quality = 'common';
   }
 
@@ -1222,6 +1439,16 @@ let itemsOnGround = [];     // [{id, cfgId, col, row, px, py, name, icon, qualit
 let playerInventory = [];   // 已拾取道具的 cfgId 列表
 let itemIdCounter = 0;
 let pickupHintTimer = 0;    // 拾取提示计时器
+
+// ==================== 资源系统状态 ====================
+let resourcesOnGround = [];  // 地面资源实体 [{id, cfgId, type, col, row, ...}]
+let resourceIdCounter = 0;
+
+// ==================== 炸弹系统状态 ====================
+let bombs = [];         // 已放置的炸弹 [{id, col, row, timer, roomId}]
+let bombIdCounter = 0;
+let bombMode = false;   // 炸弹模式 (探索模式下放置炸弹后进入)
+let bombModeTurnsFrom = 0; // 炸弹模式继承自战斗模式的剩余回合
 
 // ==================== 调试模式 ====================
 let debugMode     = false;
@@ -1258,6 +1485,7 @@ function saveTurnSnapshot() {
     monsterTurnCounter: turnState.monsterTurnCounter,
     pendingBossLanding: pendingBossLanding ? {
       monsterId: pendingBossLanding.monster ? pendingBossLanding.monster.id : null,
+      monsterCfgId: pendingBossLanding.monster ? pendingBossLanding.monster.cfgId : null,
       targetCol: pendingBossLanding.targetCol,
       targetRow: pendingBossLanding.targetRow,
     } : null,
@@ -1292,9 +1520,17 @@ function restoreTurnSnapshot() {
   // 恢复pendingBossLanding
   if (s.pendingBossLanding && s.pendingBossLanding.monsterId) {
     const landingMonster = monsters.find(m2 => m2.id === s.pendingBossLanding.monsterId);
+    // 从怪物配置重建 landAction
+    let landAction = null;
+    if (landingMonster) {
+      const mCfg = MONSTER_DB[landingMonster.cfgId];
+      landAction = (mCfg && mCfg.actions) ? mCfg.actions.find(a => a.type === 'jump_big_land') : null;
+    }
     pendingBossLanding = landingMonster ? {
-      monster: landingMonster, targetCol: s.pendingBossLanding.targetCol,
+      monster: landingMonster,
+      targetCol: s.pendingBossLanding.targetCol,
       targetRow: s.pendingBossLanding.targetRow,
+      landAction: landAction,
     } : null;
   } else {
     pendingBossLanding = null;
@@ -1465,6 +1701,69 @@ function isValidLandingZone(topLeftCol, topLeftRow, size = 1) {
   }
   // 不能全是深坑
   return pitCount < totalCells;
+}
+
+// 根据 action.target.mode 选择大跳落点
+function selectLandingTarget(action, m) {
+  const targetCfg = (action && action.target) || {};
+  const mode = targetCfg.mode || 'cover_player';
+  const sz = m.size || 2;
+  const pCol = player.col, pRow = player.row;
+
+  if (mode === 'cover_player') {
+    // 找到所有包含玩家位置的合法 2×2 方格
+    const candidates = [];
+    for (let dc = -(sz - 1); dc <= 0; dc++) {
+      for (let dr = -(sz - 1); dr <= 0; dr++) {
+        const tc = pCol + dc, tr = pRow + dr;
+        if (tc >= 0 && tc + sz - 1 < COLS && tr >= 0 && tr + sz - 1 < ROWS) {
+          if (isValidLandingZone(tc, tr, sz)) candidates.push({ col: tc, row: tr });
+        }
+      }
+    }
+    if (candidates.length === 0) return null;
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  if (mode === 'nearest_player') {
+    // 找全图所有合法落点，选离玩家最近的
+    let best = null, bestDist = Infinity;
+    for (let c = 0; c <= COLS - sz; c++) {
+      for (let r = 0; r <= ROWS - sz; r++) {
+        if (!isValidLandingZone(c, r, sz)) continue;
+        const cx = c + sz / 2, cy = r + sz / 2;
+        const px = pCol + 0.5, py = pRow + 0.5;
+        const dist = Math.abs(cx - px) + Math.abs(cy - py); // 曼哈顿距离
+        if (dist < bestDist) { bestDist = dist; best = { col: c, row: r }; }
+      }
+    }
+    return best;
+  }
+
+  if (mode === 'random_area') {
+    // 全图合法落点随机选
+    const candidates = [];
+    for (let c = 0; c <= COLS - sz; c++) {
+      for (let r = 0; r <= ROWS - sz; r++) {
+        if (isValidLandingZone(c, r, sz)) candidates.push({ col: c, row: r });
+      }
+    }
+    if (candidates.length === 0) return null;
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  // 未知 mode，fallback 到 cover_player
+  const candidates = [];
+  for (let dc = -(sz - 1); dc <= 0; dc++) {
+    for (let dr = -(sz - 1); dr <= 0; dr++) {
+      const tc = pCol + dc, tr = pRow + dr;
+      if (tc >= 0 && tc + sz - 1 < COLS && tr >= 0 && tr + sz - 1 < ROWS) {
+        if (isValidLandingZone(tc, tr, sz)) candidates.push({ col: tc, row: tr });
+      }
+    }
+  }
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
 // 检查格子是否在怪物占据范围内
@@ -1863,12 +2162,26 @@ function calcMonsterPath(monster, targetCol, targetRow) {
 // ==================== 玩家受伤系统 ====================
 function damagePlayer(amount) {
   if (player.invincibleSteps > 0) return; // 无敌中
-  playerStats.hp = Math.max(0, playerStats.hp - amount);
+
+  // 优先扣除蓝心
+  let remaining = amount;
+  if (playerResources.blueHearts > 0) {
+    const blueDeduct = Math.min(playerResources.blueHearts, remaining);
+    playerResources.blueHearts = Math.max(0, playerResources.blueHearts - remaining);
+    remaining -= blueDeduct;
+  }
+
+  // 剩余伤害扣除红心
+  if (remaining > 0) {
+    playerStats.hp = Math.max(0, playerStats.hp - remaining);
+  }
+
   player.hitFlash = 0.12;
   player.shakeX = (Math.random() - 0.5) * 5;
   player.shakeY = (Math.random() - 0.5) * 4;
   player.invincibleSteps = Math.floor(playerStats.moveSpeed) * 2; // 无敌=移速×2步(向下取整)
   updateHearts();
+  updateResourceUI();
   updateUI();
 }
 
@@ -1938,14 +2251,351 @@ function pickUpItems() {
     turnState.aAP = Math.min(turnState.aAP, turnState.maxAAP);
     updateUI();
     buildHearts(playerStats.maxHp);
-    buildApDots('ui-aap-dots', turnState.maxAAP);
-    buildApDots('ui-map-dots', turnState.maxMAP);
+    buildBlueHearts();
+    buildApDots('ui-aap-row', turnState.maxAAP);
+    buildApDots('ui-map-row', turnState.maxMAP);
     turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
   }
   return picked;
 }
 
-// 应用道具效果到玩家属性
+// ==================== 资源拾取系统 ====================
+// 自动拾取玩家脚下的资源 (移动时自动触发)
+function autoPickupResources() {
+  let pickedAny = false;
+  for (let i = resourcesOnGround.length - 1; i >= 0; i--) {
+    const res = resourcesOnGround[i];
+    if (res.col === player.col && res.row === player.row) {
+      pickedAny = handleResourcePickup(res) || pickedAny;
+      if (pickedAny) resourcesOnGround.splice(i, 1);
+    }
+  }
+  return pickedAny;
+}
+
+function handleResourcePickup(res) {
+  const cfg = RESOURCE_DB[res.cfgId];
+  if (!cfg) return false;
+
+  switch (cfg.type) {
+    case 'coin': {
+      const newTotal = playerResources.coins + cfg.value;
+      if (newTotal > (RES_LIMITS.coinMax || 99)) {
+        playerResources.coins = RES_LIMITS.coinMax || 99;
+      } else {
+        playerResources.coins = newTotal;
+      }
+      break;
+    }
+    case 'bomb': {
+      const newTotal = playerResources.bombs + cfg.amount;
+      playerResources.bombs = Math.min(newTotal, RES_LIMITS.bombMax || 99);
+      break;
+    }
+    case 'key': {
+      const newTotal = playerResources.keys + cfg.amount;
+      playerResources.keys = Math.min(newTotal, RES_LIMITS.keyMax || 99);
+      break;
+    }
+    case 'heart': {
+      if (playerStats.hp >= playerStats.maxHp) return false; // 满血不拾取
+      const newHp = Math.min(playerStats.hp + cfg.heal, playerStats.maxHp);
+      if (newHp === playerStats.hp) return false;
+      playerStats.hp = newHp;
+      break;
+    }
+    case 'blue_heart': {
+      playerResources.blueHearts += cfg.amount;
+      break;
+    }
+    case 'chest': {
+      return openChest(res);
+    }
+    default: return false;
+  }
+
+  // 拾取特效
+  spawnPickupEffect(res.px, res.py, cfg.color);
+  damageNumbers.push({
+    x: res.px, y: res.py - 8,
+    text: '+' + cfg.name,
+    life: 0.9, maxLife: 0.9,
+    vy: -35 - Math.random() * 15,
+    vx: 0,
+  });
+
+  updateHearts();
+  updateResourceUI();
+  updateUI();
+  return true;
+}
+
+function openChest(res) {
+  const cfg = RESOURCE_DB[res.cfgId];
+  if (!cfg || cfg.type !== 'chest') return false;
+
+  // 上锁宝箱需要钥匙
+  if (cfg.locked) {
+    if (playerResources.keys <= 0) return false; // 没钥匙打不开
+    playerResources.keys--;
+  }
+
+  // === 如果配置了 loot 字段，走统一掉落系统（支持道具+资源混合掉落）===
+  if (cfg.loot) {
+    rollLoot(cfg.loot, res.col, res.row);
+  } else {
+    // === 旧逻辑：按 dropTable 纯资源掉落 ===
+    const dropIds = rollResourceDrop(cfg.dropTable);
+    const room = currentFloor.rooms.find(r => r.id === currentRoomId);
+
+    // 在附近可行走格子生成资源
+    for (const rid of dropIds) {
+      for (let attempt = 0; attempt < 15; attempt++) {
+        const range = 2;
+        const c = res.col + Math.floor(Math.random() * (range * 2 + 1)) - range;
+        const r = res.row + Math.floor(Math.random() * (range * 2 + 1)) - range;
+        if (c >= 0 && c < COLS && r >= 0 && r < ROWS && !isWall(c, r)
+          && !resourcesOnGround.some(rr => rr.col === c && rr.row === r)
+          && !itemsOnGround.some(it => it.col === c && it.row === r)) {
+          spawnResourceOnGrid(c, r, rid);
+          break;
+        }
+      }
+    }
+  }
+
+  // 开箱特效
+  spawnPickupEffect(res.px, res.py, '#ffcc44');
+  damageNumbers.push({
+    x: res.px, y: res.py - 8,
+    text: '开箱!',
+    life: 1.0, maxLife: 1.0,
+    vy: -45, vx: 0,
+  });
+  updateResourceUI();
+  return true;
+}
+
+function spawnPickupEffect(px, py, color) {
+  for (let j = 0; j < 6; j++) {
+    particles.push({
+      x: px, y: py,
+      vx: (Math.random() - 0.5) * 70,
+      vy: (Math.random() - 0.5) * 70 - 25,
+      life: 0.3 + Math.random() * 0.3,
+      maxLife: 0.6,
+      size: 2 + Math.random() * 2,
+      color: color,
+    });
+  }
+}
+
+// ==================== 资源UI更新 ====================
+function updateResourceUI() {
+  const elCoins = document.getElementById('ui-res-coins');
+  const elBombs = document.getElementById('ui-res-bombs');
+  const elKeys = document.getElementById('ui-res-keys');
+  if (elCoins) elCoins.textContent = playerResources.coins;
+  if (elBombs) elBombs.textContent = playerResources.bombs;
+  if (elKeys) elKeys.textContent = playerResources.keys;
+  buildBlueHearts(); // 蓝心接在红心后面
+  updatePlayerStatsUI(); // 更新角色属性显示
+}
+
+function updatePlayerStatsUI() {
+  const elAtk = document.getElementById('ui-stat-atk');
+  const elRng = document.getElementById('ui-stat-rng');
+  const elLck = document.getElementById('ui-stat-lck');
+  if (elAtk) elAtk.textContent = playerStats.attack;
+  if (elRng) elRng.textContent = playerStats.range;
+  if (elLck) elLck.textContent = playerStats.luck;
+}
+
+// ==================== 炸弹系统 ====================
+function placeBomb(col, row) {
+  if (playerResources.bombs <= 0) return;
+  playerResources.bombs--;
+
+  const bomb = {
+    id: ++bombIdCounter,
+    col, row,
+    timer: 3,           // 倒计时3回合
+    roomId: currentRoomId,
+    placedInCombat: inCombat, // 记录放置时是否在战斗中
+  };
+  bombs.push(bomb);
+
+  // 探索模式放置炸弹后进入炸弹模式 (不可回溯)
+  if (!inCombat) {
+    bombMode = true;
+    bombModeTurnsFrom = 0;
+    // 设置移动行动力
+    turnState.maxMAP = Math.floor(playerStats.moveSpeed);
+    turnState.mAP = turnState.maxMAP;
+    turnState.aAP = 0;
+    turnState.maxAAP = 0;
+    turnState.reachableTiles = calcReachableTiles(col, row, turnState.mAP);
+    updateActionBar();
+  }
+
+  updateResourceUI();
+  console.log(`💣 放置炸弹在 (${col},${row})，倒计时 ${bomb.timer}`);
+}
+
+// 消耗1个炸弹回合（玩家回合结束时调用）
+function tickBombCountdown() {
+  const currentBombs = bombs.filter(b => b.roomId === currentRoomId);
+  for (const bomb of currentBombs) {
+    bomb.timer--;
+  }
+
+  // 检查是否有炸弹引爆
+  const detonated = currentBombs.filter(b => b.timer <= 0);
+  for (const bomb of detonated) {
+    detonateBomb(bomb);
+  }
+
+  // 移除已引爆的炸弹
+  bombs = bombs.filter(b => !(b.timer <= 0 && b.roomId === currentRoomId));
+
+  // 检查是否所有炸弹都引爆了，退出炸弹模式
+  if (bombMode && bombs.filter(b => b.roomId === currentRoomId).length === 0
+      && !inCombat) {
+    bombMode = false;
+    console.log('💣 炸弹模式结束');
+  }
+}
+
+// 菱形范围 (距离 ≤ radius)
+function getDiamondRange(cx, cy, radius) {
+  const cells = [];
+  for (let c = cx - radius; c <= cx + radius; c++) {
+    for (let r = cy - radius; r <= cy + radius; r++) {
+      if (Math.abs(c - cx) + Math.abs(r - cy) <= radius) {
+        cells.push({ col: c, row: r });
+      }
+    }
+  }
+  return cells;
+}
+
+function detonateBomb(bomb) {
+  const cx = bomb.col, cy = bomb.row;
+  const cfg = RESOURCE_DB['bomb_single'] || { damage: 50, radius: 2 };
+  const damageRadius = cfg.radius || 2;
+
+  console.log(`💥 炸弹爆炸! (${cx},${cy}) 范围${damageRadius}`);
+
+  // 爆炸粒子特效
+  const bp = gridToPixel(cx, cy);
+  for (let j = 0; j < 20; j++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd = 50 + Math.random() * 120;
+    particles.push({
+      x: bp.x, y: bp.y,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd - 30,
+      life: 0.3 + Math.random() * 0.5,
+      maxLife: 0.8,
+      size: 3 + Math.random() * 3,
+      color: Math.random() < 0.5 ? '#ff6622' : '#ffaa44',
+    });
+  }
+
+  const affected = getDiamondRange(cx, cy, damageRadius);
+
+  for (const {col, row} of affected) {
+    // 越界检查
+    if (col < 0 || col >= COLS || row < 0 || row >= ROWS) continue;
+
+    // 伤害怪物
+    for (const m of monsters) {
+      if (m.hp <= 0 || m.jumperVanished) continue;
+      const sz = m.size || 1;
+      // 检查炸弹范围是否与怪物占地区域重叠
+      let hitMonster = false;
+      for (let dc = 0; dc < sz; dc++) {
+        for (let dr = 0; dr < sz; dr++) {
+          if (Math.abs((m.col + dc) - cx) + Math.abs((m.row + dr) - cy) <= damageRadius) {
+            hitMonster = true;
+          }
+        }
+      }
+      if (hitMonster) {
+        damageMonster(m, cfg.damage || 50);
+      }
+    }
+
+    // 伤害玩家
+    if (col === player.col && row === player.row) {
+      damagePlayer(1);
+    }
+
+    // 破坏地形
+    if (currentRoomGrid && col < COLS && row < ROWS) {
+      const t = currentRoomGrid[col][row];
+      if (t === TILE.ROCK || t === TILE.POOP) {
+        // 完全破坏
+        hitTile(col, row, 99);
+      }
+    }
+
+    // 破坏门
+    const room = currentFloor.rooms.find(r => r.id === currentRoomId);
+    if (room) {
+      for (const dir of ['up', 'down', 'left', 'right']) {
+        const dp = DOOR_POS[dir];
+        if (col === dp.col && row === dp.row) {
+          if (room.doors[dir] && room.doors[dir].targetRoomId) {
+            // 破坏门 (永久打开，不能修复)
+            room.doors[dir].destroyed = true;
+            room.doors[dir].open = true;
+            console.log(`🚪 门 [${dir}] 被炸弹破坏!`);
+          }
+        }
+      }
+    }
+  }
+
+  // 爆炸飘字
+  damageNumbers.push({
+    x: bp.x, y: bp.y - 10,
+    text: 'BOOM!',
+    life: 0.8, maxLife: 0.8,
+    vy: -50, vx: 0,
+  });
+}
+
+// 子弹/怪物碰撞炸弹推移 (向射击方向推3格)
+function pushBomb(bomb, dirX, dirY) {
+  let col = bomb.col, row = bomb.row;
+  let remainingDist = 3;
+
+  for (let step = 1; step <= 3; step++) {
+    const nc = col + dirX, nr = row + dirY;
+    // 超出边界或遇到墙壁/大便/深坑 → 反弹，继续剩余距离
+    if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) {
+      dirX *= -1; dirY *= -1;
+      continue;
+    }
+    const t = currentRoomGrid ? currentRoomGrid[nc][nr] : TILE.FLOOR;
+    if (t === TILE.ROCK || t === TILE.POOP || t === TILE.PIT) {
+      dirX *= -1; dirY *= -1; // 反弹
+      continue;
+    }
+    // 遇到怪物或玩家 → 立刻停止
+    if (isMonsterAt(nc, nr) || (nc === player.col && nr === player.row)) {
+      break;
+    }
+    // 遇到普通平地或尖刺 → 继续移动
+    col = nc; row = nr;
+    remainingDist--;
+  }
+
+  bomb.col = col; bomb.row = row;
+  console.log(`💣 炸弹被推移到 (${col},${row})`);
+}
+
 function applyItem(cfgId) {
   const cfg = ITEMS_DB[cfgId];
   if (!cfg) return;
@@ -2007,6 +2657,7 @@ function recalcAllStats() {
   playerStats.fireRate = 3;
   playerStats.moveSpeed = 3;
   playerStats.range = 6;
+  playerStats.luck = 0;
   playerStats.maxHp = 3;
 
   // 初始化特效状态
@@ -2049,6 +2700,8 @@ function recalcAllStats() {
   playerStats.moveSpeed = Math.max(1, playerStats.moveSpeed);
   playerStats.range = Math.max(3, playerStats.range);
   playerStats.maxHp = Math.max(1, playerStats.maxHp);
+
+  updatePlayerStatsUI(); // 同步攻击力/射程/运气到侧边栏
 }
 
 // 清理不在当前房间的道具实体
@@ -2107,6 +2760,36 @@ function spawnBossRoomItem() {
     room.itemDropped = true;
     pickupHintTimer = 3.0;
   }
+}
+
+// 商店房生成商品
+function spawnShopItems(room) {
+  if (!room || room.type !== 'shop') return;
+  if (room.itemSpawned) return;
+
+  const stockTable = RES_DROP_TABLES['shop_stock'];
+  if (!stockTable) return;
+
+  const items = [];
+  for (const [resId, prob] of Object.entries(stockTable)) {
+    if (Math.random() < prob) items.push(resId);
+  }
+  // 限制最多6个商品
+  const selected = items.slice(0, 6);
+
+  // 摆放在房间中央区域
+  const slots = [
+    {c:4,r:2},{c:6,r:2},{c:8,r:2},
+    {c:4,r:4},{c:6,r:4},{c:8,r:4},
+  ];
+
+  for (let i = 0; i < Math.min(selected.length, slots.length); i++) {
+    const {c, r} = slots[i];
+    if (!isWall(c, r)) {
+      spawnResourceOnGrid(c, r, selected[i]);
+    }
+  }
+  room.itemSpawned = true;
 }
 
 // ==================== Boss Jumper 行动系统 ====================
@@ -2181,34 +2864,30 @@ function calcJumperSmallJump(m) {
   return true;
 }
 
-// 大跳跃：找到包含玩家位置的2×2区域 → 消失 → 等待落地
+// 大跳跃：按 action.target.mode 选择落点 → 消失 → 等待落地
 function calcJumperBigJump(m) {
-  const pCol = player.col, pRow = player.row;
-
-  // 找到所有包含玩家位置的2×2方格
+  const cfg = MONSTER_DB[m.cfgId];
+  const landAction = (cfg.actions || []).find(a => a.type === 'jump_big_land');
   const sz = m.size || 2;
-  const candidates = [];
-  for (let dc = -(sz - 1); dc <= 0; dc++) {
-    for (let dr = -(sz - 1); dr <= 0; dr++) {
-      const tc = pCol + dc, tr = pRow + dr;
-      if (tc >= 0 && tc + sz - 1 < COLS && tr >= 0 && tr + sz - 1 < ROWS) {
-        if (isValidLandingZone(tc, tr, sz)) candidates.push({ col: tc, row: tr });
-      }
-    }
-  }
 
-  if (candidates.length === 0) {
+  // 从配置读取落点选择策略
+  const target = selectLandingTarget(landAction, m);
+
+  if (!target) {
     // 无有效落点，退化为小跳跃
     return calcJumperSmallJump(m);
   }
 
-  const target = candidates[Math.floor(Math.random() * candidates.length)];
+  // 读取消失回合数（默认1回合）
+  const disappearSteps = (landAction && landAction.disappearSteps !== undefined) ? landAction.disappearSteps : 1;
+  m.disappearStepsRemaining = disappearSteps;
 
-  // 设置延迟落地
+  // 设置延迟落地（携带 action 配置供落地时使用）
   pendingBossLanding = {
     monster: m,
     targetCol: target.col,
     targetRow: target.row,
+    landAction: landAction,   // 落地时读取 after_effect 等参数
   };
 
   // Boss消失（保留动画计时器用于残影渲染）
@@ -2262,62 +2941,141 @@ function processJumperAction(m) {
   m.predictedPath = [];
 }
 
+// ==================== after_effect 系统 ====================
+// 计算冲击波范围：从落地区域向外扩展 range 圈
+function getAttackSideCells(targetCol, targetRow, size, range) {
+  const cells = new Set();
+  const minCol = targetCol - range;
+  const maxCol = targetCol + size - 1 + range;
+  const minRow = targetRow - range;
+  const maxRow = targetRow + size - 1 + range;
+  for (let c = minCol; c <= maxCol; c++) {
+    for (let r = minRow; r <= maxRow; r++) {
+      if (c < 0 || c >= COLS || r < 0 || r >= ROWS) continue;
+      // 排除落地区域本体格
+      if (c >= targetCol && c < targetCol + size && r >= targetRow && r < targetRow + size) continue;
+      cells.add(`${c},${r}`);
+    }
+  }
+  return cells;
+}
+
+// 执行 action 的 after_effect 数组
+function resolveAfterEffects(action, context) {
+  if (!action || !action.after_effect || action.after_effect.length === 0) return;
+
+  const { monster: m, targetCol, targetRow, sz } = context;
+
+  for (const effect of action.after_effect) {
+    if (effect.type === 'attack_side') {
+      const damage = effect.damage !== undefined ? effect.damage : 1;
+      const range = effect.range !== undefined ? effect.range : 1;
+
+      const sideCells = getAttackSideCells(targetCol, targetRow, sz, range);
+
+      // 对冲击波范围内角色造成伤害（玩家可能已被落地碰撞触发无敌，自然免疫）
+      let playerHitInSide = false, monsterHitsInSide = new Set();
+      for (const key of sideCells) {
+        const [c, r] = key.split(',').map(Number);
+        if (!playerHitInSide && c === player.col && r === player.row) {
+          damagePlayer(damage);
+          playerHitInSide = true;
+        }
+        for (const om of monsters) {
+          if (om.id === m.id || om.jumperVanished) continue;
+          if (isInMonsterFootprint(om, c, r)) {
+            if (!monsterHitsInSide.has(om.id)) {
+              damageMonster(om, damage);
+              monsterHitsInSide.add(om.id);
+            }
+          }
+        }
+      }
+    } else if (effect.type === 'attack_adjacent') {
+      const damage = effect.damage !== undefined ? effect.damage : 0.5;
+      const range = effect.range !== undefined ? effect.range : 1;
+      const dirX = context.dirX || 0;
+      const dirY = context.dirY || 0;
+
+      if (dirX === 0 && dirY === 0) continue;
+
+      // 在面朝方向上逐格检查 range 格
+      let playerHit = false;
+      for (let i = 1; i <= range; i++) {
+        const ac = m.col + dirX * i;
+        const ar = m.row + dirY * i;
+        if (ac < 0 || ac >= COLS || ar < 0 || ar >= ROWS) break;
+        // 墙壁阻挡视线
+        if (isWall(ac, ar)) break;
+        // 攻击玩家
+        if (!playerHit && ac === player.col && ar === player.row) {
+          damagePlayer(damage);
+          playerHit = true;
+          m.meleeFlash = 0.25;
+          m.meleeDir = { dx: dirX, dy: dirY };
+        }
+        // 攻击其他怪物
+        for (const om of monsters) {
+          if (om.id === m.id || om.jumperVanished) continue;
+          if (isInMonsterFootprint(om, ac, ar)) {
+            damageMonster(om, damage);
+          }
+        }
+      }
+    }
+  }
+}
+
 // 处理大跳跃延迟落地（在玩家回合结束时调用）
 function executeBossLanding() {
   if (!pendingBossLanding) return;
 
   const { monster: m, targetCol, targetRow } = pendingBossLanding;
+  let { landAction } = pendingBossLanding;
+  // fallback：如果 landAction 缺失（例如旧存档），从怪物配置重建
+  if (!landAction) {
+    const mCfg = MONSTER_DB[m.cfgId];
+    landAction = (mCfg && mCfg.actions) ? mCfg.actions.find(a => a.type === 'jump_big_land') : null;
+  }
   const sz = m.size || 2;
 
-  // Boss出现在目标位置
+  // === 第1步：Boss出现在目标位置 ===
   m.col = targetCol; m.row = targetRow;
   const newPix = gridToPixel(m.col, m.row);
   m.px = newPix.x; m.py = newPix.y;
   m.jumperVanished = false;
   m.jumperPhase = 1;
   m.jumperJustLanded = true; // 落地回合不行动，下回合再循环
-  m.jumpFrom = { col: targetCol, row: targetRow }; // 落地位置
+  m.jumpFrom = { col: targetCol, row: targetRow };
   m.jumpTo = { col: targetCol, row: targetRow };
-  m.jumpAnimTimer = 0.55; // 大跳落地动画延长
+  m.jumpAnimTimer = 0.55;
   m.jumpType = 'big_land';
 
-  // 大跳伤害范围：目标2×2 + 周围8格 = 最多12格
-  const damageCells = new Set();
-  // 目标2×2
-  for (let dc = 0; dc < sz; dc++)
-    for (let dr = 0; dr < sz; dr++)
-      damageCells.add(`${targetCol + dc},${targetRow + dr}`);
-
-  // 四角的相邻格
-  const corners = [
-    { c: targetCol, r: targetRow, adj: [{ dc: -1, dr: 0 }, { dc: 0, dr: -1 }] },           // 左上
-    { c: targetCol + sz - 1, r: targetRow, adj: [{ dc: 1, dr: 0 }, { dc: 0, dr: -1 }] },    // 右上
-    { c: targetCol, r: targetRow + sz - 1, adj: [{ dc: -1, dr: 0 }, { dc: 0, dr: 1 }] },    // 左下
-    { c: targetCol + sz - 1, r: targetRow + sz - 1, adj: [{ dc: 1, dr: 0 }, { dc: 0, dr: 1 }] }  // 右下
-  ];
-  for (const corner of corners) {
-    for (const a of corner.adj) {
-      const ac = corner.c + a.dc, ar = corner.r + a.dr;
-      if (ac >= 0 && ac < COLS && ar >= 0 && ar < ROWS) damageCells.add(`${ac},${ar}`);
-    }
-  }
-
-  // 对范围内角色造成1点伤害
-  for (const key of damageCells) {
-    const [c, r] = key.split(',').map(Number);
-    if (c === player.col && r === player.row) damagePlayer(1);
-    // 对其他怪物也造成伤害
-    for (const om of monsters) {
-      if (om.id === m.id || om.jumperVanished) continue;
-      if (isInMonsterFootprint(om, c, r)) {
-        const alreadyHit = damageCells.has(`hit_${om.id}`);
-        if (!alreadyHit) {
+  // === 第2步：本体落地碰撞（落在玩家格 → 碰撞伤害 + 玩家获得无敌帧） ===
+  // 落地 2×2 区域直接碰撞
+  let playerDirectHit = false;
+  for (let dc = 0; dc < sz; dc++) {
+    for (let dr = 0; dr < sz; dr++) {
+      const tc = targetCol + dc, tr = targetRow + dr;
+      if (!playerDirectHit && tc === player.col && tr === player.row) {
+        // 碰撞伤害使用怪物接触伤害
+        const collisionDmg = m.damage || 0.5;
+        damagePlayer(collisionDmg);
+        playerDirectHit = true;
+      }
+      // 对其他怪物也造成碰撞伤害
+      for (const om of monsters) {
+        if (om.id === m.id || om.jumperVanished) continue;
+        if (isInMonsterFootprint(om, tc, tr)) {
           damageMonster(om, 1);
-          // 标记已处理（避免对一个1×1怪物多次伤害，但允许一个2×2怪物中多个格子触发）
         }
       }
     }
   }
+
+  // === 第3步：执行 after_effect（冲击波等后置效果） ===
+  // 玩家如果被本体碰撞触发无敌，冲击波自动免疫
+  resolveAfterEffects(landAction, { monster: m, targetCol, targetRow, sz });
 
   pendingBossLanding = null;
 }
@@ -2394,6 +3152,14 @@ function updateMonsterTurn(dt) {
       continue;
     }
 
+    // 碰撞炸弹：推移炸弹
+    const mbBomb = bombs.find(b => b.col === p.toCol && b.row === p.toRow && b.roomId === currentRoomId);
+    if (mbBomb) {
+      const mdx = Math.sign(p.toCol - p.fromCol);
+      const mdy = Math.sign(p.toRow - p.fromRow);
+      pushBomb(mbBomb, mdx || 0, mdy || 0);
+    }
+
     // 可以移动
     m.col = p.toCol;
     m.row = p.toRow;
@@ -2404,12 +3170,16 @@ function updateMonsterTurn(dt) {
     occupied.add(key);
   }
 
-  // 近战攻击：移动结束后，面朝方向1格内检查玩家
+  // 近战攻击：移动结束后，面朝方向1格内检查玩家（已声明 after_effect 的怪物跳过）
   for (const p of planned) {
     const m = p.monster;
     if (m.jumperVanished) continue;
     const moved = (m.col === p.toCol && m.row === p.toRow);
     if (!moved) continue;
+    // 检查该怪物的 chase action 是否已声明 after_effect
+    const mCfg = MONSTER_DB[m.cfgId];
+    const chaseAction = mCfg && mCfg.actions ? mCfg.actions.find(a => a.type === 'chase') : null;
+    if (chaseAction && chaseAction.after_effect && chaseAction.after_effect.length > 0) continue;
     const dirX = Math.sign(p.toCol - p.fromCol);
     const dirY = Math.sign(p.toRow - p.fromRow);
     if (dirX === 0 && dirY === 0) continue;
@@ -2433,6 +3203,20 @@ function updateMonsterTurn(dt) {
 }
 
 function finishMonsterTurn() {
+  // chase 行动完成后，触发 after_effect（路径清除前取方向）
+  for (const m of monsters) {
+    if (m.jumperVanished) continue;
+    const mCfg = MONSTER_DB[m.cfgId];
+    const chaseAction = mCfg && mCfg.actions ? mCfg.actions.find(a => a.type === 'chase') : null;
+    if (!chaseAction || !chaseAction.after_effect || chaseAction.after_effect.length === 0) continue;
+    if (!m.predictedPath || m.predictedPath.length === 0) continue;
+    // 从路径最后一步取面朝方向
+    const lastStep = m.predictedPath[m.predictedPath.length - 1];
+    const dirX = Math.sign(lastStep.toCol - lastStep.fromCol);
+    const dirY = Math.sign(lastStep.toRow - lastStep.fromRow);
+    resolveAfterEffects(chaseAction, { monster: m, dirX, dirY });
+  }
+
   for (const m of monsters) m.predictedPath = [];
   turnState.monsterTurnCounter++;
   turnState.turnNumber++;
@@ -2855,6 +3639,102 @@ function drawBullets() {
   }
 }
 
+// --- 地面资源渲染 (使用真实素材图片) ---
+function drawResourcesOnGround() {
+  if (resourcesOnGround.length === 0) return;
+
+  for (const res of resourcesOnGround) {
+    const pp = project(res.px, res.py + res.liftY);
+    const cx = Math.round(pp.x), cy = Math.round(pp.y);
+    const s = pp.s;
+    const imgSize = Math.max(10, Math.round(14 * s));
+    const half = Math.round(imgSize / 2);
+
+    const img = RES_IMAGES[res.cfgId];
+    const imgReady = img && img.complete && img.naturalWidth > 0;
+
+    ctx.save();
+
+    // 光晕
+    const sparkR = 0.5 + 0.5 * Math.sin(res.sparkTimer);
+    const glowAlpha = 0.08 + sparkR * 0.1;
+    ctx.globalAlpha = glowAlpha;
+    ctx.fillStyle = res.color;
+    ctx.beginPath(); ctx.arc(cx, cy, imgSize * 1.3, 0, Math.PI * 2); ctx.fill();
+
+    if (imgReady) {
+      // 使用真实素材图片
+      ctx.globalAlpha = 0.9;
+      ctx.drawImage(img, cx - half, cy - half, imgSize, imgSize);
+    } else {
+      // 回落：彩色方块 + 文字
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = res.color;
+      ctx.fillRect(cx - half, cy - half, imgSize, imgSize);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1;
+      ctx.globalAlpha = 0.5;
+      ctx.strokeRect(cx - half, cy - half, imgSize, imgSize);
+
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#ffffff';
+      const fontSize = Math.max(4, Math.round(7 * s));
+      ctx.font = `${fontSize}px 'Arial', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      if (res.icon.length <= 2) {
+        ctx.fillText(res.icon, cx, cy);
+      } else {
+        ctx.fillText(res.icon.charAt(0), cx, cy);
+      }
+    }
+
+    ctx.restore();
+  }
+}
+
+// --- 炸弹渲染 ---
+function drawBombs() {
+  if (bombs.length === 0) return;
+
+  for (const bomb of bombs) {
+    if (bomb.roomId !== currentRoomId) continue;
+    const bp = gridToPixel(bomb.col, bomb.row);
+    const pp = project(bp.x, bp.y);
+    const cx = Math.round(pp.x), cy = Math.round(pp.y);
+    const s = pp.s;
+    const size = Math.max(7, Math.round(9 * s));
+    const half = Math.round(size / 2);
+
+    ctx.save();
+
+    // 主体 - 深色圆形
+    ctx.fillStyle = '#332211';
+    ctx.beginPath(); ctx.arc(cx, cy, half, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#665544';
+    ctx.lineWidth = Math.max(1, Math.round(1.5 * s));
+    ctx.stroke();
+
+    // 引信 (小竖线)
+    ctx.strokeStyle = '#cc8844';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx, cy - half);
+    ctx.lineTo(cx, cy - half - Math.round(3 * s));
+    ctx.stroke();
+
+    // 倒计时数字
+    const pulse = 1 + 0.15 * Math.sin(bomb.timer * 2 + performance.now() * 0.005);
+    ctx.fillStyle = bomb.timer <= 1 ? '#ff2222' : '#ffdd44';
+    const fontSize = Math.max(5, Math.round(8 * s * pulse));
+    ctx.font = `bold ${fontSize}px 'Arial', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(bomb.timer, cx, cy + 1);
+
+    ctx.restore();
+  }
+}
+
 // --- 像素风粒子 ---
 function drawParticles() {
   for (const p of particles) {
@@ -2999,6 +3879,10 @@ function drawDoors(){
     const open=room.doors[dir].open;
     const m=Math.max(1,cw*0.08);
 
+    // 检查目标房间是否上锁
+    const targetRoom=currentFloor.rooms.find(r=>r.id===room.doors[dir].targetRoomId);
+    const isLocked=targetRoom&&targetRoom.locked;
+
     // 覆盖原有瓷砖，用地面色打底
     prect(cr.xL,cr.yT,cr.xR-cr.xL,cr.yB-cr.yT,'#2a2520');
 
@@ -3009,8 +3893,15 @@ function drawDoors(){
       if(open){
         prect(dx,dy,dw,dh,'#0a0705');
         prect(dx+dw*0.22,dy+dh*0.22,dw*0.56,dh*0.56,'#18120c');
-        ctx.strokeStyle='#4a3a28';ctx.lineWidth=m;
+        const borderColor=isLocked?'#ffcc44':'#4a3a28';
+        ctx.strokeStyle=borderColor;ctx.lineWidth=isLocked?Math.max(2,m*1.5):m;
         ctx.strokeRect(dx-m*0.5,dy-m*0.5,dw+m,dh+m);
+        // 锁标记
+        if(isLocked){
+          ctx.fillStyle='#ffcc44';ctx.font=`bold ${Math.round(cw*0.4)}px sans-serif`;
+          ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText('🔒',cx,dir==='up'?dy+dh*0.5:dy+dh*0.5);
+        }
       }else{
         prect(dx,dy,dw,dh,'#5a4a3a');
         for(let i=1;i<4;i++)prect(dx+dw*i/4,dy,Math.max(1,m*0.6),dh,'#332211');
@@ -3026,8 +3917,15 @@ function drawDoors(){
       if(open){
         prect(dx,dy,dw,dh,'#0a0705');
         prect(dx+dw*0.22,dy+dh*0.22,dw*0.56,dh*0.56,'#18120c');
-        ctx.strokeStyle='#4a3a28';ctx.lineWidth=m;
+        const borderColor=isLocked?'#ffcc44':'#4a3a28';
+        ctx.strokeStyle=borderColor;ctx.lineWidth=isLocked?Math.max(2,m*1.5):m;
         ctx.strokeRect(dx-m*0.5,dy-m*0.5,dw+m,dh+m);
+        // 锁标记
+        if(isLocked){
+          ctx.fillStyle='#ffcc44';ctx.font=`bold ${Math.round(cw*0.4)}px sans-serif`;
+          ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.fillText('🔒',dir==='left'?dx+dw*0.5:dx+dw*0.5,cy);
+        }
       }else{
         prect(dx,dy,dw,dh,'#5a4a3a');
         for(let i=1;i<3;i++)prect(dx,dy+dh*i/3,dw,Math.max(1,m*0.6),'#332211');
@@ -3048,8 +3946,10 @@ function render() {
   drawTiles();
   drawDoors();
   drawGridHighlight();
-  if(inCombat)drawReachableOverlay(); // 仅战斗模式显示可移动范围
+  if(inCombat || bombMode)drawReachableOverlay(); // 战斗模式/炸弹模式显示可移动范围
   drawItemsOnGround(); // 地上道具
+  drawResourcesOnGround(); // 地上资源
+  drawBombs(); // 炸弹
   drawBullets();
   drawParticles();
   drawMonsters();
@@ -3828,6 +4728,7 @@ function drawMinimap() {
       if (r.type === 'start') fillColor = '#3a4a3a';   // 起点：暗绿
       else if (r.type === 'boss') fillColor = '#4a2020'; // Boss：暗红
       else if (r.type === 'treasure') fillColor = '#3a3a20'; // 宝箱：暗黄
+      else if (r.type === 'shop') fillColor = '#3a3040'; // 商店：暗紫
 
       mctx.fillStyle = fillColor;
       mctx.fillRect(rx, ry, cs, cs);
@@ -3840,6 +4741,7 @@ function drawMinimap() {
       if (r.type === 'start') mctx.fillText('S', rx + cs / 2, ry + cs / 2 + 1);
       else if (r.type === 'boss') mctx.fillText('B', rx + cs / 2, ry + cs / 2 + 1);
       else if (r.type === 'treasure') mctx.fillText('T', rx + cs / 2, ry + cs / 2 + 1);
+      else if (r.type === 'shop') mctx.fillText('$', rx + cs / 2, ry + cs / 2 + 1);
 
       // 玩家当前所在房间加亮框
       if (isCurrent) {
@@ -3859,7 +4761,11 @@ function drawMinimap() {
 function updateActionBar() {
   const bar = document.getElementById('action-bar');
   bar.innerHTML = '';
-  if (!inCombat) {
+  if (bombMode) {
+    // 炸弹模式：显示 M-AP 和倒计时提示
+    const bombInfo = bombs.filter(b => b.roomId === currentRoomId).map(b => `💣${b.timer}`).join(' ');
+    bar.innerHTML = `<span class="action-bar-placeholder" style="color:#ff8844;">[炸弹模式] M-AP:${turnState.mAP}/${turnState.maxMAP} ${bombInfo} | 按Space结束回合</span>`;
+  } else if (!inCombat) {
     // 非战斗模式不显示 AP 信息
     bar.innerHTML = '<span class="action-bar-placeholder"></span>';
   } else if (turnState.phase === 'player_select') {
@@ -3870,44 +4776,86 @@ function updateActionBar() {
   }
 }
 
-// 心形图标辅助
+// 心形图标辅助 — 红心 + 蓝心同一行 (使用真实素材图片)
 function buildHearts(maxHp) {
-  const container = document.getElementById('ui-hearts');
-  container.innerHTML = '';
-  for (let i = 0; i < maxHp; i++) {
-    const h = document.createElement('div');
-    h.className = 'heart';
-    const shine = document.createElement('div');
-    shine.className = 'shine';
-    h.appendChild(shine);
-    container.appendChild(h);
+  const row = document.getElementById('ui-hearts-row');
+  if (!row) return;
+  row.innerHTML = '';
+  for (let i = 0; i < Math.ceil(maxHp); i++) {
+    const img = document.createElement('img');
+    img.className = 'heart-img empty';
+    img.dataset.heartType = 'red';
+    img.src = RES_IMAGES['ui_heart'].src;
+    row.appendChild(img);
   }
   updateHearts();
 }
-function updateHearts() {
-  const hearts = document.querySelectorAll('#ui-hearts .heart');
-  hearts.forEach((h, i) => {
-    const hp = playerStats.hp;
-    const full = hp >= i + 1;
-    const half = !full && hp >= i + 0.5;
-    h.classList.toggle('half', half);
-    h.classList.toggle('empty', !full && !half);
-  });
+
+function buildBlueHearts() {
+  const row = document.getElementById('ui-hearts-row');
+  if (!row) return;
+  row.querySelectorAll('.heart-img[data-heart-type="blue"]').forEach(e => e.remove());
+  const count = Math.ceil(playerResources.blueHearts);
+  for (let i = 0; i < Math.max(0, count); i++) {
+    const img = document.createElement('img');
+    img.className = 'heart-img empty';
+    img.dataset.heartType = 'blue';
+    img.src = RES_IMAGES['ui_blue_heart'].src;
+    row.appendChild(img);
+  }
+  updateHearts();
 }
 
-// AP 圆点辅助
-function buildApDots(elementId, max) {
-  const container = document.getElementById(elementId);
-  container.innerHTML = '';
-  for (let i = 0; i < max; i++) {
-    const d = document.createElement('div');
-    d.className = 'ap-dot';
-    container.appendChild(d);
+function updateHearts() {
+  const hp = playerStats.hp;
+  const bh = playerResources.blueHearts;
+  let redIdx = 0, blueIdx = 0;
+
+  const allHearts = document.querySelectorAll('#ui-hearts-row .heart-img');
+  for (const img of allHearts) {
+    const isBlue = img.dataset.heartType === 'blue';
+
+    if (isBlue) {
+      if (bh >= blueIdx + 1) {
+        img.className = 'heart-img';
+        img.src = RES_IMAGES['ui_blue_heart'].src;
+      } else if (bh >= blueIdx + 0.5) {
+        img.className = 'heart-img';
+        img.src = RES_IMAGES['ui_half_blue_heart'].src;
+      } else {
+        img.className = 'heart-img empty';
+        img.src = RES_IMAGES['ui_blue_heart'].src;
+      }
+      blueIdx++;
+    } else {
+      if (hp >= redIdx + 1) {
+        img.className = 'heart-img';
+        img.src = RES_IMAGES['ui_heart'].src;
+      } else if (hp >= redIdx + 0.5) {
+        img.className = 'heart-img';
+        img.src = RES_IMAGES['ui_half_heart'].src;
+      } else {
+        img.className = 'heart-img empty';
+        img.src = RES_IMAGES['ui_heart'].src;
+      }
+      redIdx++;
+    }
   }
 }
-function updateApDots(elementId, current, max, type) {
-  // type: 'aap' (orange) or 'map' (blue)
-  const dots = document.querySelectorAll(`#${elementId} .ap-dot`);
+
+// AP 圆点辅助 — 左上角紧凑版
+function buildApDots(rowId, max) {
+  const row = document.getElementById(rowId);
+  if (!row) return;
+  row.innerHTML = '';
+  for (let i = 0; i < max; i++) {
+    const d = document.createElement('div');
+    d.className = 'ap-dot-compact empty';
+    row.appendChild(d);
+  }
+}
+function updateApDots(rowId, current, max, type) {
+  const dots = document.querySelectorAll(`#${rowId} .ap-dot-compact`);
   dots.forEach((d, i) => {
     d.classList.remove('full-aap', 'full-map', 'empty');
     if (i < current) {
@@ -3926,26 +4874,33 @@ function updateUI() {
   const phaseEl = document.getElementById('ui-phase');
   phaseEl.className = 'pill-value';
   switch (turnState.phase) {
-    case 'player_select':    phaseEl.textContent = '行为选择'; phaseEl.classList.add('phase-player'); break;
+    case 'player_select':
+      if (bombMode) {
+        phaseEl.textContent = '炸弹模式';
+        phaseEl.classList.add('phase-player'); // 复用玩家阶段样式
+      } else {
+        phaseEl.textContent = '行为选择';
+        phaseEl.classList.add('phase-player');
+      }
+      break;
     case 'monster_turn':     phaseEl.textContent = '怪物行动'; phaseEl.classList.add('phase-monster'); break;
   }
+
+  // 资源UI
+  updateResourceUI();
 
   // HP 心形
   updateHearts();
 
-  // AP 圆点 (非战斗模式隐藏)
-  const aapCard = document.getElementById('ui-aap-card');
-  const mapCard = document.getElementById('ui-map-card');
-  if (aapCard) aapCard.style.display = inCombat ? '' : 'none';
-  if (mapCard) mapCard.style.display = inCombat ? '' : 'none';
-  if (inCombat) {
-    updateApDots('ui-aap-dots', turnState.aAP, turnState.maxAAP, 'aap');
-    updateApDots('ui-map-dots', turnState.mAP, turnState.maxMAP, 'map');
-  }
+  // AP 圆点（始终在左上角显示）
+  updateApDots('ui-aap-row', turnState.aAP, turnState.maxAAP, 'aap');
+  updateApDots('ui-map-row', turnState.mAP, turnState.maxMAP, 'map');
 
-  // 更新属性显示
-  document.getElementById('ui-attack').textContent = playerStats.attack;
-  document.getElementById('ui-range').textContent = playerStats.range;
+  // 更新属性显示 (已移至顶部资源栏)
+  const elAtk = document.getElementById('ui-attack');
+  const elRng = document.getElementById('ui-range');
+  if (elAtk) elAtk.textContent = playerStats.attack;
+  if (elRng) elRng.textContent = playerStats.range;
 }
 
 // ==================== DOM 文字覆盖层（绕过 Canvas pixelated 缩放） ====================
@@ -4155,10 +5110,112 @@ function damageMonster(m, dmg) {
   if (m.hp <= 0) {
     // 死亡爆浆
     spawnBloodParticles(m.px, m.py, 18);
+    // 怪物击杀掉落
+    rollMonsterKillDrop(m);
     if (turnState.phase === 'player_select') pendingReachableRefresh = true;
     const idx = monsters.indexOf(m);
     if (idx !== -1) monsters.splice(idx, 1);
     updateRoomCombatState();
+  }
+}
+
+// ==================== 掉落系统 ====================
+// 击杀怪物掉落 (读 monster-db.json > loot 配置)
+function rollMonsterKillDrop(m) {
+  const mCfg = MONSTER_DB[m.cfgId];
+  if (!mCfg || !mCfg.loot) return;
+  rollLoot(mCfg.loot, m.col, m.row);
+}
+
+// ==================== 统一掉落调度器 ====================
+/**
+ * 执行 loot 配置，支持多轮次、三种模式
+ * @param {object} lootConfig - 怪物 loot 字段 (含 rounds[] 或顶层直接是 entries)
+ * @param {number} col - 掉落基准列
+ * @param {number} row - 掉落基准行
+ */
+function rollLoot(lootConfig, col, row) {
+  // 兼容两种写法：顶层有 entries → 单轮；有 rounds → 多轮
+  const rounds = lootConfig.rounds || (lootConfig.entries ? [lootConfig] : []);
+  for (const round of rounds) {
+    const mode = round.mode || 'pick_one';
+
+    if (mode === 'roll_all') {
+      for (const entry of round.entries) {
+        if (Math.random() < (entry.rate ?? 1)) {
+          executeDropEntry(entry, col, row);
+        }
+      }
+    } else if (mode === 'pick_one') {
+      // 按权重抽一个条目，再校验 rate
+      const totalW = round.entries.reduce((s, e) => s + (e.weight ?? 1), 0);
+      if (totalW <= 0) continue;
+      let roll = Math.random() * totalW;
+      for (const entry of round.entries) {
+        roll -= (entry.weight ?? 1);
+        if (roll <= 0) {
+          if (Math.random() < (entry.rate ?? 1)) {
+            executeDropEntry(entry, col, row);
+          }
+          break;
+        }
+      }
+    } else if (mode === 'pick_first') {
+      for (const entry of round.entries) {
+        if (Math.random() < (entry.rate ?? 1)) {
+          executeDropEntry(entry, col, row);
+          break;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * 执行单个掉落条目
+ */
+function executeDropEntry(entry, col, row) {
+  if (entry.type === 'item') {
+    const qualityTable = entry.qualityTable || 'default';
+    const cfgId = rollItem(null, qualityTable);
+    if (cfgId) spawnItemOnGrid(col, row, cfgId);
+
+  } else if (entry.type === 'resource_pool') {
+    const resIds = rollResourceDrop(entry.pool || 'monster_default');
+    for (const rid of resIds) {
+      const offsetC = Math.floor(Math.random() * 3) - 1;
+      const offsetR = Math.floor(Math.random() * 3) - 1;
+      const sc = col + offsetC, sr = row + offsetR;
+      if (sc >= 0 && sc < COLS && sr >= 0 && sr < ROWS && !isWall(sc, sr)) {
+        spawnResourceOnGrid(sc, sr, rid);
+      }
+    }
+
+  } else if (entry.type === 'resource_fixed') {
+    if (entry.id) spawnResourceOnGrid(col, row, entry.id);
+
+  }
+  // type === 'nothing' → 什么都不生成
+}
+
+// 清空房间掉落
+function rollRoomClearDrop() {
+  const room = currentFloor.rooms.find(r => r.id === currentRoomId);
+  if (!room) return;
+
+  const tableKey = room.type === 'boss' ? 'room_clear_boss' : 'room_clear_default';
+  const resIds = rollResourceDrop(tableKey);
+  if (resIds.length > 0) {
+    spawnResourcesInRoom(resIds);
+  }
+}
+
+// 破坏地形掉落
+function rollTerrainDestroyDrop(col, row, terrainType) {
+  const tableKey = terrainType === 'rock' ? 'terrain_rock' : 'terrain_poop';
+  const resIds = rollResourceDrop(tableKey);
+  for (const rid of resIds) {
+    spawnResourceOnGrid(col, row, rid);
   }
 }
 
@@ -4189,9 +5246,15 @@ function updateBullets(dt) {
         b.x += b.dirX * s; b.y += b.dirY * s;
         b.distTraveled += s;
         if (bulletHitWall(b.x, b.y)) { shatterBullet(b); continue; }
+        // 怪物子弹击中炸弹：推移炸弹
+        const mBg = pixelToGrid(b.x, b.y);
+        const mHitBomb = bombs.find(bomb => bomb.col === mBg.col && bomb.row === mBg.row && bomb.roomId === currentRoomId);
+        if (mHitBomb) {
+          pushBomb(mHitBomb, b.dirX, b.dirY);
+          shatterBullet(b); continue;
+        }
         // 击中玩家
-        const g = pixelToGrid(b.x, b.y);
-        if (g.col === player.col && g.row === player.row) {
+        if (mBg.col === player.col && mBg.row === player.row) {
           damagePlayer(0.5);
           shatterBullet(b); continue;
         }
@@ -4212,6 +5275,13 @@ function updateBullets(dt) {
       b.x += b.dirX * s; b.y += b.dirY * s;
       b.distTraveled += s;
       if (bulletHitWall(b.x, b.y)) { shatterBullet(b); continue; }
+      // 子弹击中炸弹：推移炸弹
+      const bg = pixelToGrid(b.x, b.y);
+      const hitBomb = bombs.find(bomb => bomb.col === bg.col && bomb.row === bg.row && bomb.roomId === currentRoomId);
+      if (hitBomb) {
+        pushBomb(hitBomb, b.dirX, b.dirY);
+        shatterBullet(b); continue;
+      }
       // 子弹碰撞怪物
       const hitMon = bulletHitMonster(b.x, b.y, b);
       if (hitMon) {
@@ -4326,6 +5396,8 @@ function finishPlayerTurn() {
   bullets = [];
   particles = [];
   damageNumbers = [];
+  // 炸弹倒计时 (玩家回合结束时计数-1)
+  tickBombCountdown();
   turnState.phase = 'monster_turn';
   document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">-</span>';
   // 未消耗的M-AP计入无敌步数消耗
@@ -4338,7 +5410,7 @@ function finishPlayerTurn() {
 
 // ==================== 输入处理 ====================
 document.addEventListener('keydown', (e) => {
-  const actionKeys = ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','Escape','KeyC','KeyB','KeyR','KeyF'];
+  const actionKeys = ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','Escape','KeyC','KeyB','KeyR','KeyF','KeyE'];
   if (actionKeys.includes(e.code)) e.preventDefault();
 
   // ---- 场景过渡中禁止操作 ----
@@ -4362,7 +5434,11 @@ document.addEventListener('keydown', (e) => {
         const nr = player.row + vec.dy;
         if(isWall(nc,nr))return;
 
-        if(inCombat){
+        // 碰撞炸弹：推移炸弹
+        const pushB = bombs.find(b => b.col === nc && b.row === nr && b.roomId === currentRoomId);
+        if (pushB) pushBomb(pushB, vec.dx, vec.dy);
+
+        if(inCombat || bombMode){
           const key=`${nc},${nr}`;
           if(!turnState.reachableTiles.has(key))return;
           const newMAP=calculateMAPAt(nc,nr);
@@ -4373,15 +5449,28 @@ document.addEventListener('keydown', (e) => {
         player.facing=dir;player.col=nc;player.row=nr;
         const t=gridToPixel(nc,nr);player.targetPx=t.x;player.targetPy=t.y;player.animTime=0;
 
-        // 移动后更新轨迹+接触伤害
-        recalcContactDamage(nc, nr);
-        if(player.invincibleSteps>0)player.invincibleSteps--;
-        if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.SPIKE){damagePlayer(1);}
+        if(inCombat){
+          // 战斗模式：跟踪移动路径用于回溯接触伤害
+          recalcContactDamage(nc, nr);
+          if(player.invincibleSteps>0)player.invincibleSteps--;
+        } else {
+          // 探索模式：刺尖伤害不可回溯，直接结算
+          if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.SPIKE){damagePlayer(1);}
+        }
         if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.LADDER){
           const nextF=currentFloor.floorNum+1;
           if(allFloors[nextF]){enterFloor(nextF);return;}
         }
+        // 自动拾取脚下资源
+        autoPickupResources();
         updateActionBar();updateUI();
+        return;
+      }
+
+      case 'KeyE': {
+        // 放置炸弹
+        if(playerResources.bombs <= 0) return;
+        placeBomb(player.col, player.row);
         return;
       }
 
@@ -4407,10 +5496,30 @@ document.addEventListener('keydown', (e) => {
       }
 
       case 'Space': {
-        if(!inCombat)return;
+        if(!inCombat && !bombMode) return;
+
+        // === 炸弹模式 (探索状态下，无怪物) ===
+        if(bombMode && !inCombat) {
+          tickBombCountdown();
+          if(bombMode) {
+            // 还有未引爆的炸弹 → 重置 M-AP 进入下一回合
+            turnState.maxMAP = Math.floor(playerStats.moveSpeed);
+            turnState.mAP = turnState.maxMAP;
+            turnState.aAP = 0;
+            turnState.maxAAP = 0;
+            turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
+          }
+          updateActionBar();
+          updateUI();
+          return;
+        }
+
+        // === 战斗模式 (含炸弹) ===
         bullets = [];
         particles = [];
         damageNumbers = [];
+        // 炸弹倒计时 (玩家回合结束时计数-1)
+        tickBombCountdown();
         turnState.phase = 'monster_turn';
         document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">-</span>';
         if (player.invincibleSteps > 0 && turnState.mAP > 0) {
@@ -4640,6 +5749,14 @@ function gameLoop(timestamp) {
     if (it.liftY < -1) it.liftDir = 1;
   }
 
+  // 地上资源动画
+  for (const res of resourcesOnGround) {
+    res.sparkTimer += dt * 3;
+    res.liftY += res.liftDir * dt * 2;
+    if (res.liftY > 2) res.liftDir = -1;
+    if (res.liftY < -1) res.liftDir = 1;
+  }
+
   // 拾取提示计时器
   if (pickupHintTimer > 0) pickupHintTimer -= dt;
 
@@ -4655,8 +5772,8 @@ async function bootGame(){
   await loadTemplates();
   await loadMonsterDB();    // 加载怪物数据库
   await loadSpawnConfig();  // 加载刷怪配置
-  await loadItemDB();       // 加载道具数据库
-  await loadDropTables();   // 加载道具掉落表
+  await loadItemDB();       // 加载道具数据库（含道具定义+品质掉落表）
+  await loadResourceDB();   // 加载资源数据库
   await loadOrGenerateFloors(false);
   currentRoomGrid=parseGrid(BUILTIN_TEMPLATES()['open'].tiles);
   
@@ -4665,8 +5782,9 @@ async function bootGame(){
   player.py = startPos.y;
   enterFloor(1);
   buildHearts(playerStats.maxHp);
-  buildApDots('ui-aap-dots', turnState.maxAAP);
-  buildApDots('ui-map-dots', turnState.maxMAP);
+  buildBlueHearts();
+  buildApDots('ui-aap-row', turnState.maxAAP);
+  buildApDots('ui-map-row', turnState.maxMAP);
   updateItemBar();
   updateUI();
   lastTime = performance.now();
@@ -4732,6 +5850,7 @@ function spawnMonsterAtRandomPos(cfgId) {
     jumperCheckRepeated: (cfg.aiType === 'boss_jumper') ? false : undefined,
     jumperVanished: false,
     jumperJustLanded: false,
+    disappearStepsRemaining: 0,
     // charge 蓄力怪状态机
     chargePhase: (cfg.aiType === 'charge') ? 'dash' : undefined,
     chargeDir: (cfg.aiType === 'charge') ? null : undefined,
@@ -4772,8 +5891,12 @@ function spawnRoomMonsters() {
     return;
   }
 
-  // 起点/宝藏房间：不生成怪物
-  if (roomType === 'start' || roomType === 'treasure') {
+  // 起点/宝藏/商店房间：不生成怪物
+  if (roomType === 'start' || roomType === 'treasure' || roomType === 'shop') {
+    // 商店房首次进入生成商店资源
+    if (roomType === 'shop' && !room.itemSpawned) {
+      spawnShopItems(room);
+    }
     updateRoomCombatState();
     return;
   }
@@ -4891,11 +6014,12 @@ document.getElementById('help-modal').addEventListener('click', (e) => {
 
 
 
-console.log('⚔ 以撒半回合制 Demo v3 — 道具系统 已就绪');
+console.log('⚔ 以撒半回合制 Demo v3 — 道具+资源系统 已就绪');
 console.log('  WASD = 移动  |  ↑↓←→ = 射击  |  Space = 结束回合  |  Esc = 全重置');
+console.log('  E = 放置炸弹  |  F = 拾取道具  |  B = Boss房放梯子');
 console.log(`  房间: ${COLS}×${ROWS} 格子  |  射程: ${CFG.BULLET_MAX_DIST} 格`);
-console.log(`  F = 拾取道具 | 宝箱房/Boss房掉落道具`);
 console.log(`  道具库: ${ITEM_POOL_ALL.length} 个被动道具 (${ITEM_POOL_COMMON.length}C/${ITEM_POOL_RARE.length}R/${ITEM_POOL_LEGENDARY.length}L)`);
+console.log(`  资源库: ${Object.keys(RESOURCE_DB).length} 种资源 (金币/炸弹/红心/蓝心/宝箱/钥匙)`);
 console.log(`  A-AP=${playerStats.fireRate}  M-AP=${playerStats.moveSpeed}  HP=${playerStats.hp}/${playerStats.maxHp}`);
 </script>
 </body>

@@ -1,12 +1,29 @@
 {
+  "_schema": {
+    "_description": "房间模板池 — 定义各种房间模板的布局、适用类型、刷怪参数",
+    "_fields": {
+      "tplKey": { "_desc": "模板key，被 floor-data.json 中 room.tplKey 引用" },
+      "tplKey.types": {
+        "_values": ["start", "normal", "treasure", "shop", "boss"],
+        "_desc": "该模板可被哪些房间类型使用"
+      },
+      "tplKey.tiles": {
+        "_desc": "瓦片网格，每行最多13字符。字符含义: .=地板, #=岩石, P=便便, ^=尖刺, O=宝箱, 数字=自定义",
+        "_legend": { ".": "地板(可行走)", "#": "岩石(可破坏)", "P": "便便(可破坏)", "^": "尖刺(伤害)", "O": "宝箱(可开启)", "1-4": "自定义" }
+      },
+      "tplKey.spawnConfig.allowedMovement": {
+        "_values": ["地面", "飞行"],
+        "_desc": "允许在此模板生成的怪物移动类型，需匹配 monster-db.json 中 monster.movementTags"
+      },
+      "tplKey.spawnConfig.minMonsters": { "_desc": "最少刷怪数量" },
+      "tplKey.spawnConfig.maxMonsters": { "_desc": "最多刷怪数量" },
+      "tplKey.spawnConfig.budget": { "_desc": "怪物预算上限 (每只怪消耗 = threat值)" }
+    }
+  },
+
   "open": {
     "name": "空旷大厅",
-    "types": [
-      "start",
-      "normal",
-      "treasure",
-      "shop"
-    ],
+    "types": ["start", "normal", "treasure", "shop"],
     "tiles": [
       ".............",
       ".............",
@@ -17,10 +34,7 @@
       "............."
     ],
     "spawnConfig": {
-      "allowedMovement": [
-        "地面",
-        "飞行"
-      ],
+      "allowedMovement": ["地面", "飞行"],
       "minMonsters": 1,
       "maxMonsters": 3,
       "budget": 8
@@ -28,10 +42,7 @@
   },
   "cross_rocks": {
     "name": "十字岩石",
-    "types": [
-      "normal",
-      "treasure"
-    ],
+    "types": ["normal", "treasure"],
     "tiles": [
       ".............",
       "......#......",
@@ -42,10 +53,7 @@
       "............."
     ],
     "spawnConfig": {
-      "allowedMovement": [
-        "地面",
-        "飞行"
-      ],
+      "allowedMovement": ["地面", "飞行"],
       "minMonsters": 1,
       "maxMonsters": 3,
       "budget": 7
@@ -53,10 +61,7 @@
   },
   "four_corners": {
     "name": "四角岩石",
-    "types": [
-      "normal",
-      "treasure"
-    ],
+    "types": ["normal", "treasure"],
     "tiles": [
       "P##.......##P",
       ".##.......##.",
@@ -67,10 +72,7 @@
       "P##.......##P"
     ],
     "spawnConfig": {
-      "allowedMovement": [
-        "地面",
-        "飞行"
-      ],
+      "allowedMovement": ["地面", "飞行"],
       "minMonsters": 2,
       "maxMonsters": 4,
       "budget": 9
@@ -78,10 +80,7 @@
   },
   "pillars": {
     "name": "四柱大厅",
-    "types": [
-      "normal",
-      "treasure"
-    ],
+    "types": ["normal", "treasure"],
     "tiles": [
       ".............",
       "...#P...P#...",
@@ -92,10 +91,7 @@
       "............."
     ],
     "spawnConfig": {
-      "allowedMovement": [
-        "地面",
-        "飞行"
-      ],
+      "allowedMovement": ["地面", "飞行"],
       "minMonsters": 1,
       "maxMonsters": 3,
       "budget": 8
@@ -103,9 +99,7 @@
   },
   "corridor": {
     "name": "横向窄道",
-    "types": [
-      "normal"
-    ],
+    "types": ["normal"],
     "tiles": [
       "..###...###..",
       "..###...###..",
@@ -116,10 +110,7 @@
       "..###...###.."
     ],
     "spawnConfig": {
-      "allowedMovement": [
-        "地面",
-        "飞行"
-      ],
+      "allowedMovement": ["地面", "飞行"],
       "minMonsters": 1,
       "maxMonsters": 2,
       "budget": 5
@@ -127,9 +118,7 @@
   },
   "corridor_v": {
     "name": "纵向窄道",
-    "types": [
-      "normal"
-    ],
+    "types": ["normal"],
     "tiles": [
       "O..##...##..O",
       "...##...##...",
@@ -140,10 +129,7 @@
       "O..##...##..O"
     ],
     "spawnConfig": {
-      "allowedMovement": [
-        "地面",
-        "飞行"
-      ],
+      "allowedMovement": ["地面", "飞行"],
       "minMonsters": 1,
       "maxMonsters": 2,
       "budget": 5
@@ -151,9 +137,7 @@
   },
   "scattered": {
     "name": "散落岩石",
-    "types": [
-      "normal"
-    ],
+    "types": ["normal"],
     "tiles": [
       "...........#.",
       ".....#.......",
@@ -164,10 +148,7 @@
       "...#........."
     ],
     "spawnConfig": {
-      "allowedMovement": [
-        "地面",
-        "飞行"
-      ],
+      "allowedMovement": ["地面", "飞行"],
       "minMonsters": 1,
       "maxMonsters": 3,
       "budget": 6
@@ -175,10 +156,7 @@
   },
   "ring": {
     "name": "环形壁垒",
-    "types": [
-      "normal",
-      "treasure"
-    ],
+    "types": ["normal", "treasure"],
     "tiles": [
       "...##...##...",
       "..#.......#..",
@@ -189,10 +167,7 @@
       "...##...##..."
     ],
     "spawnConfig": {
-      "allowedMovement": [
-        "地面",
-        "飞行"
-      ],
+      "allowedMovement": ["地面", "飞行"],
       "minMonsters": 1,
       "maxMonsters": 3,
       "budget": 8
@@ -200,9 +175,7 @@
   },
   "room_split": {
     "name": "裂半之室",
-    "types": [
-      "normal"
-    ],
+    "types": ["normal"],
     "tiles": [
       ".............",
       ".....#^#.....",
@@ -213,10 +186,7 @@
       "............."
     ],
     "spawnConfig": {
-      "allowedMovement": [
-        "地面",
-        "飞行"
-      ],
+      "allowedMovement": ["地面", "飞行"],
       "minMonsters": 2,
       "maxMonsters": 4,
       "budget": 9
@@ -224,10 +194,7 @@
   },
   "alcoves": {
     "name": "壁龛石室",
-    "types": [
-      "normal",
-      "treasure"
-    ],
+    "types": ["normal", "treasure"],
     "tiles": [
       "..##P...P##..",
       ".............",
@@ -238,10 +205,7 @@
       "..##P...P##.."
     ],
     "spawnConfig": {
-      "allowedMovement": [
-        "地面",
-        "飞行"
-      ],
+      "allowedMovement": ["地面", "飞行"],
       "minMonsters": 1,
       "maxMonsters": 3,
       "budget": 8
@@ -249,9 +213,7 @@
   },
   "diagonal": {
     "name": "斜岩通道",
-    "types": [
-      "normal"
-    ],
+    "types": ["normal"],
     "tiles": [
       "##...........",
       ".##..........",
@@ -262,10 +224,7 @@
       "............."
     ],
     "spawnConfig": {
-      "allowedMovement": [
-        "地面",
-        "飞行"
-      ],
+      "allowedMovement": ["地面", "飞行"],
       "minMonsters": 1,
       "maxMonsters": 3,
       "budget": 7
@@ -273,9 +232,7 @@
   },
   "boss_arena": {
     "name": "Boss竞技场",
-    "types": [
-      "boss"
-    ],
+    "types": ["boss"],
     "tiles": [
       ".............",
       "...#.....#...",
@@ -286,10 +243,7 @@
       "............."
     ],
     "spawnConfig": {
-      "allowedMovement": [
-        "地面",
-        "飞行"
-      ],
+      "allowedMovement": ["地面", "飞行"],
       "minMonsters": 1,
       "maxMonsters": 1,
       "budget": 0
@@ -297,9 +251,7 @@
   },
   "custom_1": {
     "name": "自生成 1 (角岩)",
-    "types": [
-      "normal"
-    ],
+    "types": ["normal"],
     "tiles": [
       ".#.........#.",
       ".............",
@@ -310,10 +262,7 @@
       ".#.........#."
     ],
     "spawnConfig": {
-      "allowedMovement": [
-        "地面",
-        "飞行"
-      ],
+      "allowedMovement": ["地面", "飞行"],
       "minMonsters": 1,
       "maxMonsters": 3,
       "budget": 7
@@ -321,9 +270,7 @@
   },
   "custom_2": {
     "name": "自生成 2 (中柱)",
-    "types": [
-      "normal"
-    ],
+    "types": ["normal"],
     "tiles": [
       ".............",
       ".............",
@@ -336,9 +283,7 @@
   },
   "custom_3": {
     "name": "自生成 3 (角岩+中柱)",
-    "types": [
-      "normal"
-    ],
+    "types": ["normal"],
     "tiles": [
       ".##.......##.",
       ".##..P....##.",

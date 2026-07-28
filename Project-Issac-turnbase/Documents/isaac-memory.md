@@ -10,7 +10,7 @@
 >
 > **组织方式**：纯时间顺序，不做模块分类。给 AI 快速浏览聊天记忆用。
 >
-> 最后更新: 2026-07-27
+> 最后更新: 2026-07-28
 
 ---
 
@@ -410,10 +410,25 @@
 ### context.md 文件清单修复
 - monster-db.json 描述仍为旧 `movement` + `aiParams`，未随 7/27 重构更新。现修正为 `actionMode` + `actions[]`
 
+### 掉落系统全面重构 — 资源系统建立 [当前方案]
+- **[触发]** 用户给出8条掉落需求：宝箱房必出道具、Boss击杀必出道具、普通怪几乎不出道具(整局1~2次)、击杀小概率掉资源、破坏便便小概率掉资源、打开宝箱必掉1~4个道具、清理房间中概率掉资源、破坏岩石极小概率掉资源
+- **[前期探索]** AI 解释了 loot entry 中 `weight`(竞争性权重，决定"选谁")和 `rate`(独立概率门，决定"选中后是否真的生效")的区别，两者是乘法关系
+- **[设计决策]**
+  1. **怪物道具掉率**：所有非Boss怪物统一改为 item weight 0.03 + rate 1.0 + `monster_very_rare` 品质表(none:0.70)。有效概率 = 0.03 × 0.30 ≈ 0.9%/只。6层约150只怪 → 期望1.35件/局。旧品质表(common/ranged/heavy)不再被引用但保留
+  2. **Boss掉落**：改为一轮 pick_one 纯道具(rate:1.0, qualityTable:"boss")，移除第二轮资源(roll_all resource_pool)
+  3. **宝箱**：chest_normal / chest_golden 从 pick_one(资源or道具)改为 roll_all 纯道具4条(保底1个 + 3×55-60%)，平均约2.65-2.80个/箱
+  4. **资源掉落表**：rollResourceDrop 使用独立概率遍历所有条目(roll_all模式)，所以"一种1个资源"通过极低概率值实现(P(0)≈80-96%, P(1)≈3-18%, P(2+)<3%)
+  5. **房间清空**：room_clear_default 综合掉率 74%→43%（"中概率"）
+  6. **地形**：terrain_rock 综合掉率 20%→3.5%（"极小概率"），terrain_poop 19%→15%（"小概率"）
+- **[影响文件]** `monster-db.json`(全部12只怪物loot重配) + `resource-db.json`(新建，8张掉落表+宝箱loot重配) + `item-db.json`(新增 monster_very_rare 品质表) + `isaac-turnbased-demo2.html`(新增统一掉落调度器 rollLoot+executeDropEntry+资源系统代码)
+- **[清理]** `item-drop-tables.json` 删除（品质表合并至 item-db.json > qualityTables）
+- **[待微调]** 用户明确表示后续会手动微调数值，本次为粗略调整建立框架
+
 ## 最近更新记录
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-28(晚) | **掉落系统全面重构+资源系统建立**。①用户8条掉落需求驱动全面重配。②确立weight vs rate 语义区分。③新建 resource-db.json（资源定义+8张掉落表+宝箱loot）。④全部12只怪物loot重配：小怪极少道具(~0.9%/只)+小概率资源(~25%)；Boss纯道具无资源。⑤宝箱改为必掉1~4个道具(roll_all模式)。⑥品质表合并至item-db.json，删除 item-drop-tables.json。⑦资源掉落表全面降低概率匹配各场景。⑧用户后续手动微调数值。 |
 | 2026-07-28 | **代码-文档不一致处理约定确立**。①当 AI 发现代码与文档矛盾时，必须主动提醒用户列出差异清单，待用户决策后才行动（三个选项：代码为准/文档为准/都保留）。②明确与"同步文档"指令为独立触发路径（同步时默认以代码为准）。③确认 Ask/Craft 模式边界：都不擅自修改文件。④创建 Memory ID 32213721。⑤context.md 文件清单修正 monster-db.json 过时描述。 |
 | 2026-07-27 | **怪物行动系统重构：actionMode + actions[]**。①移除旧 `movement`/`aiParams` 分散字段，统一为 `actionMode`（sequence/random weighted）+ `actions[]`（独立配置 type + steps/range/condition 等全部参数）。②新增 `resolveMonsterAction()`：condition 过滤 → actionMode 选择 → stepMode/stepWeights 解析。③5种12只怪物全部迁移到新 actions 体系。④Boss Jumper 参数从 aiParams 移至 `actions[].jump_big_land`。⑤确认 stepWeights 未配时默认均匀随机行为。 |
 | 2026-07-24(晚) | **怪物移动配置统一重构 + 浮游眼 AI 优化**。①统一 `movement` 结构（mode/steps/stepMode/weight）替代 4 套分散步数字段，12 只怪物全部迁移。②浮游眼新增切比雪夫距离射程判断（射程外不射击只移动）。③巡逻范围从硬编码改为 `aiParams.patrolRange`。④monster-db.json 完全重写 + demo2.html 6 处改造 + 旧字段 0 残留。⑤context.md 全覆盖交叉比对：怪物表重写、AI表更新、文件清单新增 spawn-config.json。 |

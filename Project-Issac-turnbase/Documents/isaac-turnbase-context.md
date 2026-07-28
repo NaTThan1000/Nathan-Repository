@@ -1,6 +1,6 @@
 # 以撒·半回合制战斗 — 项目总览
 
-> 文件: `Project-Issac-turnbase/isaac-turnbased-demo2.html`（v3道具系统版，主开发文件） | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/monster-db.json` 怪物配置表 + `Configs/item-db.json` 道具数据库 + `Configs/item-drop-tables.json` 掉落表 + `Configs/spawn-config.json` 楼层刷怪配置 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层 + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表 + 掉落表机制 + Boss Jumper 2×2跳跃Boss + 怪物行动系统重构(actionMode+actions[])
+> 文件: `Project-Issac-turnbase/isaac-turnbased-demo2.html`（v3道具系统版，主开发文件） | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/monster-db.json` 怪物配置表(含loot) + `Configs/item-db.json` 道具数据库(含品质表) + `Configs/resource-db.json` 资源数据库(定义+掉落表+宝箱loot) + `Configs/spawn-config.json` 楼层刷怪配置 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 统一掉落调度器(rollLoot) + 资源掉落系统 + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层 + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表 + Boss Jumper 2×2跳跃Boss + 怪物行动系统重构(actionMode+actions[])
 
 ---
 
@@ -289,14 +289,22 @@ player_select ──→ monster_turn ──→ player_select
 | `damage_mult` | 伤害倍率（mult 参数） | 蟋蟀的头(×1.5) |
 | `heal_full` | 拾取时回复全部 HP | 早餐/午餐/晚餐/甜点/肉！/魔法蘑菇/圣心 |
 
-**掉落系统** `item-drop-tables.json`：
-- 三张掉落表按房间类型分配品质权重：
+**掉落系统** `item-db.json > qualityTables`（8张品质表，合并原 `item-drop-tables.json`）：
+- 品质权重表控制每个掉落场景的 none/common/rare/legendary 分布：
 
-| 掉落表 | common | rare | legendary | 适用场景 |
-|--------|--------|------|-----------|---------|
-| `default` | 60% | 30% | 10% | 普通房间清怪 |
-| `treasure_room` | 0% | 75% | 25% | 宝箱房 |
-| `boss_room` | 25% | 45% | 30% | Boss房清怪 |
+| 品质表 | none | common | rare | legendary | 适用场景 |
+|--------|------|--------|------|-----------|---------|
+| `default` | 0% | 60% | 30% | 10% | 通用兜底 |
+| `common` | 0% | 70% | 25% | 5% | 裂口尸掉落(已废弃) |
+| `ranged` | 0% | 55% | 35% | 10% | 浮游眼掉落(已废弃) |
+| `heavy` | 0% | 40% | 42% | 18% | 蓄力魔像掉落(已废弃) |
+| `boss` | 0% | 20% | 45% | 35% | Boss击杀掉落 |
+| `treasure_room` | 0% | 0% | 75% | 25% | 宝箱房 / 宝箱开启 |
+| `boss_room` | 0% | 25% | 45% | 30% | Boss房清空奖励 |
+| `monster_very_rare` | **70%** | 20% | 8% | 2% | 普通怪物极低概率道具 |
+
+- `none` 值控制"不掉任何道具"的概率，`monster_very_rare.none=0.70` 表示普通怪道具掉落率仅 30%（结合 loot entry 的 weight×rate 后约 0.9%/只）
+- 怪物旧品质表（common/ranged/heavy）已不再被引用，仅供备份
 
 **拾取与叠加**：
 - F 键拾取道具，加入 `playerInventory` 数组
@@ -379,7 +387,7 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
    - Space → 先处理大跳Boss落地 → 直接结束回合（无弹窗）→ monster_turn
 5. `monster_turn` → 跳跃Boss一次性行动（不逐步移动）+ 普通怪逐步移动 + 碰撞(按类型伤害) + 尖刺5伤害 → `updateRoomCombatState()`
    - Boss Jumper状态机：大跳时Boss消失，玩家回合结束后落下（延迟执行）
-   - 清怪 → 门打开 → Boss房掉落道具 → 回到探索模式
+   - 清怪 → 门打开 → Boss房掉落道具(spawnBossRoomItem) → 回到探索模式
    - 有怪 → 继续战斗，回合数+1
 6. 6层通关后游戏结束（当前无通关处理）
 
@@ -414,8 +422,9 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
     ├── 怪物系统 (MONSTER_DB 配置表 + actionMode/actions[] 行动列表 + resolveMonsterAction 行为选择 + AI行为路由 + calcAllMonsterPaths/startMonsterTurn/updateMonsterTurn/spawnMonster + 2×2怪物辅助函数)
     ├── Boss Jumper系统 (processJumperAction/calcJumperSmallJump/calcJumperBigJump/executeBossLanding — 状态机驱动2×2跳跃Boss)
     ├── 道具系统 (ITEMS_DB 道具数据库 + SPECIAL_EFFECT_HANDLERS 特效注册表 + playerInventory 背包 + recalcAllStats 属性重算)
-    ├── 掉落系统 (item-drop-tables.json 掉落表 + rollItem 按品质权重随机)
-    ├── 数据加载层 (loadMonsterDB/loadItemDB/loadDropTables — 异步fetch JSON配置文件)
+    ├── 资源系统 (RESOURCE_DB 资源定义 + RES_DROP_TABLES 掉落表 + playerResources 背包 + rollResourceDrop/rollRoomClearDrop/rollTerrainDestroyDrop)
+    ├── 掉落系统 (rollLoot 统一调度器 + executeDropEntry 分发 + rollMonsterKillDrop + chest loot in resource-db.json)
+    ├── 数据加载层 (loadMonsterDB/loadItemDB/loadResourceDB/loadSpawnConfig — 异步fetch JSON配置文件)
     ├── UI 更新 (updateUI, updateActionBar, updateFloorUI)
     ├── 输入处理 (keydown — WASD移动/箭头射击/Esc重置/Space结束/R重置/F拾取)
     └── 游戏循环 (gameLoop → requestAnimationFrame)
@@ -479,6 +488,12 @@ function project(wx, wy) {
 | `loadItemDB()` | 异步 fetch `item-db.json` → `ITEMS_DB` 道具数据库 |
 | `loadDropTables()` | 异步 fetch `item-drop-tables.json` → `DROP_TABLES` 掉落表 |
 | `rollItem(quality?, tableKey?)` | 按品质/掉落表权重随机抽取道具配置ID |
+| `rollLoot(lootConfig, col, row)` | 统一掉落调度器：解析怪物/宝箱的 loot 配置，支持 rounds/entries/mode(pick_one/roll_all/pick_first) |
+| `executeDropEntry(entry, col, row)` | 执行单个掉落条目：item→rollItem 生成道具 / resource_pool→rollResourceDrop 生成资源 / resource_fixed→固定资源 |
+| `rollResourceDrop(tableKey)` | 从 `resource-db.json > dropTables` 按独立概率随机生成资源 ID 列表 |
+| `rollMonsterKillDrop(m)` | 击杀怪物时读取 `monster-db.json > loot` 配置调用 rollLoot |
+| `rollRoomClearDrop()` | 清空房间时按房间类型(普通/ Boss)走 `room_clear_default` / `room_clear_boss` 资源表 |
+| `rollTerrainDestroyDrop(col, row, type)` | 破坏岩石/便便时走 `terrain_rock` / `terrain_poop` 资源表 |
 | `spawnItemOnGrid(col, row, cfgId)` | 在指定网格位置生成道具实体 |
 | `recalcAllStats()` | 遍历背包重算所有属性（effects 数值累加 + specials[] 注册表分发） |
 | `getTpl(key)` | 按 key 获取模板，优先 poolTemplates，回退内置 |
@@ -578,11 +593,13 @@ function project(wx, wy) {
 |------|------|------|
 | `pool.json` | JSON | 关卡池数据文件（模板定义 + spawnConfig 刷怪配置，编辑器读写） |
 | `floor-data.json` | JSON | 楼层生成数据（房间结构+grid，编辑器/游戏加载） |
-| `monster-db.json` | JSON | 怪物配置数据（12只怪物：4类型×3等级，含统一 `actionMode` + `actions[]` 行动列表配置） |
-| `item-db.json` | JSON | 道具数据库（25种被动道具：effects 数值属性 + specials[] 结构化特效） |
-| `item-drop-tables.json` | JSON | 道具掉落表（三张表：default/treasure_room/boss_room 按品质权重） |
+| `monster-db.json` | JSON | 怪物配置数据（12只怪物：4类型×3等级，含 `actionMode`+`actions[]` 行动列表 + `loot` 掉落配置） |
+| `item-db.json` | JSON | 道具数据库（25种被动道具 + `qualityTables` 8张品质掉落表，合并原 item-drop-tables.json） |
+| `resource-db.json` | JSON | 资源数据库（金币/炸弹/红心/蓝心/宝箱/钥匙定义 + `dropTables` 8张资源掉落表 + `_limits` 上限配置） |
 | `spawn-config.json` | JSON | 楼层刷怪配置（每层预算加成 + Boss 分配表） |
 | `isaac-room-pool - original backup.json` | JSON | 原始关卡池备份 |
+
+> **已删除文件**：`item-drop-tables.json` — 品质表已合并至 `item-db.json > qualityTables`
 
 ### Documents/ (文档)
 
@@ -600,6 +617,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-28(晚) | **掉落系统全面重构 + 资源系统建立**。①新建 `resource-db.json`：6种资源定义(金币/黑币/银币/炸弹/红心/蓝心/宝箱/钥匙) + 8张资源掉落表(monster_default/monster_heavy/boss_drop/room_clear_default/room_clear_boss/terrain_rock/terrain_poop/chest_normal/chest_golden/shop_stock) + 宝箱loot配置。②怪物loot全面重配：所有非Boss怪改为极少道具(weight 0.03 + monster_very_rare 品质表 none:0.70 → 有效约0.9%/只) + 小概率资源(约22-30%)；Boss纯道具无资源(boss品质表)。③宝箱改为必掉1~4个道具(roll_all模式，保底1个+3次55-60%判定)。④房间清空→中概率资源(约43%)，岩石→极小概率(约3.5%)，便便→小概率(约15%)。⑤删除 `item-drop-tables.json`，品质表合并至 `item-db.json > qualityTables`，新增 `monster_very_rare`。⑥新增统一掉落调度器 rollLoot/executeDropEntry 及资源掉落 rollResourceDrop。 |
 | 2026-07-28 | **文档体系补充：代码-文档不一致处理约定**。①确立约定：AI 发现实际代码和项目文档不一致时，必须主动提醒用户，列出具体差异清单让用户决策（①以代码为准更新文档 / ②以文档为准修正代码 / ③两者都保留（设计变更过渡期）），不得在用户未表态的情况下擅自修改代码或修改文档。②确认 Ask/Craft 模式分工边界：Ask 模式只分析/提醒差异，不动文件；文档更新需用户明确指令。③文件清单修正：monster-db.json 描述从旧 `movement`+`aiParams` 更新为 `actionMode`+`actions[]`。 |
 | 2026-07-27 | **怪物行动系统重构：actionMode + actions[]**。①移除旧 `movement`/`aiParams`/`aiRange` 分散字段，统一为 `actionMode`（行为选择模式：sequence按序/random加权随机）+ `actions[]`（行为列表，每个 action 独立携带 type + steps/stepMode/range/condition 等全部参数）。②新增 `resolveMonsterAction()` 函数：按 condition 过滤 eligible → actionMode 挑选 → stepMode/stepWeights 解析步数。stepWeights 未配时默认均匀随机。③5种怪物12条全部迁移。裂口尸→chase、浮游眼→random_wander+shoot_fan（actionMode.random + condition.in_range）、蓄力魔像→charge_line、Boss Jumper→jump_small+jump_big_land。④Boss Jumper 参数从 `aiParams` 移至 `actions[].jump_big_land`（landDamage/repeatChance/disappearSteps）。⑤context.md 全覆盖交叉比对：怪物表重写、AI类型表→Action类型表、配置字段说明重写、Boss Jumper 参数来源更新、架构概览/函数索引/数据流更新。 |
 | 2026-07-24 | **怪物移动配置统一重构 + 浮游眼AI行为优化**。①新增统一 `movement` 结构（`mode`/`steps`/`stepMode`/`weight`），替代旧 `moveCycle`/`moveDistMin-Max`/`chargeDistMin-Max` 等分散字段。12只怪物全部迁移，同一概念（步数）不再各自为政。②浮游眼 AI 新增切比雪夫距离射程判断：射程内按权重射击/移动，射程外强制只移动，不走无意义的远程对射。③巡逻怪硬编码 5 格 → `aiParams.patrolRange` 可配置。④context.md 全文交叉比对：怪物表重写（boss_maw_king 移除、I/II/III 三级标注、移动列重写）、AI类型表更新、文件清单新增 spawn-config.json + demo.html 标记废弃、函数索引/独立属性描述更新。 |
@@ -623,4 +641,4 @@ function project(wx, wy) {
 
 ---
 
-> **下一步方向**：更多Boss类型、掉落系统扩展（消耗品/饰品）、商店房间交易功能、Sound/FX 音效系统、patrol/stationary 迁移到 actions[] 体系。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。
+> **下一步方向**：掉落参数微调（概率和数值）、更多Boss类型、商店房间交易功能、Sound/FX 音效系统、patrol/stationary 迁移到 actions[] 体系。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。

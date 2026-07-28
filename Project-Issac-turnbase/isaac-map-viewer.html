@@ -138,6 +138,13 @@
     font-family: var(--font-cn); font-size: 12px; padding: 4px 10px; cursor: pointer;
   }
   .floor-btn.active { border-color: #c9a96e; color: #c9a96e; background: #1a1810; }
+  #floor-hint { color: #888866; font-size: 11px; margin-bottom: 4px; text-align: center; }
+
+  /* 锁图标 (楼层预览中) */
+  .room-lock-icon {
+    position: absolute; font-size: 14px; pointer-events: none;
+    text-shadow: 0 0 6px rgba(255,204,68,0.7);
+  }
   .floor-btn:hover { border-color: #6b5e44; color: #d4b87a; }
   #canvas-wrapper {
     border: 3px solid #3a3020; background: #0d0d12;
@@ -280,6 +287,7 @@
 
 <div id="floor-panel">
   <div id="floor-nav"></div>
+  <div id="floor-hint">💡 点击 Boss/宝箱/商店 房间可切换 🔒 门锁状态 | 锁住的房间需要消耗1把钥匙进入</div>
   <div id="canvas-wrapper"><canvas id="map"></canvas></div>
 </div>
 
@@ -1357,7 +1365,7 @@ function generateFloor(floorNum){
   const DIR_KEYS=Object.keys(DIRS);
 
   // 1. 创建N个房间
-  const rooms=[];for(let i=0;i<N;i++)rooms.push({id:`f${floorNum}_r${i}`,type:null,tplKey:null,grid:null,connections:[],doors:{up:null,down:null,left:null,right:null}});
+  const rooms=[];for(let i=0;i<N;i++)rooms.push({id:`f${floorNum}_r${i}`,type:null,tplKey:null,grid:null,connections:[],doors:{up:null,down:null,left:null,right:null},locked:false});
   const nodeIds=rooms.map(r=>r.id);const roomMap={};rooms.forEach(r=>{roomMap[r.id]=r;});
 
   // 2. 拆分：骨架房（普通+起点）vs 特殊房（boss+宝箱）
@@ -1450,11 +1458,24 @@ function generateFloor(floorNum){
 
 function generateAllFloors(){for(let f=1;f<=6;f++)allFloors[f]=generateFloor(f);saveFloorToFile();}
 
-function saveFloorToFile(){
+async function saveFloorToFile(){
   try{
-    const data={};for(let f=1;f<=6;f++){const fl=allFloors[f];data[f]={floorNum:fl.floorNum,name:fl.name,rooms:fl.rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds};}
+    const data={};for(let f=1;f<=6;f++){const fl=allFloors[f];if(!fl)continue;data[f]={floorNum:fl.floorNum,name:fl.name,rooms:fl.rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds,shopRoomIds:fl.shopRoomIds||[]};}
     const json=JSON.stringify(data);
-    showStatus('✅ 楼层已重新生成（点击「生成json」导出供复制）');
+    // 写入 localStorage 缓存
+    localStorage.setItem(FLOOR_CACHE_KEY, json);
+    // 如果有文件句柄，写入文件
+    if(floorFileHandle){
+      try{
+        const writable=await floorFileHandle.createWritable();
+        await writable.write(json);
+        await writable.close();
+        console.log('💾 floor-data.json 已更新 (含门锁信息)');
+      }catch(writeErr){
+        console.warn('⚠ 文件写入失败 (锁状态仅在内存中):', writeErr);
+      }
+    }
+    showStatus('✅ 楼层已更新并保存（锁状态已持久化）');
   }catch(e){showStatus('❌ '+e.message, true);console.error(e);}
 }
 
@@ -1467,7 +1488,7 @@ async function readFloorFromHandle(handle){
   const f=await handle.getFile();
   const text=await f.text();
   const data=JSON.parse(text);
-  for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;});}
+  for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;});}
   localStorage.setItem(FLOOR_CACHE_KEY,text);
   console.log('📂 已加载 floor-data.json');
   return true;
@@ -1481,7 +1502,7 @@ floorFileInput.addEventListener('change',async()=>{
   try{
     const text=await f.text();
     const data=JSON.parse(text);
-    for(let i=1;i<=6;i++){allFloors[i]=data[i];allFloors[i].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;});}
+    for(let i=1;i<=6;i++){allFloors[i]=data[i];allFloors[i].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;});}
     localStorage.setItem(FLOOR_CACHE_KEY,text);
     buildFloorNav();renderFloor(allFloors[currentFloorNum]);
     showStatus('✅ 已加载 floor-data.json');
@@ -1540,33 +1561,67 @@ async function tryLoadFloorData(){
     if(h){floorFileHandle=h;await readFloorFromHandle(h);return true;}
   }catch(e){}
   const c=localStorage.getItem(FLOOR_CACHE_KEY);
-  if(c){try{const d=JSON.parse(c);for(let f=1;f<=6;f++){allFloors[f]=d[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;});}console.log('📂 从缓存加载楼层');return true;}catch(e){}}
+  if(c){try{const d=JSON.parse(c);for(let f=1;f<=6;f++){allFloors[f]=d[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;});}console.log('📂 从缓存加载楼层');return true;}catch(e){}}
   console.warn('⚠ 请点击「选择 floor-data.json」加载楼层文件');
   return false;
 }
 
 document.getElementById('btn-pick-floor').addEventListener('click',pickFloorFile);
 document.getElementById('btn-floor-json').addEventListener('click',()=>{
-  const data={};for(let f=1;f<=6;f++){const fl=allFloors[f];if(!fl)continue;data[f]={floorNum:fl.floorNum,name:fl.name,rooms:fl.rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds};}
+  const data={};for(let f=1;f<=6;f++){const fl=allFloors[f];if(!fl)continue;data[f]={floorNum:fl.floorNum,name:fl.name,rooms:fl.rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds,shopRoomIds:fl.shopRoomIds||[]};}
   const json=JSON.stringify(data);
   document.getElementById('download-textarea').value=json;
   document.querySelector('#download-modal h3').textContent='📄 floor-data.json（请复制后覆盖到 Configs/floor-data.json）';
   document.getElementById('download-modal').classList.add('show');
-  showStatus('✅ 已生成 floor-data.json');
+  showStatus('✅ 已生成 floor-data.json（含门锁信息）');
 });
 
 // 楼层渲染
 const MTILE=14,MPAD=10,MGAP=36;const mapCanvas=document.getElementById('map');const mapCtx=mapCanvas.getContext('2d');
+let roomHitboxes=[]; // [{roomId, type, rx, ry, rw, rh}] 用于点击检测
 function getRoomPS(){return{w:MPAD*2+COLS*MTILE,h:MPAD*2+ROWS*MTILE};}
 function layToCanvas(gx,gy){const rs=getRoomPS();return{x:gx*(rs.w+MGAP),y:gy*(rs.h+MGAP)};}
 function getLayoutBounds(floor){let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;for(const id in floor.layout){const{gx,gy}=floor.layout[id];minX=Math.min(minX,gx);maxX=Math.max(maxX,gx);minY=Math.min(minY,gy);maxY=Math.max(maxY,gy);}return{minX,maxX,minY,maxY};}
 function renderFloor(floor){if(!floor)return;const bounds=getLayoutBounds(floor),rs=getRoomPS(),cW=rs.w+MGAP,cH=rs.h+MGAP,margin=40;mapCanvas.width=Math.max(400,(bounds.maxX-bounds.minX+1)*cW+margin*2);mapCanvas.height=Math.max(300,(bounds.maxY-bounds.minY+1)*cH+margin*2);mapCtx.clearRect(0,0,mapCanvas.width,mapCanvas.height);const rm={};floor.rooms.forEach(r=>rm[r.id]=r);
+  roomHitboxes=[]; // 重置碰撞盒
   for(const[a,b]of floor.edges){const pa=floor.layout[a],pb=floor.layout[b];if(!pa||!pb)continue;const ca=layToCanvas(pa.gx-bounds.minX,pa.gy-bounds.minY),cb=layToCanvas(pb.gx-bounds.minX,pb.gy-bounds.minY);const ax=ca.x+margin+rs.w/2,ay=ca.y+margin+rs.h/2,bx=cb.x+margin+rs.w/2,by=cb.y+margin+rs.h/2;mapCtx.strokeStyle='#554433';mapCtx.lineWidth=2;mapCtx.setLineDash([6,4]);mapCtx.beginPath();mapCtx.moveTo(ax,ay);if(pa.gx!==pb.gx&&pa.gy!==pb.gy){mapCtx.lineTo(bx,ay);mapCtx.lineTo(bx,by);}else{mapCtx.lineTo(bx,by);}mapCtx.stroke();mapCtx.setLineDash([]);}
-  for(const room of floor.rooms){const{gx,gy}=floor.layout[room.id],lc=layToCanvas(gx-bounds.minX,gy-bounds.minY),rx=lc.x+margin,ry=lc.y+margin;mapCtx.fillStyle='#1a1815';mapCtx.fillRect(rx,ry,rs.w,rs.h);mapCtx.strokeStyle='#3a3020';mapCtx.lineWidth=1;mapCtx.strokeRect(rx,ry,rs.w,rs.h);
+  for(const room of floor.rooms){const{gx,gy}=floor.layout[room.id],lc=layToCanvas(gx-bounds.minX,gy-bounds.minY),rx=lc.x+margin,ry=lc.y+margin;
+    // 记录房间位置用于点击检测
+    roomHitboxes.push({roomId:room.id,type:room.type,rx,ry,rw:rs.w,rh:rs.h});
+    // 外框（锁住的房间用金色边框）
+    const lockedColor=room.locked?'#ffcc44':'#3a3020';
+    mapCtx.fillStyle='#1a1815';mapCtx.fillRect(rx,ry,rs.w,rs.h);mapCtx.strokeStyle=lockedColor;mapCtx.lineWidth=room.locked?2:1;mapCtx.strokeRect(rx,ry,rs.w,rs.h);
     for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++){const tile=room.grid[c][r];mapCtx.fillStyle=TILE_PROPS[tile].vc;mapCtx.fillRect(rx+MPAD+c*MTILE,ry+MPAD+r*MTILE,MTILE,MTILE);mapCtx.strokeStyle='rgba(0,0,0,0.25)';mapCtx.lineWidth=0.5;mapCtx.strokeRect(rx+MPAD+c*MTILE,ry+MPAD+r*MTILE,MTILE,MTILE);}
-    for(const dir of['up','down','left','right']){if(room.doors[dir]){const{col,row}=DOOR_POS[dir],dx=rx+MPAD+col*MTILE,dy=ry+MPAD+row*MTILE;mapCtx.fillStyle=room.doors[dir].open?'#559944':'#664433';mapCtx.fillRect(dx+1,dy+1,MTILE-2,MTILE-2);mapCtx.fillStyle='#fff';mapCtx.font=`${Math.max(6,MTILE-4)}px sans-serif`;mapCtx.textAlign='center';mapCtx.textBaseline='middle';mapCtx.fillText({up:'↑',down:'↓',left:'←',right:'→'}[dir],dx+MTILE/2,dy+MTILE/2);}}
-    const tc={start:'#88ccff',normal:'#998866',treasure:'#ffcc44',boss:'#ff4444',shop:'#ff8844'},tn={start:'起点',normal:'普通',treasure:'宝箱',boss:'Boss',shop:'商店'};mapCtx.fillStyle=tc[room.type]||'#998866';mapCtx.font='bold 10px "ZCOOL KuaiLe","Microsoft YaHei",sans-serif';mapCtx.textAlign='center';mapCtx.fillText(`[${tn[room.type]}] ${allTemplates[room.tplKey]?.name||room.tplKey}`,rx+rs.w/2,ry-6);}
+    for(const dir of['up','down','left','right']){if(room.doors[dir]){const{col,row}=DOOR_POS[dir],dx=rx+MPAD+col*MTILE,dy=ry+MPAD+row*MTILE;mapCtx.fillStyle=room.locked?'#665522':'#559944';mapCtx.fillRect(dx+1,dy+1,MTILE-2,MTILE-2);if(room.locked){mapCtx.fillStyle='#ffcc44';mapCtx.font=`bold ${MTILE-6}px sans-serif`;mapCtx.textAlign='center';mapCtx.textBaseline='middle';mapCtx.fillText('🔒',dx+MTILE/2,dy+MTILE/2);}else{mapCtx.fillStyle='#fff';mapCtx.font=`${Math.max(6,MTILE-4)}px sans-serif`;mapCtx.textAlign='center';mapCtx.textBaseline='middle';mapCtx.fillText({up:'↑',down:'↓',left:'←',right:'→'}[dir],dx+MTILE/2,dy+MTILE/2);}}}
+    const tc={start:'#88ccff',normal:'#998866',treasure:'#ffcc44',boss:'#ff4444',shop:'#ff8844'},tn={start:'起点',normal:'普通',treasure:'宝箱',boss:'Boss',shop:'商店'};mapCtx.fillStyle=tc[room.type]||'#998866';mapCtx.font='bold 10px "ZCOOL KuaiLe","Microsoft YaHei",sans-serif';mapCtx.textAlign='center';mapCtx.fillText(`[${tn[room.type]}] ${allTemplates[room.tplKey]?.name||room.tplKey}`,rx+rs.w/2,ry-6);
+    // 锁图标 (仅可上锁的房间类型显示)
+    if(room.type==='boss'||room.type==='treasure'||room.type==='shop'){
+      const lockX=rx+rs.w-18,lockY=ry+4;mapCtx.fillStyle=room.locked?'#ffcc44':'#554433';mapCtx.font='bold 16px sans-serif';mapCtx.textAlign='center';mapCtx.textBaseline='top';mapCtx.fillText(room.locked?'🔒':'🔓',lockX,lockY);
+    }}
   document.getElementById('info-text').innerHTML=`当前: <span class="iv">${floor.name}</span>&nbsp; 房间: <span class="iv">${floor.rooms.length}</span> 个`;}
+
+// 楼层地图点击：切换房间门锁
+mapCanvas.addEventListener('click',(e)=>{
+  if(viewMode!=='floor')return;
+  const rect=mapCanvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left,my=e.clientY-rect.top;
+  // 查找被点击的房间
+  for(const hb of roomHitboxes){
+    if(mx>=hb.rx&&mx<=hb.rx+hb.rw&&my>=hb.ry&&my<=hb.ry+hb.rh){
+      // 仅 boss / treasure / shop 房间可以上锁
+      if(hb.type!=='boss'&&hb.type!=='treasure'&&hb.type!=='shop')return;
+      const floor=allFloors[currentFloorNum];
+      const room=floor.rooms.find(r=>r.id===hb.roomId);
+      if(!room)return;
+      room.locked=!room.locked;
+      saveFloorToFile();
+      renderFloor(floor);
+      const tn={boss:'Boss',treasure:'宝箱',shop:'商店'};
+      showStatus(`🔒 ${tn[hb.type]}房${room.locked?'已上锁(需钥匙)':'已解锁'} — ${room.id}`);
+      return;
+    }
+  }
+});
 
 function buildFloorNav(){const nav=document.getElementById('floor-nav');nav.innerHTML='';for(let f=1;f<=6;f++){if(!allFloors[f])continue;const btn=document.createElement('button');btn.className='floor-btn'+(f===currentFloorNum?' active':'');btn.textContent=allFloors[f].name;btn.dataset.floor=f;btn.addEventListener('click',()=>{currentFloorNum=f;document.querySelectorAll('.floor-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderFloor(allFloors[f]);});nav.appendChild(btn);}}
 
