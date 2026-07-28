@@ -45,7 +45,7 @@
 |-------|------|-----|------|------------|------|---------------|:--:|:--:|:--:|:--:|
 | `crack_maw` | 裂口尸 | 10/20/30 | 0.5/1/1 | sequence | `chase` steps:[2,1]→[3,2], stepMode:seq | 无 | 地面 | melee | 3/5/7 | 1×1 |
 | `flying_eye` | 浮游眼 | 6/12/20 | 0.5/0.5/1 | random weights:[0.7,0.3]→[0.3,0.7] | `random_wander` steps:[1,2,3], stepMode:rand + `shoot_fan` range:4→5→6, cond:in_range | 蓝紫半透 | 飞行 | ranged | 2/4/6 | 1×1 |
-| `charge_golem` | 蓄力魔像 | 30/45/65 | 1/1/1.5 | sequence | `charge_line` steps:[3,4,5,6]→[5,6,7,8], stepMode:rand | 棕半透 | 地面 | tank | 5/8/12 | 1×1 |
+| `charge_golem` | 蓄力魔像 | 30/45/65 | 1/1/1.5 | sequence | `random_wander` steps:2/3/4 ×2 + `charge_up`(蓄力+感叹号) + `charge_line` steps:[3,13], stepMode:rand | 棕半透 | 地面 | tank | 5/8/12 | 1×1 |
 | `boss_jumper` | 跳跃巨兽 | 60/80/105 | 0.5/0.5/1 | sequence | `jump_small` steps:[3] ×2 + `jump_big_land` landDamage:1, repeatChance:0.5, disappearSteps:1 | 紫半透 | 地面,飞行 | boss | 20/22/25 | **2×2** |
 
 **怪物配置字段说明**：
@@ -57,14 +57,15 @@
 - `role`：战斗角色定位（melee/ranged/tank/boss），用于组合规则保证类型多样性
 - `threat`：威胁值，用于点数预算消耗，控制每房间怪物总体难度
 
-**Action 类型枚举**（7种，替代旧 `movement.mode` + `aiType` 的分离结构）：
+**Action 类型枚举**（8种，替代旧 `movement.mode` + `aiType` 的分离结构）：
 
 | action type | 行为描述 |
 |------------|---------|
 | `chase` | 向玩家追踪移动（BFS寻路），步数从 `steps`/`stepMode` 取 |
 | `random_wander` | 随机方向漫步，步数从 `steps`/`stepMode` 取。`stepMode:"random"` + 无 `stepWeights` → 均匀随机（每步等权重） |
 | `shoot_fan` | 扇形三连射，`range` 控制射程，`directMode:"toward_player_axis"` 朝玩家主轴向射击。通常配 `condition:"in_range"` 仅射程内可选 |
-| `charge_line` | 沿蓄力方向冲锋，`steps` 从池中随机取冲刺距离 |
+| `charge_up` | 蓄力：原地不动，头顶红色感叹号提示（闪烁脉动动画），为下一轮 `charge_line` 冲刺做准备 |
+| `charge_line` | 蓄力冲刺：选择方向 + 计算路径 + 执行移动一气呵成（不再分两阶段），`steps` 从池中随机取冲刺距离 |
 | `jump_small` | Boss Jumper 小跳跃，中心距离判定 × `steps`[0] 步 |
 | `jump_big_land` | Boss Jumper 大跳+落地，`disappearSteps`消失回合数、`landDamage`落地伤害、`repeatChance`重复小跳概率 |
 | (patrol/stationary) | 巡逻/不移动（通过 `aiType` 路由，暂无独立 action 配置） |
@@ -617,6 +618,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-28(晚) | **蓄力魔像行为优化**。①蓄力魔像 actions 从单一 `charge_line` 改为 4 步 sequence：`random_wander`(2步) → `random_wander`(2步) → `charge_up`(蓄力+感叹号) → `charge_line`(冲刺)。I/II/III级 wander 步数分别为 2/3/4。②新增 `charge_up` action 类型：原地不动+头顶红色闪烁感叹号(!)脉动动画（DOM覆盖层渲染）。③`charge_line` 简化为单步执行（选方向+直接冲刺，不再分两阶段）。④感叹号状态纳入回合快照。⑤action 类型枚举从 7 种增至 8 种。⑥感叹号样式优化：56px Courier New大号像素风，8方向黑色像素描边+3层红色光晕脉动（0.5s，0.85→1.25缩放）。 |
 | 2026-07-28(晚) | **掉落系统全面重构 + 资源系统建立**。①新建 `resource-db.json`：6种资源定义(金币/黑币/银币/炸弹/红心/蓝心/宝箱/钥匙) + 8张资源掉落表(monster_default/monster_heavy/boss_drop/room_clear_default/room_clear_boss/terrain_rock/terrain_poop/chest_normal/chest_golden/shop_stock) + 宝箱loot配置。②怪物loot全面重配：所有非Boss怪改为极少道具(weight 0.03 + monster_very_rare 品质表 none:0.70 → 有效约0.9%/只) + 小概率资源(约22-30%)；Boss纯道具无资源(boss品质表)。③宝箱改为必掉1~4个道具(roll_all模式，保底1个+3次55-60%判定)。④房间清空→中概率资源(约43%)，岩石→极小概率(约3.5%)，便便→小概率(约15%)。⑤删除 `item-drop-tables.json`，品质表合并至 `item-db.json > qualityTables`，新增 `monster_very_rare`。⑥新增统一掉落调度器 rollLoot/executeDropEntry 及资源掉落 rollResourceDrop。 |
 | 2026-07-28 | **文档体系补充：代码-文档不一致处理约定**。①确立约定：AI 发现实际代码和项目文档不一致时，必须主动提醒用户，列出具体差异清单让用户决策（①以代码为准更新文档 / ②以文档为准修正代码 / ③两者都保留（设计变更过渡期）），不得在用户未表态的情况下擅自修改代码或修改文档。②确认 Ask/Craft 模式分工边界：Ask 模式只分析/提醒差异，不动文件；文档更新需用户明确指令。③文件清单修正：monster-db.json 描述从旧 `movement`+`aiParams` 更新为 `actionMode`+`actions[]`。 |
 | 2026-07-27 | **怪物行动系统重构：actionMode + actions[]**。①移除旧 `movement`/`aiParams`/`aiRange` 分散字段，统一为 `actionMode`（行为选择模式：sequence按序/random加权随机）+ `actions[]`（行为列表，每个 action 独立携带 type + steps/stepMode/range/condition 等全部参数）。②新增 `resolveMonsterAction()` 函数：按 condition 过滤 eligible → actionMode 挑选 → stepMode/stepWeights 解析步数。stepWeights 未配时默认均匀随机。③5种怪物12条全部迁移。裂口尸→chase、浮游眼→random_wander+shoot_fan（actionMode.random + condition.in_range）、蓄力魔像→charge_line、Boss Jumper→jump_small+jump_big_land。④Boss Jumper 参数从 `aiParams` 移至 `actions[].jump_big_land`（landDamage/repeatChance/disappearSteps）。⑤context.md 全覆盖交叉比对：怪物表重写、AI类型表→Action类型表、配置字段说明重写、Boss Jumper 参数来源更新、架构概览/函数索引/数据流更新。 |

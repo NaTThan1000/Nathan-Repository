@@ -7,6 +7,7 @@
 > 1. 本文档一旦记录内容，**不可修改或删除**已有记录。新内容按时间顺序在文件末尾追加，标注日期。例如方案从 A 改为 B，需完整保留 A 的记录 → 再在最新日期追加 B 的记录并标注"[当前方案]"，而不是覆盖 A。即使出现 X→Y→X 的反复变更也要完整保留每一步。
 > 2. **不得编造任何数据**：包括但不限于具体到分钟的时间、未在对话中确认的数值、未实际发生的事件或"结论"。不确定的信息宁可省略或用模糊描述，绝不填充。日内时间描述仅可用"上午/下午/晚间"三个粗粒度标签，或完全不标注时间仅靠条目排列顺序体现先后关系。
 > 3. **写入前强制排序验证**：每次追加新内容前，必须先读取全文 → 确认当前最后一个条目是什么日期和内容 → 新条目追加在文件末尾或同日期段落末尾 → 如果是同一天多个条目，按实际对话顺序从上到下排列。
+> 4. **文档同步触发规则**：`isaac-turnbase-context.md` 和 `isaac-memory.md` 的更新不得在任何代码修改任务中附带执行。这两个文档的修改操作必须且仅由用户发出"同步文档"指令时触发。AI 在完成代码修改后如果认为文档需要更新，可以提醒用户，但严禁自行修改。此规则优先级高于 AI 对"代码和文档应保持一致"的默认行为倾向。
 >
 > **组织方式**：纯时间顺序，不做模块分类。给 AI 快速浏览聊天记忆用。
 >
@@ -424,10 +425,31 @@
 - **[清理]** `item-drop-tables.json` 删除（品质表合并至 item-db.json > qualityTables）
 - **[待微调]** 用户明确表示后续会手动微调数值，本次为粗略调整建立框架
 
+### 蓄力魔像行为模式优化 [当前方案]
+- **[触发]** 用户要求将蓄力魔像从"每轮都冲刺"优化为有节奏感的 4 步行为循环
+- **[决策]** actions 改为 4 步 sequence：`random_wander`×2 → `charge_up` → `charge_line`。I/II/III 级 wander 步数分别为 2/3/4
+- **[新增 action 类型]** `charge_up`：原地不动，头顶红色脉动感叹号(!)（DOM 覆盖层 `.txt-exclaim` CSS 动画）。感叹号状态纳入回合快照（`saveTurnSnapshot`/`restoreTurnSnapshot`）
+- **[charge_line 简化]** 旧两阶段（chargeDir=null→选方向 / chargeDir已有→执行冲刺）改为单步（选方向+计算路径+执行一次完成），移除 `chargePhase` 状态依赖
+- **[影响范围]** monster-db.json(3只蓄力魔像) + demo2.html(`calcAllMonsterPaths` switch 新增 charge_up + charge_line 简化 + CSS @keyframes exclaim-pulse + `updateTextOverlay` 感叹号DOM渲染 + 快照系统)
+- **[设计意图]** 漫步→蓄力→冲刺的节奏让玩家有准备时间，感叹号提供明确的"下一轮要冲了"预警
+
+### 感叹号样式像素风化 [当前方案]
+- **[触发]** 用户反馈感叹号太小太不明显
+- **[决策]** 从 `bold 18px Arial` 改为 `bold 56px Courier New`（大号像素风等宽字体），8方向黑色像素描边 + 4方向暗红内描边 + 3层红色光晕，脉动动画 0.5s 缩放 0.85→1.25，z-index:10 保证顶层
+- **[影响范围]** demo2.html CSS `.txt-exclaim` + `@keyframes exclaim-pulse` + `updateTextOverlay()` 垂直偏移 -28→-48
+
+### 文档同步触发规则确立 [当前方案]
+- **[触发]** AI 在代码任务完成后惯性自动更新 context.md 和 memory.md，用户指出这浪费 token、破坏了"阶段性总结"的更新节奏
+- **[根因]** AI 的两个冲突指令并存：规则说"不要自动更新文档" vs 本能说"代码和文档不一致是不负责任的"。本能（更底层、更自动化）赢了
+- **[决策]** memory.md 新增修改规则 #4：`context.md` 和 `memory.md` 的更新不得在任何代码修改任务中附带执行，必须且仅由用户发出"同步文档"指令时触发。此规则优先级高于 AI 对"代码和文档应保持一致"的默认行为倾向
+- **[原因]** 代码改动是高频实验性的，文档更新是低频确认性的。程序化地在每次代码改动后跟文档浪费 token
+- **[关联]** 与 global-rules §1.4（禁止自动 Git 写入）、§4.5（疑问句vs指令区分）同类——都是管理 AI 的"自动收尾冲动"
+
 ## 最近更新记录
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-28(晚) | **蓄力魔像行为优化 + 感叹号像素风 + 文档同步触发规则**。①蓄力魔像 actions 改为4步sequence(random_wander×2+charge_up+charge_line)，新增 charge_up type(感叹号脉动)，charge_line 简化为单步执行。②感叹号改为56px Courier New像素风大号样式，8方向像素描边+3层光晕+0.5s脉动。③memory.md 新增修改规则#4：context.md和memory.md更新必须由用户"同步文档"指令触发，不得在代码任务中附带执行。 |
 | 2026-07-28(晚) | **掉落系统全面重构+资源系统建立**。①用户8条掉落需求驱动全面重配。②确立weight vs rate 语义区分。③新建 resource-db.json（资源定义+8张掉落表+宝箱loot）。④全部12只怪物loot重配：小怪极少道具(~0.9%/只)+小概率资源(~25%)；Boss纯道具无资源。⑤宝箱改为必掉1~4个道具(roll_all模式)。⑥品质表合并至item-db.json，删除 item-drop-tables.json。⑦资源掉落表全面降低概率匹配各场景。⑧用户后续手动微调数值。 |
 | 2026-07-28 | **代码-文档不一致处理约定确立**。①当 AI 发现代码与文档矛盾时，必须主动提醒用户列出差异清单，待用户决策后才行动（三个选项：代码为准/文档为准/都保留）。②明确与"同步文档"指令为独立触发路径（同步时默认以代码为准）。③确认 Ask/Craft 模式边界：都不擅自修改文件。④创建 Memory ID 32213721。⑤context.md 文件清单修正 monster-db.json 过时描述。 |
 | 2026-07-27 | **怪物行动系统重构：actionMode + actions[]**。①移除旧 `movement`/`aiParams` 分散字段，统一为 `actionMode`（sequence/random weighted）+ `actions[]`（独立配置 type + steps/range/condition 等全部参数）。②新增 `resolveMonsterAction()`：condition 过滤 → actionMode 选择 → stepMode/stepWeights 解析。③5种12只怪物全部迁移到新 actions 体系。④Boss Jumper 参数从 aiParams 移至 `actions[].jump_big_land`。⑤确认 stepWeights 未配时默认均匀随机行为。 |

@@ -23,8 +23,8 @@
         "_desc": "sequence=顺序执行actions, random=按weights权重随机选action"
       },
       "actions[].type": {
-        "_values": ["chase", "random_wander", "shoot_fan", "charge_line", "jump_small", "jump_big_land"],
-        "_desc": "AI行动类型"
+        "_values": ["chase", "random_wander", "shoot_fan", "charge_up", "charge_line", "jump_small", "jump_big_land"],
+        "_desc": "AI行动类型。charge_up=蓄力(原地+感叹号), charge_line=冲刺"
       },
       "actions[].stepMode": {
         "_values": ["sequence", "random"],
@@ -219,6 +219,9 @@
     "aiType": "charge",
     "actionMode": { "mode": "sequence" },
     "actions": [
+      { "type": "random_wander", "steps": [2], "stepMode": "random" },
+      { "type": "random_wander", "steps": [2], "stepMode": "random" },
+      { "type": "charge_up" },
       { "type": "charge_line", "steps": [3, 13], "stepMode": "random" }
     ],
     "tint": "rgba(180,160,140,0.45)",
@@ -243,6 +246,9 @@
     "aiType": "charge",
     "actionMode": { "mode": "sequence" },
     "actions": [
+      { "type": "random_wander", "steps": [3], "stepMode": "random" },
+      { "type": "random_wander", "steps": [3], "stepMode": "random" },
+      { "type": "charge_up" },
       { "type": "charge_line", "steps": [3, 13], "stepMode": "random" }
     ],
     "tint": "rgba(180,160,140,0.50)",
@@ -267,6 +273,9 @@
     "aiType": "charge",
     "actionMode": { "mode": "sequence" },
     "actions": [
+      { "type": "random_wander", "steps": [4], "stepMode": "random" },
+      { "type": "random_wander", "steps": [4], "stepMode": "random" },
+      { "type": "charge_up" },
       { "type": "charge_line", "steps": [3, 13], "stepMode": "random" }
     ],
     "tint": "rgba(180,160,140,0.55)",

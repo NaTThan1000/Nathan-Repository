@@ -288,7 +288,23 @@
   .txt-aap.empty {
     background: transparent;
     border: 2px solid #555544;
-    color: transparent;
+  }
+  .txt-exclaim {
+    position: absolute;
+    font: bold 56px 'Courier New', monospace;
+    color: #ff2222; text-align: center;
+    text-shadow:
+      -3px -3px 0 #000,  3px -3px 0 #000, -3px 3px 0 #000,  3px 3px 0 #000,
+       0px -3px 0 #000,  0px  3px 0 #000, -3px 0px 0 #000,  3px 0px 0 #000,
+       -2px -2px 0 #880000, 2px -2px 0 #880000, -2px 2px 0 #880000, 2px 2px 0 #880000,
+       0 0 8px #ff0000, 0 0 16px #ff0000, 0 0 24px #ff4400;
+    white-space: nowrap; transform: translate(-50%, -50%);
+    animation: exclaim-pulse 0.5s ease-in-out infinite alternate;
+    z-index: 10;
+  }
+  @keyframes exclaim-pulse {
+    from { transform: translate(-50%, -50%) scale(0.85); opacity: 0.8; }
+    to   { transform: translate(-50%, -50%) scale(1.25); opacity: 1; }
   }
 
   /* ===== 调试信息 ===== */
@@ -1480,6 +1496,7 @@ function saveTurnSnapshot() {
         jumperPhase: m.jumperPhase, jumperRepeatCount: m.jumperRepeatCount,
         jumperCheckRepeated: m.jumperCheckRepeated, jumperVanished: m.jumperVanished,
         jumperJustLanded: m.jumperJustLanded || false,
+        _showingExclaim: m._showingExclaim || false,
       };
     }),
     monsterTurnCounter: turnState.monsterTurnCounter,
@@ -1515,6 +1532,7 @@ function restoreTurnSnapshot() {
     jumperPhase: m.jumperPhase, jumperRepeatCount: m.jumperRepeatCount,
     jumperCheckRepeated: m.jumperCheckRepeated, jumperVanished: m.jumperVanished || false,
     jumperJustLanded: m.jumperJustLanded || false,
+    _showingExclaim: m._showingExclaim || false,
   }));
   turnState.monsterTurnCounter = s.monsterTurnCounter;
   // 恢复pendingBossLanding
@@ -2012,28 +2030,22 @@ function calcAllMonsterPaths() {
       }
 
       case 'charge_line': {
-        const chargeSteps = selectedAction.steps || [3, 4, 5, 6];
-        const randChargeDist = () => chargeSteps[Math.floor(Math.random() * chargeSteps.length)];
-        if (m.chargePhase === undefined) {
-          m.chargePhase = 'dash';
-          m.chargeDir = null;
-          m.chargeDistance = 0;
-          m.chargeAnimTimer = 0;
-        }
-        if (m.chargeDir === null) {
-          const cd = randChargeDist();
-          const newDir = pickChargeDir(m.col, m.row, player.col, player.row, cd);
-          m.chargeDir = newDir;
-          m.chargeDistance = newDir ? cd : 0;
-          m.predictedPath = [];
-        } else {
-          const path = [];
+        // 冲刺：本回合选择方向并直接执行（无两阶段）
+        const chargeSteps = selectedAction.steps || [3, 13];
+        const cd = chargeSteps[Math.floor(Math.random() * chargeSteps.length)];
+        const dir = pickChargeDir(m.col, m.row, player.col, player.row, cd);
+        m.chargeDir = dir;
+        m.chargeDistance = dir ? cd : 0;
+        m._showingExclaim = false; // 冲刺时隐藏感叹号
+
+        const path = [];
+        if (dir) {
           let col = m.col, row = m.row;
           for (let step = 0; step < m.chargeDistance; step++) {
-            const nc = col + m.chargeDir.dx;
-            const nr = row + m.chargeDir.dy;
+            const nc = col + dir.dx;
+            const nr = row + dir.dy;
             if (isWall(nc, nr)) break;
-            if (m.chargeDir.dx !== 0 && m.chargeDir.dy !== 0) {
+            if (dir.dx !== 0 && dir.dy !== 0) {
               if (isWall(nc, row)) break;
               if (isWall(col, nr)) break;
             }
@@ -2041,14 +2053,16 @@ function calcAllMonsterPaths() {
             path.push({ fromCol: col, fromRow: row, toCol: nc, toRow: nr });
             col = nc; row = nr;
           }
-          m.predictedPath = path;
-          const cd = randChargeDist();
-          const newDir = pickChargeDir(col, row, player.col, player.row, cd);
-          m.chargeDir = newDir;
-          m.chargeDistance = newDir ? cd : 0;
         }
+        m.predictedPath = path;
         break;
       }
+
+      case 'charge_up':
+        // 蓄力：原地不动，感叹号提示
+        m.predictedPath = [];
+        m._showingExclaim = true;
+        break;
 
       case 'stationary':
         m.predictedPath = [];
@@ -4249,37 +4263,6 @@ function drawMonsters() {
         }
       }
     }
-
-    // --- 蓄力感叹号 (像素风, HP条之上) ---
-    if (m.aiType === 'charge' && m.chargePhase === 'dash') {
-      const ct = m.chargeAnimTimer || 0;
-      const bounceY = Math.abs(Math.sin(ct * 8)) * Math.round(3 * s); // 上下弹跳
-      const pulse = 1.0 + 0.15 * Math.sin(ct * 10); // 大小脉动
-      const px = Math.max(2, Math.round(2 * s * pulse));
-      // 感叹号中心位于怪物右上角（HP条上方）
-      const exCx = cx + half - Math.round(2 * s);
-      const exCy = cy - half - Math.round(14 * s) - bounceY;
-
-      // 像素风 "!" 造型：上宽下窄的竖条 + 底部圆点
-      // 竖条顶部宽度=4px, 底部宽度=2px, 高度=6px
-      const barW = Math.round(px * 4);
-      const barH = Math.round(px * 7);
-      const dotW = Math.round(px * 3);
-      const dotH = Math.round(px * 2);
-      // 竖条（从顶部往下画）
-      const barTop = exCy - Math.round(px * 6);
-      prect(exCx - Math.floor(barW / 2), barTop, barW, barH, '#ff2222');
-      // 顶部高亮
-      prect(exCx - Math.floor(barW / 2) + px, barTop, barW - px * 2, px, '#ff6644');
-      // 底部圆点
-      const dotY = exCy + Math.round(px * 2);
-      prect(exCx - Math.floor(dotW / 2), dotY, dotW, dotH, '#ff2222');
-      // 像素描边（暗红色边框）
-      ctx.strokeStyle = '#990000';
-      ctx.lineWidth = Math.max(1, Math.round(px * 0.8));
-      ctx.strokeRect(exCx - Math.floor(barW / 2), barTop, barW, barH);
-      ctx.strokeRect(exCx - Math.floor(dotW / 2), dotY, dotW, dotH);
-    }
   }
 }
 
@@ -4933,6 +4916,31 @@ function updateTextOverlay() {
     nameIdx++;
   }
   for (let i = nameIdx; i < existingNames.length; i++) existingNames[i].style.display = 'none';
+
+  // --- 蓄力感叹号 ---
+  let exclaimIdx = 0;
+  const existingExclaims = overlay.querySelectorAll('.txt-exclaim');
+  for (const m of monsters) {
+    if (m.hp <= 0 || m.jumperVanished || !m._showingExclaim) continue;
+    const sz = m.size || 1;
+    const centerPx = sz > 1 ? m.px + CELL * (sz - 1) / 2 : m.px;
+    const centerPy = sz > 1 ? m.py + CELL * (sz - 1) / 2 : m.py;
+    const pp = project(centerPx, centerPy);
+    const sx = Math.round(pp.x * DISPLAY_SCALE);
+    const cy2 = Math.round(pp.y * DISPLAY_SCALE);
+    const half = Math.round(SPRITE.BASE_SIZE * pp.s * DISPLAY_SCALE / 2);
+    const sy = cy2 - half - 48;
+
+    let el = existingExclaims[exclaimIdx];
+    if (!el) { el = document.createElement('div'); el.className = 'txt-exclaim'; overlay.appendChild(el); }
+    el.className = 'txt-exclaim';
+    el.textContent = '!';
+    el.style.left = sx + 'px';
+    el.style.top = sy + 'px';
+    el.style.display = '';
+    exclaimIdx++;
+  }
+  for (let i = exclaimIdx; i < existingExclaims.length; i++) existingExclaims[i].style.display = 'none';
 
   // --- 伤害飘字 ---
   let dmgIdx = 0;
@@ -5727,15 +5735,7 @@ function gameLoop(timestamp) {
     if (m.jumpAnimTimer > 0) {
       m.jumpAnimTimer = Math.max(0, m.jumpAnimTimer - dt);
     }
-    // charge蓄力怪动画计时器
-    if (m.aiType === 'charge' && m.chargeAnimTimer !== undefined) {
-      m.chargeAnimTimer += dt;
-      // 实时障碍物感知方向预览，让玩家回合就能看到冲刺方向
-      if (m.chargePhase === 'dash') {
-        const previewDir = pickChargeDir(m.col, m.row, player.col, player.row);
-        if (previewDir) m.chargeDir = previewDir;
-      }
-    }
+
   }
 
   // 伤害飘字更新
@@ -5851,11 +5851,9 @@ function spawnMonsterAtRandomPos(cfgId) {
     jumperVanished: false,
     jumperJustLanded: false,
     disappearStepsRemaining: 0,
-    // charge 蓄力怪状态机
-    chargePhase: (cfg.aiType === 'charge') ? 'dash' : undefined,
+    // charge 冲刺状态
     chargeDir: (cfg.aiType === 'charge') ? null : undefined,
     chargeDistance: (cfg.aiType === 'charge') ? 0 : undefined,
-    chargeAnimTimer: (cfg.aiType === 'charge') ? 0 : undefined,
   });
   for (const mc of monsterCells(monsters[monsters.length - 1])) occupied.add(`${mc.col},${mc.row}`);
   return true;
