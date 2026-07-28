@@ -396,10 +396,25 @@
 - **[问题]** 用户问浮游眼 `random_wander` action 中 `stepMode:"random"` 但未配 `stepWeights`，是否默认为均匀随机？
 - **[确认]** 是。`resolveMonsterAction()` 中的步数解析逻辑：有 stepWeights 且长度匹配 → 加权随机；否则走 `Math.floor(Math.random() * steps.length)` 纯均匀随机。浮游眼 `steps:[1,2,3]` → 走 1/2/3 格各 1/3 概率。需要非均匀权重时才显式配 `stepWeights`。
 
+## 2026-07-28
+
+### 代码-文档不一致处理约定 [当前方案]
+- **[触发]** 用户在 monster-db.json 中看到红色行（实际是 IDE diff 对比视图高亮，非文件问题），引出讨论：如果用户手动修改了文件但没有通知 AI，当 AI 后续发现代码与文档不一致时该如何处理？
+- **[问题]** 历史中未明确定义：AI 发现代码与文档矛盾时，自动修哪边？还是停下让用户决策？
+- **[决策]** 确立三层约定：① AI 读代码/文档发现不一致时，必须主动提醒用户，列出具体差异清单；② 不得在用户未表态的情况下擅自修改代码或修改文档；③ 用户可从三个选项中决策：以代码为准更新文档、以文档为准修正代码、或两者都保留（设计变更过渡期）
+- **[与同步文档的解耦]** 此约定适用于 AI 在任何状态下（包括非同步场景）发现不一致的情况，与"同步文档"指令是两个独立触发路径。同步文档时，以实际代码为准更新文档是默认行为
+- **[与 Ask/Craft 模式的关系]** 用户确认：Ask 模式下只讨论、分析、提醒，不动任何文件（代码或文档）。Craft 模式下，提醒后等待指令才修改。两种模式下都不擅自修改
+- **[Memory 创建]** 创建 CodeBuddy Memory ID 32213721 存储此约定，供自动加载
+- **[适用]** 此约定跨项目通用，本记录在 isaac-memory 中保留项目级讨论背景；通用规则同步到 global-rules §2.11
+
+### context.md 文件清单修复
+- monster-db.json 描述仍为旧 `movement` + `aiParams`，未随 7/27 重构更新。现修正为 `actionMode` + `actions[]`
+
 ## 最近更新记录
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-28 | **代码-文档不一致处理约定确立**。①当 AI 发现代码与文档矛盾时，必须主动提醒用户列出差异清单，待用户决策后才行动（三个选项：代码为准/文档为准/都保留）。②明确与"同步文档"指令为独立触发路径（同步时默认以代码为准）。③确认 Ask/Craft 模式边界：都不擅自修改文件。④创建 Memory ID 32213721。⑤context.md 文件清单修正 monster-db.json 过时描述。 |
 | 2026-07-27 | **怪物行动系统重构：actionMode + actions[]**。①移除旧 `movement`/`aiParams` 分散字段，统一为 `actionMode`（sequence/random weighted）+ `actions[]`（独立配置 type + steps/range/condition 等全部参数）。②新增 `resolveMonsterAction()`：condition 过滤 → actionMode 选择 → stepMode/stepWeights 解析。③5种12只怪物全部迁移到新 actions 体系。④Boss Jumper 参数从 aiParams 移至 `actions[].jump_big_land`。⑤确认 stepWeights 未配时默认均匀随机行为。 |
 | 2026-07-24(晚) | **怪物移动配置统一重构 + 浮游眼 AI 优化**。①统一 `movement` 结构（mode/steps/stepMode/weight）替代 4 套分散步数字段，12 只怪物全部迁移。②浮游眼新增切比雪夫距离射程判断（射程外不射击只移动）。③巡逻范围从硬编码改为 `aiParams.patrolRange`。④monster-db.json 完全重写 + demo2.html 6 处改造 + 旧字段 0 残留。⑤context.md 全覆盖交叉比对：怪物表重写、AI表更新、文件清单新增 spawn-config.json。 |
 | 2026-07-24 | **验证列表遗漏事件 + Memory 对话驱动标准确立**。①7/23讨论的"验证列表"未记录到memory（因无代码变更），暴露AI以"代码变更驱动"写memory的惯性偏离了对话记忆初衷。②用户明确memory设计初衷："在任何电脑上都能像跟同一个有统一记忆的AI聊天"。③记忆触发标准从"代码变更→记录"扩展为"聊过的重要事→记录"（设计验证/待办任务/设计疑问/创意方向等）。④global-rules §2.10 更新补充此规则。⑤验证列表具体内容已不可溯源（cb_summary压缩丢失）。 |

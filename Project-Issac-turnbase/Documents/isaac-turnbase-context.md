@@ -578,7 +578,7 @@ function project(wx, wy) {
 |------|------|------|
 | `pool.json` | JSON | 关卡池数据文件（模板定义 + spawnConfig 刷怪配置，编辑器读写） |
 | `floor-data.json` | JSON | 楼层生成数据（房间结构+grid，编辑器/游戏加载） |
-| `monster-db.json` | JSON | 怪物配置数据（12只怪物：4类型×3等级，含统一 `movement` 移动配置 + `aiParams` AI特有参数） |
+| `monster-db.json` | JSON | 怪物配置数据（12只怪物：4类型×3等级，含统一 `actionMode` + `actions[]` 行动列表配置） |
 | `item-db.json` | JSON | 道具数据库（25种被动道具：effects 数值属性 + specials[] 结构化特效） |
 | `item-drop-tables.json` | JSON | 道具掉落表（三张表：default/treasure_room/boss_room 按品质权重） |
 | `spawn-config.json` | JSON | 楼层刷怪配置（每层预算加成 + Boss 分配表） |
@@ -600,6 +600,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-28 | **文档体系补充：代码-文档不一致处理约定**。①确立约定：AI 发现实际代码和项目文档不一致时，必须主动提醒用户，列出具体差异清单让用户决策（①以代码为准更新文档 / ②以文档为准修正代码 / ③两者都保留（设计变更过渡期）），不得在用户未表态的情况下擅自修改代码或修改文档。②确认 Ask/Craft 模式分工边界：Ask 模式只分析/提醒差异，不动文件；文档更新需用户明确指令。③文件清单修正：monster-db.json 描述从旧 `movement`+`aiParams` 更新为 `actionMode`+`actions[]`。 |
 | 2026-07-27 | **怪物行动系统重构：actionMode + actions[]**。①移除旧 `movement`/`aiParams`/`aiRange` 分散字段，统一为 `actionMode`（行为选择模式：sequence按序/random加权随机）+ `actions[]`（行为列表，每个 action 独立携带 type + steps/stepMode/range/condition 等全部参数）。②新增 `resolveMonsterAction()` 函数：按 condition 过滤 eligible → actionMode 挑选 → stepMode/stepWeights 解析步数。stepWeights 未配时默认均匀随机。③5种怪物12条全部迁移。裂口尸→chase、浮游眼→random_wander+shoot_fan（actionMode.random + condition.in_range）、蓄力魔像→charge_line、Boss Jumper→jump_small+jump_big_land。④Boss Jumper 参数从 `aiParams` 移至 `actions[].jump_big_land`（landDamage/repeatChance/disappearSteps）。⑤context.md 全覆盖交叉比对：怪物表重写、AI类型表→Action类型表、配置字段说明重写、Boss Jumper 参数来源更新、架构概览/函数索引/数据流更新。 |
 | 2026-07-24 | **怪物移动配置统一重构 + 浮游眼AI行为优化**。①新增统一 `movement` 结构（`mode`/`steps`/`stepMode`/`weight`），替代旧 `moveCycle`/`moveDistMin-Max`/`chargeDistMin-Max` 等分散字段。12只怪物全部迁移，同一概念（步数）不再各自为政。②浮游眼 AI 新增切比雪夫距离射程判断：射程内按权重射击/移动，射程外强制只移动，不走无意义的远程对射。③巡逻怪硬编码 5 格 → `aiParams.patrolRange` 可配置。④context.md 全文交叉比对：怪物表重写（boss_maw_king 移除、I/II/III 三级标注、移动列重写）、AI类型表更新、文件清单新增 spawn-config.json + demo.html 标记废弃、函数索引/独立属性描述更新。 |
 | 2026-07-23 | **AI行为参数外置 + 配置外置审计标准 + global-rules 规范扩充**。①monster-db.json 新增 `aiParams` 字段，5种怪物AI参数全部外置消除硬编码。②系统性审计6个JSON+2个HTML，确立分类标准：策划数据→JSON、引擎/渲染/算法内部调参→代码（渲染常量/动画时长/刷怪算法明确保留代码不挪JSON）。③建立双HTML同步策略（demo.html内联 + demo2.html JSON加载双轨维护）。④global-rules 新增 §2.10 Memory记录完整性要求（不遗漏讨论深度）+ §4.5 疑问句与指令区分（只建议不抢先执行）。⑤context.md全覆盖交叉比对：8处过时常量修正（怪物名/HP/子弹速度/重力）。 |
