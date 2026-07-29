@@ -11,7 +11,7 @@
 >
 > **组织方式**：纯时间顺序，不做模块分类。给 AI 快速浏览聊天记忆用。
 >
-> 最后更新: 2026-07-28
+> 最后更新: 2026-07-29
 
 ---
 
@@ -457,11 +457,38 @@
 - **[代码重构]** 抽出 `checkActionCondition(a, pCol, pRow, mCol, mRow)` 和 `resolveSteps(stepsArr, stepMode, stepWeights, turnIdx)` 两个辅助函数，消除 `resolveMonsterAction` 内重复代码
 - **[影响范围]** monster-db.json(3只浮游眼 actionMode+actions) + demo2.html(`resolveMonsterAction` 函数重写 + `calcAllMonsterPaths` shoot_fan case 新增 after_effect 处理 + `updateFlyingEyeExclaim` 新函数)
 
+---
+
+## 2026-07-29
+
+### 资源掉落表 mode 统一 — 配置驱动改造 [当前方案]
+- **[触发]** 用户追问两个设计问题：①资源掉落表的选择模式（每种独立计算 vs 只选1个 vs 顺序判定）是否应该像 monster loot 的 entries 一样可配置？②宝藏房/Boss房不掉资源为什么用代码硬编码而不是配置控制？
+- **[问题]** 旧 `rollResourceDrop()` 硬编码为"按权重只抽1种"，且 `rollRoomClearDrop()` 中硬编码 `if (room.type === 'treasure' || room.type === 'boss') return;`。`spawnShopItems()` 各自写 for-loop 判概率，三处掉落入口三种判法
+- **[决策]** 与 `rollLoot()` 保持一致语义，`resource-db.json` 的 `dropTables` 全面升级为 `{ mode, _desc, table }` 结构，所有表统一列出全部 15 种资源（不需要的配 0）
+  - `pick_one`：怪物掉落、房间清空、地形破坏、宝箱额外资源
+  - `roll_all`：商店商品（每种独立判定，最多6个）
+  - `pick_first`：预留
+  - 新增 `room_clear_treasure` 表（全 0 = 不掉落），`room_clear_boss` 也改为全 0（替代硬编码）
+- **[代码改动]** `rollResourceDrop()` 重构（读 mode+table、按 mode 分发、兼容旧格式）+ `rollRoomClearDrop()` 移除硬编码改 roomType→tableKey 映射 + `spawnShopItems()` 统一走 `rollResourceDrop('shop_stock')`
+- **[设计收益]** 掉落行为完全配置驱动，改表不碰代码；想给 Boss/宝藏房加资源只需改对应表权重值
+
+### attack_adjacent 行为修正 — 从面朝方向改为十字范围 [当前方案]
+- **[触发]** 用户发现裂口尸 chase 的 `after_effect: attack_adjacent` 有时不生效，怀疑只对面朝方向 1 格攻击
+- **[问题确认]** `resolveAfterEffects()` 中 `attack_adjacent` 使用 `context.dirX/dirY` 只检查面朝方向 line，且 `finishMonsterTurn()` 从路径最后一步取方向作为唯一方向传入
+- **[决策]** 重构为遍历上下左右 4 个方向，每个方向向外检查 range 格（遇墙停止），攻击范围内所有玩家和怪物。不再依赖传入的 dirX/dirY
+- **[代码改动]** `resolveAfterEffects()` attack_adjacent 分支（四方向 forEach）+ `finishMonsterTurn()` 移除 `lastStep`/`Math.sign` 方向计算
+
+### 掉落表条目统一化 [当前方案]
+- **[触发]** 用户要求每张 dropTable 列出所有 15 种资源，不掉落的权重配 0，这样每张表条目结构完全一致
+- **[决策]** 全部 11 张表按固定排序列出完整 15 条目（coin_gold→coin_black→coin_silver→bomb_single→bomb_double→heart_half→heart_full→heart_double→blue_heart_half→blue_heart_full→blue_heart_double→chest_normal→chest_golden→key_single→key_double），不需要的权重=0
+- **[收益]** 需要添加新掉落种类时只改数值不改字段结构
+
 ## 最近更新记录
 
 | 日期 | 更新内容 |
 |------|---------|
-| 2026-07-28(晚) | **浮游眼行为模式重构**。①新增 condition actionMode(按顺序条件判断) + out_of_range 条件 + after_effect 机制(shoot_fan后立刻random_wander)。②玩家回合动态感叹号(进出射程实时显示/隐藏)。③抽出 checkActionCondition + resolveSteps 辅助函数。 |
+| 2026-07-29 | **资源掉落表 mode 统一 + attack_adjacent 修正 + 条目统一化**。①`resource-db.json` dropTables 升级为 `{ mode, table }` 结构，支持 pick_one/roll_all/pick_first。②`rollResourceDrop()` 重构为 mode 驱动。③`rollRoomClearDrop()` 移除硬编码改为 roomType→tableKey 配置映射。④`spawnShopItems()` 统一走 rollResourceDrop。⑤`attack_adjacent` 从面朝方向改为四方向十字范围攻击。⑥全部 11 张表统一 15 种资源条目。 |
+| 2026-07-28(晚) | **浮游眼行为模式重构**。①新增 condition actionMode + out_of_range 条件 + after_effect 机制(shoot_fan后立刻random_wander)。②玩家回合动态感叹号。③抽出 checkActionCondition + resolveSteps 辅助函数。 |
 | 2026-07-28(晚) | **蓄力魔像行为优化 + 感叹号像素风 + 文档同步触发规则**。①蓄力魔像 actions 改为4步sequence(random_wander×2+charge_up+charge_line)，新增 charge_up type(感叹号脉动)，charge_line 简化为单步执行。②感叹号改为56px Courier New像素风大号样式，8方向像素描边+3层光晕+0.5s脉动。③memory.md 新增修改规则#4：context.md和memory.md更新必须由用户"同步文档"指令触发，不得在代码任务中附带执行。 |
 | 2026-07-28(晚) | **掉落系统全面重构+资源系统建立**。①用户8条掉落需求驱动全面重配。②确立weight vs rate 语义区分。③新建 resource-db.json（资源定义+8张掉落表+宝箱loot）。④全部12只怪物loot重配：小怪极少道具(~0.9%/只)+小概率资源(~25%)；Boss纯道具无资源。⑤宝箱改为必掉1~4个道具(roll_all模式)。⑥品质表合并至item-db.json，删除 item-drop-tables.json。⑦资源掉落表全面降低概率匹配各场景。⑧用户后续手动微调数值。 |
 | 2026-07-28 | **代码-文档不一致处理约定确立**。①当 AI 发现代码与文档矛盾时，必须主动提醒用户列出差异清单，待用户决策后才行动（三个选项：代码为准/文档为准/都保留）。②明确与"同步文档"指令为独立触发路径（同步时默认以代码为准）。③确认 Ask/Craft 模式边界：都不擅自修改文件。④创建 Memory ID 32213721。⑤context.md 文件清单修正 monster-db.json 过时描述。 |

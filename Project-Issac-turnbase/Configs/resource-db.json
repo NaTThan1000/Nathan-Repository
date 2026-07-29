@@ -7,18 +7,19 @@
         "_desc": "资源类型"
       },
       "dropTables": {
-        "_desc": "资源掉落表，被 monster-db.json > loot > entries[].pool 引用",
+        "_desc": "资源掉落表，每张表结构 { mode, table }。mode: pick_one(权重抽1) / roll_all(每种独立判定) / pick_first(顺序首个命中即停)。被 monster-db.json > loot > entries[].pool 引用",
         "_tables": {
-          "monster_default": "普通小怪 (threat<3) 掉落",
-          "monster_heavy": "重型小怪 (threat≥3) 掉落",
-          "boss_drop": "Tank怪/Boss怪击杀掉落",
-          "room_clear_default": "普通房间清空奖励",
-          "room_clear_boss": "Boss房间清空奖励",
-          "terrain_rock": "破坏岩石掉落",
-          "terrain_poop": "破坏便便掉落",
-          "chest_normal": "普通宝箱",
-          "chest_golden": "金宝箱(需钥匙)",
-          "shop_stock": "商店商品生成"
+          "monster_default": "普通小怪 (threat<3) 掉落 — pick_one",
+          "monster_heavy": "重型小怪 (threat≥3) 掉落 — pick_one",
+          "boss_drop": "Tank怪/Boss怪击杀掉落 — pick_one",
+          "room_clear_default": "普通/商店/起始房间清空奖励 — pick_one",
+          "room_clear_boss": "Boss房间清空奖励 — pick_one(空table)",
+          "room_clear_treasure": "宝藏房间清空奖励 — pick_one(空table)",
+          "terrain_rock": "破坏岩石掉落 — pick_one",
+          "terrain_poop": "破坏便便掉落 — pick_one",
+          "chest_normal": "普通宝箱额外资源 — pick_one",
+          "chest_golden": "金宝箱(需钥匙)额外资源 — pick_one",
+          "shop_stock": "商店商品生成 — roll_all"
         }
       },
       "_limits": {
@@ -223,96 +224,239 @@
 
   "dropTables": {
     "monster_default": {
-      "_desc": "普通小怪(威胁<3)掉落 — 小概率出1种资源",
-      "coin_gold":   0.06,
-      "coin_black":  0.03,
-      "heart_half":  0.06,
-      "heart_full":  0.02,
-      "bomb_single": 0.03,
-      "key_single":  0.02
+      "mode": "pick_one",
+      "_desc": "普通小怪(威胁<3)掉落 — 按权重抽1种资源",
+      "table": {
+        "coin_gold":       0.06,
+        "coin_black":      0.03,
+        "coin_silver":     0,
+        "bomb_single":     0.03,
+        "bomb_double":     0,
+        "heart_half":      0.06,
+        "heart_full":      0.02,
+        "heart_double":    0,
+        "blue_heart_half": 0,
+        "blue_heart_full": 0,
+        "blue_heart_double": 0,
+        "chest_normal":    0,
+        "chest_golden":    0,
+        "key_single":      0.02,
+        "key_double":      0
+      }
     },
     "monster_heavy": {
-      "_desc": "重型小怪(威胁≥3)掉落 — 小概率出1种资源",
-      "coin_gold":   0.05,
-      "coin_black":  0.03,
-      "coin_silver": 0.01,
-      "heart_half":  0.05,
-      "heart_full":  0.02,
-      "blue_heart_half": 0.02,
-      "bomb_single": 0.02,
-      "key_single":  0.02
+      "mode": "pick_one",
+      "_desc": "重型小怪(威胁≥3)掉落 — 按权重抽1种资源",
+      "table": {
+        "coin_gold":       0.05,
+        "coin_black":      0.03,
+        "coin_silver":     0.01,
+        "bomb_single":     0.02,
+        "bomb_double":     0,
+        "heart_half":      0.05,
+        "heart_full":      0.02,
+        "heart_double":    0,
+        "blue_heart_half": 0.02,
+        "blue_heart_full": 0,
+        "blue_heart_double": 0,
+        "chest_normal":    0,
+        "chest_golden":    0,
+        "key_single":      0.02,
+        "key_double":      0
+      }
     },
     "boss_drop": {
-      "_desc": "蓄力魔像类坦克怪掉落 — 小概率出1种资源",
-      "coin_silver": 0.02,
-      "coin_gold":   0.05,
-      "coin_black":  0.03,
-      "heart_full":  0.04,
-      "heart_double": 0.01,
-      "blue_heart_full": 0.01,
-      "bomb_double": 0.01,
-      "key_double":  0.01
+      "mode": "pick_one",
+      "_desc": "蓄力魔像类坦克怪掉落 — 按权重抽1种资源",
+      "table": {
+        "coin_gold":       0.05,
+        "coin_black":      0.03,
+        "coin_silver":     0.02,
+        "bomb_single":     0,
+        "bomb_double":     0.01,
+        "heart_half":      0,
+        "heart_full":      0.04,
+        "heart_double":    0.01,
+        "blue_heart_half": 0,
+        "blue_heart_full": 0.01,
+        "blue_heart_double": 0,
+        "chest_normal":    0,
+        "chest_golden":    0,
+        "key_single":      0,
+        "key_double":      0.01
+      }
     },
 
     "room_clear_default": {
-      "_desc": "普通房间清空奖励 — 中概率出1种资源",
-      "coin_gold":   0.12,
-      "coin_black":  0.08,
-      "heart_half":  0.12,
-      "key_single":  0.06,
-      "bomb_single": 0.05
+      "mode": "pick_one",
+      "_desc": "普通/商店/起始房间清空奖励 — 按权重抽1种资源",
+      "table": {
+        "coin_gold":       0.12,
+        "coin_black":      0.08,
+        "coin_silver":     0,
+        "bomb_single":     0.05,
+        "bomb_double":     0,
+        "heart_half":      0.12,
+        "heart_full":      0,
+        "heart_double":    0,
+        "blue_heart_half": 0,
+        "blue_heart_full": 0,
+        "blue_heart_double": 0,
+        "chest_normal":    0,
+        "chest_golden":    0,
+        "key_single":      0.06,
+        "key_double":      0
+      }
     },
     "room_clear_boss": {
-      "_desc": "Boss房间清空奖励 — 极低概率(击杀Boss已给道具)",
-      "coin_silver": 0.04,
-      "coin_black":  0.04,
-      "heart_full":  0.04,
-      "bomb_single": 0.02,
-      "key_single":  0.02
+      "mode": "pick_one",
+      "_desc": "Boss房间清空奖励 — 全0(不掉落资源)，需要时改数值即可",
+      "table": {
+        "coin_gold":       0,
+        "coin_black":      0,
+        "coin_silver":     0,
+        "bomb_single":     0,
+        "bomb_double":     0,
+        "heart_half":      0,
+        "heart_full":      0,
+        "heart_double":    0,
+        "blue_heart_half": 0,
+        "blue_heart_full": 0,
+        "blue_heart_double": 0,
+        "chest_normal":    0,
+        "chest_golden":    0,
+        "key_single":      0,
+        "key_double":      0
+      }
+    },
+    "room_clear_treasure": {
+      "mode": "pick_one",
+      "_desc": "宝藏房间清空奖励 — 全0(不掉落资源)，需要时改数值即可",
+      "table": {
+        "coin_gold":       0,
+        "coin_black":      0,
+        "coin_silver":     0,
+        "bomb_single":     0,
+        "bomb_double":     0,
+        "heart_half":      0,
+        "heart_full":      0,
+        "heart_double":    0,
+        "blue_heart_half": 0,
+        "blue_heart_full": 0,
+        "blue_heart_double": 0,
+        "chest_normal":    0,
+        "chest_golden":    0,
+        "key_single":      0,
+        "key_double":      0
+      }
     },
 
     "terrain_rock": {
-      "_desc": "破坏岩石掉落 — 极小概率出1种资源",
-      "coin_gold":    0.01,
-      "coin_black":   0.005,
-      "heart_half":   0.01,
-      "bomb_single":  0.005,
-      "key_single":   0.005
+      "mode": "pick_one",
+      "_desc": "破坏岩石掉落 — 按权重抽1种资源",
+      "table": {
+        "coin_gold":       0.01,
+        "coin_black":      0.005,
+        "coin_silver":     0,
+        "bomb_single":     0.005,
+        "bomb_double":     0,
+        "heart_half":      0.01,
+        "heart_full":      0,
+        "heart_double":    0,
+        "blue_heart_half": 0,
+        "blue_heart_full": 0,
+        "blue_heart_double": 0,
+        "chest_normal":    0,
+        "chest_golden":    0,
+        "key_single":      0.005,
+        "key_double":      0
+      }
     },
     "terrain_poop": {
-      "_desc": "破坏便便掉落 — 小概率出1种资源",
-      "coin_gold":    0.05,
-      "heart_half":   0.04,
-      "blue_heart_half": 0.03,
-      "key_single":   0.03
+      "mode": "pick_one",
+      "_desc": "破坏便便掉落 — 按权重抽1种资源",
+      "table": {
+        "coin_gold":       0.05,
+        "coin_black":      0,
+        "coin_silver":     0,
+        "bomb_single":     0,
+        "bomb_double":     0,
+        "heart_half":      0.04,
+        "heart_full":      0,
+        "heart_double":    0,
+        "blue_heart_half": 0.03,
+        "blue_heart_full": 0,
+        "blue_heart_double": 0,
+        "chest_normal":    0,
+        "chest_golden":    0,
+        "key_single":      0.03,
+        "key_double":      0
+      }
     },
 
     "chest_normal": {
-      "coin_gold":   1.0,
-      "coin_black":  0.50,
-      "coin_silver": 0.12,
-      "heart_full":  0.40,
-      "blue_heart_half": 0.25,
-      "bomb_single": 0.30,
-      "key_single":  0.25
+      "mode": "pick_one",
+      "_desc": "打开普通宝箱额外获得的1种资源",
+      "table": {
+        "coin_gold":       1.0,
+        "coin_black":      0.50,
+        "coin_silver":     0.12,
+        "bomb_single":     0.30,
+        "bomb_double":     0,
+        "heart_half":      0,
+        "heart_full":      0.40,
+        "heart_double":    0,
+        "blue_heart_half": 0.25,
+        "blue_heart_full": 0,
+        "blue_heart_double": 0,
+        "chest_normal":    0,
+        "chest_golden":    0,
+        "key_single":      0.25,
+        "key_double":      0
+      }
     },
     "chest_golden": {
-      "coin_silver": 1.0,
-      "coin_black":  0.80,
-      "coin_gold":   1.0,
-      "heart_double": 0.50,
-      "blue_heart_full": 0.40,
-      "bomb_double": 0.35,
-      "key_double":  0.30
+      "mode": "pick_one",
+      "_desc": "打开金宝箱额外获得的1种资源",
+      "table": {
+        "coin_gold":       1.0,
+        "coin_black":      0.80,
+        "coin_silver":     1.0,
+        "bomb_single":     0,
+        "bomb_double":     0.35,
+        "heart_half":      0,
+        "heart_full":      0,
+        "heart_double":    0.50,
+        "blue_heart_half": 0,
+        "blue_heart_full": 0.40,
+        "blue_heart_double": 0,
+        "chest_normal":    0,
+        "chest_golden":    0,
+        "key_single":      0,
+        "key_double":      0.30
+      }
     },
 
     "shop_stock": {
-      "heart_full":       0.80,
-      "heart_half":       0.60,
-      "blue_heart_full":  0.50,
-      "blue_heart_half":  0.40,
-      "bomb_single":      0.40,
-      "key_single":       0.35
+      "mode": "roll_all",
+      "_desc": "商店商品生成 — 每种资源独立判定概率，最多6个",
+      "table": {
+        "coin_gold":       0,
+        "coin_black":      0,
+        "coin_silver":     0,
+        "bomb_single":     0.40,
+        "bomb_double":     0,
+        "heart_half":      0.60,
+        "heart_full":      0.80,
+        "heart_double":    0,
+        "blue_heart_half": 0.40,
+        "blue_heart_full": 0.50,
+        "blue_heart_double": 0,
+        "chest_normal":    0,
+        "chest_golden":    0,
+        "key_single":      0.35,
+        "key_double":      0
+      }
     }
   }
 }

@@ -1,6 +1,6 @@
 # 以撒·半回合制战斗 — 项目总览
 
-> 文件: `Project-Issac-turnbase/isaac-turnbased-demo2.html`（v3道具系统版，主开发文件） | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/monster-db.json` 怪物配置表(含loot) + `Configs/item-db.json` 道具数据库(含品质表) + `Configs/resource-db.json` 资源数据库(定义+掉落表+宝箱loot) + `Configs/spawn-config.json` 楼层刷怪配置 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 统一掉落调度器(rollLoot) + 资源掉落系统 + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层 + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表 + Boss Jumper 2×2跳跃Boss + 怪物行动系统重构(actionMode+actions[])
+> 文件: `Project-Issac-turnbase/isaac-turnbased-demo2.html`（v3道具系统版，主开发文件） | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/monster-db.json` 怪物配置表(含loot) + `Configs/item-db.json` 道具数据库(含品质表) + `Configs/resource-db.json` 资源数据库(定义+掉落表+宝箱loot) + `Configs/spawn-config.json` 楼层刷怪配置 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 统一掉落调度器(rollLoot) + 资源掉落系统(mode驱动) + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层 + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表 + Boss Jumper 2×2跳跃Boss + 怪物行动系统重构(actionMode+actions[])
 
 ---
 
@@ -52,7 +52,7 @@
 - `actionMode`：行为选择模式 `{ mode, [weights] }`。`mode: "sequence"` 按索引顺序循环执行 actions；`mode: "random"` 按 `weights[]` 加权随机选一个 action；`mode: "condition"` 按顺序逐条评估 action 的 condition，选中第一个满足条件的 action。权重默认 1（均匀随机）
 - `actions[]`：行为列表，每行为独立配置对象。通用字段：`type`（行为类型标识）、`steps`（步数池数组）、`stepMode`（sequence按序轮换 / random均匀随机）。每个 action 类型可携带额外专有参数（如 `range`/`condition`/`directMode`/`landDamage`/`repeatChance`/`disappearSteps`/`after_effect` 等）
 - `condition`（action 可选字段）：`"in_range"` → 仅当玩家在 action 的 `range`（切比雪夫距离）内时该 action 可选；`"out_of_range"` → 仅当玩家在射程外时可选。无 condition 则始终可选
-- `after_effect`（action 可选字段）：主 action 执行完毕后追加执行的附加行为，结构为 `{ type, steps, stepMode }`。当前仅 `shoot_fan`（浮游眼射程内）使用，指向 `random_wander`（射击后立刻移动）
+- `after_effect`（action 可选字段）：主 action 执行完毕后追加执行的附加行为，支持两种格式：①单一对象 `{ type, steps, stepMode }`（浮游眼 shoot_fan→random_wander）；②数组 `[{ type, damage, range }]`（裂口尸 chase→attack_adjacent 十字邻格攻击，上下左右各 range 格；Boss Jumper jump_big_land→attack_side 冲击波范围攻击）
 - `aiType`：行为标签（chase/ranged_kite/charge/boss_jumper），保留用于特殊路由（如 boss_jumper 跳过普通 AI 分发进入 `processJumperAction`），但不再携带参数
 - `movementTags`：怪物移动特征标签，用于与房间 `allowedMovement` 做标签匹配。`地面` 表示只能在地面行走（无法穿越深坑），`飞行` 表示可无视地形障碍
 - `role`：战斗角色定位（melee/ranged/tank/boss），用于组合规则保证类型多样性
@@ -62,7 +62,7 @@
 
 | action type | 行为描述 |
 |------------|---------|
-| `chase` | 向玩家追踪移动（BFS寻路），步数从 `steps`/`stepMode` 取 |
+| `chase` | 向玩家追踪移动（BFS寻路），步数从 `steps`/`stepMode` 取。支持 after_effect: [attack_adjacent] → 移动结束后对四方向邻格造成伤害 |
 | `random_wander` | 随机方向漫步，步数从 `steps`/`stepMode` 取。`stepMode:"random"` + 无 `stepWeights` → 均匀随机（每步等权重） |
 | `shoot_fan` | 扇形三连射，`range` 控制射程，`directMode:"toward_player_axis"` 朝玩家主轴向射击。通常配 `condition:"in_range"` 仅射程内可选 |
 | `charge_up` | 蓄力：原地不动，头顶红色感叹号提示（闪烁脉动动画），为下一轮 `charge_line` 冲刺做准备 |
@@ -424,7 +424,7 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
     ├── 怪物系统 (MONSTER_DB 配置表 + actionMode/actions[] 行动列表 + resolveMonsterAction 行为选择 + AI行为路由 + calcAllMonsterPaths/startMonsterTurn/updateMonsterTurn/spawnMonster + 2×2怪物辅助函数)
     ├── Boss Jumper系统 (processJumperAction/calcJumperSmallJump/calcJumperBigJump/executeBossLanding — 状态机驱动2×2跳跃Boss)
     ├── 道具系统 (ITEMS_DB 道具数据库 + SPECIAL_EFFECT_HANDLERS 特效注册表 + playerInventory 背包 + recalcAllStats 属性重算)
-    ├── 资源系统 (RESOURCE_DB 资源定义 + RES_DROP_TABLES 掉落表 + playerResources 背包 + rollResourceDrop/rollRoomClearDrop/rollTerrainDestroyDrop)
+    ├── 资源系统 (RESOURCE_DB 资源定义 + RES_DROP_TABLES 掉落表(mode/table结构) + playerResources 背包 + rollResourceDrop/rollRoomClearDrop/rollTerrainDestroyDrop)
     ├── 掉落系统 (rollLoot 统一调度器 + executeDropEntry 分发 + rollMonsterKillDrop + chest loot in resource-db.json)
     ├── 数据加载层 (loadMonsterDB/loadItemDB/loadResourceDB/loadSpawnConfig — 异步fetch JSON配置文件)
     ├── UI 更新 (updateUI, updateActionBar, updateFloorUI)
@@ -492,10 +492,12 @@ function project(wx, wy) {
 | `rollItem(quality?, tableKey?)` | 按品质/掉落表权重随机抽取道具配置ID |
 | `rollLoot(lootConfig, col, row)` | 统一掉落调度器：解析怪物/宝箱的 loot 配置，支持 rounds/entries/mode(pick_one/roll_all/pick_first) |
 | `executeDropEntry(entry, col, row)` | 执行单个掉落条目：item→rollItem 生成道具 / resource_pool→rollResourceDrop 生成资源 / resource_fixed→固定资源 |
-| `rollResourceDrop(tableKey)` | 从 `resource-db.json > dropTables` 按独立概率随机生成资源 ID 列表 |
+| `rollResourceDrop(tableKey)` | 从 `resource-db.json > dropTables` 按表的 `mode`(pick_one/roll_all/pick_first) 驱动随机生成资源 ID 列表。兼容旧扁平格式 |
 | `rollMonsterKillDrop(m)` | 击杀怪物时读取 `monster-db.json > loot` 配置调用 rollLoot |
-| `rollRoomClearDrop()` | 清空房间时按房间类型(普通/ Boss)走 `room_clear_default` / `room_clear_boss` 资源表 |
+| `rollRoomClearDrop()` | 清空房间时按房间类型映射到不同掉落表(normal/start/shop→room_clear_default, boss→room_clear_boss, treasure→room_clear_treasure)，纯配置驱动 |
 | `rollTerrainDestroyDrop(col, row, type)` | 破坏岩石/便便时走 `terrain_rock` / `terrain_poop` 资源表 |
+| `spawnShopItems(room)` | 商店房商品生成，统一调用 `rollResourceDrop('shop_stock')`（mode: roll_all，每种独立判定），最多6个 |
+| `resolveAfterEffects(action, context)` | 执行 action 的 after_effect：attack_adjacent(四方向十字攻击)/attack_side(Boss冲击波范围) |
 | `spawnItemOnGrid(col, row, cfgId)` | 在指定网格位置生成道具实体 |
 | `recalcAllStats()` | 遍历背包重算所有属性（effects 数值累加 + specials[] 注册表分发） |
 | `getTpl(key)` | 按 key 获取模板，优先 poolTemplates，回退内置 |
@@ -597,7 +599,7 @@ function project(wx, wy) {
 | `floor-data.json` | JSON | 楼层生成数据（房间结构+grid，编辑器/游戏加载） |
 | `monster-db.json` | JSON | 怪物配置数据（12只怪物：4类型×3等级，含 `actionMode`+`actions[]` 行动列表 + `loot` 掉落配置） |
 | `item-db.json` | JSON | 道具数据库（25种被动道具 + `qualityTables` 8张品质掉落表，合并原 item-drop-tables.json） |
-| `resource-db.json` | JSON | 资源数据库（金币/炸弹/红心/蓝心/宝箱/钥匙定义 + `dropTables` 8张资源掉落表 + `_limits` 上限配置） |
+| `resource-db.json` | JSON | 资源数据库（金币/炸弹/红心/蓝心/宝箱/钥匙定义 + `dropTables` 11张资源掉落表(mode/table结构，每表统一15种资源条目) + `_limits` 上限配置 + `_schema` 文档） |
 | `spawn-config.json` | JSON | 楼层刷怪配置（每层预算加成 + Boss 分配表） |
 | `isaac-room-pool - original backup.json` | JSON | 原始关卡池备份 |
 
@@ -619,9 +621,10 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-29 | **资源掉落表 mode 统一 + attack_adjacent 十字化**。①`resource-db.json` dropTables 全部升级为 `{ mode, table }` 结构，每表统一 15 种资源条目(不掉落的权重=0)，新增 `room_clear_treasure` 表。②`rollResourceDrop()` 重构支持三种 mode(pick_one/roll_all/pick_first)，向下兼容旧格式。③`rollRoomClearDrop()` 移除硬编码(宝藏/Boss房不掉的 if 判断)，改为 roomType→tableKey 纯配置驱动映射。④`spawnShopItems()` 改用统一 `rollResourceDrop('shop_stock')`。⑤`resolveAfterEffects()` 中 `attack_adjacent` 从面朝方向单向攻击改为四方向十字范围攻击(上下左右各 range 格)。⑥`finishMonsterTurn()` 简化移除 dirX/dirY 计算。 |
 | 2026-07-28(晚) | **浮游眼行为模式重构**。①新增 `condition` actionMode：按顺序逐条评估 condition，选中第一个满足的 action（替代旧 random 权重随机）。②新增 `out_of_range` 条件（与 `in_range` 互补）。③新增 `after_effect` 机制：主 action 执行完毕后追加执行附加行为（shoot_fan→after_effect:random_wander → 射击后立刻移动）。④玩家回合动态感叹号：WASD移动时实时检测与浮游眼切比雪夫距离，进入射程显示"!"，移出消失。⑤抽出 `checkActionCondition` + `resolveSteps` 辅助函数。 |
 | 2026-07-28(晚) | **蓄力魔像行为优化**。①蓄力魔像 actions 从单一 `charge_line` 改为 4 步 sequence：`random_wander`(2步) → `random_wander`(2步) → `charge_up`(蓄力+感叹号) → `charge_line`(冲刺)。I/II/III级 wander 步数分别为 2/3/4。②新增 `charge_up` action 类型：原地不动+头顶红色闪烁感叹号(!)脉动动画（DOM覆盖层渲染）。③`charge_line` 简化为单步执行（选方向+直接冲刺，不再分两阶段）。④感叹号状态纳入回合快照。⑤action 类型枚举从 7 种增至 8 种。⑥感叹号样式优化：56px Courier New大号像素风，8方向黑色像素描边+3层红色光晕脉动（0.5s，0.85→1.25缩放）。 |
-| 2026-07-28(晚) | **掉落系统全面重构 + 资源系统建立**。①新建 `resource-db.json`：6种资源定义(金币/黑币/银币/炸弹/红心/蓝心/宝箱/钥匙) + 8张资源掉落表(monster_default/monster_heavy/boss_drop/room_clear_default/room_clear_boss/terrain_rock/terrain_poop/chest_normal/chest_golden/shop_stock) + 宝箱loot配置。②怪物loot全面重配：所有非Boss怪改为极少道具(weight 0.03 + monster_very_rare 品质表 none:0.70 → 有效约0.9%/只) + 小概率资源(约22-30%)；Boss纯道具无资源(boss品质表)。③宝箱改为必掉1~4个道具(roll_all模式，保底1个+3次55-60%判定)。④房间清空→中概率资源(约43%)，岩石→极小概率(约3.5%)，便便→小概率(约15%)。⑤删除 `item-drop-tables.json`，品质表合并至 `item-db.json > qualityTables`，新增 `monster_very_rare`。⑥新增统一掉落调度器 rollLoot/executeDropEntry 及资源掉落 rollResourceDrop。 |
+| 2026-07-28(晚) | **掉落系统全面重构 + 资源系统建立**。①新建 `resource-db.json`：15种资源定义 + 11张资源掉落表(含新增 room_clear_treasure) + 宝箱loot配置。②怪物loot全面重配：所有非Boss怪改为极少道具 + 小概率资源；Boss纯道具无资源。③宝箱改为必掉1~4个道具(roll_all模式)。④删除 `item-drop-tables.json`，品质表合并至 `item-db.json > qualityTables`。⑤新增统一掉落调度器 rollLoot/executeDropEntry 及资源掉落 rollResourceDrop。 |
 | 2026-07-28 | **文档体系补充：代码-文档不一致处理约定**。①确立约定：AI 发现实际代码和项目文档不一致时，必须主动提醒用户，列出具体差异清单让用户决策（①以代码为准更新文档 / ②以文档为准修正代码 / ③两者都保留（设计变更过渡期）），不得在用户未表态的情况下擅自修改代码或修改文档。②确认 Ask/Craft 模式分工边界：Ask 模式只分析/提醒差异，不动文件；文档更新需用户明确指令。③文件清单修正：monster-db.json 描述从旧 `movement`+`aiParams` 更新为 `actionMode`+`actions[]`。 |
 | 2026-07-27 | **怪物行动系统重构：actionMode + actions[]**。①移除旧 `movement`/`aiParams`/`aiRange` 分散字段，统一为 `actionMode`（行为选择模式：sequence按序/random加权随机）+ `actions[]`（行为列表，每个 action 独立携带 type + steps/stepMode/range/condition 等全部参数）。②新增 `resolveMonsterAction()` 函数：按 condition 过滤 eligible → actionMode 挑选 → stepMode/stepWeights 解析步数。stepWeights 未配时默认均匀随机。③5种怪物12条全部迁移。裂口尸→chase、浮游眼→random_wander+shoot_fan（actionMode.random + condition.in_range）、蓄力魔像→charge_line、Boss Jumper→jump_small+jump_big_land。④Boss Jumper 参数从 `aiParams` 移至 `actions[].jump_big_land`（landDamage/repeatChance/disappearSteps）。⑤context.md 全覆盖交叉比对：怪物表重写、AI类型表→Action类型表、配置字段说明重写、Boss Jumper 参数来源更新、架构概览/函数索引/数据流更新。 |
 | 2026-07-24 | **怪物移动配置统一重构 + 浮游眼AI行为优化**。①新增统一 `movement` 结构（`mode`/`steps`/`stepMode`/`weight`），替代旧 `moveCycle`/`moveDistMin-Max`/`chargeDistMin-Max` 等分散字段。12只怪物全部迁移，同一概念（步数）不再各自为政。②浮游眼 AI 新增切比雪夫距离射程判断：射程内按权重射击/移动，射程外强制只移动，不走无意义的远程对射。③巡逻怪硬编码 5 格 → `aiParams.patrolRange` 可配置。④context.md 全文交叉比对：怪物表重写（boss_maw_king 移除、I/II/III 三级标注、移动列重写）、AI类型表更新、文件清单新增 spawn-config.json + demo.html 标记废弃、函数索引/独立属性描述更新。 |

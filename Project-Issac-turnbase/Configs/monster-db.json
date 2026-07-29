@@ -321,7 +321,7 @@
         {
           "mode": "pick_one",
           "entries": [
-            { "type": "item", "rate": 1.0, "qualityTable": "boss" }
+            { "type": "item", "rate": 0, "qualityTable": "boss" }
           ]
         }
       ]
@@ -359,7 +359,7 @@
         {
           "mode": "pick_one",
           "entries": [
-            { "type": "item", "rate": 1.0, "qualityTable": "boss" }
+            { "type": "item", "rate": 0, "qualityTable": "boss" }
           ]
         }
       ]
@@ -397,7 +397,7 @@
         {
           "mode": "pick_one",
           "entries": [
-            { "type": "item", "rate": 1.0, "qualityTable": "boss" }
+            { "type": "item", "rate": 0, "qualityTable": "boss" }
           ]
         }
       ]
