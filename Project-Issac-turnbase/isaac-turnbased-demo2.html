@@ -857,19 +857,19 @@ function updateRoomCombatState(){
     turnState.hasShot=false;checkpointPos=null;
     pendingReachableRefresh=true;
     monsterExecTimer=0;monsterExecStepIdx=0;
+    turnState.monsterTurnCounter=0;
     saveTurnSnapshot();updateActionBar();updateUI();
 
     // 房间清空掉落
     rollRoomClearDrop();
-    // 战斗模式下清空怪物后如果还有炸弹，进入炸弹模式
+    // 战斗模式下清空怪物后如果还有炸弹，保持战斗模式（但门已开）
     if (bombs.some(b => b.roomId === currentRoomId)) {
-      bombMode = true;
-      bombModeTurnsFrom = 0;
-      // 设置炸弹模式移动行动力
+      inCombat = true;
+      // 保持移动行动力（炸弹房间玩家仍可移动和射击）
       turnState.maxMAP = Math.floor(playerStats.moveSpeed);
       turnState.mAP = turnState.maxMAP;
-      turnState.aAP = 0;
-      turnState.maxAAP = 0;
+      turnState.maxAAP = Math.floor(playerStats.fireRate);
+      turnState.aAP = turnState.maxAAP;
       turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
       updateActionBar();
     }
@@ -900,13 +900,14 @@ function updateRoomCombatState(){
 function updateDoorsLocked(){
   const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
   if(!room)return;
+  const hasLivingMonsters = monsters.filter(m => m.hp > 0 && !m.jumperVanished).length > 0;
   for(const dir of['up','down','left','right']){
     if(room.doors[dir]){
       // 被炸弹破坏的门始终保持打开
       if(room.doors[dir].destroyed) {
         room.doors[dir].open = true;
       } else {
-        room.doors[dir].open = !inCombat;
+        room.doors[dir].open = !hasLivingMonsters; // 只判断怪物，不判断炸弹
       }
     }
   }
@@ -924,16 +925,16 @@ function getTpl(key){
 function BUILTIN_TEMPLATES(){
   return {
     'open':{name:'空旷大厅',types:['start','normal','treasure','shop'],tiles:['.............','.............','.............','.............','.............','.............','.............'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:8}},
-    'boss_arena':{name:'Boss竞技场',types:['boss'],tiles:['.............','.............','.............','.............','.............','.............','.............'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:1,budget:0}},
-    'cross_rocks':{name:'十字岩石',types:['normal','treasure'],tiles:['.............','.....##......','.....##......','..#######....','.....##......','.....##......','.............'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:7}},
-    'four_corners':{name:'四角岩石',types:['normal','treasure'],tiles:['.##.......##.','.##.......##.','.............','.............','.............','.##.......##.','.##.......##.'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:2,maxMonsters:4,budget:9}},
-    'pillars':{name:'四柱大厅',types:['normal','treasure'],tiles:['.............','...#P....#...','.............','.......#.....','.............','...#P....#...','.............'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:8}},
+    'boss_arena':{name:'Boss竞技场',types:['boss'],tiles:['.............','...#.....#...','.............','.......#.....','.............','...#.....#...','.............'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:1,budget:0}},
+    'cross_rocks':{name:'十字岩石',types:['normal','treasure'],tiles:['.............','......#......','......#......','...##.#.##...','......#......','......#......','.............'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:7}},
+    'four_corners':{name:'四角岩石',types:['normal','treasure'],tiles:['P##.......##P','.##.......##.','.............','.............','.............','.##.......##.','P##.......##P'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:2,maxMonsters:4,budget:9}},
+    'pillars':{name:'四柱大厅',types:['normal','treasure'],tiles:['.............','...#P...P#...','.............','.....#.#.....','.............','...#P...P#...','.............'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:8}},
     'corridor':{name:'横向窄道',types:['normal'],tiles:['..###...###..','..###...###..','.............','.............','.............','..###...###..','..###...###..'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:2,budget:5}},
-    'corridor_v':{name:'纵向窄道',types:['normal'],tiles:['....##..##...','....##..##...','....#....#...','......##.....','....#....#...','....##..##...','....##..##...'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:2,budget:5}},
+    'corridor_v':{name:'纵向窄道',types:['normal'],tiles:['O..##...##..O','...##...##...','...#.....#...','.....P#P.....','...#.....#...','...##...##...','O..##...##..O'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:2,budget:5}},
     'scattered':{name:'散落岩石',types:['normal'],tiles:['...........#.','.....#.......','.......#.....','..#..........','.........#...','......#......','...#.........'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:6}},
-    'ring':{name:'环形壁垒',types:['normal','treasure'],tiles:['..###...###..','..#.......##.','..#........#.','.............','..#........#.','..#.......##.','..###...###..'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:8}},
+    'ring':{name:'环形壁垒',types:['normal','treasure'],tiles:['...##...##...','..#.......#..','..#........#.','.............','..#........#.','..#.......#..','...##...##...'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:8}},
     'room_split':{name:'裂半之室',types:['normal'],tiles:['.............','.....#^#.....','....#...^....','...##...##...','....^...#....','.....#^#.....','.............'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:2,maxMonsters:4,budget:9}},
-    'alcoves':{name:'壁龛石室',types:['normal','treasure'],tiles:['.###P....##..','.#.........#.','.#.........#.','.............','.#.........#.','.#.........#.','.###P....##..'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:8}},
+    'alcoves':{name:'壁龛石室',types:['normal','treasure'],tiles:['..##P...P##..','.............','.#.........#.','.............','.#.........#.','.............','..##P...P##..'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:8}},
     'diagonal':{name:'斜岩通道',types:['normal'],tiles:['##...........','.##..........','..##.........','...##........','....##.......','.....##......','.............'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:7}},
   };
 }
@@ -945,7 +946,7 @@ function resetGameToFloor1(){
   player.shootTimer=0;player.hitFlash=0;player.shakeX=0;player.shakeY=0;player.invincibleSteps=0;
   clearInventory();
   // 清空资源
-  resourcesOnGround = []; bombs = []; bombMode = false; bombModeTurnsFrom = 0;
+  resourcesOnGround = []; bombs = [];
   playerResources.coins = 0; playerResources.bombs = 0; playerResources.keys = 0;
   playerResources.blueHearts = 0;
   updateResourceUI();
@@ -957,7 +958,7 @@ function resetGameToFloor1(){
   visitedRooms.add(currentRoomId); // 起始房间已访问
   const room=currentFloor.rooms.find(r=>r.id===currentRoomId);currentRoomGrid=room.grid;
   initTileData();inCombat=false;
-  turnState.phase='player_select';turnState.turnNumber=0;resetTurnAP();turnState.reachableTiles=new Set();
+  turnState.phase='player_select';turnState.turnNumber=0;turnState.monsterTurnCounter=0;resetTurnAP();turnState.reachableTiles=new Set();
   updateDoorsLocked();updateUI();updateFloorUI();
   buildHearts(playerStats.maxHp);buildBlueHearts();buildApDots('ui-aap-row',turnState.maxAAP);buildApDots('ui-map-row',turnState.maxMAP);
   updateItemBar();
@@ -990,8 +991,6 @@ function enterFloor(floorNum){
   monsters.length=0;
   // 清空当前楼层所有炸弹和地面资源
   bombs = [];
-  bombMode = false;
-  bombModeTurnsFrom = 0;
   // 重置所有房间的地面资源
   for (const r of currentFloor.rooms) r._groundResources = [];
   resourcesOnGround = room._groundResources || [];
@@ -1065,9 +1064,11 @@ function finishTransition(){
   if(!room._groundResources)room._groundResources=[];
   resourcesOnGround=room._groundResources;
 
-  // 切换房间时检查炸弹模式状态
-  if(bombMode && bombs.filter(b => b.roomId === currentRoomId).length === 0 && !inCombat) {
-    bombMode = false;
+  // 切换房间：检查是否需要重置炸弹倒计时
+  const roomBombs = bombs.filter(b => b.roomId === currentRoomId);
+  if (roomBombs.length > 0) {
+    // 再次进入有炸弹的房间：倒计时重置为3
+    for (const b of roomBombs) b.timer = 3;
   }
 
   const alreadyVisited = visitedRooms.has(currentRoomId);
@@ -1080,19 +1081,31 @@ function finishTransition(){
       spawnTreasureRoomItem();
     }
   } else {
-    // 再次进入：不刷怪，保持清空状态
+    // 再次进入：不刷怪，但有炸弹则重新进入战斗模式
     monsters.length = 0;
-    inCombat = false;
+    const hasBombs = bombs.filter(b => b.roomId === currentRoomId).length > 0;
+    inCombat = hasBombs;
     updateDoorsLocked();
     updateUI(); // 同步AP面板
+    if (hasBombs) {
+      // 有炸弹：重置回合和AP
+      turnState.phase = 'player_select';
+      resetTurnAP();
+      updateActionBar();
+    }
   }
   updateFloorUI();
 }
 
 function tryWalkIntoDoor(fromCol,fromRow,moveDir){
-  if(inCombat)return false;
   const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
   if(!room||!room.doors[moveDir]||!room.doors[moveDir].open)return false;
+  // 门已打开（被破坏或怪物已清空）→ 允许通过，即使战斗模式因炸弹仍活跃
+  if(inCombat && !room.doors[moveDir].destroyed) {
+    // 战斗中且门未破坏 → 检查是否只是炸弹无怪物（允许通过）
+    const hasLivingMonsters = monsters.filter(m => m.hp > 0 && !m.jumperVanished).length > 0;
+    if(hasLivingMonsters) return false; // 有怪物，不能通过
+  }
   // 触发条件：玩家站在墙边格，且按的方向正对着该方向的门
   const dp=DOOR_POS[moveDir];
   const vec=DIR_VEC[moveDir];
@@ -1216,6 +1229,8 @@ let turnMovePath = [];            // 玩家本回合移动轨迹 [{col,row},...]
 let turnContactStepIdx = -1;     // 轨迹中触发接触伤害的步数索引（-1=无接触）
 let turnContactDamageAmount = 0; // 接触扣血量（用于撤销）
 let turnContactPrevInvincible = 0;// 接触前的 invincibleSteps（用于撤销）
+let turnPickupLog = [];          // 移动中拾取的资源记录 [{stepIdx, resCol, resRow, cfgId}]
+let turnPickedUpItemLog = [];    // 移动中拾取的道具记录 [{stepIdx, itemSnapshot}]
 
 // ==================== 动画/视觉状态 ====================
 let battleStartAnim = { active: false, timer: 0, duration: 0.55 };  // 交叉剑战斗开始动画
@@ -1556,8 +1571,7 @@ let resourceIdCounter = 0;
 // ==================== 炸弹系统状态 ====================
 let bombs = [];         // 已放置的炸弹 [{id, col, row, timer, roomId}]
 let bombIdCounter = 0;
-let bombMode = false;   // 炸弹模式 (探索模式下放置炸弹后进入)
-let bombModeTurnsFrom = 0; // 炸弹模式继承自战斗模式的剩余回合
+// 炸弹已是战斗模式的一部分，不再需要独立 bombMode
 
 // ==================== 调试模式 ====================
 let debugMode     = false;
@@ -1574,6 +1588,21 @@ function saveTurnSnapshot() {
     playerFacing: player.facing,
     playerHp: playerStats.hp,
     playerInvincibleSteps: player.invincibleSteps,
+    // 道具/属性状态快照（用于 ESC 回溯）
+    playerInventory: [...playerInventory],
+    playerMaxHp: playerStats.maxHp,
+    playerAttack: playerStats.attack,
+    playerFireRate: playerStats.fireRate,
+    playerMoveSpeed: playerStats.moveSpeed,
+    playerRange: playerStats.range,
+    playerLuck: playerStats.luck,
+    playerBlueHearts: playerResources.blueHearts,
+    itemsOnGround: itemsOnGround.map(it => ({
+      id: it.id, cfgId: it.cfgId, name: it.name, icon: it.icon,
+      quality: it.quality, col: it.col, row: it.row,
+      px: it.px, py: it.py, roomId: it.roomId,
+      liftY: it.liftY, liftDir: it.liftDir, sparkTimer: it.sparkTimer,
+    })),
     monsters: monsters.map(m => {
       const gp = gridToPixel(m.col, m.row);
       return {
@@ -1592,7 +1621,6 @@ function saveTurnSnapshot() {
         _showingExclaim: m._showingExclaim || false,
       };
     }),
-    monsterTurnCounter: turnState.monsterTurnCounter,
     pendingBossLanding: pendingBossLanding ? {
       monsterId: pendingBossLanding.monster ? pendingBossLanding.monster.id : null,
       monsterCfgId: pendingBossLanding.monster ? pendingBossLanding.monster.cfgId : null,
@@ -1613,6 +1641,26 @@ function restoreTurnSnapshot() {
   player.shootTimer = 0;
   playerStats.hp = s.playerHp;
   player.invincibleSteps = s.playerInvincibleSteps || 0;
+  // 恢复道具/属性状态
+  if (s.playerInventory !== undefined) {
+    playerInventory = [...s.playerInventory];
+    playerStats.maxHp = s.playerMaxHp;
+    playerStats.attack = s.playerAttack;
+    playerStats.fireRate = s.playerFireRate;
+    playerStats.moveSpeed = s.playerMoveSpeed;
+    playerStats.range = s.playerRange;
+    playerStats.luck = s.playerLuck;
+    playerResources.blueHearts = s.playerBlueHearts || 0;
+    itemsOnGround = (s.itemsOnGround || []).map(it => ({
+      id: it.id, cfgId: it.cfgId, name: it.name, icon: it.icon,
+      quality: it.quality, col: it.col, row: it.row,
+      px: it.px, py: it.py, roomId: it.roomId,
+      liftY: it.liftY, liftDir: it.liftDir, sparkTimer: it.sparkTimer,
+    }));
+    updateItemBar();
+    updateHearts();
+    updateResourceUI();
+  }
   monsters = s.monsters.map(m => ({
     id: m.id, cfgId: m.cfgId, name: m.name,
     col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
@@ -1627,7 +1675,6 @@ function restoreTurnSnapshot() {
     jumperJustLanded: m.jumperJustLanded || false,
     _showingExclaim: m._showingExclaim || false,
   }));
-  turnState.monsterTurnCounter = s.monsterTurnCounter;
   // 恢复pendingBossLanding
   if (s.pendingBossLanding && s.pendingBossLanding.monsterId) {
     const landingMonster = monsters.find(m2 => m2.id === s.pendingBossLanding.monsterId);
@@ -1726,6 +1773,42 @@ function recalcContactDamage(nx, ny) {
     turnMovePath.push({col: nx, row: ny, invincibleSteps: player.invincibleSteps});
   }
 
+  // --- 撤回拾取的资源（截断点之后拾取的资源需还原） ---
+  while (turnPickupLog.length > 0 && turnPickupLog[turnPickupLog.length - 1].stepIdx >= turnMovePath.length) {
+    const log = turnPickupLog.pop();
+    const resCfg = RESOURCE_DB[log.cfgId];
+    if (resCfg) {
+      // 还原资源到地面
+      const pix = gridToPixel(log.resCol, log.resRow);
+      resourcesOnGround.push({
+        id: ++resourceIdCounter,
+        cfgId: log.cfgId, col: log.resCol, row: log.resRow,
+        px: pix.x, py: pix.y, roomId: currentRoomId,
+      });
+      // 还原玩家资源
+      switch (resCfg.type) {
+        case 'coin': playerResources.coins -= (resCfg.value || 0); break;
+        case 'bomb': playerResources.bombs -= (resCfg.amount || 0); break;
+        case 'key': playerResources.keys -= (resCfg.amount || 0); break;
+        case 'heart': playerStats.hp = Math.max(0, playerStats.hp - (resCfg.heal || 0)); break;
+        case 'blue_heart': playerResources.blueHearts -= (resCfg.amount || 0); break;
+      }
+    }
+  }
+  // --- 撤回拾取的道具 ---
+  while (turnPickedUpItemLog.length > 0 && turnPickedUpItemLog[turnPickedUpItemLog.length - 1].stepIdx >= turnMovePath.length) {
+    const log = turnPickedUpItemLog.pop();
+    // 还原道具到地面并从库存移除
+    itemsOnGround.push({...log.itemSnapshot});
+    const invIdx = playerInventory.indexOf(log.itemSnapshot.cfgId);
+    if (invIdx >= 0) playerInventory.splice(invIdx, 1);
+    // 重算属性
+    recalcAllStats();
+  }
+  if (turnPickupLog.length > 0 || turnPickedUpItemLog.length > 0) {
+    updateHearts(); updateResourceUI(); updateItemBar(); updateUI();
+  }
+
   // --- 撤回检查：接触步被截断 → 撤销伤害+无敌 ---
   if (turnContactStepIdx >= 0 && turnContactStepIdx >= turnMovePath.length) {
     playerStats.hp += turnContactDamageAmount;
@@ -1762,6 +1845,8 @@ function resetTurnAP() {
   turnContactStepIdx = -1;
   turnContactDamageAmount = 0;
   turnContactPrevInvincible = 0;
+  turnPickupLog = [];
+  turnPickedUpItemLog = [];
   turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
   saveTurnSnapshot();
   recalcContactDamage(player.col, player.row); // 回合开始检查是否已站在怪物上
@@ -2121,13 +2206,24 @@ function calcAllMonsterPaths() {
           { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
           { dx: -1, dy: 0 }, { dx: 1, dy: 0 }
         ];
-        const d = dirs[Math.floor(Math.random() * dirs.length)];
+        // 过滤出第一步可行的方向，避免选到墙/怪物/边界导致原地不动
+        const validDirs = dirs.filter(d => {
+          const nc = m.col + d.dx, nr = m.row + d.dy;
+          if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) return false;
+          // 地面单位：遇障碍物（岩石/便便/深坑）停止；飞行单位：仅房间边界阻挡
+          const tags = m.movementTags || ['地面'];
+          if (tags.includes('地面') && isWall(nc, nr)) return false;
+          if (isMonsterAt(nc, nr, m.id)) return false;
+          return true;
+        });
+        if (validDirs.length === 0) { m.predictedPath = []; break; }
+
+        const d = validDirs[Math.floor(Math.random() * validDirs.length)];
         const path = [];
         let col = m.col, row = m.row;
         for (let step = 0; step < stepCount; step++) {
           const nc = col + d.dx, nr = row + d.dy;
           if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) break;
-          // 地面单位：遇障碍物（岩石/便便/深坑）停止；飞行单位：仅房间边界阻挡
           const tags = m.movementTags || ['地面'];
           if (tags.includes('地面') && isWall(nc, nr)) break;
           if (isMonsterAt(nc, nr, m.id)) break;
@@ -2167,7 +2263,18 @@ function calcAllMonsterPaths() {
             { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
             { dx: -1, dy: 0 }, { dx: 1, dy: 0 }
           ];
-          const d = dirs[Math.floor(Math.random() * dirs.length)];
+          // 过滤出第一步可行的方向，避免选到墙/怪物/边界导致原地不动
+          const validDirs = dirs.filter(d => {
+            const nc = m.col + d.dx, nr = m.row + d.dy;
+            if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) return false;
+            const tags = m.movementTags || ['地面'];
+            if (tags.includes('地面') && isWall(nc, nr)) return false;
+            if (isMonsterAt(nc, nr, m.id)) return false;
+            return true;
+          });
+          const d = validDirs.length > 0
+            ? validDirs[Math.floor(Math.random() * validDirs.length)]
+            : dirs[Math.floor(Math.random() * dirs.length)];
           const path = [];
           let col = m.col, row = m.row;
           for (let step = 0; step < aeSteps; step++) {
@@ -2329,6 +2436,38 @@ function calcMonsterPath(monster, targetCol, targetRow) {
   return path;
 }
 
+// ==================== 血量上限系统 ====================
+const MAX_TOTAL_HEARTS = 12;
+
+// 计算当前总心数（红心 + 蓝心，向上取整）
+function totalHearts() {
+  return Math.ceil(playerStats.maxHp) + Math.ceil(playerResources.blueHearts);
+}
+
+// 尝试增加红心上限，可能替换蓝心
+function tryAddRedHeart() {
+  if (totalHearts() < MAX_TOTAL_HEARTS) {
+    // 没到上限，直接加
+    return true;
+  }
+  // 已到上限，检查是否有蓝心可以替换
+  if (playerResources.blueHearts > 0) {
+    playerResources.blueHearts = Math.max(0, playerResources.blueHearts - 1);
+    return true;
+  }
+  // 无蓝心可替换，无法增加
+  return false;
+}
+
+// 尝试增加蓝心
+function tryAddBlueHeart(amount) {
+  if (totalHearts() < MAX_TOTAL_HEARTS) {
+    return true;
+  }
+  // 已到上限，红心优先，不能获取蓝心
+  return false;
+}
+
 // ==================== 玩家受伤系统 ====================
 function damagePlayer(amount) {
   if (player.invincibleSteps > 0) return; // 无敌中
@@ -2386,7 +2525,20 @@ function pickUpItems() {
     const it = itemsOnGround[i];
     if (it.col === player.col && it.row === player.row) {
       const cfg = ITEMS_DB[it.cfgId];
+      if (playerInventory.includes(it.cfgId)) continue; // 已拥有，跳过
       applyItem(it.cfgId);
+      // 记录拾取日志（用于移动回溯撤销）
+      if (turnState.phase === 'player_select' && inCombat) {
+        turnPickedUpItemLog.push({
+          stepIdx: turnMovePath.length,
+          itemSnapshot: {
+            id: it.id, cfgId: it.cfgId, name: it.name, icon: it.icon,
+            quality: it.quality, col: it.col, row: it.row,
+            px: it.px, py: it.py, roomId: it.roomId,
+            liftY: it.liftY, liftDir: it.liftDir, sparkTimer: it.sparkTimer,
+          },
+        });
+      }
       // 拾取特效
       const pp = project(it.px, it.py);
       for (let j = 0; j < 8; j++) {
@@ -2436,8 +2588,19 @@ function autoPickupResources() {
   for (let i = resourcesOnGround.length - 1; i >= 0; i--) {
     const res = resourcesOnGround[i];
     if (res.col === player.col && res.row === player.row) {
-      pickedAny = handleResourcePickup(res) || pickedAny;
-      if (pickedAny) resourcesOnGround.splice(i, 1);
+      const wasPicked = handleResourcePickup(res);
+      if (wasPicked) {
+        // 记录拾取日志（用于移动回溯撤销）
+        if (turnState.phase === 'player_select' && inCombat) {
+          turnPickupLog.push({
+            stepIdx: turnMovePath.length,
+            resCol: res.col, resRow: res.row,
+            cfgId: res.cfgId,
+          });
+        }
+        resourcesOnGround.splice(i, 1);
+        pickedAny = true;
+      }
     }
   }
   return pickedAny;
@@ -2475,6 +2638,7 @@ function handleResourcePickup(res) {
       break;
     }
     case 'blue_heart': {
+      if (!tryAddBlueHeart(cfg.amount)) return false; // 心数已达上限12，不拾取但不消失
       playerResources.blueHearts += cfg.amount;
       break;
     }
@@ -2591,20 +2755,22 @@ function placeBomb(col, row) {
     col, row,
     timer: 3,           // 倒计时3回合
     roomId: currentRoomId,
-    placedInCombat: inCombat, // 记录放置时是否在战斗中
   };
   bombs.push(bomb);
 
-  // 探索模式放置炸弹后进入炸弹模式 (不可回溯)
+  // 放置炸弹后进入战斗模式
   if (!inCombat) {
-    bombMode = true;
-    bombModeTurnsFrom = 0;
+    inCombat = true;
+    updateDoorsLocked();
     // 设置移动行动力
     turnState.maxMAP = Math.floor(playerStats.moveSpeed);
     turnState.mAP = turnState.maxMAP;
-    turnState.aAP = 0;
-    turnState.maxAAP = 0;
+    turnState.maxAAP = Math.floor(playerStats.fireRate);
+    turnState.aAP = turnState.maxAAP;
     turnState.reachableTiles = calcReachableTiles(col, row, turnState.mAP);
+    // 战斗模式不启动交叉剑动画(炸弹模式有别于怪物战斗)
+    battleStartAnim.active = true;
+    battleStartAnim.timer = 0;
     updateActionBar();
   }
 
@@ -2612,9 +2778,11 @@ function placeBomb(col, row) {
   console.log(`💣 放置炸弹在 (${col},${row})，倒计时 ${bomb.timer}`);
 }
 
-// 消耗1个炸弹回合（玩家回合结束时调用）
+// 消耗1个炸弹回合（怪物回合开始时调用）
 function tickBombCountdown() {
   const currentBombs = bombs.filter(b => b.roomId === currentRoomId);
+  if (currentBombs.length === 0) return;
+
   for (const bomb of currentBombs) {
     bomb.timer--;
   }
@@ -2627,13 +2795,6 @@ function tickBombCountdown() {
 
   // 移除已引爆的炸弹
   bombs = bombs.filter(b => !(b.timer <= 0 && b.roomId === currentRoomId));
-
-  // 检查是否所有炸弹都引爆了，退出炸弹模式
-  if (bombMode && bombs.filter(b => b.roomId === currentRoomId).length === 0
-      && !inCombat) {
-    bombMode = false;
-    console.log('💣 炸弹模式结束');
-  }
 }
 
 // 菱形范围 (距离 ≤ radius)
@@ -2777,7 +2938,13 @@ function applyItem(cfgId) {
   const hpRatio = playerStats.hp / playerStats.maxHp;
 
   // 应用数值属性
-  if (cfg.effects.maxHp) playerStats.maxHp += cfg.effects.maxHp;
+  if (cfg.effects.maxHp) {
+    // 红心上限增加需检查总心数上限（12），满时替换蓝心
+    for (let i = 0; i < (cfg.effects.maxHp || 0); i++) {
+      if (!tryAddRedHeart()) break;
+      playerStats.maxHp++;
+    }
+  }
   if (cfg.effects.attack) playerStats.attack = Math.round((playerStats.attack + cfg.effects.attack) * 10) / 10;
   if (cfg.effects.fireRate) playerStats.fireRate += cfg.effects.fireRate;
   if (cfg.effects.moveSpeed) playerStats.moveSpeed += cfg.effects.moveSpeed;
@@ -3268,6 +3435,9 @@ function startMonsterTurn() {
   monsterExecStepIdx = 0;
   monsterExecTimer = 0;
 
+  // === 炸弹行动（最高优先级，先于所有怪物） ===
+  tickBombCountdown();
+
   // 先处理跳跃Boss行动（一次性完成，不参与逐步移动）
   for (const m of monsters) {
     if (m.aiType === 'boss_jumper' && !m.jumperVanished) {
@@ -3398,6 +3568,15 @@ function finishMonsterTurn() {
   turnState.turnNumber++;
   monsterExecTimer = 0;
   monsterExecStepIdx = 0;
+
+  // 检查战斗状态：有存活怪物或有未引爆炸弹则继续战斗
+  const livingMonsters = monsters.filter(m => m.hp > 0 && !m.jumperVanished).length;
+  const hasRoomBombs = bombs.some(b => b.roomId === currentRoomId);
+  if (livingMonsters === 0 && !hasRoomBombs) {
+    inCombat = false;
+    updateDoorsLocked();
+  }
+
   resetTurnAP();
   updateUI();
 }
@@ -4122,7 +4301,7 @@ function render() {
   drawTiles();
   drawDoors();
   drawGridHighlight();
-  if(inCombat || bombMode)drawReachableOverlay(); // 战斗模式/炸弹模式显示可移动范围
+  if(inCombat)drawReachableOverlay(); // 战斗模式显示可移动范围
   drawItemsOnGround(); // 地上道具
   drawResourcesOnGround(); // 地上资源
   drawBombs(); // 炸弹
@@ -4906,16 +5085,14 @@ function drawMinimap() {
 function updateActionBar() {
   const bar = document.getElementById('action-bar');
   bar.innerHTML = '';
-  if (bombMode) {
-    // 炸弹模式：显示 M-AP 和倒计时提示
-    const bombInfo = bombs.filter(b => b.roomId === currentRoomId).map(b => `💣${b.timer}`).join(' ');
-    bar.innerHTML = `<span class="action-bar-placeholder" style="color:#ff8844;">[炸弹模式] M-AP:${turnState.mAP}/${turnState.maxMAP} ${bombInfo} | 按Space结束回合</span>`;
-  } else if (!inCombat) {
+  if (!inCombat) {
     // 非战斗模式不显示 AP 信息
     bar.innerHTML = '<span class="action-bar-placeholder"></span>';
   } else if (turnState.phase === 'player_select') {
     const lockedTag = turnState.hasShot ? '<span style="color:#ee6644;">[已锁定]</span>' : '<span style="color:#88ccff;">[自由]</span>';
-    bar.innerHTML = `<span class="action-bar-placeholder">${lockedTag} M-AP:${turnState.mAP}/${turnState.maxMAP} A-AP:${turnState.aAP}/${turnState.maxAAP}</span>`;
+    const bombInfo = bombs.filter(b => b.roomId === currentRoomId).map(b => `💣${b.timer}`).join(' ');
+    const bombPart = bombInfo ? `<span style="color:#ff8844;"> ${bombInfo}</span>` : '';
+    bar.innerHTML = `<span class="action-bar-placeholder">${lockedTag} M-AP:${turnState.mAP}/${turnState.maxMAP} A-AP:${turnState.aAP}/${turnState.maxAAP}${bombPart}</span>`;
   } else {
     bar.innerHTML = '<span class="action-bar-placeholder">-</span>';
   }
@@ -5020,13 +5197,8 @@ function updateUI() {
   phaseEl.className = 'pill-value';
   switch (turnState.phase) {
     case 'player_select':
-      if (bombMode) {
-        phaseEl.textContent = '炸弹模式';
-        phaseEl.classList.add('phase-player'); // 复用玩家阶段样式
-      } else {
-        phaseEl.textContent = '行为选择';
-        phaseEl.classList.add('phase-player');
-      }
+      phaseEl.textContent = '行为选择';
+      phaseEl.classList.add('phase-player');
       break;
     case 'monster_turn':     phaseEl.textContent = '怪物行动'; phaseEl.classList.add('phase-monster'); break;
   }
@@ -5575,8 +5747,6 @@ function finishPlayerTurn() {
   bullets = [];
   particles = [];
   damageNumbers = [];
-  // 炸弹倒计时 (玩家回合结束时计数-1)
-  tickBombCountdown();
   turnState.phase = 'monster_turn';
   document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">-</span>';
   // 未消耗的M-AP计入无敌步数消耗
@@ -5617,7 +5787,7 @@ document.addEventListener('keydown', (e) => {
         const pushB = bombs.find(b => b.col === nc && b.row === nr && b.roomId === currentRoomId);
         if (pushB) pushBomb(pushB, vec.dx, vec.dy);
 
-        if(inCombat || bombMode){
+        if(inCombat){
           const key=`${nc},${nr}`;
           if(!turnState.reachableTiles.has(key))return;
           const newMAP=calculateMAPAt(nc,nr);
@@ -5677,30 +5847,11 @@ document.addEventListener('keydown', (e) => {
       }
 
       case 'Space': {
-        if(!inCombat && !bombMode) return;
+        if(!inCombat) return;
 
-        // === 炸弹模式 (探索状态下，无怪物) ===
-        if(bombMode && !inCombat) {
-          tickBombCountdown();
-          if(bombMode) {
-            // 还有未引爆的炸弹 → 重置 M-AP 进入下一回合
-            turnState.maxMAP = Math.floor(playerStats.moveSpeed);
-            turnState.mAP = turnState.maxMAP;
-            turnState.aAP = 0;
-            turnState.maxAAP = 0;
-            turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
-          }
-          updateActionBar();
-          updateUI();
-          return;
-        }
-
-        // === 战斗模式 (含炸弹) ===
         bullets = [];
         particles = [];
         damageNumbers = [];
-        // 炸弹倒计时 (玩家回合结束时计数-1)
-        tickBombCountdown();
         turnState.phase = 'monster_turn';
         document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">-</span>';
         if (player.invincibleSteps > 0 && turnState.mAP > 0) {
@@ -5725,6 +5876,8 @@ document.addEventListener('keydown', (e) => {
           turnContactStepIdx = -1;
           turnContactDamageAmount = 0;
           turnContactPrevInvincible = 0;
+          turnPickupLog = [];
+          turnPickedUpItemLog = [];
           turnState.phase = 'player_select';
           turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
           saveTurnSnapshot();

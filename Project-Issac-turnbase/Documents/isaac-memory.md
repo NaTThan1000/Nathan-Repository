@@ -483,6 +483,28 @@
 - **[决策]** 全部 11 张表按固定排序列出完整 15 条目（coin_gold→coin_black→coin_silver→bomb_single→bomb_double→heart_half→heart_full→heart_double→blue_heart_half→blue_heart_full→blue_heart_double→chest_normal→chest_golden→key_single→key_double），不需要的权重=0
 - **[收益]** 需要添加新掉落种类时只改数值不改字段结构
 
+### 浮游眼原地不动 + random_wander 方向预筛选 [当前方案]
+- **[触发]** 用户反馈浮游眼经常一个回合原地不动，蓄力魔像也有类似问题
+- **[根因分析]** 两个原因叠加：①**条件死区**：`flying_eye_i` 的 `random_wander` 没指定 `range`，默认 5，导致 `dist>5` 才算 `out_of_range`；但 `shoot_fan` 的 `range:4` 要求 `dist≤4`。距离=5 时两个 action 条件都不满足→原地不动。`flying_eye_iii` 的 `random_wander`(默认range=5) 也会误匹配到距离6的情况。②**随机方向撞墙**：`random_wander` 代码只随机选一个方向然后尝试走 stepCount 步，第一步就可能撞墙/怪物/边界→path 为空→原地不动。在房间边缘/角落，25%~50%概率选到不可行方向。
+- **[决策]** ①`monster-db.json` 中三个等级浮游眼的 `random_wander` 补显式 `range`，与同等级 `shoot_fan` 的 range 对齐（4/5/6），消除死区。②`calcAllMonsterPaths` 中 `random_wander` 分支增加 `validDirs` 预筛选：先 `filter` 过滤出第一步可行的方向，再从有效方向中随机选。浮游眼和蓄力魔像共享此分支，同时受益。③`shoot_fan` 的 `after_effect` 中的 `random_wander` 独立副本也同步增加 `validDirs` 过滤，多一个 fallback（无可行方向时随意选一个）。
+- **[验证结果]** 与蓄力魔像 `charge_line` 已有的方向预筛选（`pickChargeDir`→`randomMovableDir`→`canMoveMin1`）模式一致：都是"filter → pick random"范式。两处差异（random_wander用4方向、charge_line用8方向含对角线）是刻意设计，不需对齐。
+
+### 道具拾取状态回溯 — ESC重置 + 移动路径回溯 [当前方案]
+- **[触发]** 用户要求道具拾取状态也应受两种回溯影响：①ESC回溯重置道具拾取生效状态；②移动范围内自由移动时，道具拾取状态随实际路径实时调整。
+- **[决策]** ①`saveTurnSnapshot` 新增保存 `playerInventory`、`playerStats` 全部属性、`playerResources.blueHearts`、`itemsOnGround` 完整快照。`restoreTurnSnapshot` 对应恢复并调用 `updateItemBar()`/`updateHearts()`/`updateResourceUI()`。②新增 `turnPickupLog[]`（资源拾取轨迹）和 `turnPickedUpItemLog[]`（道具拾取轨迹），在 `recalcContactDamage()` 中当 `turnMovePath` 截断时一并撤销拾取。③`autoPickupResources()` 和 `pickUpItems()` 各自记录 pickuplog（含 stepIdx 对应 turnMovePath 长度）。④`resetTurnAP()` 和 ESC handler 清除 pickup logs。
+- **[设计收益]** 回退时资源自动回到地面、道具回到地面并从库存移除、属性重算（`recalcAllStats`）。与接触伤害撤消模式一致。
+
+### 血量上限12 + 红心优先于蓝心 [当前方案]
+- **[触发]** 用户要求总心数上限12（红心+蓝心≤12），且红心上限增加优先级高于蓝心。
+- **[规则]** ①红心（maxHp）和蓝心（blueHearts）总和 `totalHearts()` ≤ 12。②拾取蓝心时若已达上限→不拾取（物品不消失）。③道具增加红心上限（`applyItem`）时若总和=12但有蓝心→移除1蓝心+增加1红心上限（腾出空间）。④回血（`heart` 资源 healing）不受上限影响。
+- **[代码改动]** 新增 `totalHearts()`/`tryAddRedHeart()`/`tryAddBlueHeart()` 三个辅助函数。`handleResourcePickup` 的 `blue_heart` 分支调用 `tryAddBlueHeart()`；`applyItem` 的 `maxHp` 分支改为逐颗调用 `tryAddRedHeart()`。`recalcAllStats` 不做上限检查（计算基准值，上限在添加时强制）。
+
+### 炸弹模式融合进战斗模式 [当前方案]
+- **[触发]** 用户要求炸弹模式不应独立存在，应融合进战斗模式作为特殊怪物。
+- **[旧方案]** 独立 `bombMode` 状态标志+独立 Space 分支处理+探索模式专属炸弹回合。炸弹模式下只有 M-AP 无法射击。
+- **[新方案]** ①移除 `bombMode`/`bombModeTurnsFrom` 变量，炸弹即是战斗模式的一部分。②放置炸弹即进入 `inCombat=true`（含交叉剑动画），统一走战斗模式流程。③炸弹倒计时从 Space 处理移至 `startMonsterTurn()` 最开头（炸弹行动优先级高于所有怪物），在 `calcAllMonsterPaths()` 之前执行 `tickBombCountdown()`。④每个怪物回合炸弹计时-1，0时引爆。⑤`updateDoorsLocked()` 改为只判断怪物存活（`hasLivingMonsters`），不判断炸弹——有炸弹无怪物时门打开可自由出入。⑥`tryWalkIntoDoor()` 允许战斗模式（因炸弹）下通过已打开的门。⑦`finishTransition()` 重新进入房间时炸弹倒计时重置为3，并恢复战斗模式。⑧`finishMonsterTurn()` 结尾根据存活怪物+未引爆炸弹决定是否结束战斗。⑨`updateActionBar()` 统一在战斗模式下显示炸弹倒计时信息。
+- **[设计收益]** 炸弹不再是特殊模式，完美融入回合制战斗。炸弹房间可自由移动和射击（保留A-AP）。门锁逻辑只取决于怪物，炸弹不影响房间通行。
+
 ## 最近更新记录
 
 | 日期 | 更新内容 |

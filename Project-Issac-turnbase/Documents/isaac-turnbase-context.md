@@ -26,7 +26,7 @@
 
 | 属性 | 值 | 说明 |
 |------|-----|------|
-| 血量 HP | 3/3 (心形) | 3颗心，支持半心显示 (0.5伤害=半心) |
+| 血量 HP | 3/3 (心形) | 3颗红心，支持半心显示。总红心+蓝心上限=**12**（`MAX_TOTAL_HEARTS`），红心上限增加优先于蓝心（满时可替换蓝心） |
 | 移速 | 3 | M-AP 上限 = 移速 → 默认 3 (下限1) |
 | 射速 | 3 | A-AP 上限 = 射速 → 默认 3 (下限1) |
 | 攻击力 | 3.5 | 每发子弹对怪物伤害 |
@@ -211,10 +211,10 @@
 - **楼层结构**：两步法生成 6 层地牢，每层 8~15 个房间，BFS 全连通验证
 - **生成算法 [2026-07-22 更新]**：①先布局骨架房（起点+普通房），从所有已放房间的相邻空位扩展；②骨架房全连通后，Boss 从边界最远空位挂载，宝箱从剩余边界随机挂载。Boss/宝箱天然只有 1 个连接（始终在集群外围），无需裁边修复。
 - **房间类型**：start(起点)/normal(普通)/treasure(宝箱)/boss(Boss)/shop(商店)
-- **模板系统**：每个房间引用 `pool.json` 中的模板(tplKey)，生成时解析 TILE 布局
-- **门系统**：每房间最多 4 扇门(每个方向一扇)，房间清怪后门自动打开(`updateDoorsLocked()`)
-- **探索模式** `inCombat=false`：无怪物时 WASD 自由移动，门前格+方向键切换房间(滑动过渡400px/s)
-- **战斗模式** `inCombat=true`：有怪物时 AP 回合制，Space 结束回合，清怪后门打开
+- **模板系统**：每个房间引用 `pool.json` 中的模板(tplKey)，生成时解析 TILE 布局。`BUILTIN_TEMPLATES()` 作为兜底，已与 `pool.json` 对齐
+- **门系统**：每房间最多 4 扇门(每个方向一扇)，房间清怪后门自动打开(`updateDoorsLocked()` 只判断怪物，不判断炸弹)
+- **探索模式** `inCombat=false`：无怪物且无炸弹时 WASD 自由移动，门前格+方向键切换房间(滑动过渡400px/s)
+- **战斗模式** `inCombat=true`：有怪物或有未引爆炸弹时 AP 回合制，炸弹倒计时在每回合怪物行动前执行（最高优先级），清怪+炸弹全爆后门打开
 - **Boss 梯子**：B 键在 Boss 房当前位置放置 `TILE.LADDER`，踩上自动 `enterFloor()` 进入下一层起始房
 - **楼层持久化**：`floor-data.json` 保存楼层结构+房间 grid，加载时保留已存 grid（修改关卡池不影响已有楼层）
 - **`cellRect(col,row)`**：返回透视投影后格子中心坐标/尺寸，供 TILE 和门渲染使用
@@ -553,15 +553,16 @@ function project(wx, wy) {
        → tryWalkIntoDoor → 门前格+方向 → 房间切换(滑动过渡) → finishTransition → spawnRoomMonsters()
 
 战斗模式 (inCombat=true):
-  resetTurnAP() → 计算可移动范围 → 保存快照
-  WASD → 检查 reachableTiles.has(key) → 移动本体 → M-AP-1 → invincibleSteps-- → refreshReachableTiles()
+  resetTurnAP() → 计算可移动范围 → 保存快照(含道具状态)
+  WASD → 检查 reachableTiles.has(key) → 移动本体 → M-AP-1 → invincibleSteps-- → recalcContactDamage(含拾取撤销) → autoPickupResources(含pickup log)
   ↑↓←→ → 即时 spawnBullet → A-AP-1 → 首次? 设 hasShot + checkpointPos
-  Esc  → restoreTurnSnapshot() → 重置所有状态
+  Esc  → restoreTurnSnapshot(含道具/库存/属性) → 重置所有状态
   Space → 结束回合 → 未消耗M-AP计入invincibleSteps → monster_turn:
-         calcAllMonsterPaths() → resolveMonsterAction(按condition过滤+actionMode选择)
+         startMonsterTurn → tickBombCountdown(炸弹倒计时,优先于怪物)
+         → calcAllMonsterPaths() → resolveMonsterAction(按condition过滤+actionMode选择)
          → AI路由分发(action type: chase/random_wander/shoot_fan/charge_line)
-         → 怪物逐步移动+碰撞+尖刺5 → finishMonsterTurn
-       → updateRoomCombatState (清怪则门开+切回探索)
+         → 怪物逐步移动+碰撞+尖刺5 → finishMonsterTurn(检查怪物+炸弹决定战斗结束)
+       → updateDoorsLocked(仅判断怪物,不判断炸弹) → 无怪有炸弹:战斗继续/门开
 
 渲染层序:
   gameLoop → render()
@@ -621,6 +622,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-29 | **BUILTIN_TEMPLATES 对齐 pool.json + 道具拾取回溯 + 血量12上限 + 炸弹融合**。①`BUILTIN_TEMPLATES()` 中 `cross_rocks`/`four_corners`/`pillars`/`corridor_v`/`ring`/`alcoves`/`boss_arena` 全部对齐 `Configs/pool.json` 实际模板，消除编辑器生成与游戏渲染不一致。②`saveTurnSnapshot`/`restoreTurnSnapshot` 新增道具库存/属性/蓝心/地面道具快照，支持 ESC 重置道具拾取状态。新增 `turnPickupLog`/`turnPickedUpItemLog` 在 `recalcContactDamage` 中实时撤销移动轨迹回退时的资源/道具拾取。③新增 `MAX_TOTAL_HEARTS=12`：`totalHearts()`=红心上限+蓝心≤12；拾取蓝心时达上限不拾取（不消失）；道具增加红心上限时若满但有蓝心→扣除1蓝心腾出空间。新增 `tryAddRedHeart()`/`tryAddBlueHeart()` 辅助函数。④炸弹系统彻底改造：移除 `bombMode`/`bombModeTurnsFrom`，炸弹即战斗模式；放置炸弹即 `inCombat=true` 统一走战斗流程；炸弹倒计时移至 `startMonsterTurn()` 最开头（最高优先级）；`updateDoorsLocked()` 只判断怪物（`hasLivingMonsters`）不判断炸弹；`tryWalkIntoDoor()` 战斗中无怪物时允许通过门；`finishTransition()` 再入房间时炸弹倒计时重置为3→重进战斗。⑤浮游眼 `random_wander` 补显式 `range`(4/5/6)消除条件死区；`calcAllMonsterPaths` 中 `random_wander`/`shoot_fan` after_effect 加 `validDirs` 预筛选防边缘撞墙。 |
 | 2026-07-29 | **资源掉落表 mode 统一 + attack_adjacent 十字化**。①`resource-db.json` dropTables 全部升级为 `{ mode, table }` 结构，每表统一 15 种资源条目(不掉落的权重=0)，新增 `room_clear_treasure` 表。②`rollResourceDrop()` 重构支持三种 mode(pick_one/roll_all/pick_first)，向下兼容旧格式。③`rollRoomClearDrop()` 移除硬编码(宝藏/Boss房不掉的 if 判断)，改为 roomType→tableKey 纯配置驱动映射。④`spawnShopItems()` 改用统一 `rollResourceDrop('shop_stock')`。⑤`resolveAfterEffects()` 中 `attack_adjacent` 从面朝方向单向攻击改为四方向十字范围攻击(上下左右各 range 格)。⑥`finishMonsterTurn()` 简化移除 dirX/dirY 计算。 |
 | 2026-07-28(晚) | **浮游眼行为模式重构**。①新增 `condition` actionMode：按顺序逐条评估 condition，选中第一个满足的 action（替代旧 random 权重随机）。②新增 `out_of_range` 条件（与 `in_range` 互补）。③新增 `after_effect` 机制：主 action 执行完毕后追加执行附加行为（shoot_fan→after_effect:random_wander → 射击后立刻移动）。④玩家回合动态感叹号：WASD移动时实时检测与浮游眼切比雪夫距离，进入射程显示"!"，移出消失。⑤抽出 `checkActionCondition` + `resolveSteps` 辅助函数。 |
 | 2026-07-28(晚) | **蓄力魔像行为优化**。①蓄力魔像 actions 从单一 `charge_line` 改为 4 步 sequence：`random_wander`(2步) → `random_wander`(2步) → `charge_up`(蓄力+感叹号) → `charge_line`(冲刺)。I/II/III级 wander 步数分别为 2/3/4。②新增 `charge_up` action 类型：原地不动+头顶红色闪烁感叹号(!)脉动动画（DOM覆盖层渲染）。③`charge_line` 简化为单步执行（选方向+直接冲刺，不再分两阶段）。④感叹号状态纳入回合快照。⑤action 类型枚举从 7 种增至 8 种。⑥感叹号样式优化：56px Courier New大号像素风，8方向黑色像素描边+3层红色光晕脉动（0.5s，0.85→1.25缩放）。 |

@@ -144,7 +144,7 @@
     "aiType": "ranged_kite",
     "actionMode": { "mode": "condition" },
     "actions": [
-      { "type": "random_wander", "steps": [2, 2, 2], "stepMode": "random", "condition": "out_of_range" },
+      { "type": "random_wander", "steps": [2, 2, 2], "stepMode": "random", "condition": "out_of_range", "range": 4 },
       { "type": "shoot_fan", "range": 4, "directMode": "toward_player_axis", "condition": "in_range",
         "after_effect": { "type": "random_wander", "steps": [2, 2, 2], "stepMode": "random" } }
     ],
@@ -170,7 +170,7 @@
     "aiType": "ranged_kite",
     "actionMode": { "mode": "condition" },
     "actions": [
-      { "type": "random_wander", "steps": [3, 3, 3], "stepMode": "random", "condition": "out_of_range" },
+      { "type": "random_wander", "steps": [3, 3, 3], "stepMode": "random", "condition": "out_of_range", "range": 5 },
       { "type": "shoot_fan", "range": 5, "directMode": "toward_player_axis", "condition": "in_range",
         "after_effect": { "type": "random_wander", "steps": [3, 3, 3], "stepMode": "random" } }
     ],
@@ -196,7 +196,7 @@
     "aiType": "ranged_kite",
     "actionMode": { "mode": "condition" },
     "actions": [
-      { "type": "random_wander", "steps": [4, 4, 4], "stepMode": "random", "condition": "out_of_range" },
+      { "type": "random_wander", "steps": [4, 4, 4], "stepMode": "random", "condition": "out_of_range", "range": 6 },
       { "type": "shoot_fan", "range": 6, "directMode": "toward_player_axis", "condition": "in_range",
         "after_effect": { "type": "random_wander", "steps": [4, 4, 4], "stepMode": "random" } }
     ],
