@@ -817,15 +817,15 @@ let currentRoomId = null;      // 当前房间 ID
 let currentRoomGrid = null;    // 当前房间 grid[col][row]
 let transition = null;         // { active, dir, offset, fromRoom, toRoom, playerEntryPos }
 let inCombat = false;          // 当前房间是否有存活怪物
-let tileData = {};             // { `${col},${row}`: { type, hp } }  可变瓷砖状态
+let tileData = {};             // { `${col},${row}`: { type, hp, _loot } }  可变瓷砖状态 (_loot: 房间生成时预roll的掉落列表)
 
 function initTileData(){
   tileData={};
   if(!currentRoomGrid)return;
   for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++){
     const t=currentRoomGrid[c][r];
-    if(t===TILE.POOP)tileData[`${c},${r}`]={type:'poop',hp:4};
-    if(t===TILE.ROCK)tileData[`${c},${r}`]={type:'rock',hp:99};
+    if(t===TILE.POOP)tileData[`${c},${r}`]={type:'poop',hp:4, _loot: rollResourceDrop('terrain_poop')};
+    if(t===TILE.ROCK)tileData[`${c},${r}`]={type:'rock',hp:99, _loot: rollResourceDrop('terrain_rock')};
   }
 }
 
@@ -835,13 +835,16 @@ function hitTile(col,row,dmg){
   td.hp-=dmg;
   if(td.hp<=0){
     const terrainType = td.type; // 'rock' 或 'poop'
+    const preLoot = td._loot;    // 房间生成时预roll的掉落，保证ESC回溯后再次破坏结果一致
     delete tileData[k];
     currentRoomGrid[col][row]=TILE.FLOOR;
     // 刷新 BFS
     if(turnState.phase==='player_select')pendingReachableRefresh=true;
     spawnBloodParticles(gridToPixel(col,row).x,gridToPixel(col,row).y,5);
-    // 地形破坏掉落
-    rollTerrainDestroyDrop(col, row, terrainType);
+    // 地形破坏掉落 (优先使用预roll结果)
+    rollTerrainDestroyDrop(col, row, terrainType, preLoot);
+    // 地形状态改变后保存checkpoint，确保BFS回退时地形保持破坏状态
+    saveCheckpoint();
     return true;
   }
   return false;
@@ -854,11 +857,10 @@ function updateRoomCombatState(){
   if(!inCombat&&wasInCombat){// 房间清空：结束战斗
     turnState.phase='player_select';
     turnState.mAP=turnState.maxMAP;turnState.aAP=turnState.maxAAP;
-    turnState.hasShot=false;checkpointPos=null;
+    turnState.hasShot=false;
     pendingReachableRefresh=true;
     monsterExecTimer=0;monsterExecStepIdx=0;
     turnState.monsterTurnCounter=0;
-    saveTurnSnapshot();updateActionBar();updateUI();
 
     // 房间清空掉落
     rollRoomClearDrop();
@@ -883,6 +885,23 @@ function updateRoomCombatState(){
         room.bossLadderPlaced=true;
       }
     }
+
+    // === 同步回房间存储（simulateFromCheckpoint 可能打断了 resourcesOnGround → room._groundResources 引用） ===
+    if (room) {
+      room._groundResources = resourcesOnGround.map(r => ({
+        id:r.id, cfgId:r.cfgId, col:r.col, row:r.row,
+        px:r.px, py:r.py, roomId:r.roomId,
+        color:r.color, icon:r.icon, liftY:r.liftY, sparkTimer:r.sparkTimer,
+      }));
+      room._groundItems = itemsOnGround.map(it => ({
+        id:it.id, cfgId:it.cfgId, name:it.name, icon:it.icon,
+        quality:it.quality, col:it.col, row:it.row,
+        px:it.px, py:it.py, roomId:it.roomId,
+        liftY:it.liftY, liftDir:it.liftDir, sparkTimer:it.sparkTimer,
+      }));
+    }
+
+    saveCheckpoint();updateActionBar();updateUI();
   }
   if(inCombat&&!wasInCombat){// 刚进入战斗
     player.invincibleSteps=0; // 清除探索模式无敌步数
@@ -1222,15 +1241,12 @@ let bullets       = [];
 let particles     = [];
 let damageNumbers = [];  // [{x, y, text, life, maxLife, vy}]
 let totalShots    = 0;
-let checkpointPos = null;       // {col, row} 射击后checkpoint位置
-let turnSnapshot  = null;       // 回合开始时完整快照
+let turnSnapshot  = null;       // 回合开始时完整快照 (大存档点, Esc回溯)
+let currentCheckpoint = null;   // 当前小存档点 (拾取/击杀时保存，BFS从这里读取)
+let checkpointMAP = 0;          // 小存档点时的剩余 M-AP
+let checkpointAAP = 0;          // 小存档点时的剩余 A-AP
 let pendingReachableRefresh = false;  // 怪物死亡后需刷新可移动范围
-let turnMovePath = [];            // 玩家本回合移动轨迹 [{col,row},...]
-let turnContactStepIdx = -1;     // 轨迹中触发接触伤害的步数索引（-1=无接触）
-let turnContactDamageAmount = 0; // 接触扣血量（用于撤销）
-let turnContactPrevInvincible = 0;// 接触前的 invincibleSteps（用于撤销）
-let turnPickupLog = [];          // 移动中拾取的资源记录 [{stepIdx, resCol, resRow, cfgId}]
-let turnPickedUpItemLog = [];    // 移动中拾取的道具记录 [{stepIdx, itemSnapshot}]
+
 
 // ==================== 动画/视觉状态 ====================
 let battleStartAnim = { active: false, timer: 0, duration: 0.55 };  // 交叉剑战斗开始动画
@@ -1596,7 +1612,16 @@ function saveTurnSnapshot() {
     playerMoveSpeed: playerStats.moveSpeed,
     playerRange: playerStats.range,
     playerLuck: playerStats.luck,
+    playerCoins: playerResources.coins,
+    playerBombs: playerResources.bombs,
+    playerKeys: playerResources.keys,
     playerBlueHearts: playerResources.blueHearts,
+    resourcesOnGround: resourcesOnGround.map(r => ({
+      id: r.id, cfgId: r.cfgId, col: r.col, row: r.row,
+      px: r.px, py: r.py, roomId: r.roomId,
+      color: r.color, icon: r.icon,
+      liftY: r.liftY || 0, liftDir: r.liftDir || 1, sparkTimer: r.sparkTimer || 0,
+    })),
     itemsOnGround: itemsOnGround.map(it => ({
       id: it.id, cfgId: it.cfgId, name: it.name, icon: it.icon,
       quality: it.quality, col: it.col, row: it.row,
@@ -1619,6 +1644,74 @@ function saveTurnSnapshot() {
         jumperCheckRepeated: m.jumperCheckRepeated, jumperVanished: m.jumperVanished,
         jumperJustLanded: m.jumperJustLanded || false,
         _showingExclaim: m._showingExclaim || false,
+        _killLoot: m._killLoot ? [...m._killLoot] : null,
+      };
+    }),
+    pendingBossLanding: pendingBossLanding ? {
+      monsterId: pendingBossLanding.monster ? pendingBossLanding.monster.id : null,
+      monsterCfgId: pendingBossLanding.monster ? pendingBossLanding.monster.cfgId : null,
+      targetCol: pendingBossLanding.targetCol,
+      targetRow: pendingBossLanding.targetRow,
+    } : null,
+    // 地形与炸弹状态（ESC 回溯需要）
+    tileData: JSON.parse(JSON.stringify(tileData)),
+    currentRoomGrid: currentRoomGrid ? currentRoomGrid.map(col => [...col]) : null,
+    bombs: bombs.map(b => ({ id: b.id, col: b.col, row: b.row, timer: b.timer, roomId: b.roomId })),
+  };
+}
+
+// ==================== 小存档点 (Checkpoint) 系统 ====================
+// 用于 BFS 重新规划路线时回退
+function saveCheckpoint() {
+  const sp = gridToPixel(player.col, player.row);
+  currentCheckpoint = {
+    playerCol: player.col, playerRow: player.row,
+    playerPx: sp.x, playerPy: sp.y,
+    playerFacing: player.facing,
+    playerHp: playerStats.hp,
+    playerInvincibleSteps: player.invincibleSteps,
+    playerInventory: [...playerInventory],
+    playerMaxHp: playerStats.maxHp,
+    playerAttack: playerStats.attack,
+    playerFireRate: playerStats.fireRate,
+    playerMoveSpeed: playerStats.moveSpeed,
+    playerRange: playerStats.range,
+    playerLuck: playerStats.luck,
+    playerCoins: playerResources.coins,
+    playerBombs: playerResources.bombs,
+    playerKeys: playerResources.keys,
+    playerBlueHearts: playerResources.blueHearts,
+    mAP: turnState.mAP,
+    aAP: turnState.aAP,
+    resourcesOnGround: resourcesOnGround.map(r => ({
+      id: r.id, cfgId: r.cfgId, col: r.col, row: r.row,
+      px: r.px, py: r.py, roomId: r.roomId,
+      color: r.color, icon: r.icon,
+      liftY: r.liftY || 0, liftDir: r.liftDir || 1, sparkTimer: r.sparkTimer || 0,
+    })),
+    itemsOnGround: itemsOnGround.map(it => ({
+      id: it.id, cfgId: it.cfgId, name: it.name, icon: it.icon,
+      quality: it.quality, col: it.col, row: it.row,
+      px: it.px, py: it.py, roomId: it.roomId,
+      liftY: it.liftY, liftDir: it.liftDir, sparkTimer: it.sparkTimer,
+    })),
+    monsters: monsters.map(m => {
+      const gp = gridToPixel(m.col, m.row);
+      return {
+        id: m.id, cfgId: m.cfgId, name: m.name,
+        col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
+        px: gp.x, py: gp.y,
+        displayHp: m.displayHp,
+        damage: m.damage, aiType: m.aiType, tint: m.tint,
+        predictedPath: m.predictedPath ? m.predictedPath.map(s => ({ fromCol: s.fromCol, fromRow: s.fromRow, toCol: s.toCol, toRow: s.toRow })) : [],
+        moveSpeed: m.moveSpeed,
+        hitFlash: m.hitFlash, shakeX: m.shakeX, shakeY: m.shakeY,
+        size: m.size || 1,
+        jumperPhase: m.jumperPhase, jumperRepeatCount: m.jumperRepeatCount,
+        jumperCheckRepeated: m.jumperCheckRepeated, jumperVanished: m.jumperVanished,
+        jumperJustLanded: m.jumperJustLanded || false,
+        _showingExclaim: m._showingExclaim || false,
+        _killLoot: m._killLoot ? [...m._killLoot] : null,
       };
     }),
     pendingBossLanding: pendingBossLanding ? {
@@ -1628,6 +1721,181 @@ function saveTurnSnapshot() {
       targetRow: pendingBossLanding.targetRow,
     } : null,
   };
+  checkpointMAP = turnState.mAP;
+  checkpointAAP = turnState.aAP;
+}
+
+function restoreCheckpoint() {
+  if (!currentCheckpoint) return;
+  const s = currentCheckpoint;
+  player.col = s.playerCol; player.row = s.playerRow;
+  player.px = s.playerPx; player.py = s.playerPy;
+  player.facing = s.playerFacing;
+  player.targetPx = null; player.targetPy = null;
+  player.walkFrame = 0; player.animTime = 0;
+  player.shootTimer = 0;
+  playerStats.hp = s.playerHp;
+  player.invincibleSteps = s.playerInvincibleSteps || 0;
+  if (s.playerInventory !== undefined) {
+    playerInventory = [...s.playerInventory];
+    playerStats.maxHp = s.playerMaxHp;
+    playerStats.attack = s.playerAttack;
+    playerStats.fireRate = s.playerFireRate;
+    playerStats.moveSpeed = s.playerMoveSpeed;
+    playerStats.range = s.playerRange;
+    playerStats.luck = s.playerLuck;
+    playerResources.blueHearts = s.playerBlueHearts || 0;
+    playerResources.coins = s.playerCoins || 0;
+    playerResources.bombs = s.playerBombs || 0;
+    playerResources.keys = s.playerKeys || 0;
+    resourcesOnGround = (s.resourcesOnGround || []).map(r => {
+      const db = RESOURCE_DB[r.cfgId] || {};
+      return {
+        id: r.id, cfgId: r.cfgId, col: r.col, row: r.row,
+        px: r.px, py: r.py, roomId: r.roomId,
+        color: r.color || db.color || '#ffffff',
+        icon: r.icon || db.icon || '?',
+        liftY: r.liftY || 0, liftDir: r.liftDir || 1,
+        sparkTimer: r.sparkTimer || Math.random() * Math.PI * 2,
+      };
+    });
+    itemsOnGround = (s.itemsOnGround || []).map(it => ({
+      id: it.id, cfgId: it.cfgId, name: it.name, icon: it.icon,
+      quality: it.quality, col: it.col, row: it.row,
+      px: it.px, py: it.py, roomId: it.roomId,
+      liftY: it.liftY, liftDir: it.liftDir, sparkTimer: it.sparkTimer,
+    }));
+    // 同步 room._groundResources/_groundItems：数组被重建后必须让房间存储也指向新数组
+    const room = currentFloor.rooms.find(r => r.id === currentRoomId);
+    if (room) { room._groundResources = resourcesOnGround; room._groundItems = itemsOnGround; }
+    updateItemBar();
+    updateHearts();
+    updateResourceUI();
+  }
+  monsters = s.monsters.map(m => ({
+    id: m.id, cfgId: m.cfgId, name: m.name,
+    col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
+    px: m.px, py: m.py, displayHp: m.displayHp,
+    damage: m.damage, aiType: m.aiType, tint: m.tint,
+    predictedPath: (m.predictedPath || []).map(p => ({ fromCol: p.fromCol, fromRow: p.fromRow, toCol: p.toCol, toRow: p.toRow })),
+    moveSpeed: m.moveSpeed,
+    hitFlash: 0, shakeX: 0, shakeY: 0,
+    size: m.size || 1,
+    jumperPhase: m.jumperPhase, jumperRepeatCount: m.jumperRepeatCount,
+    jumperCheckRepeated: m.jumperCheckRepeated, jumperVanished: m.jumperVanished || false,
+    jumperJustLanded: m.jumperJustLanded || false,
+    _showingExclaim: m._showingExclaim || false,
+    _killLoot: m._killLoot ? [...m._killLoot] : null,
+  }));
+  if (s.pendingBossLanding && s.pendingBossLanding.monsterId) {
+    const landingMonster = monsters.find(m2 => m2.id === s.pendingBossLanding.monsterId);
+    let landAction = null;
+    if (landingMonster) {
+      const mCfg = MONSTER_DB[landingMonster.cfgId];
+      landAction = (mCfg && mCfg.actions) ? mCfg.actions.find(a => a.type === 'jump_big_land') : null;
+    }
+    pendingBossLanding = landingMonster ? {
+      monster: landingMonster,
+      targetCol: s.pendingBossLanding.targetCol,
+      targetRow: s.pendingBossLanding.targetRow,
+      landAction: landAction,
+    } : null;
+  } else {
+    pendingBossLanding = null;
+  }
+  bullets = [];
+  particles = [];
+  damageNumbers = [];
+  turnState.mAP = s.mAP !== undefined ? s.mAP : checkpointMAP;
+  turnState.aAP = s.aAP !== undefined ? s.aAP : checkpointAAP;
+  updateHearts();
+  updateUI();
+}
+
+function restoreCheckpointWithoutBullets() {
+  // 同上但保留子弹（子弹还在飞行中时用于中间恢复）
+  if (!currentCheckpoint) return;
+  const s = currentCheckpoint;
+  player.col = s.playerCol; player.row = s.playerRow;
+  player.px = s.playerPx; player.py = s.playerPy;
+  player.facing = s.playerFacing;
+  player.targetPx = null; player.targetPy = null;
+  player.walkFrame = 0; player.animTime = 0;
+  player.shootTimer = 0;
+  playerStats.hp = s.playerHp;
+  player.invincibleSteps = s.playerInvincibleSteps || 0;
+  if (s.playerInventory !== undefined) {
+    playerInventory = [...s.playerInventory];
+    playerStats.maxHp = s.playerMaxHp;
+    playerStats.attack = s.playerAttack;
+    playerStats.fireRate = s.playerFireRate;
+    playerStats.moveSpeed = s.playerMoveSpeed;
+    playerStats.range = s.playerRange;
+    playerStats.luck = s.playerLuck;
+    playerResources.blueHearts = s.playerBlueHearts || 0;
+    playerResources.coins = s.playerCoins || 0;
+    playerResources.bombs = s.playerBombs || 0;
+    playerResources.keys = s.playerKeys || 0;
+    resourcesOnGround = (s.resourcesOnGround || []).map(r => {
+      const db = RESOURCE_DB[r.cfgId] || {};
+      return {
+        id: r.id, cfgId: r.cfgId, col: r.col, row: r.row,
+        px: r.px, py: r.py, roomId: r.roomId,
+        color: r.color || db.color || '#ffffff',
+        icon: r.icon || db.icon || '?',
+        liftY: r.liftY || 0, liftDir: r.liftDir || 1,
+        sparkTimer: r.sparkTimer || Math.random() * Math.PI * 2,
+      };
+    });
+    itemsOnGround = (s.itemsOnGround || []).map(it => ({
+      id: it.id, cfgId: it.cfgId, name: it.name, icon: it.icon,
+      quality: it.quality, col: it.col, row: it.row,
+      px: it.px, py: it.py, roomId: it.roomId,
+      liftY: it.liftY, liftDir: it.liftDir, sparkTimer: it.sparkTimer,
+    }));
+    // 同步 room._groundResources/_groundItems：数组被重建后必须让房间存储也指向新数组
+    const room = currentFloor.rooms.find(r => r.id === currentRoomId);
+    if (room) { room._groundResources = resourcesOnGround; room._groundItems = itemsOnGround; }
+    updateItemBar();
+    updateHearts();
+    updateResourceUI();
+  }
+  monsters = s.monsters.map(m => ({
+    id: m.id, cfgId: m.cfgId, name: m.name,
+    col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
+    px: m.px, py: m.py, displayHp: m.displayHp,
+    damage: m.damage, aiType: m.aiType, tint: m.tint,
+    predictedPath: (m.predictedPath || []).map(p => ({ fromCol: p.fromCol, fromRow: p.fromRow, toCol: p.toCol, toRow: p.toRow })),
+    moveSpeed: m.moveSpeed,
+    hitFlash: 0, shakeX: 0, shakeY: 0,
+    size: m.size || 1,
+    jumperPhase: m.jumperPhase, jumperRepeatCount: m.jumperRepeatCount,
+    jumperCheckRepeated: m.jumperCheckRepeated, jumperVanished: m.jumperVanished || false,
+    jumperJustLanded: m.jumperJustLanded || false,
+    _showingExclaim: m._showingExclaim || false,
+    _killLoot: m._killLoot ? [...m._killLoot] : null,
+  }));
+  if (s.pendingBossLanding && s.pendingBossLanding.monsterId) {
+    const landingMonster = monsters.find(m2 => m2.id === s.pendingBossLanding.monsterId);
+    let landAction = null;
+    if (landingMonster) {
+      const mCfg = MONSTER_DB[landingMonster.cfgId];
+      landAction = (mCfg && mCfg.actions) ? mCfg.actions.find(a => a.type === 'jump_big_land') : null;
+    }
+    pendingBossLanding = landingMonster ? {
+      monster: landingMonster,
+      targetCol: s.pendingBossLanding.targetCol,
+      targetRow: s.pendingBossLanding.targetRow,
+      landAction: landAction,
+    } : null;
+  } else {
+    pendingBossLanding = null;
+  }
+  // 不清理子弹
+  turnState.mAP = s.mAP !== undefined ? s.mAP : checkpointMAP;
+  turnState.aAP = s.aAP !== undefined ? s.aAP : checkpointAAP;
+  updateHearts();
+  updateUI();
 }
 
 function restoreTurnSnapshot() {
@@ -1651,12 +1919,29 @@ function restoreTurnSnapshot() {
     playerStats.range = s.playerRange;
     playerStats.luck = s.playerLuck;
     playerResources.blueHearts = s.playerBlueHearts || 0;
+    playerResources.coins = s.playerCoins || 0;
+    playerResources.bombs = s.playerBombs || 0;
+    playerResources.keys = s.playerKeys || 0;
+    resourcesOnGround = (s.resourcesOnGround || []).map(r => {
+      const db = RESOURCE_DB[r.cfgId] || {};
+      return {
+        id: r.id, cfgId: r.cfgId, col: r.col, row: r.row,
+        px: r.px, py: r.py, roomId: r.roomId,
+        color: r.color || db.color || '#ffffff',
+        icon: r.icon || db.icon || '?',
+        liftY: r.liftY || 0, liftDir: r.liftDir || 1,
+        sparkTimer: r.sparkTimer || Math.random() * Math.PI * 2,
+      };
+    });
     itemsOnGround = (s.itemsOnGround || []).map(it => ({
       id: it.id, cfgId: it.cfgId, name: it.name, icon: it.icon,
       quality: it.quality, col: it.col, row: it.row,
       px: it.px, py: it.py, roomId: it.roomId,
       liftY: it.liftY, liftDir: it.liftDir, sparkTimer: it.sparkTimer,
     }));
+    // 同步 room._groundResources/_groundItems：数组被重建后必须让房间存储也指向新数组
+    const room = currentFloor.rooms.find(r => r.id === currentRoomId);
+    if (room) { room._groundResources = resourcesOnGround; room._groundItems = itemsOnGround; }
     updateItemBar();
     updateHearts();
     updateResourceUI();
@@ -1674,6 +1959,7 @@ function restoreTurnSnapshot() {
     jumperCheckRepeated: m.jumperCheckRepeated, jumperVanished: m.jumperVanished || false,
     jumperJustLanded: m.jumperJustLanded || false,
     _showingExclaim: m._showingExclaim || false,
+    _killLoot: m._killLoot ? [...m._killLoot] : null,
   }));
   // 恢复pendingBossLanding
   if (s.pendingBossLanding && s.pendingBossLanding.monsterId) {
@@ -1693,6 +1979,15 @@ function restoreTurnSnapshot() {
   } else {
     pendingBossLanding = null;
   }
+  // 恢复地形状态（大便、岩石等可破坏瓷砖）
+  if (s.tileData) {
+    tileData = JSON.parse(JSON.stringify(s.tileData));
+  }
+  if (s.currentRoomGrid) {
+    currentRoomGrid = s.currentRoomGrid.map(col => [...col]);
+  }
+  // 恢复炸弹
+  bombs = (s.bombs || []).map(b => ({ id: b.id, col: b.col, row: b.row, timer: b.timer, roomId: b.roomId }));
   bullets = [];
   particles = [];
   damageNumbers = [];
@@ -1734,101 +2029,173 @@ function refreshReachableTiles() {
   turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
 }
 
+// BFS 最短路径：从 (fromCol,fromRow) 到 (toCol,toRow)，尊重墙壁
+// 返回路径数组 [{col,row},...] 从起点到终点，或 null
+function bfsShortestPath(fromCol, fromRow, toCol, toRow) {
+  if (fromCol === toCol && fromRow === toRow) return [{col: fromCol, row: fromRow}];
+  const visited = new Set();
+  const parent = new Map();
+  const queue = [{col: fromCol, row: fromRow}];
+  visited.add(`${fromCol},${fromRow}`);
+
+  while (queue.length > 0) {
+    const cur = queue.shift();
+    if (cur.col === toCol && cur.row === toRow) {
+      // 回溯路径
+      const path = [];
+      let c = toCol, r = toRow;
+      while (c !== fromCol || r !== fromRow) {
+        path.unshift({col: c, row: r});
+        const key = `${c},${r}`;
+        const prev = parent.get(key);
+        c = prev.col; r = prev.row;
+      }
+      path.unshift({col: fromCol, row: fromRow});
+      return path;
+    }
+    for (const dir of ['up', 'down', 'left', 'right']) {
+      const nc = cur.col + DIR_VEC[dir].dx;
+      const nr = cur.row + DIR_VEC[dir].dy;
+      const key = `${nc},${nr}`;
+      if (visited.has(key)) continue;
+      if (isWall(nc, nr)) continue;
+      visited.add(key);
+      parent.set(key, {col: cur.col, row: cur.row});
+      queue.push({col: nc, row: nr});
+    }
+  }
+  return null;
+}
+
 // 曼哈顿距离
 function manhattanDist(c1, r1, c2, r2) {
   return Math.abs(c1 - c2) + Math.abs(r1 - r2);
 }
 
-// 计算移动到(col,row)后的M-AP (距离公式, 支持回原点返还)
-function calculateMAPAt(col, row) {
-  const originCol = turnSnapshot.playerCol;
-  const originRow = turnSnapshot.playerRow;
-  const distFromOrigin = manhattanDist(col, row, originCol, originRow);
+// ==================== 从 Checkpoint 模拟系统 ====================
+// 从 currentCheckpoint 还原状态 → 沿路径重放 → 拾取经过的资源/道具
+// 返回 { pickedUp: bool } 表示是否在路径中拾取了资源或道具
+function simulateFromCheckpoint(path) {
+  if (!currentCheckpoint || path.length < 1) return { pickedUp: false };
+  const s = currentCheckpoint;
 
-  if (!turnState.hasShot) {
-    // 射击前: 纯距离 = 距起始格曼哈顿距离
-    if (distFromOrigin > turnState.maxMAP) return -1;
-    return turnState.maxMAP - distFromOrigin;
+  // --- 1. 从 checkpoint 还原玩家状态 ---
+  player.col = s.playerCol; player.row = s.playerRow;
+  player.facing = s.playerFacing;
+  player.shootTimer = 0;
+  playerStats.hp = s.playerHp;
+  player.invincibleSteps = s.playerInvincibleSteps || 0;
+  playerInventory = [...s.playerInventory];
+  playerStats.maxHp    = s.playerMaxHp;
+  playerStats.attack   = s.playerAttack;
+  playerStats.fireRate = s.playerFireRate;
+  playerStats.moveSpeed= s.playerMoveSpeed;
+  playerStats.range    = s.playerRange;
+  playerStats.luck     = s.playerLuck;
+  playerResources.blueHearts = s.playerBlueHearts || 0;
+  playerResources.coins = s.playerCoins || 0;
+  playerResources.bombs = s.playerBombs || 0;
+  playerResources.keys  = s.playerKeys || 0;
+
+  // --- 2. 还原地面资源/道具 (从 checkpoint) ---
+  resourcesOnGround = (s.resourcesOnGround || []).map(r => {
+    const db = RESOURCE_DB[r.cfgId] || {};
+    return {
+      id: r.id, cfgId: r.cfgId, col: r.col, row: r.row,
+      px: r.px, py: r.py, roomId: r.roomId,
+      color: r.color || db.color || '#ffffff',
+      icon: r.icon || db.icon || '?',
+      liftY: r.liftY || 0, liftDir: r.liftDir || 1,
+      sparkTimer: r.sparkTimer || Math.random() * Math.PI * 2,
+    };
+  });
+  itemsOnGround = (s.itemsOnGround || []).map(it => ({
+    id: it.id, cfgId: it.cfgId, name: it.name, icon: it.icon,
+    quality: it.quality, col: it.col, row: it.row,
+    px: it.px, py: it.py, roomId: it.roomId,
+    liftY: it.liftY, liftDir: it.liftDir, sparkTimer: it.sparkTimer,
+  }));
+  monsters = s.monsters.map(m => ({
+    id: m.id, cfgId: m.cfgId, name: m.name,
+    col: m.col, row: m.row, hp: m.hp, maxHp: m.maxHp,
+    px: m.px, py: m.py, displayHp: m.displayHp,
+    damage: m.damage, aiType: m.aiType, tint: m.tint,
+    predictedPath: (m.predictedPath || []).map(p => ({ fromCol: p.fromCol, fromRow: p.fromRow, toCol: p.toCol, toRow: p.toRow })),
+    moveSpeed: m.moveSpeed,
+    hitFlash: 0, shakeX: 0, shakeY: 0,
+    size: m.size || 1,
+    jumperPhase: m.jumperPhase, jumperRepeatCount: m.jumperRepeatCount,
+    jumperCheckRepeated: m.jumperCheckRepeated, jumperVanished: m.jumperVanished || false,
+    jumperJustLanded: m.jumperJustLanded || false,
+    _showingExclaim: m._showingExclaim || false,
+    _killLoot: m._killLoot ? [...m._killLoot] : null,
+  }));
+  if (s.pendingBossLanding && s.pendingBossLanding.monsterId) {
+    const landingMonster = monsters.find(m2 => m2.id === s.pendingBossLanding.monsterId);
+    let landAction = null;
+    if (landingMonster) {
+      const mCfg = MONSTER_DB[landingMonster.cfgId];
+      landAction = (mCfg && mCfg.actions) ? mCfg.actions.find(a => a.type === 'jump_big_land') : null;
+    }
+    pendingBossLanding = landingMonster ? {
+      monster: landingMonster,
+      targetCol: s.pendingBossLanding.targetCol,
+      targetRow: s.pendingBossLanding.targetRow,
+      landAction: landAction,
+    } : null;
   } else {
-    // 射击后: 总消耗 = 起始→checkpoint + checkpoint→目标
-    const toCheckpoint = manhattanDist(checkpointPos.col, checkpointPos.row, originCol, originRow);
-    const fromCheckpoint = manhattanDist(col, row, checkpointPos.col, checkpointPos.row);
-    const totalCost = toCheckpoint + fromCheckpoint;
-    if (totalCost > turnState.maxMAP) return -1;
-    return turnState.maxMAP - totalCost;
-  }
-}
-
-// ==================== 接触伤害（基于移动轨迹） ====================
-// 轨迹追踪：每个位置记录 invincibleSteps。后退时恢复。接触伤害独立管理。
-function recalcContactDamage(nx, ny) {
-  // --- 更新轨迹 ---
-  const sameIdx = turnMovePath.findIndex(p => p.col === nx && p.row === ny);
-  if (sameIdx >= 0) {
-    // 走回已访问过的位置：截断轨迹 + 恢复该位置的无敌步数
-    player.invincibleSteps = turnMovePath[sameIdx].invincibleSteps || 0;
-    turnMovePath.length = sameIdx + 1;
-  } else {
-    // 新位置：追加（先记录当前位置的 invincibleSteps）
-    turnMovePath.push({col: nx, row: ny, invincibleSteps: player.invincibleSteps});
+    pendingBossLanding = null;
   }
 
-  // --- 撤回拾取的资源（截断点之后拾取的资源需还原） ---
-  while (turnPickupLog.length > 0 && turnPickupLog[turnPickupLog.length - 1].stepIdx >= turnMovePath.length) {
-    const log = turnPickupLog.pop();
-    const resCfg = RESOURCE_DB[log.cfgId];
-    if (resCfg) {
-      // 还原资源到地面
-      const pix = gridToPixel(log.resCol, log.resRow);
-      resourcesOnGround.push({
-        id: ++resourceIdCounter,
-        cfgId: log.cfgId, col: log.resCol, row: log.resRow,
-        px: pix.x, py: pix.y, roomId: currentRoomId,
-      });
-      // 还原玩家资源
-      switch (resCfg.type) {
-        case 'coin': playerResources.coins -= (resCfg.value || 0); break;
-        case 'bomb': playerResources.bombs -= (resCfg.amount || 0); break;
-        case 'key': playerResources.keys -= (resCfg.amount || 0); break;
-        case 'heart': playerStats.hp = Math.max(0, playerStats.hp - (resCfg.heal || 0)); break;
-        case 'blue_heart': playerResources.blueHearts -= (resCfg.amount || 0); break;
+  // --- 3. 沿路径重放，检测拾取 ---
+  let pickedUp = false;
+  const finalPos = path[path.length - 1];
+  for (let i = 1; i < path.length; i++) {
+    const step = path[i];
+    player.col = step.col; player.row = step.row;
+
+    // 拾取资源
+    for (let j = resourcesOnGround.length - 1; j >= 0; j--) {
+      const res = resourcesOnGround[j];
+      if (res.col === step.col && res.row === step.row) {
+        handleResourcePickup(res);
+        resourcesOnGround.splice(j, 1);
+        pickedUp = true;
       }
     }
-  }
-  // --- 撤回拾取的道具 ---
-  while (turnPickedUpItemLog.length > 0 && turnPickedUpItemLog[turnPickedUpItemLog.length - 1].stepIdx >= turnMovePath.length) {
-    const log = turnPickedUpItemLog.pop();
-    // 还原道具到地面并从库存移除
-    itemsOnGround.push({...log.itemSnapshot});
-    const invIdx = playerInventory.indexOf(log.itemSnapshot.cfgId);
-    if (invIdx >= 0) playerInventory.splice(invIdx, 1);
-    // 重算属性
-    recalcAllStats();
-  }
-  if (turnPickupLog.length > 0 || turnPickedUpItemLog.length > 0) {
-    updateHearts(); updateResourceUI(); updateItemBar(); updateUI();
-  }
-
-  // --- 撤回检查：接触步被截断 → 撤销伤害+无敌 ---
-  if (turnContactStepIdx >= 0 && turnContactStepIdx >= turnMovePath.length) {
-    playerStats.hp += turnContactDamageAmount;
-    player.invincibleSteps = turnContactPrevInvincible;
-    turnContactStepIdx = -1;
-    turnContactDamageAmount = 0;
-    turnContactPrevInvincible = 0;
-  }
-
-  // --- 新接触：踩到怪物格且无敌结束 → 扣血+无敌 ---
-  if (turnContactStepIdx < 0 && player.invincibleSteps <= 0) {
-    const onMonster = monsters.find(m => !m.jumperVanished && isInMonsterFootprint(m, nx, ny) && m.hp > 0);
-    if (onMonster) {
-      turnContactPrevInvincible = player.invincibleSteps;
-      const dmg = onMonster.damage || 1;
-      damagePlayer(dmg);
-      turnContactStepIdx = turnMovePath.length - 1;
-      turnContactDamageAmount = dmg;
+    // 拾取道具
+    for (let j = itemsOnGround.length - 1; j >= 0; j--) {
+      const it = itemsOnGround[j];
+      if (it.col === step.col && it.row === step.row) {
+        if (playerInventory.includes(it.cfgId)) continue;
+        applyItem(it.cfgId);
+        itemsOnGround.splice(j, 1);
+        pickedUp = true;
+      }
+    }
+    // 接触伤害
+    if (player.invincibleSteps <= 0) {
+      const om = monsters.find(m => !m.jumperVanished && isInMonsterFootprint(m, step.col, step.row) && m.hp > 0);
+      if (om) damagePlayer(om.damage || 1);
+    }
+    if (player.invincibleSteps > 0) player.invincibleSteps--;
+    if (!inCombat && currentRoomGrid && currentRoomGrid[step.col][step.row] === TILE.SPIKE) {
+      damagePlayer(1);
     }
   }
+
+  // --- 4. 最终位置 + M-AP (从 checkpoint MAP 扣减) + UI ---
+  player.col = finalPos.col; player.row = finalPos.row;
+  turnState.mAP = checkpointMAP - (path.length - 1);
+  updateHearts();
+  updateResourceUI();
+  updateItemBar();
+  updateUI();
+  // 同步 room._groundResources：simulateFromCheckpoint 重建了 resourcesOnGround 数组，
+  // 必须让房间存储也指向新数组，否则掉落的资源在离房重进后会丢失
+  const room = currentFloor.rooms.find(r => r.id === currentRoomId);
+  if (room) { room._groundResources = resourcesOnGround; room._groundItems = itemsOnGround; }
+  return { pickedUp };
 }
 
 // ==================== 回合AP初始化 ====================
@@ -1839,17 +2206,16 @@ function resetTurnAP() {
   turnState.aAP = turnState.maxAAP;
   turnState.hasShot = false;
   turnState.phase = 'player_select';
-  checkpointPos = null;
   turnSnapshot = null;
-  turnMovePath = [{col: player.col, row: player.row, invincibleSteps: player.invincibleSteps}];
-  turnContactStepIdx = -1;
-  turnContactDamageAmount = 0;
-  turnContactPrevInvincible = 0;
-  turnPickupLog = [];
-  turnPickedUpItemLog = [];
+  currentCheckpoint = null;
   turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
   saveTurnSnapshot();
-  recalcContactDamage(player.col, player.row); // 回合开始检查是否已站在怪物上
+  saveCheckpoint();  // 小存档点初始 = 大存档点
+  // 回合开始检查是否已站在怪物上
+  if (player.invincibleSteps <= 0) {
+    const onMonster = monsters.find(m => !m.jumperVanished && isInMonsterFootprint(m, player.col, player.row) && m.hp > 0);
+    if (onMonster) damagePlayer(onMonster.damage || 1);
+  }
   updateFlyingEyeExclaim();  // 回合开始时更新浮游眼感叹号
   updateActionBar();
 }
@@ -2527,18 +2893,6 @@ function pickUpItems() {
       const cfg = ITEMS_DB[it.cfgId];
       if (playerInventory.includes(it.cfgId)) continue; // 已拥有，跳过
       applyItem(it.cfgId);
-      // 记录拾取日志（用于移动回溯撤销）
-      if (turnState.phase === 'player_select' && inCombat) {
-        turnPickedUpItemLog.push({
-          stepIdx: turnMovePath.length,
-          itemSnapshot: {
-            id: it.id, cfgId: it.cfgId, name: it.name, icon: it.icon,
-            quality: it.quality, col: it.col, row: it.row,
-            px: it.px, py: it.py, roomId: it.roomId,
-            liftY: it.liftY, liftDir: it.liftDir, sparkTimer: it.sparkTimer,
-          },
-        });
-      }
       // 拾取特效
       const pp = project(it.px, it.py);
       for (let j = 0; j < 8; j++) {
@@ -2590,14 +2944,6 @@ function autoPickupResources() {
     if (res.col === player.col && res.row === player.row) {
       const wasPicked = handleResourcePickup(res);
       if (wasPicked) {
-        // 记录拾取日志（用于移动回溯撤销）
-        if (turnState.phase === 'player_select' && inCombat) {
-          turnPickupLog.push({
-            stepIdx: turnMovePath.length,
-            resCol: res.col, resRow: res.row,
-            cfgId: res.cfgId,
-          });
-        }
         resourcesOnGround.splice(i, 1);
         pickedAny = true;
       }
@@ -2762,16 +3108,9 @@ function placeBomb(col, row) {
   if (!inCombat) {
     inCombat = true;
     updateDoorsLocked();
-    // 设置移动行动力
-    turnState.maxMAP = Math.floor(playerStats.moveSpeed);
-    turnState.mAP = turnState.maxMAP;
-    turnState.maxAAP = Math.floor(playerStats.fireRate);
-    turnState.aAP = turnState.maxAAP;
-    turnState.reachableTiles = calcReachableTiles(col, row, turnState.mAP);
-    // 战斗模式不启动交叉剑动画(炸弹模式有别于怪物战斗)
+    resetTurnAP(); // 统一用 resetTurnAP，确保快照包含当前资源/道具
     battleStartAnim.active = true;
     battleStartAnim.timer = 0;
-    updateActionBar();
   }
 
   updateResourceUI();
@@ -3995,11 +4334,17 @@ function drawBullets() {
 }
 
 // --- 地面资源渲染 (使用真实素材图片) ---
+let _dbgResDrawCount = 0;
 function drawResourcesOnGround() {
   if (resourcesOnGround.length === 0) return;
+  if (++_dbgResDrawCount % 60 === 1) {
+    console.log('🎨 渲染资源:', resourcesOnGround.length, '个 →', resourcesOnGround.map(r => `${r.cfgId}@(${r.col},${r.row}) color=${r.color} icon=${r.icon}`));
+  }
 
   for (const res of resourcesOnGround) {
-    const pp = project(res.px, res.py + res.liftY);
+    // 用 grid col/row 重算世界坐标再投影，而非依赖可能过期的 px/py
+    const gp = gridToPixel(res.col, res.row);
+    const pp = project(gp.x, gp.y + res.liftY);
     const cx = Math.round(pp.x), cy = Math.round(pp.y);
     const s = pp.s;
     const imgSize = Math.max(10, Math.round(14 * s));
@@ -4113,7 +4458,8 @@ function drawItemsOnGround() {
   if (itemsOnGround.length === 0) return;
 
   for (const it of itemsOnGround) {
-    const pp = project(it.px, it.py + it.liftY);
+    const gp = gridToPixel(it.col, it.row);
+    const pp = project(gp.x, gp.y + it.liftY);
     const cx = Math.round(pp.x), cy = Math.round(pp.y);
     const s = pp.s;
     const size = Math.max(8, Math.round(12 * s));
@@ -5457,6 +5803,12 @@ function damageMonster(m, dmg) {
     if (turnState.phase === 'player_select') pendingReachableRefresh = true;
     const idx = monsters.indexOf(m);
     if (idx !== -1) monsters.splice(idx, 1);
+    // 玩家回合中击杀怪物 → 保存 checkpoint
+    // 放在 updateRoomCombatState 之前，避免最后一只怪死后 inCombat 变 false 导致跳过
+    if (turnState.phase === 'player_select') {
+      saveCheckpoint();
+      turnState.reachableTiles = calcReachableTiles(currentCheckpoint.playerCol, currentCheckpoint.playerRow, checkpointMAP);
+    }
     updateRoomCombatState();
   }
 }
@@ -5464,9 +5816,93 @@ function damageMonster(m, dmg) {
 // ==================== 掉落系统 ====================
 // 击杀怪物掉落 (读 monster-db.json > loot 配置)
 function rollMonsterKillDrop(m) {
+  // 优先使用怪物生成时预 roll 的掉落（保证 Esc 回溯后再次击杀结果一致）
+  // _killLoot 可能是 [] (预roll结果=无掉落)，必须用 !==null/undefined 判断而非 truthy check
+  if (m._killLoot !== undefined && m._killLoot !== null) {
+    if (m._killLoot.length > 0) {
+      applyPreRolledLoot(m._killLoot, m.col, m.row);
+    }
+    return;
+  }
   const mCfg = MONSTER_DB[m.cfgId];
   if (!mCfg || !mCfg.loot) return;
   rollLoot(mCfg.loot, m.col, m.row);
+}
+
+/** 预 roll 怪物掉落（生成时调用），返回可重复执行的掉落指令列表 */
+function preRollLoot(lootConfig) {
+  const results = [];
+  const rounds = lootConfig.rounds || (lootConfig.entries ? [lootConfig] : []);
+  for (const round of rounds) {
+    const mode = round.mode || 'pick_one';
+    if (mode === 'roll_all') {
+      for (const entry of round.entries) {
+        if (Math.random() < (entry.rate ?? 1)) {
+          const drop = preRollDropEntry(entry);
+          if (drop) results.push(drop);
+        }
+      }
+    } else if (mode === 'pick_one') {
+      const totalW = round.entries.reduce((s, e) => s + (e.weight ?? 1), 0);
+      if (totalW > 0) {
+        let roll = Math.random() * totalW;
+        for (const entry of round.entries) {
+          roll -= (entry.weight ?? 1);
+          if (roll <= 0) {
+            if (Math.random() < (entry.rate ?? 1)) {
+              const drop = preRollDropEntry(entry);
+              if (drop) results.push(drop);
+            }
+            break;
+          }
+        }
+      }
+    } else if (mode === 'pick_first') {
+      for (const entry of round.entries) {
+        if (Math.random() < (entry.rate ?? 1)) {
+          const drop = preRollDropEntry(entry);
+          if (drop) { results.push(drop); break; }
+        }
+      }
+    }
+  }
+  return results;
+}
+
+/** 预 roll 单个掉落条目 */
+function preRollDropEntry(entry) {
+  if (entry.type === 'item') {
+    const cfgId = rollItem(null, entry.qualityTable || 'default');
+    if (cfgId) return { type: 'item', cfgId };
+  } else if (entry.type === 'resource_pool') {
+    const resIds = rollResourceDrop(entry.pool || 'monster_default');
+    if (resIds.length > 0) {
+      const offsetC = Math.floor(Math.random() * 3) - 1;
+      const offsetR = Math.floor(Math.random() * 3) - 1;
+      return { type: 'resource_pool', resIds, offsetC, offsetR };
+    }
+  } else if (entry.type === 'resource_fixed') {
+    if (entry.id) return { type: 'resource_fixed', resId: entry.id };
+  }
+  return null;
+}
+
+/** 执行预 roll 的掉落列表 */
+function applyPreRolledLoot(preRolled, col, row) {
+  for (const drop of preRolled) {
+    if (drop.type === 'item') {
+      spawnItemOnGrid(col, row, drop.cfgId);
+    } else if (drop.type === 'resource_pool') {
+      for (const rid of drop.resIds) {
+        const sc = col + drop.offsetC, sr = row + drop.offsetR;
+        if (sc >= 0 && sc < COLS && sr >= 0 && sr < ROWS && !isWall(sc, sr)) {
+          spawnResourceOnGrid(sc, sr, rid);
+        }
+      }
+    } else if (drop.type === 'resource_fixed') {
+      spawnResourceOnGrid(col, row, drop.resId);
+    }
+  }
 }
 
 // ==================== 统一掉落调度器 ====================
@@ -5561,10 +5997,9 @@ function rollRoomClearDrop() {
   }
 }
 
-// 破坏地形掉落
-function rollTerrainDestroyDrop(col, row, terrainType) {
-  const tableKey = terrainType === 'rock' ? 'terrain_rock' : 'terrain_poop';
-  const resIds = rollResourceDrop(tableKey);
+// 破坏地形掉落 (preLoot: 房间生成时预roll的结果，保证ESC回溯后再次破坏结果一致)
+function rollTerrainDestroyDrop(col, row, terrainType, preLoot) {
+  const resIds = (preLoot !== undefined) ? preLoot : rollResourceDrop(terrainType === 'rock' ? 'terrain_rock' : 'terrain_poop');
   for (const rid of resIds) {
     spawnResourceOnGrid(col, row, rid);
   }
@@ -5727,12 +6162,16 @@ function executeNextAction() {
     const vec = DIR_VEC[act.dir];
     const nc = player.col + vec.dx, nr = player.row + vec.dy;
     if (isWall(nc, nr)) { turnState.execIndex++; return; }
-    // 移动后更新轨迹+接触伤害
+    // 移动
     player.col = nc; player.row = nr;
     const t = gridToPixel(nc, nr);
     player.targetPx = t.x; player.targetPy = t.y;
     player.animTime = 0;
-    recalcContactDamage(nc, nr);
+    // 接触伤害（执行阶段不可回溯，直接结算）
+    if (player.invincibleSteps <= 0) {
+      const onMonster = monsters.find(m => !m.jumperVanished && isInMonsterFootprint(m, nc, nr) && m.hp > 0);
+      if (onMonster) damagePlayer(onMonster.damage || 1);
+    }
     if (player.invincibleSteps > 0) player.invincibleSteps--;
   } else if (act.type === 'shoot') {
     player.facing = act.dir;
@@ -5790,29 +6229,83 @@ document.addEventListener('keydown', (e) => {
         if(inCombat){
           const key=`${nc},${nr}`;
           if(!turnState.reachableTiles.has(key))return;
-          const newMAP=calculateMAPAt(nc,nr);
-          if(newMAP<0)return;
-          turnState.mAP=newMAP;
+
+          if (turnState.mAP > 0) {
+            // 正常移动：仅扣 M-AP，不碰 checkpoint
+            turnState.mAP--;
+          } else {
+            // M-AP 耗尽兜底：从 checkpoint BFS 最短路径
+            const cp = currentCheckpoint;
+            if (!cp) return;
+            const path = bfsShortestPath(cp.playerCol, cp.playerRow, nc, nr);
+            if (!path || path.length - 1 > checkpointMAP) return;
+
+            const result = simulateFromCheckpoint(path);
+            turnState.mAP = checkpointMAP - (path.length - 1);
+            if (result.pickedUp) {
+              saveCheckpoint();
+              const newCp = currentCheckpoint;
+              turnState.reachableTiles = calcReachableTiles(newCp.playerCol, newCp.playerRow, checkpointMAP);
+            }
+
+            // simulateFromCheckpoint 已更新玩家地图坐标
+            player.facing=dir;player.col=nc;player.row=nr;
+            const tt=gridToPixel(nc,nr);player.targetPx=tt.x;player.targetPy=tt.y;player.animTime=0;
+            updateActionBar();updateUI();
+            updateFlyingEyeExclaim();
+            return;
+          }
         }
 
         player.facing=dir;player.col=nc;player.row=nr;
         const t=gridToPixel(nc,nr);player.targetPx=t.x;player.targetPy=t.y;player.animTime=0;
 
-        if(inCombat){
-          // 战斗模式：跟踪移动路径用于回溯接触伤害
-          recalcContactDamage(nc, nr);
-          if(player.invincibleSteps>0)player.invincibleSteps--;
-        } else {
-          // 探索模式：刺尖伤害不可回溯，直接结算
+        if(!inCombat){
+          // 探索模式：直接结算
           if(player.invincibleSteps>0)player.invincibleSteps--;
           if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.SPIKE){damagePlayer(1);}
+          autoPickupResources();
+        } else {
+          // 战斗模式：自动拾取 + 接触伤害
+          const resPicked = autoPickupResources();
+          let itemPicked = false;
+          for (let j = itemsOnGround.length - 1; j >= 0; j--) {
+            const it = itemsOnGround[j];
+            if (it.col === player.col && it.row === player.row) {
+              if (!playerInventory.includes(it.cfgId)) {
+                applyItem(it.cfgId);
+                itemsOnGround.splice(j, 1);
+                itemPicked = true;
+              }
+            }
+          }
+          if (resPicked || itemPicked) {
+            saveCheckpoint();
+            const cp = currentCheckpoint;
+            turnState.reachableTiles = calcReachableTiles(cp.playerCol, cp.playerRow, checkpointMAP);
+            if (itemPicked) {
+              updateItemBar();
+              turnState.maxMAP = Math.floor(playerStats.moveSpeed);
+              turnState.maxAAP = Math.floor(playerStats.fireRate);
+              turnState.mAP = Math.min(turnState.mAP, turnState.maxMAP);
+              turnState.aAP = Math.min(turnState.aAP, turnState.maxAAP);
+              updateUI();
+              buildHearts(playerStats.maxHp);
+              buildBlueHearts();
+              buildApDots('ui-aap-row', turnState.maxAAP);
+              buildApDots('ui-map-row', turnState.maxMAP);
+            }
+          }
+          if (player.invincibleSteps <= 0) {
+            const om = monsters.find(m => !m.jumperVanished && isInMonsterFootprint(m, player.col, player.row) && m.hp > 0);
+            if (om) damagePlayer(om.damage || 1);
+          }
+          if (player.invincibleSteps > 0) player.invincibleSteps--;
         }
         if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.LADDER){
           const nextF=currentFloor.floorNum+1;
           if(allFloors[nextF]){enterFloor(nextF);return;}
         }
-        // 自动拾取脚下资源
-        autoPickupResources();
         updateActionBar();updateUI();
         updateFlyingEyeExclaim();  // 动态更新浮游眼感叹号
         return;
@@ -5837,10 +6330,9 @@ document.addEventListener('keydown', (e) => {
 
         if(inCombat){
           turnState.aAP--;
-          if(!turnState.hasShot){turnState.hasShot=true;checkpointPos={col:player.col,row:player.row};
-            const rs=turnState.mAP;turnState.reachableTiles=calcReachableTiles(player.col,player.row,rs);
-            // checkpoint 锁定状态：commit 接触伤害，不再撤回
-            turnContactStepIdx=-1;turnContactDamageAmount=0;}
+          saveCheckpoint();
+          turnState.reachableTiles=calcReachableTiles(currentCheckpoint.playerCol,currentCheckpoint.playerRow,checkpointMAP);
+          if(!turnState.hasShot)turnState.hasShot=true;
         }
         updateActionBar();updateUI();
         return;
@@ -5868,19 +6360,17 @@ document.addEventListener('keydown', (e) => {
         if(!inCombat)return; // 探索状态下 Esc 无效
         if (turnSnapshot) {
           restoreTurnSnapshot();
+          // 从恢复的属性重算AP上限（避免拾取+移速/射速道具后ESC上限不还原）
+          turnState.maxMAP = Math.floor(playerStats.moveSpeed);
+          turnState.maxAAP = Math.floor(playerStats.fireRate);
           turnState.mAP = turnState.maxMAP;
           turnState.aAP = turnState.maxAAP;
           turnState.hasShot = false;
-          checkpointPos = null;
-          turnMovePath = [{col: player.col, row: player.row, invincibleSteps: player.invincibleSteps}];
-          turnContactStepIdx = -1;
-          turnContactDamageAmount = 0;
-          turnContactPrevInvincible = 0;
-          turnPickupLog = [];
-          turnPickedUpItemLog = [];
+          currentCheckpoint = null;
           turnState.phase = 'player_select';
           turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
           saveTurnSnapshot();
+          saveCheckpoint();  // checkpoint 同时重置为回合初始状态
           // 触发时间倒流动画
           rewindAnim.active = true;
           rewindAnim.timer = 0;
@@ -6005,13 +6495,8 @@ function gameLoop(timestamp) {
   updateParticles(dt);
 
   // 怪物死亡后刷新可移动范围 (新增空白格)
-  if (turnState.phase === 'player_select' && pendingReachableRefresh) {
-    if (!turnState.hasShot) {
-      const oCol = turnSnapshot.playerCol, oRow = turnSnapshot.playerRow;
-      turnState.reachableTiles = calcReachableTiles(oCol, oRow, turnState.maxMAP);
-    } else {
-      turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
-    }
+  if (turnState.phase === 'player_select' && pendingReachableRefresh && currentCheckpoint) {
+    turnState.reachableTiles = calcReachableTiles(currentCheckpoint.playerCol, currentCheckpoint.playerRow, checkpointMAP);
     pendingReachableRefresh = false;
   }
 
@@ -6080,6 +6565,24 @@ function gameLoop(timestamp) {
 
 // ==================== 启动 ====================
 async function bootGame(){
+  // 检测 file:// 协议 — fetch 在 file:// 下被浏览器 CORS 策略阻止
+  if (window.location.protocol === 'file:') {
+    document.body.innerHTML = `<div style="background:#1a0a0a;color:#e44;font-family:sans-serif;padding:40px;text-align:center;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+      <h2 style="font-size:24px;">⚠️ 无法直接打开此文件</h2>
+      <p style="color:#a88;max-width:500px;line-height:1.6;margin:16px 0;">
+        浏览器安全策略阻止了 <code style="background:#333;padding:2px 6px;border-radius:3px;">file://</code> 协议下的数据加载。<br>
+        请通过以下任一方式打开：
+      </p>
+      <ol style="text-align:left;color:#ccc;line-height:1.8;">
+        <li>在 IDE 中使用 <b>预览功能</b>（推荐）</li>
+        <li>或在项目目录下启动本地服务器：<br>
+          <code style="background:#333;padding:3px 8px;border-radius:3px;">npx serve .</code> 
+          然后访问 <code style="background:#333;padding:3px 8px;border-radius:3px;">http://localhost:3000/Project-Issac-turnbase/isaac-turnbased-demo2.html</code></li>
+      </ol>
+    </div>`;
+    return;
+  }
+
   await loadTemplates();
   await loadMonsterDB();    // 加载怪物数据库
   await loadSpawnConfig();  // 加载刷怪配置
@@ -6168,7 +6671,10 @@ function spawnMonsterAtRandomPos(cfgId) {
     // 移动标签（地面/飞行），用于路径障碍检查
     movementTags: cfg.movementTags || ['地面'],
   });
-  for (const mc of monsterCells(monsters[monsters.length - 1])) occupied.add(`${mc.col},${mc.row}`);
+  const newMonster = monsters[monsters.length - 1];
+  // 怪物生成时预 roll 掉落（保证 Esc 回溯后再次击杀结果一致）
+  if (cfg.loot) newMonster._killLoot = preRollLoot(cfg.loot);
+  for (const mc of monsterCells(newMonster)) occupied.add(`${mc.col},${mc.row}`);
   return true;
 }
 

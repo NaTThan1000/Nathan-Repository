@@ -11,7 +11,7 @@
 >
 > **组织方式**：纯时间顺序，不做模块分类。给 AI 快速浏览聊天记忆用。
 >
-> 最后更新: 2026-07-29
+> 最后更新: 2026-07-30
 
 ---
 
@@ -509,6 +509,7 @@
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-30 | **地形掉落预roll + liftDir修复 + ESC回溯补全**。详见当日记忆条目。 |
 | 2026-07-29 | **资源掉落表 mode 统一 + attack_adjacent 修正 + 条目统一化**。①`resource-db.json` dropTables 升级为 `{ mode, table }` 结构，支持 pick_one/roll_all/pick_first。②`rollResourceDrop()` 重构为 mode 驱动。③`rollRoomClearDrop()` 移除硬编码改为 roomType→tableKey 配置映射。④`spawnShopItems()` 统一走 rollResourceDrop。⑤`attack_adjacent` 从面朝方向改为四方向十字范围攻击。⑥全部 11 张表统一 15 种资源条目。 |
 | 2026-07-28(晚) | **浮游眼行为模式重构**。①新增 condition actionMode + out_of_range 条件 + after_effect 机制(shoot_fan后立刻random_wander)。②玩家回合动态感叹号。③抽出 checkActionCondition + resolveSteps 辅助函数。 |
 | 2026-07-28(晚) | **蓄力魔像行为优化 + 感叹号像素风 + 文档同步触发规则**。①蓄力魔像 actions 改为4步sequence(random_wander×2+charge_up+charge_line)，新增 charge_up type(感叹号脉动)，charge_line 简化为单步执行。②感叹号改为56px Courier New像素风大号样式，8方向像素描边+3层光晕+0.5s脉动。③memory.md 新增修改规则#4：context.md和memory.md更新必须由用户"同步文档"指令触发，不得在代码任务中附带执行。 |
@@ -525,3 +526,36 @@
 | 2026-07-20 | **HP心形改造 + AI提交行为纠正**。①HP系统改为3心制+半心显示，所有玩家伤害减半。②记录AI自动提交行为被纠正事件，确认Git操作需用户明确指令。 |
 | 2026-07-20 | **格式重改为纯时间线 + 删除未确认内容**。按用户要求改为纯时间顺序组织（不做模块分类），删除未经用户确认的"下一步计划"章节。同步追加当天的文档体系规则修正记录。 |
 | 2026-07-20 | **记忆体系建立**。从三处数据源（context.md 最近更新记录 ×11条、chat-log-2026-07-20.md、当前会话）提取所有历史决策，按时间顺序整理。 |
+
+---
+
+## 2026-07-30
+
+### 地形掉落预roll — 保证ESC回溯后再次破坏结果一致 [当前方案]
+- **[问题]** 破坏大便/岩石后掉落资源是当场 roll 的（`rollTerrainDestroyDrop` 内调用 `rollResourceDrop`），ESC 回溯后再次破坏同一地形会重新随机，掉落不一致
+- **[决策]** 与怪物 `_killLoot` 模式对齐：①`initTileData()` 中为每个 POOP/ROCK 预roll `_loot`（`rollResourceDrop('terrain_poop'/'terrain_rock')`，可能是空数组=不掉落），存储在 `tileData[k]._loot`。②`hitTile()` 在 `delete tileData[k]` 之前捕获 `td._loot` 为 `preLoot` 传入。③`rollTerrainDestroyDrop(col, row, terrainType, preLoot)` 优先使用预roll结果，仅 fallback 时才现场 roll
+- **[收益]** ESC 回溯后地形破坏掉落完全一致，与怪物击杀掉落行为统一
+- **[向下兼容]** `preLoot !== undefined` 判断区分"已预roll=空数组"和"未预roll=undefined"，旧存档无 `_loot` 时自动 fallback 现场roll
+
+### 资源视觉消失bug修复 — liftDir 缺失导致 liftY 变 NaN [当前方案]
+- **[问题]** 用户报告两个场景：①怪物击杀掉落资源后移动触发BFS→资源视觉消失但能走过去拾取；②摧毁大便掉落同理消失。ESC回溯不影响此问题
+- **[根因追踪]** 完整因果链：资源从 `spawnResourceOnGrid` 出生时带 `liftDir: 1` → `saveCheckpoint`/`simulateFromCheckpoint` 恢复资源时没存/没恢复 `liftDir` → BFS 触发后资源 `liftDir = undefined` → 游戏循环动画 `res.liftY += undefined * dt * 2` → `liftY = NaN` → 渲染坐标无效 → 视觉消失 → 但 col/row 正确 → `autoPickupResources` 仍能拾取
+- **[次要发现]** 道具（`itemsOnGround`）的保存/恢复一直有 `liftDir`，资源的保存/恢复却少了这个字段——同一个 checkpoint 内的两个数组不一致
+- **[修复范围]** 6 处：`saveTurnSnapshot`(1620)、`saveCheckpoint`(1683)、`restoreCheckpoint`(1751)、`restoreCheckpointWithoutBullets`(1839)、`restoreTurnSnapshot`(1925)、`simulateFromCheckpoint`(2092)，全部补上 `liftDir: r.liftDir || 1`
+- **[修复结果]** 资源在 BFS checkpoint 恢复后liftY正常计算，不再视觉消失
+
+### hitTile 破坏地形后保存 checkpoint [当前方案]
+- **[问题]** `hitTile` 破坏地形（delete tileData[k] + grid→FLOOR）+ 掉落资源后，若后续 BFS 触发 `simulateFromCheckpoint`，checkpoint 中无这些新资源，资源消失（与 liftDir bug 叠加加剧）
+- **[决策]** `hitTile` 中在 `rollTerrainDestroyDrop` 后调用 `saveCheckpoint()`，确保 checkpoint 包含破坏后的地形+新掉落资源
+
+### ESC 回溯范围扩大：地形 + 炸弹 [当前方案]
+- **[触发]** 用户要求 ESC 应回溯整个游戏所有状态："地形的也算，所有的都算"。AI 列出当前回溯/未回溯清单，确认可破坏地形和炸弹需补充
+- **[决策]** ①`saveTurnSnapshot` 新增 `tileData`(JSON深拷贝)、`currentRoomGrid`(逐列拷贝)、`bombs`(逐个对象拷贝)。②`restoreTurnSnapshot` 新增对应恢复：`tileData = JSON.parse(JSON.stringify(s.tileData))`、`currentRoomGrid = s.currentRoomGrid.map(col => [...col])`、`bombs` 重建
+- **[收益]** ESC 后大便恢复未破坏状态、岩石恢复、炸弹恢复位置和倒计时。与炸弹模式融入战斗（7/29）配合：炸弹是战斗状态的一部分，ESC自然回溯
+- **[未涉及]** `saveCheckpoint`（BFS小存档点）不需要保存 terrain——terrain 是永久性变更，在 `hitTile` 中已直接修改 `tileData`/`currentRoomGrid`，checkpoint 不恢复 terrain
+
+### tileData 注释更新
+- `tileData` 变量注释从 `{ type, hp }` 更新为 `{ type, hp, _loot }`，反映预roll字段
+
+---
+

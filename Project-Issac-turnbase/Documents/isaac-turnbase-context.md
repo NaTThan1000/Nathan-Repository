@@ -148,8 +148,8 @@
 - **移动**：WASD 在可移动范围内即时移动本体，M-AP-1，范围动态刷新
 - **射击**：↑↓←→ 立即发射子弹，A-AP-1
 - **射击 Checkpoint**：首次射击时保存位置（`checkpointPos`），之后可移动范围从当前位置重新计算（内部机制，玩家无需认知）
-- **Esc 全重置**：恢复完整回合快照（`turnSnapshot`），玩家/怪物/HP 全部回到回合开始时状态，伴随时间倒流动画
-- **回合快照**：`saveTurnSnapshot()` 保存玩家坐标/HP、怪物坐标/HP 等；`restoreTurnSnapshot()` 恢复
+- **Esc 全重置**：恢复完整回合快照（`turnSnapshot`），玩家/怪物/HP/道具/地形/炸弹全部回到回合开始时状态，伴随时间倒流动画
+- **回合快照**：`saveTurnSnapshot()` 保存玩家坐标/HP、怪物坐标/HP、道具库存、地上资源道具、可破坏瓷砖(tileData/currentRoomGrid)、炸弹等；`restoreTurnSnapshot()` 恢复
 - **可移动范围计算**：`calcReachableTiles(fromCol, fromRow, maxSteps)` BFS，排除墙壁和怪物占据格
 
 ### 2.4 角色移动与精灵动画
@@ -202,6 +202,9 @@
 | SPIKE | `^` | 尖刺 | ✅ | 踩上扣 1 心(玩家)/5 HP(怪物) |
 | LADDER | `▼` | 梯子 | ✅ | Boss房踩上进入下一层 |
 
+- **便便(POOP)**：hp=4，受击3次后破坏。**岩石(ROCK)**：hp=99（不可破坏）。破坏后地形格变为 FLOOR
+- 可破坏瓷砖在`initTileData()`中预roll掉落（`_loot` = `rollResourceDrop('terrain_poop'/'terrain_rock')`），保证ESC回溯后再次破坏结果一致
+- `hitTile()` 破坏时捕获预roll结果再删除 tileData，调用 `rollTerrainDestroyDrop(col, row, type, preLoot)` 使用预roll掉落，随后 `saveCheckpoint()` 确保BFS回退时地形保持已破坏状态
 - 门位：每边正中（上6,0 / 下6,6 / 左0,3 / 右12,3），这些格必须为可通行地面
 - `drawTiles()`：使用 `cellRect()` 透视坐标渲染六种瓷砖（岩石叠层/便便棕块/深渊/尖刺菱形/梯子深坑）
 - `drawDoors()`：房门渲染（打开=深色通道+门框/关闭=铁栏纹理+横竖铁条），区分上下/左右方向实现
@@ -263,7 +266,7 @@ player_select ──→ monster_turn ──→ player_select
 
 - 无预操作队列，所有行为即时生效
 - `hasShot` 标记首次射击（内部 checkpoint）
-- Esc 全重置本回合 → `restoreTurnSnapshot()` + 时间倒流动画
+- Esc 全重置本回合 → `restoreTurnSnapshot()` + 时间倒流动画（含地形、炸弹回溯）
 - Space 直接进入 `monster_turn`（无二次确认弹窗）
 
 ### 2.12 道具系统
@@ -481,8 +484,8 @@ function project(wx, wy) {
 | 函数 | 职责 |
 |------|------|
 | `resetTurnAP()` | 初始化回合 AP，计算可移动范围，保存回合快照 |
-| `saveTurnSnapshot()` | 保存回合开始时完整快照（玩家/怪物状态） |
-| `restoreTurnSnapshot()` | 恢复回合快照，重置所有状态到回合开始 |
+| `saveTurnSnapshot()` | 保存回合开始时完整快照（玩家/怪物/道具/地形tileData+currentRoomGrid/炸弹） |
+| `restoreTurnSnapshot()` | 恢复回合快照，重置所有状态到回合开始（含地形、炸弹） |
 | `calcReachableTiles(fromCol, fromRow, maxSteps)` | BFS 计算可移动方格集（排除墙壁和怪物） |
 | `refreshReachableTiles()` | 从当前位置以剩余 M-AP 刷新可移动范围 |
 | `loadTemplates()` | 加载 `pool.json` 关卡池模板→`poolTemplates` |
@@ -495,7 +498,7 @@ function project(wx, wy) {
 | `rollResourceDrop(tableKey)` | 从 `resource-db.json > dropTables` 按表的 `mode`(pick_one/roll_all/pick_first) 驱动随机生成资源 ID 列表。兼容旧扁平格式 |
 | `rollMonsterKillDrop(m)` | 击杀怪物时读取 `monster-db.json > loot` 配置调用 rollLoot |
 | `rollRoomClearDrop()` | 清空房间时按房间类型映射到不同掉落表(normal/start/shop→room_clear_default, boss→room_clear_boss, treasure→room_clear_treasure)，纯配置驱动 |
-| `rollTerrainDestroyDrop(col, row, type)` | 破坏岩石/便便时走 `terrain_rock` / `terrain_poop` 资源表 |
+| `rollTerrainDestroyDrop(col, row, type, preLoot)` | 破坏地形掉落：优先使用 room 初始化时预roll的 `preLoot`，保证ESC回溯后再次破坏结果一致。fallback 现场 roll `terrain_rock`/`terrain_poop` 表 |
 | `spawnShopItems(room)` | 商店房商品生成，统一调用 `rollResourceDrop('shop_stock')`（mode: roll_all，每种独立判定），最多6个 |
 | `resolveAfterEffects(action, context)` | 执行 action 的 after_effect：attack_adjacent(四方向十字攻击)/attack_side(Boss冲击波范围) |
 | `spawnItemOnGrid(col, row, cfgId)` | 在指定网格位置生成道具实体 |
@@ -515,6 +518,8 @@ function project(wx, wy) {
 | `drawBattleStartSwords()` | 战斗开始交叉剑动画：两剑从左右飞入旋转碰撞火花 |
 | `drawRewindEffect()` | Esc全重置时间倒流动画：蓝色收缩光圈 + 白色闪光 |
 | `updateTextOverlay()` | 管理 DOM 覆盖层文字（怪物名/伤害飘字/A-AP圆点） |
+| `initTileData()` | 初始化可变瓷砖状态：遍历 currentRoomGrid 识别 POOP/ROCK，预roll掉落存 `_loot`，保证ESC回溯后再次破坏结果一致 |
+| `hitTile(col, row, dmg)` | 对瓷砖造成伤害：hp≤0时捕获预roll的`_loot`→删除tileData→改grid→`rollTerrainDestroyDrop(预roll)`→`saveCheckpoint()` |
 | `drawTiles()` | 渲染六种 TILE（岩/便/坑/刺/梯），使用 `cellRect()` 透视坐标 |
 | `drawDoors()` | 房门渲染：开=通道+门框/关=铁栏纹理，区分上下左右 |
 | `cellRect(col,row)` | 透视投影后格子中心坐标+尺寸，供 TILE/门渲染 |
@@ -556,7 +561,7 @@ function project(wx, wy) {
   resetTurnAP() → 计算可移动范围 → 保存快照(含道具状态)
   WASD → 检查 reachableTiles.has(key) → 移动本体 → M-AP-1 → invincibleSteps-- → recalcContactDamage(含拾取撤销) → autoPickupResources(含pickup log)
   ↑↓←→ → 即时 spawnBullet → A-AP-1 → 首次? 设 hasShot + checkpointPos
-  Esc  → restoreTurnSnapshot(含道具/库存/属性) → 重置所有状态
+  Esc  → restoreTurnSnapshot(含道具/库存/属性/地形/炸弹) → 重置所有状态
   Space → 结束回合 → 未消耗M-AP计入invincibleSteps → monster_turn:
          startMonsterTurn → tickBombCountdown(炸弹倒计时,优先于怪物)
          → calcAllMonsterPaths() → resolveMonsterAction(按condition过滤+actionMode选择)
@@ -622,7 +627,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
-| 2026-07-29 | **BUILTIN_TEMPLATES 对齐 pool.json + 道具拾取回溯 + 血量12上限 + 炸弹融合**。①`BUILTIN_TEMPLATES()` 中 `cross_rocks`/`four_corners`/`pillars`/`corridor_v`/`ring`/`alcoves`/`boss_arena` 全部对齐 `Configs/pool.json` 实际模板，消除编辑器生成与游戏渲染不一致。②`saveTurnSnapshot`/`restoreTurnSnapshot` 新增道具库存/属性/蓝心/地面道具快照，支持 ESC 重置道具拾取状态。新增 `turnPickupLog`/`turnPickedUpItemLog` 在 `recalcContactDamage` 中实时撤销移动轨迹回退时的资源/道具拾取。③新增 `MAX_TOTAL_HEARTS=12`：`totalHearts()`=红心上限+蓝心≤12；拾取蓝心时达上限不拾取（不消失）；道具增加红心上限时若满但有蓝心→扣除1蓝心腾出空间。新增 `tryAddRedHeart()`/`tryAddBlueHeart()` 辅助函数。④炸弹系统彻底改造：移除 `bombMode`/`bombModeTurnsFrom`，炸弹即战斗模式；放置炸弹即 `inCombat=true` 统一走战斗流程；炸弹倒计时移至 `startMonsterTurn()` 最开头（最高优先级）；`updateDoorsLocked()` 只判断怪物（`hasLivingMonsters`）不判断炸弹；`tryWalkIntoDoor()` 战斗中无怪物时允许通过门；`finishTransition()` 再入房间时炸弹倒计时重置为3→重进战斗。⑤浮游眼 `random_wander` 补显式 `range`(4/5/6)消除条件死区；`calcAllMonsterPaths` 中 `random_wander`/`shoot_fan` after_effect 加 `validDirs` 预筛选防边缘撞墙。 |
+| 2026-07-30 | **地形掉落预roll + liftDir修复 + ESC回溯补全**。①`initTileData()` 房间初始化时为每个 POOP/ROCK 预roll掉落(`_loot`)，`hitTile()` 破坏时捕获预roll传给 `rollTerrainDestroyDrop(preLoot)`，保证ESC回溯后再次破坏同一地形掉落一致。②6处资源保存/恢复（`saveTurnSnapshot`/`saveCheckpoint`/`restoreCheckpoint`/`restoreCheckpointWithoutBullets`/`restoreTurnSnapshot`/`simulateFromCheckpoint`）补上 `liftDir`，修复资源在BFS触发checkpoint恢复后因 `liftDir=undefined→liftY=NaN` 导致视觉消失但可拾取的bug。③`saveTurnSnapshot`/`restoreTurnSnapshot` 新增 `tileData`/`currentRoomGrid`/`bombs` 快照，ESC回溯覆盖可破坏地形和炸弹状态。④`hitTile()` 破坏后调用 `saveCheckpoint()` 确保BFS回退时地形保持已破坏。 |
 | 2026-07-29 | **资源掉落表 mode 统一 + attack_adjacent 十字化**。①`resource-db.json` dropTables 全部升级为 `{ mode, table }` 结构，每表统一 15 种资源条目(不掉落的权重=0)，新增 `room_clear_treasure` 表。②`rollResourceDrop()` 重构支持三种 mode(pick_one/roll_all/pick_first)，向下兼容旧格式。③`rollRoomClearDrop()` 移除硬编码(宝藏/Boss房不掉的 if 判断)，改为 roomType→tableKey 纯配置驱动映射。④`spawnShopItems()` 改用统一 `rollResourceDrop('shop_stock')`。⑤`resolveAfterEffects()` 中 `attack_adjacent` 从面朝方向单向攻击改为四方向十字范围攻击(上下左右各 range 格)。⑥`finishMonsterTurn()` 简化移除 dirX/dirY 计算。 |
 | 2026-07-28(晚) | **浮游眼行为模式重构**。①新增 `condition` actionMode：按顺序逐条评估 condition，选中第一个满足的 action（替代旧 random 权重随机）。②新增 `out_of_range` 条件（与 `in_range` 互补）。③新增 `after_effect` 机制：主 action 执行完毕后追加执行附加行为（shoot_fan→after_effect:random_wander → 射击后立刻移动）。④玩家回合动态感叹号：WASD移动时实时检测与浮游眼切比雪夫距离，进入射程显示"!"，移出消失。⑤抽出 `checkActionCondition` + `resolveSteps` 辅助函数。 |
 | 2026-07-28(晚) | **蓄力魔像行为优化**。①蓄力魔像 actions 从单一 `charge_line` 改为 4 步 sequence：`random_wander`(2步) → `random_wander`(2步) → `charge_up`(蓄力+感叹号) → `charge_line`(冲刺)。I/II/III级 wander 步数分别为 2/3/4。②新增 `charge_up` action 类型：原地不动+头顶红色闪烁感叹号(!)脉动动画（DOM覆盖层渲染）。③`charge_line` 简化为单步执行（选方向+直接冲刺，不再分两阶段）。④感叹号状态纳入回合快照。⑤action 类型枚举从 7 种增至 8 种。⑥感叹号样式优化：56px Courier New大号像素风，8方向黑色像素描边+3层红色光晕脉动（0.5s，0.85→1.25缩放）。 |
