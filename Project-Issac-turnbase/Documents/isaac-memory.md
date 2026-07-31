@@ -416,13 +416,13 @@
 - **[前期探索]** AI 解释了 loot entry 中 `weight`(竞争性权重，决定"选谁")和 `rate`(独立概率门，决定"选中后是否真的生效")的区别，两者是乘法关系
 - **[设计决策]**
   1. **怪物道具掉率**：所有非Boss怪物统一改为 item weight 0.03 + rate 1.0 + `monster_very_rare` 品质表(none:0.70)。有效概率 = 0.03 × 0.30 ≈ 0.9%/只。6层约150只怪 → 期望1.35件/局。旧品质表(common/ranged/heavy)不再被引用但保留
-  2. **Boss掉落**：改为一轮 pick_one 纯道具(rate:1.0, qualityTable:"boss")，移除第二轮资源(roll_all resource_pool)
+  2. **Boss掉落**：改为一轮 pick_one 纯道具(rate:1.0, itemDropTable:"boss")，移除第二轮资源(roll_all resource)
   3. **宝箱**：chest_normal / chest_golden 从 pick_one(资源or道具)改为 roll_all 纯道具4条(保底1个 + 3×55-60%)，平均约2.65-2.80个/箱
   4. **资源掉落表**：rollResourceDrop 使用独立概率遍历所有条目(roll_all模式)，所以"一种1个资源"通过极低概率值实现(P(0)≈80-96%, P(1)≈3-18%, P(2+)<3%)
   5. **房间清空**：room_clear_default 综合掉率 74%→43%（"中概率"）
   6. **地形**：terrain_rock 综合掉率 20%→3.5%（"极小概率"），terrain_poop 19%→15%（"小概率"）
 - **[影响文件]** `monster-db.json`(全部12只怪物loot重配) + `resource-db.json`(新建，8张掉落表+宝箱loot重配) + `item-db.json`(新增 monster_very_rare 品质表) + `isaac-turnbased-demo2.html`(新增统一掉落调度器 rollLoot+executeDropEntry+资源系统代码)
-- **[清理]** `item-drop-tables.json` 删除（品质表合并至 item-db.json > qualityTables）
+- **[清理]** `item-drop-tables.json` 删除（品质表合并至 item-db.json > itemDropTables）
 - **[待微调]** 用户明确表示后续会手动微调数值，本次为粗略调整建立框架
 
 ### 蓄力魔像行为模式优化 [当前方案]
@@ -464,7 +464,7 @@
 ### 资源掉落表 mode 统一 — 配置驱动改造 [当前方案]
 - **[触发]** 用户追问两个设计问题：①资源掉落表的选择模式（每种独立计算 vs 只选1个 vs 顺序判定）是否应该像 monster loot 的 entries 一样可配置？②宝藏房/Boss房不掉资源为什么用代码硬编码而不是配置控制？
 - **[问题]** 旧 `rollResourceDrop()` 硬编码为"按权重只抽1种"，且 `rollRoomClearDrop()` 中硬编码 `if (room.type === 'treasure' || room.type === 'boss') return;`。`spawnShopItems()` 各自写 for-loop 判概率，三处掉落入口三种判法
-- **[决策]** 与 `rollLoot()` 保持一致语义，`resource-db.json` 的 `dropTables` 全面升级为 `{ mode, _desc, table }` 结构，所有表统一列出全部 15 种资源（不需要的配 0）
+- **[决策]** 与 `rollLoot()` 保持一致语义，`resource-db.json` 的 `resourceDropTables` 全面升级为 `{ mode, _desc, table }` 结构，所有表统一列出全部 15 种资源（不需要的配 0）
   - `pick_one`：怪物掉落、房间清空、地形破坏、宝箱额外资源
   - `roll_all`：商店商品（每种独立判定，最多6个）
   - `pick_first`：预留
@@ -479,7 +479,7 @@
 - **[代码改动]** `resolveAfterEffects()` attack_adjacent 分支（四方向 forEach）+ `finishMonsterTurn()` 移除 `lastStep`/`Math.sign` 方向计算
 
 ### 掉落表条目统一化 [当前方案]
-- **[触发]** 用户要求每张 dropTable 列出所有 15 种资源，不掉落的权重配 0，这样每张表条目结构完全一致
+- **[触发]** 用户要求每张 resourceDropTable 列出所有 15 种资源，不掉落的权重配 0，这样每张表条目结构完全一致
 - **[决策]** 全部 11 张表按固定排序列出完整 15 条目（coin_gold→coin_black→coin_silver→bomb_single→bomb_double→heart_half→heart_full→heart_double→blue_heart_half→blue_heart_full→blue_heart_double→chest_normal→chest_golden→key_single→key_double），不需要的权重=0
 - **[收益]** 需要添加新掉落种类时只改数值不改字段结构
 
@@ -571,7 +571,7 @@
 - **[效果]** checkpoint 现在反映每个操作的实际结果，而非操作开始瞬间。BFS 回退时 checkpoint 持有的是最近一次实际效果完成后的状态
 
 ### JSON 尾随逗号问题 — item-db.json 解析失败 [当前方案]
-- **[问题]** item-db.json 显示存在问题，检查后发现 JSON 解析失败：`qualityTables.boss_room` 尾部有多余逗号（`boss_room` 是 qualityTables 最后一个属性，删除 `monster_very_rare` 后变成了末位）
+- **[问题]** item-db.json 显示存在问题，检查后发现 JSON 解析失败：`itemDropTables.boss_room` 尾部有多余逗号（`boss_room` 是 itemDropTables 最后一个属性，删除 `monster_very_rare` 后变成了末位）
 - **[根因]** 对 JSON 文件做局部 `replace_in_file` 时，只匹配局部片段，没有考虑编辑后目标条目是否变成了父对象的最后一个属性，导致尾部逗号未被联动清理
 - **[修复]** 删除 `boss_room` 末尾的逗号，JSON 恢复合法可解析
 
@@ -592,11 +592,23 @@
 - **[澄清]** "每次对话" = 每次新会话开始时读一次，非每条消息都读。global-rules.md 是相对稳定的规范文档，同会话内不会频繁变化
 
 ### 怪物死亡掉落位置修正 — 资源不再随机散布 [当前方案]
-- **[问题]** 怪物死亡后资源类掉落（`resource_pool`）在 `preRollDropEntry()` 和 `executeDropEntry()` 中各自带了 `±1` 格的随机偏移（`Math.floor(Math.random()*3)-1`），导致资源散布在怪物死亡位置周围，玩家击杀后需额外走动才能全部拾取
+- **[问题]** 怪物死亡后资源类掉落（`resource`）在 `preRollDropEntry()` 和 `executeDropEntry()` 中各自带了 `±1` 格的随机偏移（`Math.floor(Math.random()*3)-1`），导致资源散布在怪物死亡位置周围，玩家击杀后需额外走动才能全部拾取
 - **[决策]** 移除 `preRollDropEntry()`、`applyPreRolledLoot()`、`executeDropEntry()` 三处资源掉落的随机行/列偏移，所有掉落物（道具 + 资源）统一精确生成在怪物死亡的格子位置 `(col, row)` 上
 - **[修改范围]** ① `preRollDropEntry()` — `offsetC/offsetR` 从随机改为固定 `0`；② `applyPreRolledLoot()` — 资源直接用 `col, row` 生成，不再加偏移；③ `executeDropEntry()` — 移除 `offsetC/offsetR` 随机计算，直接落在 `col, row`
 - **[影响文件]** `isaac-turnbased-demo2.html`（三处函数修改，净减少约 6 行代码）
 - **[设计收益]** 掉落行为与道具掉落的 `spawnItemOnGrid(col, row)` 保持一致，玩家击杀怪物后可以原地拾取所有奖励
+
+### 掉落系统字段命名统一重构 [当前方案]
+- **[触发]** 用户指出 item 和 resource 的配置参数名容易混淆，要求整体统一命名
+- **[决策]**
+  1. **monster loot entry type**：`resource_pool` → `resource`（与 `item` / `resource_fixed` / `nothing` 对称）
+  2. **顶层掉落表集合 key**：`item-db.json` 中 `qualityTables` → `itemDropTables`（复数）；`resource-db.json` 中 `dropTables` → `resourceDropTables`（复数）
+  3. **entry 字段**：`qualityTable` → `itemDropTable`（单数，引用 itemDropTables 中某张表）；`pool` / `dropTable` → `resourceDropTable`（单数，引用 resourceDropTables 中某张表）
+  4. **命名对称性**：item 侧 `itemDropTables`(集合) ↔ `itemDropTable`(引用)；resource 侧 `resourceDropTables`(集合) ↔ `resourceDropTable`(引用)
+  5. **宝箱 loot**：同步更新 `resource-db.json` 中 chest_normal/chest_golden 的 loot entries 字段名
+- **[暂不改动]** `weight` vs `rate` 语义区分 — 用户表示后面捋清楚再说
+- **[影响范围]** 6 个文件：`item-db.json`(顶层key+schema)、`resource-db.json`(顶层key+宝箱loot+schema)、`monster-db.json`(所有怪物loot entries+schema)、`isaac-turnbased-demo2.html`(12处代码引用)、`isaac-turnbase-context.md`、`isaac-memory.md`
+- **[验证]** 全项目零残留 `resource_pool` / `qualityTable` / `"pool"` 旧字段名，所有 3 个 JSON 语法正确
 
 ---
 
@@ -604,10 +616,11 @@
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-31(3) | **掉落系统字段命名统一重构**。①monster loot entry type `resource_pool`→`resource`。②顶层集合 key：`qualityTables`→`itemDropTables`、`dropTables`→`resourceDropTables`。③entry 字段：`qualityTable`→`itemDropTable`、`pool`/`dropTable`→`resourceDropTable`。④宝箱 loot 同步更新。⑤影响 6 文件，全项目零旧字段名残留。详见当日记忆条目。 |
 | 2026-07-31(2) | **怪物死亡掉落位置修正**。移除资源掉落随机散布(±1格)，所有掉落物精确生成在怪物死亡位置。详见当日记忆条目。 |
 | 2026-07-31 | **满血拾取修复 + 幽灵资源修复 + checkpoint时机修正**。详见当日记忆条目。 |
 | 2026-07-30 | **地形掉落预roll + liftDir修复 + ESC回溯补全**。详见当日记忆条目。 |
-| 2026-07-29 | **资源掉落表 mode 统一 + attack_adjacent 修正 + 条目统一化**。①`resource-db.json` dropTables 升级为 `{ mode, table }` 结构，支持 pick_one/roll_all/pick_first。②`rollResourceDrop()` 重构为 mode 驱动。③`rollRoomClearDrop()` 移除硬编码改为 roomType→tableKey 配置映射。④`spawnShopItems()` 统一走 rollResourceDrop。⑤`attack_adjacent` 从面朝方向改为四方向十字范围攻击。⑥全部 11 张表统一 15 种资源条目。 |
+| 2026-07-29 | **资源掉落表 mode 统一 + attack_adjacent 修正 + 条目统一化**。①`resource-db.json` resourceDropTables 升级为 `{ mode, table }` 结构，支持 pick_one/roll_all/pick_first。②`rollResourceDrop()` 重构为 mode 驱动。③`rollRoomClearDrop()` 移除硬编码改为 roomType→tableKey 配置映射。④`spawnShopItems()` 统一走 rollResourceDrop。⑤`attack_adjacent` 从面朝方向改为四方向十字范围攻击。⑥全部 11 张表统一 15 种资源条目。 |
 | 2026-07-28(晚) | **浮游眼行为模式重构**。①新增 condition actionMode + out_of_range 条件 + after_effect 机制(shoot_fan后立刻random_wander)。②玩家回合动态感叹号。③抽出 checkActionCondition + resolveSteps 辅助函数。 |
 | 2026-07-28(晚) | **蓄力魔像行为优化 + 感叹号像素风 + 文档同步触发规则**。①蓄力魔像 actions 改为4步sequence(random_wander×2+charge_up+charge_line)，新增 charge_up type(感叹号脉动)，charge_line 简化为单步执行。②感叹号改为56px Courier New像素风大号样式，8方向像素描边+3层光晕+0.5s脉动。③memory.md 新增修改规则#4：context.md和memory.md更新必须由用户"同步文档"指令触发，不得在代码任务中附带执行。 |
 | 2026-07-28(晚) | **掉落系统全面重构+资源系统建立**。①用户8条掉落需求驱动全面重配。②确立weight vs rate 语义区分。③新建 resource-db.json（资源定义+8张掉落表+宝箱loot）。④全部12只怪物loot重配：小怪极少道具(~0.9%/只)+小概率资源(~25%)；Boss纯道具无资源。⑤宝箱改为必掉1~4个道具(roll_all模式)。⑥品质表合并至item-db.json，删除 item-drop-tables.json。⑦资源掉落表全面降低概率匹配各场景。⑧用户后续手动微调数值。 |

@@ -1,9 +1,9 @@
 {
   "_schema": {
-    "_description": "道具数据库 — 所有可拾取道具的属性与效果定义 + 品质掉落表",
+    "_description": "道具数据库 — 所有可拾取道具的属性与效果定义 + 道具掉落表",
     "_structure": {
       "items": "所有道具定义 (key=cgId, value=道具属性)",
-      "qualityTables": "品质概率表 (key=表名, value={common,rare,legendary})"
+      "itemDropTables": "道具品质概率表 (key=表名, value={common,rare,legendary})"
     },
     "_fields": {
       "quality": {
@@ -22,10 +22,10 @@
         "_keys": ["maxHp", "attack", "fireRate", "moveSpeed", "range"],
         "_desc": "追加的属性修正值"
       },
-      "qualityTables.*.none": { "_desc": "不掉落道具概率 (0~1), 0=必定掉落, 1=完全不掉落", "_type": "number" },
-      "qualityTables.*.common": { "_desc": "普通品质概率 (0~1)", "_type": "number" },
-      "qualityTables.*.rare": { "_desc": "稀有品质概率 (0~1)", "_type": "number" },
-      "qualityTables.*.legendary": { "_desc": "传说品质概率 (0~1)", "_type": "number" }
+      "itemDropTables.*.none": { "_desc": "不掉落道具概率 (0~1), 0=必定掉落, 1=完全不掉落", "_type": "number" },
+      "itemDropTables.*.common": { "_desc": "普通品质概率 (0~1)", "_type": "number" },
+      "itemDropTables.*.rare": { "_desc": "稀有品质概率 (0~1)", "_type": "number" },
+      "itemDropTables.*.legendary": { "_desc": "传说品质概率 (0~1)", "_type": "number" }
     }
   },
 
@@ -284,7 +284,7 @@
     }
   },
 
-  "qualityTables": {
+  "itemDropTables": {
     "default": {
       "none": 0,
       "common": 0.6,
@@ -326,6 +326,18 @@
       "common": 0.25,
       "rare": 0.45,
       "legendary": 0.3
+    },
+    "item_chest_normal": {
+      "none": 0.65,
+      "common": 0,
+      "rare": 0.25,
+      "legendary": 0.10
+    },
+    "item_chest_golden": {
+      "none": 0.50,
+      "common": 0,
+      "rare": 0.30,
+      "legendary": 0.20
     }
   }
 }

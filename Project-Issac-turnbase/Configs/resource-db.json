@@ -6,8 +6,8 @@
         "_values": ["coin", "bomb", "heart", "blue_heart", "chest", "key"],
         "_desc": "资源类型"
       },
-      "dropTables": {
-        "_desc": "资源掉落表，每张表结构 { mode, table }。mode: pick_one(权重抽1) / roll_all(每种独立判定) / pick_first(顺序首个命中即停)。被 monster-db.json > loot > entries[].pool 引用",
+      "resourceDropTables": {
+        "_desc": "资源掉落表，每张表结构 { mode, table }。mode: pick_one(权重抽1) / roll_all(每种独立判定) / pick_first(顺序首个命中即停)。被 monster-db.json > loot > entries[].resourceDropTable 引用",
         "_tables": {
           "monster_default": "普通小怪 (threat<3) 掉落 — pick_one",
           "monster_heavy": "重型小怪 (threat≥3) 掉落 — pick_one",
@@ -146,22 +146,19 @@
       "icon": "c",
       "locked": false,
       "color": "#aa8855",
-      "dropTable": "chest_normal",
-      "desc": "碰触打开，获得随机资源或道具",
+      "resourceDropTable": "chest_normal",
+      "desc": "碰触打开，获得随机资源，有概率掉落道具",
       "loot": {
         "rounds": [
           {
-            "mode": "roll_all",
-            "_comment": "必掉1~4个道具 (roll_all: 第1个rate=1.0必出, 后3个各55%)",
+            "mode": "pick_first",
+            "_comment": "先判断是否掉道具(35%)，命中则停；否则随机掉1~4个资源",
             "entries": [
-              { "type": "item", "qualityTable": "treasure_room", "rate": 1.0,
-                "_desc": "保底1个道具" },
-              { "type": "item", "qualityTable": "treasure_room", "rate": 0.55,
-                "_desc": "55%多1个道具" },
-              { "type": "item", "qualityTable": "treasure_room", "rate": 0.55,
-                "_desc": "55%再多1个道具" },
-              { "type": "item", "qualityTable": "treasure_room", "rate": 0.55,
-                "_desc": "55%再多1个道具，最多4个" }
+              { "type": "item", "itemDropTable": "item_chest_normal", "rate": 0.35,
+                "_desc": "35%概率掉1个道具，命中后不再继续" },
+              { "type": "resource", "rate": 1.0,
+                "resourceDropTable": "chest_normal", "minDrop": 1, "maxDrop": 4,
+                "_desc": "没掉道具 → 从chest_normal表随机抽1~4次资源(每次独立pick_one)" }
             ]
           }
         ]
@@ -174,22 +171,19 @@
       "icon": "C",
       "locked": true,
       "color": "#ffcc44",
-      "dropTable": "chest_golden",
-      "desc": "需要1把钥匙才能打开，必出1~4个道具",
+      "resourceDropTable": "chest_golden",
+      "desc": "需要1把钥匙才能打开，获得随机资源，有概率掉落道具",
       "loot": {
         "rounds": [
           {
-            "mode": "roll_all",
-            "_comment": "金宝箱：必掉1~4个道具 (保底1个 + 3次60%判定)",
+            "mode": "pick_first",
+            "_comment": "先判断是否掉道具(50%)，命中则停；否则随机掉1~4个资源",
             "entries": [
-              { "type": "item", "qualityTable": "treasure_room", "rate": 1.0,
-                "_desc": "保底1个道具" },
-              { "type": "item", "qualityTable": "treasure_room", "rate": 0.60,
-                "_desc": "60%多1个道具" },
-              { "type": "item", "qualityTable": "treasure_room", "rate": 0.60,
-                "_desc": "60%再多1个道具" },
-              { "type": "item", "qualityTable": "treasure_room", "rate": 0.60,
-                "_desc": "60%再多1个道具，最多4个" }
+              { "type": "item", "itemDropTable": "item_chest_golden", "rate": 0.50,
+                "_desc": "50%概率掉1个道具，命中后不再继续" },
+              { "type": "resource", "rate": 1.0,
+                "resourceDropTable": "chest_golden", "minDrop": 1, "maxDrop": 4,
+                "_desc": "没掉道具 → 从chest_golden表随机抽1~4次资源(每次独立pick_one)" }
             ]
           }
         ]
@@ -222,7 +216,7 @@
     "keyMax": 99
   },
 
-  "dropTables": {
+  "resourceDropTables": {
     "monster_default": {
       "mode": "pick_one",
       "_desc": "普通小怪(威胁<3)掉落 — 按权重抽1种资源",

@@ -52,14 +52,14 @@
         "_desc": "pick_one=按权重抽一个条目执行, roll_all=每个条目独立判定, pick_first=按顺序命中第一个就停"
       },
       "loot.rounds[].entries[].type": {
-        "_values": ["item", "resource_pool", "resource_fixed", "nothing"],
-        "_desc": "item=随机道具(需qualityTable), resource_pool=按掉落表生成资源(需pool), resource_fixed=固定资源(需id), nothing=空掉落"
+        "_values": ["item", "resource", "resource_fixed", "nothing"],
+        "_desc": "item=随机道具(需itemDropTable), resource=按掉落表生成资源(需resourceDropTable), resource_fixed=固定资源(需id), nothing=空掉落"
       },
-      "loot.rounds[].entries[].qualityTable": {
-        "_desc": "道具品质表名，对应 item-db.json > qualityTables 中的 key"
+      "loot.rounds[].entries[].itemDropTable": {
+        "_desc": "道具掉落表名，对应 item-db.json > itemDropTables 中的 key"
       },
-      "loot.rounds[].entries[].pool": {
-        "_desc": "资源掉落表名，对应 resource-db.json > dropTables 中的 key"
+      "loot.rounds[].entries[].resourceDropTable": {
+        "_desc": "资源掉落表名，对应 resource-db.json > resourceDropTables 中的 key"
       }
     }
   },
@@ -78,8 +78,8 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "common" },
-        { "type": "resource_pool", "weight": 0.97, "rate": 0.26, "pool": "monster_heavy" }
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "common" },
+        { "type": "resource", "weight": 0.97, "rate": 0.26, "resourceDropTable": "monster_heavy" }
       ]
     },
     "roomTypes": ["normal"],
@@ -102,8 +102,8 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "common" },
-        { "type": "resource_pool", "weight": 0.97, "rate": 0.26, "pool": "monster_heavy" }
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "common" },
+        { "type": "resource", "weight": 0.97, "rate": 0.26, "resourceDropTable": "monster_heavy" }
       ]
     },
     "roomTypes": ["normal"],
@@ -126,8 +126,8 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "common" },
-        { "type": "resource_pool", "weight": 0.97, "rate": 0.27, "pool": "monster_heavy" }
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "common" },
+        { "type": "resource", "weight": 0.97, "rate": 0.27, "resourceDropTable": "monster_heavy" }
       ]
     },
     "roomTypes": ["normal"],
@@ -152,8 +152,8 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "ranged" },
-        { "type": "resource_pool", "weight": 0.97, "rate": 0.24, "pool": "monster_default" }
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "ranged" },
+        { "type": "resource", "weight": 0.97, "rate": 0.24, "resourceDropTable": "monster_default" }
       ]
     },
     "roomTypes": ["normal"],
@@ -178,8 +178,8 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "ranged" },
-        { "type": "resource_pool", "weight": 0.97, "rate": 0.26, "pool": "monster_heavy" }
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "ranged" },
+        { "type": "resource", "weight": 0.97, "rate": 0.26, "resourceDropTable": "monster_heavy" }
       ]
     },
     "roomTypes": ["normal"],
@@ -204,8 +204,8 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "ranged" },
-        { "type": "resource_pool", "weight": 0.97, "rate": 0.28, "pool": "monster_heavy" }
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "ranged" },
+        { "type": "resource", "weight": 0.97, "rate": 0.28, "resourceDropTable": "monster_heavy" }
       ]
     },
     "roomTypes": ["normal"],
@@ -231,8 +231,8 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "heavy" },
-        { "type": "resource_pool", "weight": 0.97, "rate": 0.28, "pool": "boss_drop" }
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "heavy" },
+        { "type": "resource", "weight": 0.97, "rate": 0.28, "resourceDropTable": "boss_drop" }
       ]
     },
     "roomTypes": ["normal"],
@@ -258,8 +258,8 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "heavy" },
-        { "type": "resource_pool", "weight": 0.97, "rate": 0.30, "pool": "boss_drop" }
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "heavy" },
+        { "type": "resource", "weight": 0.97, "rate": 0.30, "resourceDropTable": "boss_drop" }
       ]
     },
     "roomTypes": ["normal"],
@@ -285,8 +285,8 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "heavy" },
-        { "type": "resource_pool", "weight": 0.97, "rate": 0.32, "pool": "boss_drop" }
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "heavy" },
+        { "type": "resource", "weight": 0.97, "rate": 0.32, "resourceDropTable": "boss_drop" }
       ]
     },
     "roomTypes": ["normal"],
@@ -320,7 +320,7 @@
         {
           "mode": "pick_one",
           "entries": [
-            { "type": "item", "rate": 0, "qualityTable": "boss" }
+            { "type": "item", "rate": 0, "itemDropTable": "boss" }
           ]
         }
       ]
@@ -357,7 +357,7 @@
         {
           "mode": "pick_one",
           "entries": [
-            { "type": "item", "rate": 0, "qualityTable": "boss" }
+            { "type": "item", "rate": 0, "itemDropTable": "boss" }
           ]
         }
       ]
@@ -394,7 +394,7 @@
         {
           "mode": "pick_one",
           "entries": [
-            { "type": "item", "rate": 0, "qualityTable": "boss" }
+            { "type": "item", "rate": 0, "itemDropTable": "boss" }
           ]
         }
       ]

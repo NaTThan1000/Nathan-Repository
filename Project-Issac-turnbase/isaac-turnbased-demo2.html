@@ -1335,7 +1335,7 @@ async function loadItemDB() {
     if (r.ok) {
       const data = await r.json();
       ITEMS_DB = data.items || {};
-      ITEM_DROP_TABLES = data.qualityTables || {};
+      ITEM_DROP_TABLES = data.itemDropTables || {};
       _rebuildItemPools();
       console.log('✅ 已从 JSON 加载道具数据库 (' + ITEM_POOL_ALL.length + ' 件 + ' + Object.keys(ITEM_DROP_TABLES).length + ' 张品质表)');
       return true;
@@ -1363,7 +1363,7 @@ async function loadResourceDB() {
     if (r.ok) {
       const data = await r.json();
       RESOURCE_DB = data.resources || {};
-      RES_DROP_TABLES = data.dropTables || {};
+      RES_DROP_TABLES = data.resourceDropTables || {};
       RES_LIMITS = data._limits || { coinMax: 99, bombMax: 99, keyMax: 99 };
       console.log('✅ 已加载资源数据库 (' + Object.keys(RESOURCE_DB).length + ' 种资源)');
       return true;
@@ -1526,15 +1526,15 @@ function spawnResourcesInRoom(resIds) {
 /**
  * 按掉落表或品质覆盖随机一个道具 cfgId
  * @param {string|null} qualityOverride - 强制品质 (common/rare/legendary)，传 null 则用掉落表随机
- * @param {string} dropTable - 掉落表名，对应 ITEM_DROP_TABLES 的 key
+ * @param {string} itemDropTable - 掉落表名，对应 ITEM_DROP_TABLES 的 key
  * @returns {string} 道具 cfgId
  */
-function rollItem(qualityOverride, dropTable = 'default') {
+function rollItem(qualityOverride, itemDropTable = 'default') {
   let quality;
   if (qualityOverride) {
     quality = qualityOverride;
   } else {
-    const table = ITEM_DROP_TABLES[dropTable] || ITEM_DROP_TABLES['default'] || { none: 0, common: 0.6, rare: 0.3, legendary: 0.1 };
+    const table = ITEM_DROP_TABLES[itemDropTable] || ITEM_DROP_TABLES['default'] || { none: 0, common: 0.6, rare: 0.3, legendary: 0.1 };
     const n = table.none || 0;
     const L = table.legendary || 0;
     const R = table.rare || 0;
@@ -3016,8 +3016,8 @@ function openChest(res) {
   if (cfg.loot) {
     rollLoot(cfg.loot, res.col, res.row);
   } else {
-    // === 旧逻辑：按 dropTable 纯资源掉落 ===
-    const dropIds = rollResourceDrop(cfg.dropTable);
+    // === 旧逻辑：按 resourceDropTable 纯资源掉落 ===
+    const dropIds = rollResourceDrop(cfg.resourceDropTable);
     const room = currentFloor.rooms.find(r => r.id === currentRoomId);
 
     // 在附近可行走格子生成资源
@@ -5871,12 +5871,24 @@ function preRollLoot(lootConfig) {
 /** 预 roll 单个掉落条目 */
 function preRollDropEntry(entry) {
   if (entry.type === 'item') {
-    const cfgId = rollItem(null, entry.qualityTable || 'default');
+    const cfgId = rollItem(null, entry.itemDropTable || 'default');
     if (cfgId) return { type: 'item', cfgId };
-  } else if (entry.type === 'resource_pool') {
-    const resIds = rollResourceDrop(entry.pool || 'monster_default');
-    if (resIds.length > 0) {
-      return { type: 'resource_pool', resIds, offsetC: 0, offsetR: 0 };
+  } else if (entry.type === 'resource') {
+    // 新：支持 minDrop/maxDrop 随机次数抽取（每次独立 pick_one）
+    if (entry.minDrop !== undefined && entry.maxDrop !== undefined) {
+      const count = entry.minDrop + Math.floor(Math.random() * (entry.maxDrop - entry.minDrop + 1));
+      const resIds = [];
+      for (let i = 0; i < count; i++) {
+        const rid = rollResourceDrop(entry.resourceDropTable || 'monster_default');
+        if (rid.length > 0) resIds.push(rid[0]);
+      }
+      if (resIds.length > 0) return { type: 'resource', resIds, offsetC: 0, offsetR: 0 };
+    } else {
+      // 直接引用 resourceDropTables 表名，按表自身 mode 处理
+      const resIds = rollResourceDrop(entry.resourceDropTable || 'monster_default');
+      if (resIds.length > 0) {
+        return { type: 'resource', resIds, offsetC: 0, offsetR: 0 };
+      }
     }
   } else if (entry.type === 'resource_fixed') {
     if (entry.id) return { type: 'resource_fixed', resId: entry.id };
@@ -5889,7 +5901,7 @@ function applyPreRolledLoot(preRolled, col, row) {
   for (const drop of preRolled) {
     if (drop.type === 'item') {
       spawnItemOnGrid(col, row, drop.cfgId);
-    } else if (drop.type === 'resource_pool') {
+    } else if (drop.type === 'resource') {
       for (const rid of drop.resIds) {
         if (col >= 0 && col < COLS && row >= 0 && row < ROWS && !isWall(col, row)) {
           spawnResourceOnGrid(col, row, rid);
@@ -5950,15 +5962,27 @@ function rollLoot(lootConfig, col, row) {
  */
 function executeDropEntry(entry, col, row) {
   if (entry.type === 'item') {
-    const qualityTable = entry.qualityTable || 'default';
-    const cfgId = rollItem(null, qualityTable);
+    const itemDropTable = entry.itemDropTable || 'default';
+    const cfgId = rollItem(null, itemDropTable);
     if (cfgId) spawnItemOnGrid(col, row, cfgId);
 
-  } else if (entry.type === 'resource_pool') {
-    const resIds = rollResourceDrop(entry.pool || 'monster_default');
-    for (const rid of resIds) {
-      if (col >= 0 && col < COLS && row >= 0 && row < ROWS && !isWall(col, row)) {
-        spawnResourceOnGrid(col, row, rid);
+  } else if (entry.type === 'resource') {
+    // 新：支持 minDrop/maxDrop 随机次数抽取（每次独立 pick_one）
+    if (entry.minDrop !== undefined && entry.maxDrop !== undefined) {
+      const count = entry.minDrop + Math.floor(Math.random() * (entry.maxDrop - entry.minDrop + 1));
+      for (let i = 0; i < count; i++) {
+        const rid = rollResourceDrop(entry.resourceDropTable || 'monster_default');
+        if (rid.length > 0 && col >= 0 && col < COLS && row >= 0 && row < ROWS && !isWall(col, row)) {
+          spawnResourceOnGrid(col, row, rid[0]);
+        }
+      }
+    } else {
+      // 直接引用 resourceDropTables 表名，按表自身 mode 处理
+      const resIds = rollResourceDrop(entry.resourceDropTable || 'monster_default');
+      for (const rid of resIds) {
+        if (col >= 0 && col < COLS && row >= 0 && row < ROWS && !isWall(col, row)) {
+          spawnResourceOnGrid(col, row, rid);
+        }
       }
     }
 
