@@ -43,7 +43,7 @@
 
 | cfgId | 名称(I/II/III) | HP | 伤害 | actionMode | actions[] (type + 核心参数) | 颜色叠加(tint) | 移动标签 | 角色 | 威胁值 | 体型 |
 |-------|------|-----|------|------------|------|---------------|:--:|:--:|:--:|:--:|
-| `crack_maw` | 裂口尸 | 10/20/30 | 0.5/1/1 | sequence | `chase` steps:[2,1]→[3,2], stepMode:seq | 无 | 地面 | melee | 3/5/7 | 1×1 |
+| `crack_maw` | 裂口尸 | 10/20/30 | 0.5/1/1 | sequence | `chase` steps:[2,2]→[3,3]→[4,4], stepMode:seq, after_effect:attack_adjacent(damage:0.5/1/1,range:1) | 无 | 地面 | melee | 3/5/7 | 1×1 |
 | `flying_eye` | 浮游眼 | 6/12/20 | 0.5/0.5/1 | condition | `random_wander` steps:[2,2,2]→[3,3,3]→[4,4,4], cond:out_of_range + `shoot_fan` range:4→5→6, cond:in_range, after_effect:random_wander | 蓝紫半透 | 飞行 | ranged | 2/4/6 | 1×1 |
 | `charge_golem` | 蓄力魔像 | 30/45/65 | 1/1/1.5 | sequence | `random_wander` steps:2/3/4 ×2 + `charge_up`(蓄力+感叹号) + `charge_line` steps:[3,13], stepMode:rand | 棕半透 | 地面 | tank | 5/8/12 | 1×1 |
 | `boss_jumper` | 跳跃巨兽 | 60/80/105 | 0.5/0.5/1 | sequence | `jump_small` steps:[2/3/3] → `jump_small` steps:[2/3/3], repeatChance:0.5 → `jump_big_land` disappearSteps:1, target:cover_player, after_effect:attack_side(damage:1,range:1) | 紫半透 | 地面,飞行 | boss | 20/22/25 | **2×2** |
@@ -197,12 +197,12 @@
 |------|------|------|--------|------|
 | FLOOR | `.` | 普通地面 | ✅ | 默认地面 |
 | ROCK | `#` | 岩石 | ❌ | 阻挡通行和子弹 |
-| POOP | `P` | 便便 | ❌ | 可破坏(受击3次)，挡子弹 |
+| POOP | `P` | 便便 | ❌ | 可破坏(hp=4,每发子弹1伤害→需4次击破)，挡子弹 |
 | PIT | `_` | 深渊 | ❌ | 踩上即死或掉落 |
 | SPIKE | `^` | 尖刺 | ✅ | 踩上扣 1 心(玩家)/5 HP(怪物) |
 | LADDER | `▼` | 梯子 | ✅ | Boss房踩上进入下一层 |
 
-- **便便(POOP)**：hp=4，受击3次后破坏。**岩石(ROCK)**：hp=99（不可破坏）。破坏后地形格变为 FLOOR
+- **便便(POOP)**：hp=4，每发子弹伤害1，需受击4次后破坏。**岩石(ROCK)**：hp=99（不可破坏）。破坏后地形格变为 FLOOR
 - 可破坏瓷砖在`initTileData()`中预roll掉落（`_loot` = `rollResourceDrop('terrain_poop'/'terrain_rock')`），保证ESC回溯后再次破坏结果一致
 - `hitTile()` 破坏时捕获预roll结果再删除 tileData，调用 `rollTerrainDestroyDrop(col, row, type, preLoot)` 使用预roll掉落，随后 `saveCheckpoint()` 确保BFS回退时地形保持已破坏状态
 - 门位：每边正中（上6,0 / 下6,6 / 左0,3 / 右12,3），这些格必须为可通行地面
@@ -338,6 +338,47 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
 
 **2×2适配**：`monsterCells()` / `isInMonsterFootprint()` / `isValidLandingZone()` 辅助函数。全系统适配（渲染中心偏移 `CELL*(sz-1)/2`、碰撞、快照、占用、DOM标签）。
 
+### 2.14 炸弹系统
+
+玩家消耗背包中的炸弹资源（`playerResources.bombs`），在当前位置放置炸弹，炸弹爆炸对范围内怪物造成伤害并破坏地形。
+
+| 属性 | 值 |
+|------|-----|
+| 资源 ID | `bomb_single` |
+| 倒计时 | 3 回合（`detonateTurns`） |
+| 爆炸伤害 | 50（对怪物） |
+| 爆炸范围 | 曼哈顿半径 2（菱形） |
+| 爆炸粒子 | 20 个（橙红/橙黄色） |
+
+**核心流程**：
+- **放置炸弹** `placeBomb(col, row)`：消耗 1 个炸弹 → 在当前位置生成炸弹对象 → 强制进入战斗模式（如在探索模式中）
+- **倒计时** `tickBombCountdown()`：每回合怪物行动前**最高优先级**执行，所有当前房间炸弹的 `timer-1`，计时归零的炸弹立即引爆
+- **引爆** `detonateBomb(bomb)`：读取 `RESOURCE_DB['bomb_single']` 的伤害/半径配置，对曼哈顿距离 ≤2 的所有怪物造成 50 伤害，生成 20 个爆炸粒子。爆炸后可破坏范围内的 POOP/ROCK 地形格
+- **快照支持**：炸弹纳入 `saveTurnSnapshot()` / `restoreTurnSnapshot()`，ESC 回溯可恢复炸弹状态
+- **战斗状态联动**：房间有未引爆的炸弹时 `inCombat=true`（即使怪物已清空），`updateDoorsLocked()` 不判断炸弹只判断怪物
+
+### 2.15 资源与宝箱系统
+
+资源系统（`RESOURCE_DB`，数据来源 `resource-db.json`）管理六类可拾取物品：
+
+| 资源类型 | ID 示例 | 说明 |
+|---------|--------|------|
+| 金币 | `coin_gold`(1元) / `coin_black`(5元) / `coin_silver`(10元) | 货币，碰触自动拾取 |
+| 炸弹 | `bomb_single`(1个) / `bomb_double`(2个) | 收录背包，`playerResources.bombs` |
+| 红心 | `heart_half`(半心) / `heart_full`(全心) | 碰触回复 HP |
+| 蓝心 | `blue_heart_half` / `blue_heart_full` / `blue_heart_double` | 临时护盾，受伤优先扣除 |
+| 钥匙 | `key_single`(1把) / `key_double`(2把) | 开金宝箱消耗，`playerResources.keys` |
+| 宝箱 | `chest_normal`(普通) / `chest_golden`(金) | 碰触打开，触发掉落 |
+
+**宝箱类型区分**：
+- **普通宝箱** `chest_normal`：`locked: false`，碰触即开，掉落为 `rounds[0]`(pick_first: 优先掉道具) + `rounds[1]`(roll_all: 额外资源)
+- **上锁金宝箱** `chest_golden`：`locked: true`，需消耗 1 把钥匙才能打开，掉落品质更高（`qualityTable: treasure_room`），必出 1~4 个道具
+
+**拾取与上限**：
+- 资源碰触自动拾取（`autoPickupResources()`），加入 `playerResources`
+- 上限约束（`_limits`）：`coinMax`=99 / `bombMax`=9 / `keyMax`=9
+- 资源 UI 实时显示当前数量（`updateResourceUI()`）
+
 ---
 
 ## 3. 界面与交互
@@ -353,6 +394,7 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
 | Esc | 战斗 | 全重置本回合 + 时间倒流动画（角色/怪物/HP 全部回到回合开始时） |
 | F | 任意 | 拾取道具（demo2） |
 | R | 任意 | 重置游戏 → 回到第1层起点 |
+| B | 任意 | 放置炸弹（消耗1个炸弹资源，3回合后引爆，50范围伤害） |
 
 ### 3.2 UI 面板
 
@@ -427,6 +469,8 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
     ├── Boss Jumper系统 (processJumperAction/calcJumperSmallJump/calcJumperBigJump/executeBossLanding — 状态机驱动2×2跳跃Boss)
     ├── 道具系统 (ITEMS_DB 道具数据库 + SPECIAL_EFFECT_HANDLERS 特效注册表 + playerInventory 背包 + recalcAllStats 属性重算)
     ├── 资源系统 (RESOURCE_DB 资源定义 + RES_DROP_TABLES 掉落表(mode/table结构) + playerResources 背包 + rollResourceDrop/rollRoomClearDrop/rollTerrainDestroyDrop)
+    ├── 炸弹系统 (placeBomb放置/tickBombCountdown倒计时/detonateBomb引爆 — 纳入快照，最高优先级于怪物行动前执行)
+    ├── 宝箱系统 (chest_normal普通碰触开 / chest_golden金宝箱需钥匙，loot通过rollLoot调度)
     ├── 掉落系统 (rollLoot 统一调度器 + executeDropEntry 分发 + rollMonsterKillDrop + chest loot in resource-db.json)
     ├── 数据加载层 (loadMonsterDB/loadItemDB/loadResourceDB/loadSpawnConfig — 异步fetch JSON配置文件)
     ├── UI 更新 (updateUI, updateActionBar, updateFloorUI)
@@ -489,8 +533,9 @@ function project(wx, wy) {
 | `refreshReachableTiles()` | 从当前位置以剩余 M-AP 刷新可移动范围 |
 | `loadTemplates()` | 加载 `pool.json` 关卡池模板→`poolTemplates` |
 | `loadMonsterDB()` | 异步 fetch `monster-db.json` → `MONSTER_DB` + `_rebuildMonsterPools()` |
-| `loadItemDB()` | 异步 fetch `item-db.json` → `ITEMS_DB` 道具数据库 |
-| `loadDropTables()` | 异步 fetch `item-drop-tables.json` → `DROP_TABLES` 掉落表 |
+| `loadSpawnConfig()` | 异步 fetch `spawn-config.json` → `SPAWN_CONFIG` 楼层刷怪配置 |
+| `loadItemDB()` | 异步 fetch `item-db.json` → `ITEMS_DB` 道具数据库（含品质表 qualityTables） |
+| `loadResourceDB()` | 异步 fetch `resource-db.json` → `RESOURCE_DB` 资源数据库（含资源定义+掉落表+宝箱loot） |
 | `rollItem(quality?, tableKey?)` | 按品质/掉落表权重随机抽取道具配置ID |
 | `rollLoot(lootConfig, col, row)` | 统一掉落调度器：解析怪物/宝箱的 loot 配置，支持 rounds/entries/mode(pick_one/roll_all/pick_first) |
 | `executeDropEntry(entry, col, row)` | 执行单个掉落条目：item→rollItem 生成道具 / resource_pool→rollResourceDrop 生成资源 / resource_fixed→固定资源 |
@@ -498,6 +543,11 @@ function project(wx, wy) {
 | `rollMonsterKillDrop(m)` | 击杀怪物时读取 `monster-db.json > loot` 配置调用 rollLoot |
 | `rollRoomClearDrop()` | 清空房间时按房间类型映射到不同掉落表(normal/start/shop→room_clear_default, boss→room_clear_boss, treasure→room_clear_treasure)，纯配置驱动 |
 | `rollTerrainDestroyDrop(col, row, type, preLoot)` | 破坏地形掉落：优先使用 room 初始化时预roll的 `preLoot`，保证ESC回溯后再次破坏结果一致。fallback 现场 roll `terrain_rock`/`terrain_poop` 表 |
+| `placeBomb(col, row)` | 消耗背包炸弹在当前位置放置，3回合倒计时，强制进入战斗模式 |
+| `tickBombCountdown()` | 怪物回合开始前最高优先级：所有炸弹 timer-1，归零即引爆 |
+| `detonateBomb(bomb)` | 炸弹引爆：曼哈顿半径2范围内怪物50伤害 + 20爆炸粒子 |
+| `handleResourcePickup(res)` | 拾取单个资源实体：金币/炸弹/红心/蓝心/钥匙/宝箱（宝箱触发展开loot），返回是否成功拾取 |
+| `autoPickupResources(col, row)` | 检测指定坐标上的资源实体并自动拾取（含 pickup log 用于回溯撤销） |
 | `spawnShopItems(room)` | 商店房商品生成，统一调用 `rollResourceDrop('shop_stock')`（mode: roll_all，每种独立判定），最多6个 |
 | `resolveAfterEffects(action, context)` | 执行 action 的 after_effect：attack_adjacent(四方向十字攻击)/attack_side(Boss冲击波范围) |
 | `spawnItemOnGrid(col, row, cfgId)` | 在指定网格位置生成道具实体 |
@@ -547,14 +597,16 @@ function project(wx, wy) {
 启动:
   loadTemplates() → poolTemplates
   loadMonsterDB() → MONSTER_DB (异步fetch monster-db.json)
-  loadItemDB() → ITEMS_DB (异步fetch item-db.json)
-  loadDropTables() → DROP_TABLES (异步fetch item-drop-tables.json)
+  loadSpawnConfig() → SPAWN_CONFIG (异步fetch spawn-config.json)
+  loadItemDB() → ITEMS_DB (异步fetch item-db.json, 含品质表qualityTables)
+  loadResourceDB() → RESOURCE_DB (异步fetch resource-db.json, 含资源定义+掉落表+宝箱loot)
   loadOrGenerateFloors() → allFloors (从 floor-data.json / 兜底 generateAllFloors)
   enterFloor(1) → 设置 currentFloor/currentRoomId/currentRoomGrid → spawnRoomMonsters()
 
 探索模式 (inCombat=false):
   WASD → isWall检查 → 自由移动(col/row/px/py)
        → invincibleSteps递减 → 尖刺检测(damagePlayer) → 梯子(enterFloor)
+       → B键 → placeBomb → 强制进入战斗模式(如在探索中)
        → tryWalkIntoDoor → 门前格+方向 → 房间切换(滑动过渡) → finishTransition → spawnRoomMonsters()
 
 战斗模式 (inCombat=true):
@@ -573,7 +625,7 @@ function project(wx, wy) {
   gameLoop → render()
            → 墙壁 → 地板 → TILE瓷砖(岩/便/坑/刺/梯) → 房门(开/关)
            → 网格高亮 → 可移动范围(浅蓝呼吸) → 子弹 → 粒子
-           → 怪物 → 角色本体(无敌闪烁)
+           → 资源道具(金币/心/炸弹/钥匙/宝箱 图标渲染) → 炸弹(闪烁倒计时) → 怪物 → 角色本体(无敌闪烁)
            → 战斗开始剑动画 → Esc时间倒流动画
            → DOM 覆盖层独立渲染文字(怪物名/伤害飘字/A-AP圆点)
 ```
@@ -595,7 +647,9 @@ function project(wx, wy) {
 |------|------|------|
 | `issac-idle.png` | 图片 | 角色精灵图集（头+身体走路帧，32×32 每帧） |
 | `issac-background.png` | 图片 | 备用地面背景图 |
-| `UI-reference1.png` | 图片 | UI 参考图 |
+| `UI-reference1.png` | 图片 | UI 参考图1 |
+| `UI_reference2.png` | 图片 | UI 参考图2 |
+| `usable_assets/` | 目录 | 资源图标素材（18个PNG：金币×4/炸弹×2/红心×4/蓝心×4/宝箱×2/钥匙×2） |
 
 ### Configs/ (配置与服务)
 
