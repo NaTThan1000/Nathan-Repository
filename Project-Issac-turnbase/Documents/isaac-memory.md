@@ -591,12 +591,20 @@
 - **[修正]** §4.1 拆分为两层：①global-rules.md → AI 主动读取（不许等指令）；②memory.md + context.md → 用户发指令后读取。日期标注 [2026-07-20, 2026-07-31修正]
 - **[澄清]** "每次对话" = 每次新会话开始时读一次，非每条消息都读。global-rules.md 是相对稳定的规范文档，同会话内不会频繁变化
 
+### 怪物死亡掉落位置修正 — 资源不再随机散布 [当前方案]
+- **[问题]** 怪物死亡后资源类掉落（`resource_pool`）在 `preRollDropEntry()` 和 `executeDropEntry()` 中各自带了 `±1` 格的随机偏移（`Math.floor(Math.random()*3)-1`），导致资源散布在怪物死亡位置周围，玩家击杀后需额外走动才能全部拾取
+- **[决策]** 移除 `preRollDropEntry()`、`applyPreRolledLoot()`、`executeDropEntry()` 三处资源掉落的随机行/列偏移，所有掉落物（道具 + 资源）统一精确生成在怪物死亡的格子位置 `(col, row)` 上
+- **[修改范围]** ① `preRollDropEntry()` — `offsetC/offsetR` 从随机改为固定 `0`；② `applyPreRolledLoot()` — 资源直接用 `col, row` 生成，不再加偏移；③ `executeDropEntry()` — 移除 `offsetC/offsetR` 随机计算，直接落在 `col, row`
+- **[影响文件]** `isaac-turnbased-demo2.html`（三处函数修改，净减少约 6 行代码）
+- **[设计收益]** 掉落行为与道具掉落的 `spawnItemOnGrid(col, row)` 保持一致，玩家击杀怪物后可以原地拾取所有奖励
+
 ---
 
 ## 最近更新记录
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-31(2) | **怪物死亡掉落位置修正**。移除资源掉落随机散布(±1格)，所有掉落物精确生成在怪物死亡位置。详见当日记忆条目。 |
 | 2026-07-31 | **满血拾取修复 + 幽灵资源修复 + checkpoint时机修正**。详见当日记忆条目。 |
 | 2026-07-30 | **地形掉落预roll + liftDir修复 + ESC回溯补全**。详见当日记忆条目。 |
 | 2026-07-29 | **资源掉落表 mode 统一 + attack_adjacent 修正 + 条目统一化**。①`resource-db.json` dropTables 升级为 `{ mode, table }` 结构，支持 pick_one/roll_all/pick_first。②`rollResourceDrop()` 重构为 mode 驱动。③`rollRoomClearDrop()` 移除硬编码改为 roomType→tableKey 配置映射。④`spawnShopItems()` 统一走 rollResourceDrop。⑤`attack_adjacent` 从面朝方向改为四方向十字范围攻击。⑥全部 11 张表统一 15 种资源条目。 |

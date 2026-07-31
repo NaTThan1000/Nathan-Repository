@@ -5876,9 +5876,7 @@ function preRollDropEntry(entry) {
   } else if (entry.type === 'resource_pool') {
     const resIds = rollResourceDrop(entry.pool || 'monster_default');
     if (resIds.length > 0) {
-      const offsetC = Math.floor(Math.random() * 3) - 1;
-      const offsetR = Math.floor(Math.random() * 3) - 1;
-      return { type: 'resource_pool', resIds, offsetC, offsetR };
+      return { type: 'resource_pool', resIds, offsetC: 0, offsetR: 0 };
     }
   } else if (entry.type === 'resource_fixed') {
     if (entry.id) return { type: 'resource_fixed', resId: entry.id };
@@ -5893,9 +5891,8 @@ function applyPreRolledLoot(preRolled, col, row) {
       spawnItemOnGrid(col, row, drop.cfgId);
     } else if (drop.type === 'resource_pool') {
       for (const rid of drop.resIds) {
-        const sc = col + drop.offsetC, sr = row + drop.offsetR;
-        if (sc >= 0 && sc < COLS && sr >= 0 && sr < ROWS && !isWall(sc, sr)) {
-          spawnResourceOnGrid(sc, sr, rid);
+        if (col >= 0 && col < COLS && row >= 0 && row < ROWS && !isWall(col, row)) {
+          spawnResourceOnGrid(col, row, rid);
         }
       }
     } else if (drop.type === 'resource_fixed') {
@@ -5960,11 +5957,8 @@ function executeDropEntry(entry, col, row) {
   } else if (entry.type === 'resource_pool') {
     const resIds = rollResourceDrop(entry.pool || 'monster_default');
     for (const rid of resIds) {
-      const offsetC = Math.floor(Math.random() * 3) - 1;
-      const offsetR = Math.floor(Math.random() * 3) - 1;
-      const sc = col + offsetC, sr = row + offsetR;
-      if (sc >= 0 && sc < COLS && sr >= 0 && sr < ROWS && !isWall(sc, sr)) {
-        spawnResourceOnGrid(sc, sr, rid);
+      if (col >= 0 && col < COLS && row >= 0 && row < ROWS && !isWall(col, row)) {
+        spawnResourceOnGrid(col, row, rid);
       }
     }
 
