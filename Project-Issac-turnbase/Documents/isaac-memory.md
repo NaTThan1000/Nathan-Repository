@@ -11,7 +11,7 @@
 >
 > **组织方式**：纯时间顺序，不做模块分类。给 AI 快速浏览聊天记忆用。
 >
-> 最后更新: 2026-07-30
+> 最后更新: 2026-07-31
 
 ---
 
@@ -509,6 +509,7 @@
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-31 | **满血拾取修复 + 幽灵资源修复 + checkpoint时机修正**。详见当日记忆条目。 |
 | 2026-07-30 | **地形掉落预roll + liftDir修复 + ESC回溯补全**。详见当日记忆条目。 |
 | 2026-07-29 | **资源掉落表 mode 统一 + attack_adjacent 修正 + 条目统一化**。①`resource-db.json` dropTables 升级为 `{ mode, table }` 结构，支持 pick_one/roll_all/pick_first。②`rollResourceDrop()` 重构为 mode 驱动。③`rollRoomClearDrop()` 移除硬编码改为 roomType→tableKey 配置映射。④`spawnShopItems()` 统一走 rollResourceDrop。⑤`attack_adjacent` 从面朝方向改为四方向十字范围攻击。⑥全部 11 张表统一 15 种资源条目。 |
 | 2026-07-28(晚) | **浮游眼行为模式重构**。①新增 condition actionMode + out_of_range 条件 + after_effect 机制(shoot_fan后立刻random_wander)。②玩家回合动态感叹号。③抽出 checkActionCondition + resolveSteps 辅助函数。 |
@@ -526,6 +527,31 @@
 | 2026-07-20 | **HP心形改造 + AI提交行为纠正**。①HP系统改为3心制+半心显示，所有玩家伤害减半。②记录AI自动提交行为被纠正事件，确认Git操作需用户明确指令。 |
 | 2026-07-20 | **格式重改为纯时间线 + 删除未确认内容**。按用户要求改为纯时间顺序组织（不做模块分类），删除未经用户确认的"下一步计划"章节。同步追加当天的文档体系规则修正记录。 |
 | 2026-07-20 | **记忆体系建立**。从三处数据源（context.md 最近更新记录 ×11条、chat-log-2026-07-20.md、当前会话）提取所有历史决策，按时间顺序整理。 |
+
+---
+
+## 2026-07-31
+
+### simulateFromCheckpoint 资源拾取修复 — 满血也能拾取红心 [当前方案]
+- **[问题]** 玩家满血走过红心时，红心被无条件消耗（地面资源消失但HP不增加，资源浪费）
+- **[根因]** `simulateFromCheckpoint` BFS 路径重放循环（line 2158-2164）中，`handleResourcePickup(res)` 返回值被忽略，无条件 `resourcesOnGround.splice(j, 1)`。而 `autoPickupResources` 是正确判断返回值再删除的
+- **[修复]** 改为 `if (handleResourcePickup(res)) { resourcesOnGround.splice(j, 1); }`，满血时 `handleResourcePickup` 返回 `false`（红心 `case 'heart': if (hp>=maxHp) return false`），资源保留在地面
+
+### 房间资源幽灵bug修复 — 深拷贝→直接引用 [当前方案]
+- **[问题]** 房间地面上有时在ESC回溯后/离房回房后凭空出现之前没出现过的资源
+- **[根因]** `updateRoomCombatState` 房间清空时（line 891）`room._groundResources = resourcesOnGround.map(r => ({...}))` 深拷贝创建了**新数组**，切断了 `resourcesOnGround` 与 `room._groundResources` 的引用链接。之后玩家拾取资源只修改 `resourcesOnGround`，`room._groundResources` 保留旧快照。离房回房时 `finishTransition` 执行 `resourcesOnGround = room._groundResources` 加载了含已拾取资源的旧快照
+- **[修复]** 将深拷贝改为直接引用 `room._groundResources = resourcesOnGround`，与 `simulateFromCheckpoint`(line 2198) 和 `restoreTurnSnapshot`(line 1944) 保持一致。两个变量始终指向同一数组
+
+### checkpoint时机修正 — 延迟到实际效果发生 [当前方案]
+- **[问题]** 发射子弹时 `saveCheckpoint()` 在 bullet 刚生成的瞬间就保存了，之后子弹飞行→命中→怪物死亡→掉落这一整套行为的结果都没有反映到 checkpoint 中
+- **[修复]**
+  1. 移除射击处理（line 6325）中的 `saveCheckpoint()` — 不再在发射瞬间保存
+  2. `damageMonster` 中新增 `else if (turnState.phase === 'player_select') saveCheckpoint()` — 非致命命中时也更新 checkpoint 以反映怪物 HP 降低
+  3. 已有的：怪物击杀时（line 5800）、地形破坏时（`hitTile`）、房间清空时（`updateRoomCombatState`）均正常保存 checkpoint
+- **[效果]** checkpoint 现在反映每个操作的实际结果，而非操作开始瞬间。BFS 回退时 checkpoint 持有的是最近一次实际效果完成后的状态
+
+---
+
 
 ---
 

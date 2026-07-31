@@ -147,7 +147,7 @@
 
 - **移动**：WASD 在可移动范围内即时移动本体，M-AP-1，范围动态刷新
 - **射击**：↑↓←→ 立即发射子弹，A-AP-1
-- **射击 Checkpoint**：首次射击时保存位置（`checkpointPos`），之后可移动范围从当前位置重新计算（内部机制，玩家无需认知）
+- **Checkpoint 时机**：不在发射子弹时保存，而是在子弹实际产生效果时更新——命中怪物(含非致命)、击杀怪物(含掉落)、命中地形破坏、房间清空。每个操作的结果及时反映到checkpoint
 - **Esc 全重置**：恢复完整回合快照（`turnSnapshot`），玩家/怪物/HP/道具/地形/炸弹全部回到回合开始时状态，伴随时间倒流动画
 - **回合快照**：`saveTurnSnapshot()` 保存玩家坐标/HP、怪物坐标/HP、道具库存、地上资源道具、可破坏瓷砖(tileData/currentRoomGrid)、炸弹等；`restoreTurnSnapshot()` 恢复
 - **可移动范围计算**：`calcReachableTiles(fromCol, fromRow, maxSteps)` BFS，排除墙壁和怪物占据格
@@ -510,9 +510,10 @@ function project(wx, wy) {
 | `resetGameToFloor1()` | 重置游戏状态回到第1层起点（R键调用） |
 | `enterFloor(floorNum)` | 进入指定楼层起始房间 |
 | `tryWalkIntoDoor(fromCol,fromRow,dir)` | 检测门触发：站在门前格+按方向→切换房间 |
-| `updateRoomCombatState()` | 更新战斗/探索状态，触发回合初始化或结束 |
+| `updateRoomCombatState()` | 更新战斗/探索状态，触发回合初始化或结束。房间清空时同步 `room._groundResources = resourcesOnGround`（直接引用不再深拷贝，防幽灵资源） |
 | `updateDoorsLocked()` | 根据 inCombat 开关门（战斗=锁/探索=开） |
 | `damagePlayer(amount)` | 玩家受伤：战斗/探索统一无敌移速×2步（战斗中结束回合时未消耗M-AP也计入） |
+| `damageMonster(m, amount)` | 怪物受击：hp>0时保存checkpoint(反映HP降低)，hp≤0时走死亡流程(掉落+保存checkpoint) |
 | `drawCharacterAt(px,py,facing,walkFrame,shootTimer,alpha,tint)` | 通用角色渲染，支持透明度/无敌闪烁/tint色彩叠加 |
 | `drawReachableOverlay()` | 渲染浅蓝色呼吸闪烁可移动方格 |
 | `drawBattleStartSwords()` | 战斗开始交叉剑动画：两剑从左右飞入旋转碰撞火花 |
@@ -627,6 +628,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-31 | **满血拾取修复 + 幽灵资源修复 + checkpoint时机修正**。①`simulateFromCheckpoint` BFS路径重放中资源拾取改为判断`handleResourcePickup`返回值后再splice，修复满血走过红心被无条件消耗的bug。②`updateRoomCombatState` 中 `room._groundResources` 从深拷贝改为直接引用，消除因引用断裂导致离房再回房时已拾取资源幽灵重现。③移除子弹发射时的过早 `saveCheckpoint`，改为在`damageMonster`中怪物受击(含非致命)时更新，确保checkpoint始终反映操作的实际结果而非操作瞬间。 |
 | 2026-07-30 | **地形掉落预roll + liftDir修复 + ESC回溯补全**。①`initTileData()` 房间初始化时为每个 POOP/ROCK 预roll掉落(`_loot`)，`hitTile()` 破坏时捕获预roll传给 `rollTerrainDestroyDrop(preLoot)`，保证ESC回溯后再次破坏同一地形掉落一致。②6处资源保存/恢复（`saveTurnSnapshot`/`saveCheckpoint`/`restoreCheckpoint`/`restoreCheckpointWithoutBullets`/`restoreTurnSnapshot`/`simulateFromCheckpoint`）补上 `liftDir`，修复资源在BFS触发checkpoint恢复后因 `liftDir=undefined→liftY=NaN` 导致视觉消失但可拾取的bug。③`saveTurnSnapshot`/`restoreTurnSnapshot` 新增 `tileData`/`currentRoomGrid`/`bombs` 快照，ESC回溯覆盖可破坏地形和炸弹状态。④`hitTile()` 破坏后调用 `saveCheckpoint()` 确保BFS回退时地形保持已破坏。 |
 | 2026-07-29 | **资源掉落表 mode 统一 + attack_adjacent 十字化**。①`resource-db.json` dropTables 全部升级为 `{ mode, table }` 结构，每表统一 15 种资源条目(不掉落的权重=0)，新增 `room_clear_treasure` 表。②`rollResourceDrop()` 重构支持三种 mode(pick_one/roll_all/pick_first)，向下兼容旧格式。③`rollRoomClearDrop()` 移除硬编码(宝藏/Boss房不掉的 if 判断)，改为 roomType→tableKey 纯配置驱动映射。④`spawnShopItems()` 改用统一 `rollResourceDrop('shop_stock')`。⑤`resolveAfterEffects()` 中 `attack_adjacent` 从面朝方向单向攻击改为四方向十字范围攻击(上下左右各 range 格)。⑥`finishMonsterTurn()` 简化移除 dirX/dirY 计算。 |
 | 2026-07-28(晚) | **浮游眼行为模式重构**。①新增 `condition` actionMode：按顺序逐条评估 condition，选中第一个满足的 action（替代旧 random 权重随机）。②新增 `out_of_range` 条件（与 `in_range` 互补）。③新增 `after_effect` 机制：主 action 执行完毕后追加执行附加行为（shoot_fan→after_effect:random_wander → 射击后立刻移动）。④玩家回合动态感叹号：WASD移动时实时检测与浮游眼切比雪夫距离，进入射程显示"!"，移出消失。⑤抽出 `checkActionCondition` + `resolveSteps` 辅助函数。 |

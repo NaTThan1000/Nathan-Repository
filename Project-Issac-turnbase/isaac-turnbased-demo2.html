@@ -886,19 +886,10 @@ function updateRoomCombatState(){
       }
     }
 
-    // === 同步回房间存储（simulateFromCheckpoint 可能打断了 resourcesOnGround → room._groundResources 引用） ===
+    // === 同步回房间存储（simulateFromCheckpoint / restoreTurnSnapshot 可能打断了引用，房间清空时重建链接） ===
     if (room) {
-      room._groundResources = resourcesOnGround.map(r => ({
-        id:r.id, cfgId:r.cfgId, col:r.col, row:r.row,
-        px:r.px, py:r.py, roomId:r.roomId,
-        color:r.color, icon:r.icon, liftY:r.liftY, sparkTimer:r.sparkTimer,
-      }));
-      room._groundItems = itemsOnGround.map(it => ({
-        id:it.id, cfgId:it.cfgId, name:it.name, icon:it.icon,
-        quality:it.quality, col:it.col, row:it.row,
-        px:it.px, py:it.py, roomId:it.roomId,
-        liftY:it.liftY, liftDir:it.liftDir, sparkTimer:it.sparkTimer,
-      }));
+      room._groundResources = resourcesOnGround;
+      room._groundItems = itemsOnGround;
     }
 
     saveCheckpoint();updateActionBar();updateUI();
@@ -2158,9 +2149,10 @@ function simulateFromCheckpoint(path) {
     for (let j = resourcesOnGround.length - 1; j >= 0; j--) {
       const res = resourcesOnGround[j];
       if (res.col === step.col && res.row === step.row) {
-        handleResourcePickup(res);
-        resourcesOnGround.splice(j, 1);
-        pickedUp = true;
+        if (handleResourcePickup(res)) {
+          resourcesOnGround.splice(j, 1);
+          pickedUp = true;
+        }
       }
     }
     // 拾取道具
@@ -5803,13 +5795,16 @@ function damageMonster(m, dmg) {
     if (turnState.phase === 'player_select') pendingReachableRefresh = true;
     const idx = monsters.indexOf(m);
     if (idx !== -1) monsters.splice(idx, 1);
-    // 玩家回合中击杀怪物 → 保存 checkpoint
+    // 玩家回合中击杀怪物 → 保存 checkpoint（含掉落物）
     // 放在 updateRoomCombatState 之前，避免最后一只怪死后 inCombat 变 false 导致跳过
     if (turnState.phase === 'player_select') {
       saveCheckpoint();
       turnState.reachableTiles = calcReachableTiles(currentCheckpoint.playerCol, currentCheckpoint.playerRow, checkpointMAP);
     }
     updateRoomCombatState();
+  } else if (turnState.phase === 'player_select') {
+    // 子弹命中但未击杀：更新 checkpoint 以反映怪物受击后 HP（A-AP 已在射击时扣除）
+    saveCheckpoint();
   }
 }
 
@@ -6330,7 +6325,7 @@ document.addEventListener('keydown', (e) => {
 
         if(inCombat){
           turnState.aAP--;
-          saveCheckpoint();
+          // 不在这里 saveCheckpoint — 等子弹实际命中/击杀时才更新（延迟到真实效果发生）
           turnState.reachableTiles=calcReachableTiles(currentCheckpoint.playerCol,currentCheckpoint.playerRow,checkpointMAP);
           if(!turnState.hasShot)turnState.hasShot=true;
         }
