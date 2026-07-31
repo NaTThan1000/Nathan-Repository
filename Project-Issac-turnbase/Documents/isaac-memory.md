@@ -505,28 +505,48 @@
 - **[新方案]** ①移除 `bombMode`/`bombModeTurnsFrom` 变量，炸弹即是战斗模式的一部分。②放置炸弹即进入 `inCombat=true`（含交叉剑动画），统一走战斗模式流程。③炸弹倒计时从 Space 处理移至 `startMonsterTurn()` 最开头（炸弹行动优先级高于所有怪物），在 `calcAllMonsterPaths()` 之前执行 `tickBombCountdown()`。④每个怪物回合炸弹计时-1，0时引爆。⑤`updateDoorsLocked()` 改为只判断怪物存活（`hasLivingMonsters`），不判断炸弹——有炸弹无怪物时门打开可自由出入。⑥`tryWalkIntoDoor()` 允许战斗模式（因炸弹）下通过已打开的门。⑦`finishTransition()` 重新进入房间时炸弹倒计时重置为3，并恢复战斗模式。⑧`finishMonsterTurn()` 结尾根据存活怪物+未引爆炸弹决定是否结束战斗。⑨`updateActionBar()` 统一在战斗模式下显示炸弹倒计时信息。
 - **[设计收益]** 炸弹不再是特殊模式，完美融入回合制战斗。炸弹房间可自由移动和射击（保留A-AP）。门锁逻辑只取决于怪物，炸弹不影响房间通行。
 
-## 最近更新记录
+---
 
-| 日期 | 更新内容 |
-|------|---------|
-| 2026-07-31 | **满血拾取修复 + 幽灵资源修复 + checkpoint时机修正**。详见当日记忆条目。 |
-| 2026-07-30 | **地形掉落预roll + liftDir修复 + ESC回溯补全**。详见当日记忆条目。 |
-| 2026-07-29 | **资源掉落表 mode 统一 + attack_adjacent 修正 + 条目统一化**。①`resource-db.json` dropTables 升级为 `{ mode, table }` 结构，支持 pick_one/roll_all/pick_first。②`rollResourceDrop()` 重构为 mode 驱动。③`rollRoomClearDrop()` 移除硬编码改为 roomType→tableKey 配置映射。④`spawnShopItems()` 统一走 rollResourceDrop。⑤`attack_adjacent` 从面朝方向改为四方向十字范围攻击。⑥全部 11 张表统一 15 种资源条目。 |
-| 2026-07-28(晚) | **浮游眼行为模式重构**。①新增 condition actionMode + out_of_range 条件 + after_effect 机制(shoot_fan后立刻random_wander)。②玩家回合动态感叹号。③抽出 checkActionCondition + resolveSteps 辅助函数。 |
-| 2026-07-28(晚) | **蓄力魔像行为优化 + 感叹号像素风 + 文档同步触发规则**。①蓄力魔像 actions 改为4步sequence(random_wander×2+charge_up+charge_line)，新增 charge_up type(感叹号脉动)，charge_line 简化为单步执行。②感叹号改为56px Courier New像素风大号样式，8方向像素描边+3层光晕+0.5s脉动。③memory.md 新增修改规则#4：context.md和memory.md更新必须由用户"同步文档"指令触发，不得在代码任务中附带执行。 |
-| 2026-07-28(晚) | **掉落系统全面重构+资源系统建立**。①用户8条掉落需求驱动全面重配。②确立weight vs rate 语义区分。③新建 resource-db.json（资源定义+8张掉落表+宝箱loot）。④全部12只怪物loot重配：小怪极少道具(~0.9%/只)+小概率资源(~25%)；Boss纯道具无资源。⑤宝箱改为必掉1~4个道具(roll_all模式)。⑥品质表合并至item-db.json，删除 item-drop-tables.json。⑦资源掉落表全面降低概率匹配各场景。⑧用户后续手动微调数值。 |
-| 2026-07-28 | **代码-文档不一致处理约定确立**。①当 AI 发现代码与文档矛盾时，必须主动提醒用户列出差异清单，待用户决策后才行动（三个选项：代码为准/文档为准/都保留）。②明确与"同步文档"指令为独立触发路径（同步时默认以代码为准）。③确认 Ask/Craft 模式边界：都不擅自修改文件。④创建 Memory ID 32213721。⑤context.md 文件清单修正 monster-db.json 过时描述。 |
-| 2026-07-27 | **怪物行动系统重构：actionMode + actions[]**。①移除旧 `movement`/`aiParams` 分散字段，统一为 `actionMode`（sequence/random weighted）+ `actions[]`（独立配置 type + steps/range/condition 等全部参数）。②新增 `resolveMonsterAction()`：condition 过滤 → actionMode 选择 → stepMode/stepWeights 解析。③5种12只怪物全部迁移到新 actions 体系。④Boss Jumper 参数从 aiParams 移至 `actions[].jump_big_land`。⑤确认 stepWeights 未配时默认均匀随机行为。 |
-| 2026-07-24(晚) | **怪物移动配置统一重构 + 浮游眼 AI 优化**。①统一 `movement` 结构（mode/steps/stepMode/weight）替代 4 套分散步数字段，12 只怪物全部迁移。②浮游眼新增切比雪夫距离射程判断（射程外不射击只移动）。③巡逻范围从硬编码改为 `aiParams.patrolRange`。④monster-db.json 完全重写 + demo2.html 6 处改造 + 旧字段 0 残留。⑤context.md 全覆盖交叉比对：怪物表重写、AI表更新、文件清单新增 spawn-config.json。 |
-| 2026-07-24 | **验证列表遗漏事件 + Memory 对话驱动标准确立**。①7/23讨论的"验证列表"未记录到memory（因无代码变更），暴露AI以"代码变更驱动"写memory的惯性偏离了对话记忆初衷。②用户明确memory设计初衷："在任何电脑上都能像跟同一个有统一记忆的AI聊天"。③记忆触发标准从"代码变更→记录"扩展为"聊过的重要事→记录"（设计验证/待办任务/设计疑问/创意方向等）。④global-rules §2.10 更新补充此规则。⑤验证列表具体内容已不可溯源（cb_summary压缩丢失）。 |
-| 2026-07-23 | **AI行为参数外置 + 配置外置全面审计 + 双HTML同步策略 + global-rules §2.10 §4.5**。①monster-db.json 新增 `aiParams` 字段，5种怪物AI参数全部外置消除硬编码。②系统性审计6JSON+2HTML，确立分类标准：策划→JSON / 引擎/渲染/算法→代码。③建立双HTML同步策略，验证0处AI硬编码残留。④context.md全覆盖比对修正8处过时常量。⑤因AI首轮memory遗漏审计/策略讨论，触发global-rules §2.10（Memory记录完整性）。⑥因AI将疑问句误判为指令，触发global-rules §4.5（疑问句vs指令区分）。 |
-| 2026-07-22 | **楼层生成两步法重构**。`generateFloor()` 改为骨架房优先→Boss/宝箱从集群边界挂载。Boss选最远边界位，宝箱随机选剩余边界。彻底消除旧方案裁边+连通性修复逻辑，Boss/宝箱天然单门在外围。 |
-| 2026-07-21(晚) | **Boss Jumper 2×2跳跃Boss系统**。新增 `boss_jumper` 怪物（size:2占据4格），替代旧裂口之王为每层Boss房Boss。行动循环：小跳×2→50%重复→大跳消失→落地12格伤害。配套跳跃动画（弧线/消失残影/落地冲击波）。宝藏房不再刷怪。修复渲染中心偏移和落地回合额外行动。 |
-| 2026-07-20 | **SSH推送替代HTTPS**。DPI防火墙拦截git/curl HTTPS连接，诊断确认SSH 22端口正常。生成ed25519密钥，利用Deploy Key API绕行token scope限制（repo scope够用），remote永久改为SSH。记录完整诊断过程+跨电脑注意事项。 |
-| 2026-07-20 | **global-rules §1.4 正式化**。将 AI 禁止自动 Git 写入操作写入 global-rules.md 作为正式跨项目规范，创建 Memory ID 70076756。 |
-| 2026-07-20 | **HP心形改造 + AI提交行为纠正**。①HP系统改为3心制+半心显示，所有玩家伤害减半。②记录AI自动提交行为被纠正事件，确认Git操作需用户明确指令。 |
-| 2026-07-20 | **格式重改为纯时间线 + 删除未确认内容**。按用户要求改为纯时间顺序组织（不做模块分类），删除未经用户确认的"下一步计划"章节。同步追加当天的文档体系规则修正记录。 |
-| 2026-07-20 | **记忆体系建立**。从三处数据源（context.md 最近更新记录 ×11条、chat-log-2026-07-20.md、当前会话）提取所有历史决策，按时间顺序整理。 |
+## 2026-07-30
+
+### 地形掉落预roll — 保证ESC回溯后再次破坏结果一致 [当前方案]
+- **[问题]** 破坏大便/岩石后掉落资源是当场 roll 的（`rollTerrainDestroyDrop` 内调用 `rollResourceDrop`），ESC 回溯后再次破坏同一地形会重新随机，掉落不一致
+- **[决策]** 与怪物 `_killLoot` 模式对齐：①`initTileData()` 中为每个 POOP/ROCK 预roll `_loot`（`rollResourceDrop('terrain_poop'/'terrain_rock')`，可能是空数组=不掉落），存储在 `tileData[k]._loot`。②`hitTile()` 在 `delete tileData[k]` 之前捕获 `td._loot` 为 `preLoot` 传入。③`rollTerrainDestroyDrop(col, row, terrainType, preLoot)` 优先使用预roll结果，仅 fallback 时才现场 roll
+- **[收益]** ESC 回溯后地形破坏掉落完全一致，与怪物击杀掉落行为统一
+- **[向下兼容]** `preLoot !== undefined` 判断区分"已预roll=空数组"和"未预roll=undefined"，旧存档无 `_loot` 时自动 fallback 现场roll
+
+### 资源视觉消失bug修复 — liftDir 缺失导致 liftY 变 NaN [当前方案]
+- **[问题]** 用户报告两个场景：①怪物击杀掉落资源后移动触发BFS→资源视觉消失但能走过去拾取；②摧毁大便掉落同理消失。ESC回溯不影响此问题
+- **[根因追踪]** 完整因果链：资源从 `spawnResourceOnGrid` 出生时带 `liftDir: 1` → `saveCheckpoint`/`simulateFromCheckpoint` 恢复资源时没存/没恢复 `liftDir` → BFS 触发后资源 `liftDir = undefined` → 游戏循环动画 `res.liftY += undefined * dt * 2` → `liftY = NaN` → 渲染坐标无效 → 视觉消失 → 但 col/row 正确 → `autoPickupResources` 仍能拾取
+- **[次要发现]** 道具（`itemsOnGround`）的保存/恢复一直有 `liftDir`，资源的保存/恢复却少了这个字段——同一个 checkpoint 内的两个数组不一致
+- **[修复范围]** 6 处：`saveTurnSnapshot`(1620)、`saveCheckpoint`(1683)、`restoreCheckpoint`(1751)、`restoreCheckpointWithoutBullets`(1839)、`restoreTurnSnapshot`(1925)、`simulateFromCheckpoint`(2092)，全部补上 `liftDir: r.liftDir || 1`
+- **[修复结果]** 资源在 BFS checkpoint 恢复后liftY正常计算，不再视觉消失
+
+### hitTile 破坏地形后保存 checkpoint [当前方案]
+- **[问题]** `hitTile` 破坏地形（delete tileData[k] + grid→FLOOR）+ 掉落资源后，若后续 BFS 触发 `simulateFromCheckpoint`，checkpoint 中无这些新资源，资源消失（与 liftDir bug 叠加加剧）
+- **[决策]** `hitTile` 中在 `rollTerrainDestroyDrop` 后调用 `saveCheckpoint()`，确保 checkpoint 包含破坏后的地形+新掉落资源
+
+### ESC 回溯范围扩大：地形 + 炸弹 [当前方案]
+- **[触发]** 用户要求 ESC 应回溯整个游戏所有状态："地形的也算，所有的都算"。AI 列出当前回溯/未回溯清单，确认可破坏地形和炸弹需补充
+- **[决策]** ①`saveTurnSnapshot` 新增 `tileData`(JSON深拷贝)、`currentRoomGrid`(逐列拷贝)、`bombs`(逐个对象拷贝)。②`restoreTurnSnapshot` 新增对应恢复：`tileData = JSON.parse(JSON.stringify(s.tileData))`、`currentRoomGrid = s.currentRoomGrid.map(col => [...col])`、`bombs` 重建
+- **[收益]** ESC 后大便恢复未破坏状态、岩石恢复、炸弹恢复位置和倒计时。与炸弹模式融入战斗（7/29）配合：炸弹是战斗状态的一部分，ESC自然回溯
+- **[未涉及]** `saveCheckpoint`（BFS小存档点）不需要保存 terrain——terrain 是永久性变更，在 `hitTile` 中已直接修改 `tileData`/`currentRoomGrid`，checkpoint 不恢复 terrain
+
+### tileData 注释更新
+- `tileData` 变量注释从 `{ type, hp }` 更新为 `{ type, hp, _loot }`，反映预roll字段
+
+### Boss Jumper 文档多处不实描述修正 — context.md + memory.md 历史记录纠错 [当前方案]
+- **[问题]** 用户指出 context.md 中 Boss Jumper 的 `repeatChance` 和 `landDamage` 描述多处与实际 `monster-db.json` 不符。AI 回溯发现共 9 处不实描述（context.md 7 处 + memory.md 旧记录 3 处）
+- **[实际代码]** `monster-db.json` 中 boss_jumper 的 actions 结构：`jump_small steps:[2/3/3]` → `jump_small steps:[2/3/3], repeatChance:0.5` → `jump_big_land disappearSteps:1, target:{mode:"cover_player"}, after_effect:[{type:"attack_side", damage:1, range:1}]`。`repeatChance` 挂在第二个 `jump_small` 上，`landDamage` 字段不存在（落地伤害通过 `after_effect: attack_side` 实现）
+- **[context.md 修正]** 7 处：①§1.5 Boss Jumper 概览表行 → 展开为 3 个 action 完整描述；②§1.5 字段说明范例 → `landDamage` 替换为 `target`；③Action 类型枚举 `jump_small` → 补 `repeatChance` 可选说明；④Action 类型枚举 `jump_big_land` → 移除 `landDamage`/`repeatChance`，改为 `target`/`after_effect: attack_side`；⑤§2.13 大跳跃行 → `landDamage` 改为 `after_effect: attack_side`；⑥§2.13 关键设计 → `jump_big_land.repeatChance` 改为「第二个 `jump_small.repeatChance`」；⑦历史记录 2026-07-27 → 参数迁移路径修正
+- **[memory.md 旧记录说明]** 受 immutability 约束，以下三处历史记录含 `landDamage` 不实描述**不修改**，仅在本条注明：①2026-07-23 §AI行为参数外置（line 317）写作 `landDamage 1`，实际 `after_effect: attack_side(damage:1,range:1)`；②2026-07-27 §行动系统重构（line 385）字段示例列表含 `landDamage`；③同日期 line 392 Boss Jumper 配置示例写作 `landDamage:1, repeatChance:0.5`，实际 `repeatChance` 在 `jump_small` 上。所有不实描述的修正版本以 `monster-db.json` 和 context.md 当前版本为准
+- **[附带修正]** 小跳步数 `[3]` 改为 `[2/3/3]`（对应 I/II/III 级）
+
+### 文档同步流程缺陷根因分析与追加规则 [当前方案]
+- **[触发]** 用户上一次要求"同步文档"时，AI 只同步了最后一次代码改动（item-db.json 品质表），遗漏了几小时前就发现但未当场修的 context.md Boss Jumper 描述问题
+- **[根因]** AI 在执行"同步文档"时，注意范围潜意识收缩到「最近一次编辑操作涉及的文件」，本轮早期发现的不一致被归类为「已讨论过的事」而非「待同步的新内容」
+- **[追加强化]** 在 global-rules §2.2 新增硬性步骤：「同步文档前，必须先回溯本轮会话所有"发现但未修"的代码-文档不一致，逐条列出清单，逐一确认是否已修正」，来源包括用户口头指出的、对话中间发现的、以及"顺便提一下"的事项
+- **[用户确认]** 用户要求 AI 给出合理解释并杜绝此类遗漏，本次追加步骤为硬约束
 
 ---
 
@@ -573,46 +593,27 @@
 
 ---
 
-## 2026-07-30
+## 最近更新记录
 
-### 地形掉落预roll — 保证ESC回溯后再次破坏结果一致 [当前方案]
-- **[问题]** 破坏大便/岩石后掉落资源是当场 roll 的（`rollTerrainDestroyDrop` 内调用 `rollResourceDrop`），ESC 回溯后再次破坏同一地形会重新随机，掉落不一致
-- **[决策]** 与怪物 `_killLoot` 模式对齐：①`initTileData()` 中为每个 POOP/ROCK 预roll `_loot`（`rollResourceDrop('terrain_poop'/'terrain_rock')`，可能是空数组=不掉落），存储在 `tileData[k]._loot`。②`hitTile()` 在 `delete tileData[k]` 之前捕获 `td._loot` 为 `preLoot` 传入。③`rollTerrainDestroyDrop(col, row, terrainType, preLoot)` 优先使用预roll结果，仅 fallback 时才现场 roll
-- **[收益]** ESC 回溯后地形破坏掉落完全一致，与怪物击杀掉落行为统一
-- **[向下兼容]** `preLoot !== undefined` 判断区分"已预roll=空数组"和"未预roll=undefined"，旧存档无 `_loot` 时自动 fallback 现场roll
-
-### 资源视觉消失bug修复 — liftDir 缺失导致 liftY 变 NaN [当前方案]
-- **[问题]** 用户报告两个场景：①怪物击杀掉落资源后移动触发BFS→资源视觉消失但能走过去拾取；②摧毁大便掉落同理消失。ESC回溯不影响此问题
-- **[根因追踪]** 完整因果链：资源从 `spawnResourceOnGrid` 出生时带 `liftDir: 1` → `saveCheckpoint`/`simulateFromCheckpoint` 恢复资源时没存/没恢复 `liftDir` → BFS 触发后资源 `liftDir = undefined` → 游戏循环动画 `res.liftY += undefined * dt * 2` → `liftY = NaN` → 渲染坐标无效 → 视觉消失 → 但 col/row 正确 → `autoPickupResources` 仍能拾取
-- **[次要发现]** 道具（`itemsOnGround`）的保存/恢复一直有 `liftDir`，资源的保存/恢复却少了这个字段——同一个 checkpoint 内的两个数组不一致
-- **[修复范围]** 6 处：`saveTurnSnapshot`(1620)、`saveCheckpoint`(1683)、`restoreCheckpoint`(1751)、`restoreCheckpointWithoutBullets`(1839)、`restoreTurnSnapshot`(1925)、`simulateFromCheckpoint`(2092)，全部补上 `liftDir: r.liftDir || 1`
-- **[修复结果]** 资源在 BFS checkpoint 恢复后liftY正常计算，不再视觉消失
-
-### hitTile 破坏地形后保存 checkpoint [当前方案]
-- **[问题]** `hitTile` 破坏地形（delete tileData[k] + grid→FLOOR）+ 掉落资源后，若后续 BFS 触发 `simulateFromCheckpoint`，checkpoint 中无这些新资源，资源消失（与 liftDir bug 叠加加剧）
-- **[决策]** `hitTile` 中在 `rollTerrainDestroyDrop` 后调用 `saveCheckpoint()`，确保 checkpoint 包含破坏后的地形+新掉落资源
-
-### ESC 回溯范围扩大：地形 + 炸弹 [当前方案]
-- **[触发]** 用户要求 ESC 应回溯整个游戏所有状态："地形的也算，所有的都算"。AI 列出当前回溯/未回溯清单，确认可破坏地形和炸弹需补充
-- **[决策]** ①`saveTurnSnapshot` 新增 `tileData`(JSON深拷贝)、`currentRoomGrid`(逐列拷贝)、`bombs`(逐个对象拷贝)。②`restoreTurnSnapshot` 新增对应恢复：`tileData = JSON.parse(JSON.stringify(s.tileData))`、`currentRoomGrid = s.currentRoomGrid.map(col => [...col])`、`bombs` 重建
-- **[收益]** ESC 后大便恢复未破坏状态、岩石恢复、炸弹恢复位置和倒计时。与炸弹模式融入战斗（7/29）配合：炸弹是战斗状态的一部分，ESC自然回溯
-- **[未涉及]** `saveCheckpoint`（BFS小存档点）不需要保存 terrain——terrain 是永久性变更，在 `hitTile` 中已直接修改 `tileData`/`currentRoomGrid`，checkpoint 不恢复 terrain
-
-### tileData 注释更新
-- `tileData` 变量注释从 `{ type, hp }` 更新为 `{ type, hp, _loot }`，反映预roll字段
-
-### Boss Jumper 文档多处不实描述修正 — context.md + memory.md 历史记录纠错 [当前方案]
-- **[问题]** 用户指出 context.md 中 Boss Jumper 的 `repeatChance` 和 `landDamage` 描述多处与实际 `monster-db.json` 不符。AI 回溯发现共 9 处不实描述（context.md 7 处 + memory.md 旧记录 3 处）
-- **[实际代码]** `monster-db.json` 中 boss_jumper 的 actions 结构：`jump_small steps:[2/3/3]` → `jump_small steps:[2/3/3], repeatChance:0.5` → `jump_big_land disappearSteps:1, target:{mode:"cover_player"}, after_effect:[{type:"attack_side", damage:1, range:1}]`。`repeatChance` 挂在第二个 `jump_small` 上，`landDamage` 字段不存在（落地伤害通过 `after_effect: attack_side` 实现）
-- **[context.md 修正]** 7 处：①§1.5 Boss Jumper 概览表行 → 展开为 3 个 action 完整描述；②§1.5 字段说明范例 → `landDamage` 替换为 `target`；③Action 类型枚举 `jump_small` → 补 `repeatChance` 可选说明；④Action 类型枚举 `jump_big_land` → 移除 `landDamage`/`repeatChance`，改为 `target`/`after_effect: attack_side`；⑤§2.13 大跳跃行 → `landDamage` 改为 `after_effect: attack_side`；⑥§2.13 关键设计 → `jump_big_land.repeatChance` 改为「第二个 `jump_small.repeatChance`」；⑦历史记录 2026-07-27 → 参数迁移路径修正
-- **[memory.md 旧记录说明]** 受 immutability 约束，以下三处历史记录含 `landDamage` 不实描述**不修改**，仅在本条注明：①2026-07-23 §AI行为参数外置（line 317）写作 `landDamage 1`，实际 `after_effect: attack_side(damage:1,range:1)`；②2026-07-27 §行动系统重构（line 385）字段示例列表含 `landDamage`；③同日期 line 392 Boss Jumper 配置示例写作 `landDamage:1, repeatChance:0.5`，实际 `repeatChance` 在 `jump_small` 上。所有不实描述的修正版本以 `monster-db.json` 和 context.md 当前版本为准
-- **[附带修正]** 小跳步数 `[3]` 改为 `[2/3/3]`（对应 I/II/III 级）
-
-### 文档同步流程缺陷根因分析与追加规则 [当前方案]
-- **[触发]** 用户上一次要求"同步文档"时，AI 只同步了最后一次代码改动（item-db.json 品质表），遗漏了几小时前就发现但未当场修的 context.md Boss Jumper 描述问题
-- **[根因]** AI 在执行"同步文档"时，注意范围潜意识收缩到「最近一次编辑操作涉及的文件」，本轮早期发现的不一致被归类为「已讨论过的事」而非「待同步的新内容」
-- **[追加强化]** 在 global-rules §2.2 新增硬性步骤：「同步文档前，必须先回溯本轮会话所有"发现但未修"的代码-文档不一致，逐条列出清单，逐一确认是否已修正」，来源包括用户口头指出的、对话中间发现的、以及"顺便提一下"的事项
-- **[用户确认]** 用户要求 AI 给出合理解释并杜绝此类遗漏，本次追加步骤为硬约束
+| 日期 | 更新内容 |
+|------|---------|
+| 2026-07-31 | **满血拾取修复 + 幽灵资源修复 + checkpoint时机修正**。详见当日记忆条目。 |
+| 2026-07-30 | **地形掉落预roll + liftDir修复 + ESC回溯补全**。详见当日记忆条目。 |
+| 2026-07-29 | **资源掉落表 mode 统一 + attack_adjacent 修正 + 条目统一化**。①`resource-db.json` dropTables 升级为 `{ mode, table }` 结构，支持 pick_one/roll_all/pick_first。②`rollResourceDrop()` 重构为 mode 驱动。③`rollRoomClearDrop()` 移除硬编码改为 roomType→tableKey 配置映射。④`spawnShopItems()` 统一走 rollResourceDrop。⑤`attack_adjacent` 从面朝方向改为四方向十字范围攻击。⑥全部 11 张表统一 15 种资源条目。 |
+| 2026-07-28(晚) | **浮游眼行为模式重构**。①新增 condition actionMode + out_of_range 条件 + after_effect 机制(shoot_fan后立刻random_wander)。②玩家回合动态感叹号。③抽出 checkActionCondition + resolveSteps 辅助函数。 |
+| 2026-07-28(晚) | **蓄力魔像行为优化 + 感叹号像素风 + 文档同步触发规则**。①蓄力魔像 actions 改为4步sequence(random_wander×2+charge_up+charge_line)，新增 charge_up type(感叹号脉动)，charge_line 简化为单步执行。②感叹号改为56px Courier New像素风大号样式，8方向像素描边+3层光晕+0.5s脉动。③memory.md 新增修改规则#4：context.md和memory.md更新必须由用户"同步文档"指令触发，不得在代码任务中附带执行。 |
+| 2026-07-28(晚) | **掉落系统全面重构+资源系统建立**。①用户8条掉落需求驱动全面重配。②确立weight vs rate 语义区分。③新建 resource-db.json（资源定义+8张掉落表+宝箱loot）。④全部12只怪物loot重配：小怪极少道具(~0.9%/只)+小概率资源(~25%)；Boss纯道具无资源。⑤宝箱改为必掉1~4个道具(roll_all模式)。⑥品质表合并至item-db.json，删除 item-drop-tables.json。⑦资源掉落表全面降低概率匹配各场景。⑧用户后续手动微调数值。 |
+| 2026-07-28 | **代码-文档不一致处理约定确立**。①当 AI 发现代码与文档矛盾时，必须主动提醒用户列出差异清单，待用户决策后才行动（三个选项：代码为准/文档为准/都保留）。②明确与"同步文档"指令为独立触发路径（同步时默认以代码为准）。③确认 Ask/Craft 模式边界：都不擅自修改文件。④创建 Memory ID 32213721。⑤context.md 文件清单修正 monster-db.json 过时描述。 |
+| 2026-07-27 | **怪物行动系统重构：actionMode + actions[]**。①移除旧 `movement`/`aiParams` 分散字段，统一为 `actionMode`（sequence/random weighted）+ `actions[]`（独立配置 type + steps/range/condition 等全部参数）。②新增 `resolveMonsterAction()`：condition 过滤 → actionMode 选择 → stepMode/stepWeights 解析。③5种12只怪物全部迁移到新 actions 体系。④Boss Jumper 参数从 aiParams 移至 `actions[].jump_big_land`。⑤确认 stepWeights 未配时默认均匀随机行为。 |
+| 2026-07-24(晚) | **怪物移动配置统一重构 + 浮游眼 AI 优化**。①统一 `movement` 结构（mode/steps/stepMode/weight）替代 4 套分散步数字段，12 只怪物全部迁移。②浮游眼新增切比雪夫距离射程判断（射程外不射击只移动）。③巡逻范围从硬编码改为 `aiParams.patrolRange`。④monster-db.json 完全重写 + demo2.html 6 处改造 + 旧字段 0 残留。⑤context.md 全覆盖交叉比对：怪物表重写、AI表更新、文件清单新增 spawn-config.json。 |
+| 2026-07-24 | **验证列表遗漏事件 + Memory 对话驱动标准确立**。①7/23讨论的"验证列表"未记录到memory（因无代码变更），暴露AI以"代码变更驱动"写memory的惯性偏离了对话记忆初衷。②用户明确memory设计初衷："在任何电脑上都能像跟同一个有统一记忆的AI聊天"。③记忆触发标准从"代码变更→记录"扩展为"聊过的重要事→记录"（设计验证/待办任务/设计疑问/创意方向等）。④global-rules §2.10 更新补充此规则。⑤验证列表具体内容已不可溯源（cb_summary压缩丢失）。 |
+| 2026-07-23 | **AI行为参数外置 + 配置外置全面审计 + 双HTML同步策略 + global-rules §2.10 §4.5**。①monster-db.json 新增 `aiParams` 字段，5种怪物AI参数全部外置消除硬编码。②系统性审计6JSON+2HTML，确立分类标准：策划→JSON / 引擎/渲染/算法→代码。③建立双HTML同步策略，验证0处AI硬编码残留。④context.md全覆盖比对修正8处过时常量。⑤因AI首轮memory遗漏审计/策略讨论，触发global-rules §2.10（Memory记录完整性）。⑥因AI将疑问句误判为指令，触发global-rules §4.5（疑问句vs指令区分）。 |
+| 2026-07-22 | **楼层生成两步法重构**。`generateFloor()` 改为骨架房优先→Boss/宝箱从集群边界挂载。Boss选最远边界位，宝箱随机选剩余边界。彻底消除旧方案裁边+连通性修复逻辑，Boss/宝箱天然单门在外围。 |
+| 2026-07-21(晚) | **Boss Jumper 2×2跳跃Boss系统**。新增 `boss_jumper` 怪物（size:2占据4格），替代旧裂口之王为每层Boss房Boss。行动循环：小跳×2→50%重复→大跳消失→落地12格伤害。配套跳跃动画（弧线/消失残影/落地冲击波）。宝藏房不再刷怪。修复渲染中心偏移和落地回合额外行动。 |
+| 2026-07-20 | **SSH推送替代HTTPS**。DPI防火墙拦截git/curl HTTPS连接，诊断确认SSH 22端口正常。生成ed25519密钥，利用Deploy Key API绕行token scope限制（repo scope够用），remote永久改为SSH。记录完整诊断过程+跨电脑注意事项。 |
+| 2026-07-20 | **global-rules §1.4 正式化**。将 AI 禁止自动 Git 写入操作写入 global-rules.md 作为正式跨项目规范，创建 Memory ID 70076756。 |
+| 2026-07-20 | **HP心形改造 + AI提交行为纠正**。①HP系统改为3心制+半心显示，所有玩家伤害减半。②记录AI自动提交行为被纠正事件，确认Git操作需用户明确指令。 |
+| 2026-07-20 | **格式重改为纯时间线 + 删除未确认内容**。按用户要求改为纯时间顺序组织（不做模块分类），删除未经用户确认的"下一步计划"章节。同步追加当天的文档体系规则修正记录。 |
+| 2026-07-20 | **记忆体系建立**。从三处数据源（context.md 最近更新记录 ×11条、chat-log-2026-07-20.md、当前会话）提取所有历史决策，按时间顺序整理。 |
 
 ---
-
