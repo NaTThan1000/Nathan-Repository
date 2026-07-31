@@ -78,7 +78,7 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "monster_very_rare" },
+        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "common" },
         { "type": "resource_pool", "weight": 0.97, "rate": 0.26, "pool": "monster_heavy" }
       ]
     },
@@ -102,7 +102,7 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "monster_very_rare" },
+        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "common" },
         { "type": "resource_pool", "weight": 0.97, "rate": 0.26, "pool": "monster_heavy" }
       ]
     },
@@ -126,7 +126,7 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "monster_very_rare" },
+        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "common" },
         { "type": "resource_pool", "weight": 0.97, "rate": 0.27, "pool": "monster_heavy" }
       ]
     },
@@ -152,7 +152,7 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "monster_very_rare" },
+        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "ranged" },
         { "type": "resource_pool", "weight": 0.97, "rate": 0.24, "pool": "monster_default" }
       ]
     },
@@ -178,7 +178,7 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "monster_very_rare" },
+        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "ranged" },
         { "type": "resource_pool", "weight": 0.97, "rate": 0.26, "pool": "monster_heavy" }
       ]
     },
@@ -204,7 +204,7 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "monster_very_rare" },
+        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "ranged" },
         { "type": "resource_pool", "weight": 0.97, "rate": 0.28, "pool": "monster_heavy" }
       ]
     },
@@ -231,11 +231,11 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "monster_very_rare" },
+        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "heavy" },
         { "type": "resource_pool", "weight": 0.97, "rate": 0.28, "pool": "boss_drop" }
       ]
     },
-    "roomTypes": ["normal", "treasure"],
+    "roomTypes": ["normal"],
     "movementTags": ["地面"],
     "role": "tank",
     "threat": 5,
@@ -258,11 +258,11 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "monster_very_rare" },
+        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "heavy" },
         { "type": "resource_pool", "weight": 0.97, "rate": 0.30, "pool": "boss_drop" }
       ]
     },
-    "roomTypes": ["normal", "treasure"],
+    "roomTypes": ["normal"],
     "movementTags": ["地面"],
     "role": "tank",
     "threat": 8,
@@ -285,11 +285,11 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "monster_very_rare" },
+        { "type": "item", "weight": 0.03, "rate": 1.0, "qualityTable": "heavy" },
         { "type": "resource_pool", "weight": 0.97, "rate": 0.32, "pool": "boss_drop" }
       ]
     },
-    "roomTypes": ["normal", "treasure"],
+    "roomTypes": ["normal"],
     "movementTags": ["地面"],
     "role": "tank",
     "threat": 12,
@@ -304,11 +304,10 @@
     "actionMode": { "mode": "sequence" },
     "actions": [
       { "type": "jump_small", "steps": [2] },
-      { "type": "jump_small", "steps": [2] },
+      { "type": "jump_small", "steps": [2], "repeatChance": 0.5 },
       {
         "type": "jump_big_land",
         "disappearSteps": 1,
-        "repeatChance": 0.5,
         "target": { "mode": "cover_player" },
         "after_effect": [
           { "type": "attack_side", "damage": 1, "range": 1 }
@@ -342,11 +341,10 @@
     "actionMode": { "mode": "sequence" },
     "actions": [
       { "type": "jump_small", "steps": [3] },
-      { "type": "jump_small", "steps": [3] },
+      { "type": "jump_small", "steps": [3], "repeatChance": 0.5 },
       {
         "type": "jump_big_land",
         "disappearSteps": 1,
-        "repeatChance": 0.5,
         "target": { "mode": "cover_player" },
         "after_effect": [
           { "type": "attack_side", "damage": 1, "range": 1 }
@@ -380,11 +378,10 @@
     "actionMode": { "mode": "sequence" },
     "actions": [
       { "type": "jump_small", "steps": [3] },
-      { "type": "jump_small", "steps": [3] },
+      { "type": "jump_small", "steps": [3], "repeatChance": 0.5 },
       {
         "type": "jump_big_land",
         "disappearSteps": 1,
-        "repeatChance": 0.5,
         "target": { "mode": "cover_player" },
         "after_effect": [
           { "type": "attack_side", "damage": 1, "range": 1 }

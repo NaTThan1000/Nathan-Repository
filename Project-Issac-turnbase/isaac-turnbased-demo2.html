@@ -3091,7 +3091,7 @@ function placeBomb(col, row) {
   const bomb = {
     id: ++bombIdCounter,
     col, row,
-    timer: 3,           // 倒计时3回合
+    timer: RESOURCE_DB['bomb_single']?.detonateTurns ?? 3,
     roomId: currentRoomId,
   };
   bombs.push(bomb);
@@ -3595,8 +3595,8 @@ function processJumperAction(m) {
     else if (phase === 2) {
       // 进入检查阶段：按repeatChance概率重复1+2，否则进入大跳
       const cfg = MONSTER_DB[m.cfgId];
-      const landAction = (cfg.actions || []).find(a => a.type === 'jump_big_land');
-      const repeatChance = (landAction && landAction.repeatChance !== undefined) ? landAction.repeatChance : 0.5;
+      const secondSmallJump = (cfg.actions || [])[1];
+      const repeatChance = (secondSmallJump && secondSmallJump.repeatChance !== undefined) ? secondSmallJump.repeatChance : 0;
       if (Math.random() < repeatChance && !m.jumperCheckRepeated) {
         m.jumperPhase = 1;
         m.jumperCheckRepeated = true;
@@ -3755,6 +3755,9 @@ function executeBossLanding() {
   // 玩家如果被本体碰撞触发无敌，冲击波自动免疫
   resolveAfterEffects(landAction, { monster: m, targetCol, targetRow, sz });
 
+  // Boss 落地重出后恢复战斗模式（消失期间 inCombat 可能被 finishMonsterTurn 设为 false）
+  inCombat = true;
+  updateDoorsLocked();
   pendingBossLanding = null;
 }
 
@@ -3903,7 +3906,8 @@ function finishMonsterTurn() {
   // 检查战斗状态：有存活怪物或有未引爆炸弹则继续战斗
   const livingMonsters = monsters.filter(m => m.hp > 0 && !m.jumperVanished).length;
   const hasRoomBombs = bombs.some(b => b.roomId === currentRoomId);
-  if (livingMonsters === 0 && !hasRoomBombs) {
+  // Boss 消失（pendingBossLanding）不算真正清场，保持战斗状态等待落地
+  if (livingMonsters === 0 && !hasRoomBombs && !pendingBossLanding) {
     inCombat = false;
     updateDoorsLocked();
   }
@@ -6326,7 +6330,7 @@ document.addEventListener('keydown', (e) => {
         if(inCombat){
           turnState.aAP--;
           // 不在这里 saveCheckpoint — 等子弹实际命中/击杀时才更新（延迟到真实效果发生）
-          turnState.reachableTiles=calcReachableTiles(currentCheckpoint.playerCol,currentCheckpoint.playerRow,checkpointMAP);
+          turnState.reachableTiles=calcReachableTiles(player.col,player.row,turnState.mAP);
           if(!turnState.hasShot)turnState.hasShot=true;
         }
         updateActionBar();updateUI();

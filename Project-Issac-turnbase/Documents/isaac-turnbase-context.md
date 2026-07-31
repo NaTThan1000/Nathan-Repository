@@ -294,21 +294,20 @@ player_select ──→ monster_turn ──→ player_select
 | `damage_mult` | 伤害倍率（mult 参数） | 蟋蟀的头(×1.5) |
 | `heal_full` | 拾取时回复全部 HP | 早餐/午餐/晚餐/甜点/肉！/魔法蘑菇/圣心 |
 
-**掉落系统** `item-db.json > qualityTables`（8张品质表，合并原 `item-drop-tables.json`）：
+**掉落系统** `item-db.json > qualityTables`（7张品质表，合并原 `item-drop-tables.json`）：
 - 品质权重表控制每个掉落场景的 none/common/rare/legendary 分布：
 
 | 品质表 | none | common | rare | legendary | 适用场景 |
 |--------|------|--------|------|-----------|---------|
 | `default` | 0% | 60% | 30% | 10% | 通用兜底 |
-| `common` | 0% | 70% | 25% | 5% | 裂口尸掉落(已废弃) |
-| `ranged` | 0% | 55% | 35% | 10% | 浮游眼掉落(已废弃) |
-| `heavy` | 0% | 40% | 42% | 18% | 蓄力魔像掉落(已废弃) |
+| `common` | **90%** | 5% | 3% | 2% | 裂口尸掉落(已废弃) |
+| `ranged` | **90%** | 5% | 3% | 2% | 浮游眼掉落(已废弃) |
+| `heavy` | **90%** | 5% | 3% | 2% | 蓄力魔像掉落(已废弃) |
 | `boss` | 0% | 20% | 45% | 35% | Boss击杀掉落 |
 | `treasure_room` | 0% | 0% | 75% | 25% | 宝箱房 / 宝箱开启 |
 | `boss_room` | 0% | 25% | 45% | 30% | Boss房清空奖励 |
-| `monster_very_rare` | **70%** | 20% | 8% | 2% | 普通怪物极低概率道具 |
 
-- `none` 值控制"不掉任何道具"的概率，`monster_very_rare.none=0.70` 表示普通怪道具掉落率仅 30%（结合 loot entry 的 weight×rate 后约 0.9%/只）
+- `none` 值控制"不掉任何道具"的概率。`monster_very_rare` 表已移除（原用途被 monster-db.json 中每怪独立的 `loot.entries` 配置覆盖，common/ranged/heavy 三表统一改为高 none 率作为极低概率兜底）
 - 怪物旧品质表（common/ranged/heavy）已不再被引用，仅供备份
 
 **拾取与叠加**：
@@ -605,12 +604,11 @@ function project(wx, wy) {
 | `pool.json` | JSON | 关卡池数据文件（模板定义 + spawnConfig 刷怪配置，编辑器读写） |
 | `floor-data.json` | JSON | 楼层生成数据（房间结构+grid，编辑器/游戏加载） |
 | `monster-db.json` | JSON | 怪物配置数据（12只怪物：4类型×3等级，含 `actionMode`+`actions[]` 行动列表 + `loot` 掉落配置） |
-| `item-db.json` | JSON | 道具数据库（25种被动道具 + `qualityTables` 8张品质掉落表，合并原 item-drop-tables.json） |
+| `item-db.json` | JSON | 道具数据库（25种被动道具 + `qualityTables` 7张品质掉落表，合并原 item-drop-tables.json） |
 | `resource-db.json` | JSON | 资源数据库（金币/炸弹/红心/蓝心/宝箱/钥匙定义 + `dropTables` 11张资源掉落表(mode/table结构，每表统一15种资源条目) + `_limits` 上限配置 + `_schema` 文档） |
 | `spawn-config.json` | JSON | 楼层刷怪配置（每层预算加成 + Boss 分配表） |
-| `isaac-room-pool - original backup.json` | JSON | 原始关卡池备份 |
 
-> **已删除文件**：`item-drop-tables.json` — 品质表已合并至 `item-db.json > qualityTables`
+> **已删除文件**：`item-drop-tables.json` — 品质表已合并至 `item-db.json > qualityTables` | `isaac-room-pool - original backup.json` — 原始关卡池备份（已清理）
 
 ### Documents/ (文档)
 
@@ -628,6 +626,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-07-31(晚) | **JSON尾随逗号修复 + AI JSON编辑后校验规范确立**。①修复 `item-db.json` 中 `boss_room` 尾部多余逗号（删除 `monster_very_rare` 表后 `boss_room` 变成末位，逗号未联动清理导致 JSON 解析失败）。②确立规范：每次编辑 JSON 文件后主动调用 `read_lints` 校验，增删成员时联动检查尾部逗号。③context.md 品质表同步修正（8张→7张，移除 monster_very_rare 行，common/ranged/heavy 数值修正为 90/5/3/2）。④文件清单移除 `isaac-room-pool - original backup.json`（已删除）。 |
 | 2026-07-31 | **满血拾取修复 + 幽灵资源修复 + checkpoint时机修正**。①`simulateFromCheckpoint` BFS路径重放中资源拾取改为判断`handleResourcePickup`返回值后再splice，修复满血走过红心被无条件消耗的bug。②`updateRoomCombatState` 中 `room._groundResources` 从深拷贝改为直接引用，消除因引用断裂导致离房再回房时已拾取资源幽灵重现。③移除子弹发射时的过早 `saveCheckpoint`，改为在`damageMonster`中怪物受击(含非致命)时更新，确保checkpoint始终反映操作的实际结果而非操作瞬间。 |
 | 2026-07-30 | **地形掉落预roll + liftDir修复 + ESC回溯补全**。①`initTileData()` 房间初始化时为每个 POOP/ROCK 预roll掉落(`_loot`)，`hitTile()` 破坏时捕获预roll传给 `rollTerrainDestroyDrop(preLoot)`，保证ESC回溯后再次破坏同一地形掉落一致。②6处资源保存/恢复（`saveTurnSnapshot`/`saveCheckpoint`/`restoreCheckpoint`/`restoreCheckpointWithoutBullets`/`restoreTurnSnapshot`/`simulateFromCheckpoint`）补上 `liftDir`，修复资源在BFS触发checkpoint恢复后因 `liftDir=undefined→liftY=NaN` 导致视觉消失但可拾取的bug。③`saveTurnSnapshot`/`restoreTurnSnapshot` 新增 `tileData`/`currentRoomGrid`/`bombs` 快照，ESC回溯覆盖可破坏地形和炸弹状态。④`hitTile()` 破坏后调用 `saveCheckpoint()` 确保BFS回退时地形保持已破坏。 |
 | 2026-07-29 | **资源掉落表 mode 统一 + attack_adjacent 十字化**。①`resource-db.json` dropTables 全部升级为 `{ mode, table }` 结构，每表统一 15 种资源条目(不掉落的权重=0)，新增 `room_clear_treasure` 表。②`rollResourceDrop()` 重构支持三种 mode(pick_one/roll_all/pick_first)，向下兼容旧格式。③`rollRoomClearDrop()` 移除硬编码(宝藏/Boss房不掉的 if 判断)，改为 roomType→tableKey 纯配置驱动映射。④`spawnShopItems()` 改用统一 `rollResourceDrop('shop_stock')`。⑤`resolveAfterEffects()` 中 `attack_adjacent` 从面朝方向单向攻击改为四方向十字范围攻击(上下左右各 range 格)。⑥`finishMonsterTurn()` 简化移除 dirX/dirY 计算。 |

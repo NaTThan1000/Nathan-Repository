@@ -292,22 +292,22 @@
       "legendary": 0.1
     },
     "common": {
-      "none": 0,
-      "common": 0.70,
-      "rare": 0.25,
-      "legendary": 0.05
+      "none": 0.90,
+      "common": 0.05,
+      "rare": 0.03,
+      "legendary": 0.02
     },
     "ranged": {
-      "none": 0,
-      "common": 0.55,
-      "rare": 0.35,
-      "legendary": 0.10
+      "none": 0.90,
+      "common": 0.05,
+      "rare": 0.03,
+      "legendary": 0.02
     },
     "heavy": {
-      "none": 0,
-      "common": 0.40,
-      "rare": 0.42,
-      "legendary": 0.18
+      "none": 0.90,
+      "common": 0.05,
+      "rare": 0.03,
+      "legendary": 0.02
     },
     "boss": {
       "none": 0,
@@ -326,13 +326,6 @@
       "common": 0.25,
       "rare": 0.45,
       "legendary": 0.3
-    },
-    "monster_very_rare": {
-      "_desc": "普通怪物极低概率掉落道具表，none=0.70 意味着 70% 不掉任何道具",
-      "none": 0.70,
-      "common": 0.20,
-      "rare": 0.08,
-      "legendary": 0.02
     }
   }
 }
