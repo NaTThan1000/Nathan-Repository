@@ -595,5 +595,18 @@
 ### tileData 注释更新
 - `tileData` 变量注释从 `{ type, hp }` 更新为 `{ type, hp, _loot }`，反映预roll字段
 
+### Boss Jumper 文档多处不实描述修正 — context.md + memory.md 历史记录纠错 [当前方案]
+- **[问题]** 用户指出 context.md 中 Boss Jumper 的 `repeatChance` 和 `landDamage` 描述多处与实际 `monster-db.json` 不符。AI 回溯发现共 9 处不实描述（context.md 7 处 + memory.md 旧记录 3 处）
+- **[实际代码]** `monster-db.json` 中 boss_jumper 的 actions 结构：`jump_small steps:[2/3/3]` → `jump_small steps:[2/3/3], repeatChance:0.5` → `jump_big_land disappearSteps:1, target:{mode:"cover_player"}, after_effect:[{type:"attack_side", damage:1, range:1}]`。`repeatChance` 挂在第二个 `jump_small` 上，`landDamage` 字段不存在（落地伤害通过 `after_effect: attack_side` 实现）
+- **[context.md 修正]** 7 处：①§1.5 Boss Jumper 概览表行 → 展开为 3 个 action 完整描述；②§1.5 字段说明范例 → `landDamage` 替换为 `target`；③Action 类型枚举 `jump_small` → 补 `repeatChance` 可选说明；④Action 类型枚举 `jump_big_land` → 移除 `landDamage`/`repeatChance`，改为 `target`/`after_effect: attack_side`；⑤§2.13 大跳跃行 → `landDamage` 改为 `after_effect: attack_side`；⑥§2.13 关键设计 → `jump_big_land.repeatChance` 改为「第二个 `jump_small.repeatChance`」；⑦历史记录 2026-07-27 → 参数迁移路径修正
+- **[memory.md 旧记录说明]** 受 immutability 约束，以下三处历史记录含 `landDamage` 不实描述**不修改**，仅在本条注明：①2026-07-23 §AI行为参数外置（line 317）写作 `landDamage 1`，实际 `after_effect: attack_side(damage:1,range:1)`；②2026-07-27 §行动系统重构（line 385）字段示例列表含 `landDamage`；③同日期 line 392 Boss Jumper 配置示例写作 `landDamage:1, repeatChance:0.5`，实际 `repeatChance` 在 `jump_small` 上。所有不实描述的修正版本以 `monster-db.json` 和 context.md 当前版本为准
+- **[附带修正]** 小跳步数 `[3]` 改为 `[2/3/3]`（对应 I/II/III 级）
+
+### 文档同步流程缺陷根因分析与追加规则 [当前方案]
+- **[触发]** 用户上一次要求"同步文档"时，AI 只同步了最后一次代码改动（item-db.json 品质表），遗漏了几小时前就发现但未当场修的 context.md Boss Jumper 描述问题
+- **[根因]** AI 在执行"同步文档"时，注意范围潜意识收缩到「最近一次编辑操作涉及的文件」，本轮早期发现的不一致被归类为「已讨论过的事」而非「待同步的新内容」
+- **[追加强化]** 在 global-rules §2.2 新增硬性步骤：「同步文档前，必须先回溯本轮会话所有"发现但未修"的代码-文档不一致，逐条列出清单，逐一确认是否已修正」，来源包括用户口头指出的、对话中间发现的、以及"顺便提一下"的事项
+- **[用户确认]** 用户要求 AI 给出合理解释并杜绝此类遗漏，本次追加步骤为硬约束
+
 ---
 
