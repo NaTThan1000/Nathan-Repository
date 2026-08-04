@@ -804,6 +804,10 @@ const TILE_COLORS = { 0:'#4a4038', 1:'#6b6058', 2:'#8b7355', 3:'#1a1520', 4:'#8a
 const TILE_WALKABLE = { 0:true, 1:false, 2:false, 3:false, 4:true, 5:true };
 const TILE_BLOCKS_BULLET = { 0:false, 1:true, 2:true, 3:false, 4:false, 5:false };
 function parseGrid(tiles){const g=[];for(let c=0;c<COLS;c++){g[c]=[];for(let r=0;r<ROWS;r++)g[c][r]=TILE_CHAR[tiles[r][c]]||0;}return g;}
+// 将 row-major grid[row][col] 转置为 col-major grid[col][row] (JSON 存储格式 → 运行时格式)
+function transposeGridRowToCol(rowGrid){const g=[];for(let c=0;c<COLS;c++){g[c]=[];for(let r=0;r<ROWS;r++)g[c][r]=rowGrid[r][c];}return g;}
+// 将 col-major grid[col][row] 转置为 row-major grid[row][col] (运行时格式 → JSON 存储格式)
+function transposeGridColToRow(colGrid){const g=[];for(let r=0;r<ROWS;r++){g[r]=[];for(let c=0;c<COLS;c++)g[r][c]=colGrid[c][r];}return g;}
 
 // ==================== 房间/楼层系统 ====================
 const FLOOR_CONFIG = {1:{name:'地牢1层',roomCount:[8,10],bossCount:[1,1],treasureCount:[1,1],shopCount:[0,0]},2:{name:'地牢2层',roomCount:[9,11],bossCount:[1,1],treasureCount:[1,2],shopCount:[0,0]},3:{name:'地牢3层',roomCount:[10,12],bossCount:[1,1],treasureCount:[1,2],shopCount:[0,1]},4:{name:'地牢4层',roomCount:[10,13],bossCount:[1,1],treasureCount:[1,2],shopCount:[0,1]},5:{name:'地牢5层',roomCount:[11,14],bossCount:[1,1],treasureCount:[2,2],shopCount:[0,1]},6:{name:'地牢6层',roomCount:[12,15],bossCount:[1,1],treasureCount:[2,2],shopCount:[1,1]}};
@@ -824,8 +828,8 @@ function initTileData(){
   if(!currentRoomGrid)return;
   for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++){
     const t=currentRoomGrid[c][r];
-    if(t===TILE.POOP)tileData[`${c},${r}`]={type:'poop',hp:4, _loot: rollResourceDrop('terrain_poop')};
-    if(t===TILE.ROCK)tileData[`${c},${r}`]={type:'rock',hp:99, _loot: rollResourceDrop('terrain_rock')};
+    if(t===TILE.POOP)tileData[`${c},${r}`]={type:'poop',hp:4, _loot: rollResourceDrop('resource_drop_terrain_poop')};
+    if(t===TILE.ROCK)tileData[`${c},${r}`]={type:'rock',hp:99, _loot: rollResourceDrop('resource_drop_terrain_rock')};
   }
 }
 
@@ -983,7 +987,7 @@ async function loadOrGenerateFloors(forceReload){
       if(_lastFloorHash===text&&Object.keys(allFloors).length>0)return false;
       _lastFloorHash=text;
       const data=JSON.parse(text);
-      for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(r.tplKey?getTpl(r.tplKey).tiles:BUILTIN_TEMPLATES()['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;r.type=r.type||'normal';r._initLocked=r.locked;});}
+      for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(r.tplKey?getTpl(r.tplKey).tiles:BUILTIN_TEMPLATES()['open'].tiles);else if(r.grid.length>0&&Array.isArray(r.grid[0])&&r.grid.length===ROWS)r.grid=transposeGridRowToCol(r.grid);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;r.type=r.type||'normal';r._initLocked=r.locked;});}
       if(forceReload){console.log('🔄 检测到楼层更新，已重新加载');resetGameToFloor1();}
       return true;
     }
@@ -1529,12 +1533,12 @@ function spawnResourcesInRoom(resIds) {
  * @param {string} itemDropTable - 掉落表名，对应 ITEM_DROP_TABLES 的 key
  * @returns {string} 道具 cfgId
  */
-function rollItem(qualityOverride, itemDropTable = 'default') {
+function rollItem(qualityOverride, itemDropTable = 'item_drop_default') {
   let quality;
   if (qualityOverride) {
     quality = qualityOverride;
   } else {
-    const table = ITEM_DROP_TABLES[itemDropTable] || ITEM_DROP_TABLES['default'] || { none: 0, common: 0.6, rare: 0.3, legendary: 0.1 };
+    const table = ITEM_DROP_TABLES[itemDropTable] || ITEM_DROP_TABLES['item_drop_default'] || { none: 0, common: 0.6, rare: 0.3, legendary: 0.1 };
     const n = table.none || 0;
     const L = table.legendary || 0;
     const R = table.rare || 0;
@@ -3422,18 +3426,21 @@ function spawnTreasureRoomItem() {
     }
   }
 
-  const cfgId = rollItem(null, 'treasure_room'); // 宝箱房按掉落表
+  const cfgId = rollItem(null, 'item_drop_treasure_room'); // 宝箱房按掉落表
   spawnItemOnGrid(col, row, cfgId);
   room.itemSpawned = true;
 }
 
-// 在Boss房掉落道具
+// 在Boss房掉落道具 (根据房间 roomClearDrop.itemDropTable 配置读取)
 function spawnBossRoomItem() {
   const room = currentFloor.rooms.find(r => r.id === currentRoomId);
   if (!room || room.type !== 'boss') return;
   if (room.itemDropped) return;
 
-  const cfgId = rollItem(null, 'boss_room'); // Boss房按掉落表
+  const dropCfg = room.roomClearDrop;
+  if (!dropCfg || !dropCfg.itemDropTable) return;
+
+  const cfgId = rollItem(null, dropCfg.itemDropTable);
 
   // 在Boss房中央生成道具
   let col = 6, row = 3;
@@ -3449,8 +3456,8 @@ function spawnShopItems(room) {
   if (!room || room.type !== 'shop') return;
   if (room.itemSpawned) return;
 
-  // 统一走 rollResourceDrop，shop_stock 配置 mode: roll_all (每种独立判定)
-  const selected = rollResourceDrop('shop_stock').slice(0, 6);
+  // 统一走 rollResourceDrop，resource_drop_shop_stock 配置 mode: roll_all (每种独立判定)
+  const selected = rollResourceDrop('resource_drop_shop_stock').slice(0, 6);
 
   // 摆放在房间中央区域
   const slots = [
@@ -5871,7 +5878,7 @@ function preRollLoot(lootConfig) {
 /** 预 roll 单个掉落条目 */
 function preRollDropEntry(entry) {
   if (entry.type === 'item') {
-    const cfgId = rollItem(null, entry.itemDropTable || 'default');
+    const cfgId = rollItem(null, entry.itemDropTable || 'item_drop_default');
     if (cfgId) return { type: 'item', cfgId };
   } else if (entry.type === 'resource') {
     // 新：支持 minDrop/maxDrop 随机次数抽取（每次独立 pick_one）
@@ -5879,13 +5886,13 @@ function preRollDropEntry(entry) {
       const count = entry.minDrop + Math.floor(Math.random() * (entry.maxDrop - entry.minDrop + 1));
       const resIds = [];
       for (let i = 0; i < count; i++) {
-        const rid = rollResourceDrop(entry.resourceDropTable || 'monster_default');
+        const rid = rollResourceDrop(entry.resourceDropTable || 'resource_drop_monster_default');
         if (rid.length > 0) resIds.push(rid[0]);
       }
       if (resIds.length > 0) return { type: 'resource', resIds, offsetC: 0, offsetR: 0 };
     } else {
       // 直接引用 resourceDropTables 表名，按表自身 mode 处理
-      const resIds = rollResourceDrop(entry.resourceDropTable || 'monster_default');
+      const resIds = rollResourceDrop(entry.resourceDropTable || 'resource_drop_monster_default');
       if (resIds.length > 0) {
         return { type: 'resource', resIds, offsetC: 0, offsetR: 0 };
       }
@@ -5962,7 +5969,7 @@ function rollLoot(lootConfig, col, row) {
  */
 function executeDropEntry(entry, col, row) {
   if (entry.type === 'item') {
-    const itemDropTable = entry.itemDropTable || 'default';
+    const itemDropTable = entry.itemDropTable || 'item_drop_default';
     const cfgId = rollItem(null, itemDropTable);
     if (cfgId) spawnItemOnGrid(col, row, cfgId);
 
@@ -5971,14 +5978,14 @@ function executeDropEntry(entry, col, row) {
     if (entry.minDrop !== undefined && entry.maxDrop !== undefined) {
       const count = entry.minDrop + Math.floor(Math.random() * (entry.maxDrop - entry.minDrop + 1));
       for (let i = 0; i < count; i++) {
-        const rid = rollResourceDrop(entry.resourceDropTable || 'monster_default');
+        const rid = rollResourceDrop(entry.resourceDropTable || 'resource_drop_monster_default');
         if (rid.length > 0 && col >= 0 && col < COLS && row >= 0 && row < ROWS && !isWall(col, row)) {
           spawnResourceOnGrid(col, row, rid[0]);
         }
       }
     } else {
       // 直接引用 resourceDropTables 表名，按表自身 mode 处理
-      const resIds = rollResourceDrop(entry.resourceDropTable || 'monster_default');
+      const resIds = rollResourceDrop(entry.resourceDropTable || 'resource_drop_monster_default');
       for (const rid of resIds) {
         if (col >= 0 && col < COLS && row >= 0 && row < ROWS && !isWall(col, row)) {
           spawnResourceOnGrid(col, row, rid);
@@ -5993,22 +6000,15 @@ function executeDropEntry(entry, col, row) {
   // type === 'nothing' → 什么都不生成
 }
 
-// 清空房间掉落 (根据房间类型查不同掉落表，纯配置驱动)
+// 清空房间掉落 (根据房间 roomClearDrop 配置读取，纯配置驱动)
 function rollRoomClearDrop() {
   const room = currentFloor.rooms.find(r => r.id === currentRoomId);
   if (!room) return;
 
-  // 房间类型 → 掉落表key 映射 (空表 = 不掉落资源，可在配置中调整)
-  const tableKeyMap = {
-    'normal':    'room_clear_default',
-    'start':     'room_clear_default',
-    'shop':      'room_clear_default',
-    'boss':      'room_clear_boss',
-    'treasure':  'room_clear_treasure',
-  };
-  const tableKey = tableKeyMap[room.type] || 'room_clear_default';
+  const dropCfg = room.roomClearDrop;
+  if (!dropCfg || !dropCfg.resourceDropTable) return;
 
-  const resIds = rollResourceDrop(tableKey);
+  const resIds = rollResourceDrop(dropCfg.resourceDropTable);
   if (resIds.length > 0) {
     spawnResourcesInRoom(resIds);
   }
@@ -6016,7 +6016,7 @@ function rollRoomClearDrop() {
 
 // 破坏地形掉落 (preLoot: 房间生成时预roll的结果，保证ESC回溯后再次破坏结果一致)
 function rollTerrainDestroyDrop(col, row, terrainType, preLoot) {
-  const resIds = (preLoot !== undefined) ? preLoot : rollResourceDrop(terrainType === 'rock' ? 'terrain_rock' : 'terrain_poop');
+  const resIds = (preLoot !== undefined) ? preLoot : rollResourceDrop(terrainType === 'rock' ? 'resource_drop_terrain_rock' : 'resource_drop_terrain_poop');
   for (const rid of resIds) {
     spawnResourceOnGrid(col, row, rid);
   }

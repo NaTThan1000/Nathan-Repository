@@ -78,8 +78,8 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "common" },
-        { "type": "resource", "weight": 0.97, "rate": 0.26, "resourceDropTable": "monster_heavy" }
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "item_drop_common" },
+        { "type": "resource", "weight": 0.97, "rate": 0.26, "resourceDropTable": "resource_drop_monster_heavy" }
       ]
     },
     "roomTypes": ["normal"],
@@ -102,8 +102,8 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "common" },
-        { "type": "resource", "weight": 0.97, "rate": 0.26, "resourceDropTable": "monster_heavy" }
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "item_drop_common" },
+        { "type": "resource", "weight": 0.97, "rate": 0.26, "resourceDropTable": "resource_drop_monster_heavy" }
       ]
     },
     "roomTypes": ["normal"],
@@ -152,8 +152,8 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "ranged" },
-        { "type": "resource", "weight": 0.97, "rate": 0.24, "resourceDropTable": "monster_default" }
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "item_drop_ranged" },
+        { "type": "resource", "weight": 0.97, "rate": 0.24, "resourceDropTable": "resource_drop_monster_default" }
       ]
     },
     "roomTypes": ["normal"],
@@ -178,8 +178,8 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "ranged" },
-        { "type": "resource", "weight": 0.97, "rate": 0.26, "resourceDropTable": "monster_heavy" }
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "item_drop_ranged" },
+        { "type": "resource", "weight": 0.97, "rate": 0.26, "resourceDropTable": "resource_drop_monster_heavy" }
       ]
     },
     "roomTypes": ["normal"],
@@ -231,8 +231,8 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "heavy" },
-        { "type": "resource", "weight": 0.97, "rate": 0.28, "resourceDropTable": "boss_drop" }
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "item_drop_heavy" },
+        { "type": "resource", "weight": 0.97, "rate": 0.28, "resourceDropTable": "resource_drop_boss" }
       ]
     },
     "roomTypes": ["normal"],
@@ -258,8 +258,8 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "heavy" },
-        { "type": "resource", "weight": 0.97, "rate": 0.30, "resourceDropTable": "boss_drop" }
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "item_drop_heavy" },
+        { "type": "resource", "weight": 0.97, "rate": 0.30, "resourceDropTable": "resource_drop_boss" }
       ]
     },
     "roomTypes": ["normal"],
@@ -285,8 +285,8 @@
     "loot": {
       "mode": "pick_one",
       "entries": [
-        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "heavy" },
-        { "type": "resource", "weight": 0.97, "rate": 0.32, "resourceDropTable": "boss_drop" }
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "item_drop_heavy" },
+        { "type": "resource", "weight": 0.97, "rate": 0.32, "resourceDropTable": "resource_drop_boss" }
       ]
     },
     "roomTypes": ["normal"],
@@ -320,7 +320,7 @@
         {
           "mode": "pick_one",
           "entries": [
-            { "type": "item", "rate": 0, "itemDropTable": "boss" }
+            { "type": "item", "rate": 0, "itemDropTable": "item_drop_boss" }
           ]
         }
       ]
@@ -357,7 +357,7 @@
         {
           "mode": "pick_one",
           "entries": [
-            { "type": "item", "rate": 0, "itemDropTable": "boss" }
+            { "type": "item", "rate": 0, "itemDropTable": "item_drop_boss" }
           ]
         }
       ]
@@ -394,7 +394,7 @@
         {
           "mode": "pick_one",
           "entries": [
-            { "type": "item", "rate": 0, "itemDropTable": "boss" }
+            { "type": "item", "rate": 0, "itemDropTable": "item_drop_boss" }
           ]
         }
       ]

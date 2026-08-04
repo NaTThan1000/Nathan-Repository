@@ -1,6 +1,6 @@
 # 以撒·半回合制战斗 — 项目总览
 
-> 文件: `Project-Issac-turnbase/isaac-turnbased-demo2.html`（v3道具系统版，主开发文件） | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据 + `Configs/monster-db.json` 怪物配置表(含loot) + `Configs/item-db.json` 道具数据库(含品质表) + `Configs/resource-db.json` 资源数据库(定义+掉落表+宝箱loot) + `Configs/spawn-config.json` 楼层刷怪配置 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 统一掉落调度器(rollLoot) + 资源掉落系统(mode驱动) + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层 + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表 + Boss Jumper 2×2跳跃Boss + 怪物行动系统重构(actionMode+actions[])
+> 文件: `Project-Issac-turnbase/isaac-turnbased-demo2.html`（v3道具系统版，主开发文件） | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据(含roomClearDrop配置) + `Configs/monster-db.json` 怪物配置表(含loot) + `Configs/item-db.json` 道具数据库(含itemDropTables, 9张item_drop_*表) + `Configs/resource-db.json` 资源数据库(定义+11张resource_drop_*掉落表+宝箱loot) + `Configs/spawn-config.json` 楼层刷怪配置 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 统一掉落调度器(rollLoot) + 资源掉落系统(mode驱动) + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层 + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表 + Boss Jumper 2×2跳跃Boss + 怪物行动系统重构(actionMode+actions[]) + 掉落表命名统一(item_drop_/resource_drop_前缀) + roomClearDrop配置驱动
 
 ---
 
@@ -203,7 +203,7 @@
 | LADDER | `▼` | 梯子 | ✅ | Boss房踩上进入下一层 |
 
 - **便便(POOP)**：hp=4，每发子弹伤害1，需受击4次后破坏。**岩石(ROCK)**：hp=99（不可破坏）。破坏后地形格变为 FLOOR
-- 可破坏瓷砖在`initTileData()`中预roll掉落（`_loot` = `rollResourceDrop('terrain_poop'/'terrain_rock')`），保证ESC回溯后再次破坏结果一致
+- 可破坏瓷砖在`initTileData()`中预roll掉落（`_loot` = `rollResourceDrop('resource_drop_terrain_poop'/'resource_drop_terrain_rock')`），保证ESC回溯后再次破坏结果一致
 - `hitTile()` 破坏时捕获预roll结果再删除 tileData，调用 `rollTerrainDestroyDrop(col, row, type, preLoot)` 使用预roll掉落，随后 `saveCheckpoint()` 确保BFS回退时地形保持已破坏状态
 - 门位：每边正中（上6,0 / 下6,6 / 左0,3 / 右12,3），这些格必须为可通行地面
 - `drawTiles()`：使用 `cellRect()` 透视坐标渲染六种瓷砖（岩石叠层/便便棕块/深渊/尖刺菱形/梯子深坑）
@@ -295,17 +295,19 @@ player_select ──→ monster_turn ──→ player_select
 | `heal_full` | 拾取时回复全部 HP | 早餐/午餐/晚餐/甜点/肉！/魔法蘑菇/圣心 |
 
 **掉落系统** `item-db.json > itemDropTables`（9张品质表，合并原 `item-drop-tables.json`）：
-- 品质权重表控制每个掉落场景的 none/common/rare/legendary 分布：
+- 品质权重表控制每个掉落场景的 none/common/rare/legendary 分布，所有表名统一以 `item_drop_` 为前缀
 
 | 品质表 | none | common | rare | legendary | 适用场景 |
 |--------|------|--------|------|-----------|---------|
-| `default` | 0% | 60% | 30% | 10% | 通用兜底 |
-| `common` | **90%** | 5% | 3% | 2% | 裂口尸掉落(已废弃) |
-| `ranged` | **90%** | 5% | 3% | 2% | 浮游眼掉落(已废弃) |
-| `heavy` | **90%** | 5% | 3% | 2% | 蓄力魔像掉落(已废弃) |
-| `boss` | 0% | 20% | 45% | 35% | Boss击杀掉落 |
-| `treasure_room` | 0% | 0% | 75% | 25% | 宝箱房 / 宝箱开启 |
-| `boss_room` | 0% | 25% | 45% | 30% | Boss房清空奖励 |
+| `item_drop_default` | 0% | 60% | 30% | 10% | 通用兜底 |
+| `item_drop_common` | **90%** | 5% | 3% | 2% | 裂口尸掉落(已废弃) |
+| `item_drop_ranged` | **90%** | 5% | 3% | 2% | 浮游眼掉落(已废弃) |
+| `item_drop_heavy` | **90%** | 5% | 3% | 2% | 蓄力魔像掉落(已废弃) |
+| `item_drop_boss` | 0% | 20% | 45% | 35% | Boss击杀掉落 |
+| `item_drop_treasure_room` | 0% | 0% | 75% | 25% | 宝箱房 / 宝箱开启 |
+| `item_drop_boss_room` | 0% | 25% | 45% | 30% | Boss房清空奖励 |
+| `item_drop_chest_normal` | 65% | 0% | 25% | 10% | 普通宝箱道具掉落 |
+| `item_drop_chest_golden` | 50% | 0% | 30% | 20% | 金宝箱道具掉落 |
 
 - `none` 值控制"不掉任何道具"的概率。`monster_very_rare` 表已移除（原用途被 monster-db.json 中每怪独立的 `loot.entries` 配置覆盖，common/ranged/heavy 三表统一改为高 none 率作为极低概率兜底）
 - 怪物旧品质表（common/ranged/heavy）已不再被引用，仅供备份
@@ -372,7 +374,7 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
 
 **宝箱类型区分**：
 - **普通宝箱** `chest_normal`：`locked: false`，碰触即开，掉落为 `rounds[0]`(pick_first: 优先掉道具) + `rounds[1]`(roll_all: 额外资源)
-- **上锁金宝箱** `chest_golden`：`locked: true`，需消耗 1 把钥匙才能打开，掉落品质更高（`itemDropTable: treasure_room`），必出 1~4 个道具
+- **上锁金宝箱** `chest_golden`：`locked: true`，需消耗 1 把钥匙才能打开，掉落品质更高（`itemDropTable: item_drop_chest_golden`），必出 1~4 个道具
 
 **拾取与上限**：
 - 资源碰触自动拾取（`autoPickupResources()`），加入 `playerResources`
@@ -536,19 +538,19 @@ function project(wx, wy) {
 | `loadSpawnConfig()` | 异步 fetch `spawn-config.json` → `SPAWN_CONFIG` 楼层刷怪配置 |
 | `loadItemDB()` | 异步 fetch `item-db.json` → `ITEMS_DB` 道具数据库（含掉落表 itemDropTables） |
 | `loadResourceDB()` | 异步 fetch `resource-db.json` → `RESOURCE_DB` 资源数据库（含资源定义+掉落表+宝箱loot） |
-| `rollItem(quality?, tableKey?)` | 按品质/掉落表权重随机抽取道具配置ID |
+| `rollItem(quality?, tableKey?)` | 按品质/掉落表权重随机抽取道具配置ID，默认 tableKey=`item_drop_default` |
 | `rollLoot(lootConfig, col, row)` | 统一掉落调度器：解析怪物/宝箱的 loot 配置，支持 rounds/entries/mode(pick_one/roll_all/pick_first) |
-| `executeDropEntry(entry, col, row)` | 执行单个掉落条目：item→rollItem 生成道具 / resource→rollResourceDrop 生成资源 / resource_fixed→固定资源 |
-| `rollResourceDrop(tableKey)` | 从 `resource-db.json > resourceDropTables` 按表的 `mode`(pick_one/roll_all/pick_first) 驱动随机生成资源 ID 列表。兼容旧扁平格式 |
+| `executeDropEntry(entry, col, row)` | 执行单个掉落条目：item→rollItem 生成道具 / resource→rollResourceDrop 生成资源 / resource_fixed→固定资源。fallback 默认表名使用 `item_drop_default` / `resource_drop_monster_default` |
+| `rollResourceDrop(tableKey)` | 从 `resource-db.json > resourceDropTables` 按表的 `mode`(pick_one/roll_all/pick_first) 驱动随机生成资源 ID 列表。表名统一 `resource_drop_` 前缀 |
 | `rollMonsterKillDrop(m)` | 击杀怪物时读取 `monster-db.json > loot` 配置调用 rollLoot |
-| `rollRoomClearDrop()` | 清空房间时按房间类型映射到不同掉落表(normal/start/shop→room_clear_default, boss→room_clear_boss, treasure→room_clear_treasure)，纯配置驱动 |
-| `rollTerrainDestroyDrop(col, row, type, preLoot)` | 破坏地形掉落：优先使用 room 初始化时预roll的 `preLoot`，保证ESC回溯后再次破坏结果一致。fallback 现场 roll `terrain_rock`/`terrain_poop` 表 |
+| `rollRoomClearDrop()` | 清空房间时读取 `room.roomClearDrop` 配置（resourceDropTable / itemDropTable），纯配置驱动 |
+| `rollTerrainDestroyDrop(col, row, type, preLoot)` | 破坏地形掉落：优先使用 room 初始化时预roll的 `preLoot`，保证ESC回溯后再次破坏结果一致。fallback 现场 roll `resource_drop_terrain_rock`/`resource_drop_terrain_poop` 表 |
 | `placeBomb(col, row)` | 消耗背包炸弹在当前位置放置，3回合倒计时，强制进入战斗模式 |
 | `tickBombCountdown()` | 怪物回合开始前最高优先级：所有炸弹 timer-1，归零即引爆 |
 | `detonateBomb(bomb)` | 炸弹引爆：曼哈顿半径2范围内怪物50伤害 + 20爆炸粒子 |
 | `handleResourcePickup(res)` | 拾取单个资源实体：金币/炸弹/红心/蓝心/钥匙/宝箱（宝箱触发展开loot），返回是否成功拾取 |
 | `autoPickupResources(col, row)` | 检测指定坐标上的资源实体并自动拾取（含 pickup log 用于回溯撤销） |
-| `spawnShopItems(room)` | 商店房商品生成，统一调用 `rollResourceDrop('shop_stock')`（mode: roll_all，每种独立判定），最多6个 |
+| `spawnShopItems(room)` | 商店房商品生成，统一调用 `rollResourceDrop('resource_drop_shop_stock')`（mode: roll_all，每种独立判定），最多6个 |
 | `resolveAfterEffects(action, context)` | 执行 action 的 after_effect：attack_adjacent(四方向十字攻击)/attack_side(Boss冲击波范围) |
 | `spawnItemOnGrid(col, row, cfgId)` | 在指定网格位置生成道具实体 |
 | `recalcAllStats()` | 遍历背包重算所有属性（effects 数值累加 + specials[] 注册表分发） |
@@ -658,8 +660,8 @@ function project(wx, wy) {
 | `pool.json` | JSON | 关卡池数据文件（模板定义 + spawnConfig 刷怪配置，编辑器读写） |
 | `floor-data.json` | JSON | 楼层生成数据（房间结构+grid，编辑器/游戏加载） |
 | `monster-db.json` | JSON | 怪物配置数据（12只怪物：4类型×3等级，含 `actionMode`+`actions[]` 行动列表 + `loot` 掉落配置） |
-| `item-db.json` | JSON | 道具数据库（25种被动道具 + `itemDropTables` 9张掉落表，合并原 item-drop-tables.json） |
-| `resource-db.json` | JSON | 资源数据库（金币/炸弹/红心/蓝心/宝箱/钥匙定义 + `resourceDropTables` 11张资源掉落表(mode/table结构，每表统一15种资源条目) + `_limits` 上限配置 + `_schema` 文档） |
+| `item-db.json` | JSON | 道具数据库（25种被动道具 + `itemDropTables` 9张掉落表，全部 `item_drop_` 前缀） |
+| `resource-db.json` | JSON | 资源数据库（金币/炸弹/红心/蓝心/宝箱/钥匙定义 + `resourceDropTables` 11张资源掉落表，全部 `resource_drop_` 前缀 + `_limits` 上限配置 + `_schema` 文档） |
 | `spawn-config.json` | JSON | 楼层刷怪配置（每层预算加成 + Boss 分配表） |
 
 > **已删除文件**：`item-drop-tables.json` — 品质表已合并至 `item-db.json > itemDropTables` | `isaac-room-pool - original backup.json` — 原始关卡池备份（已清理）
@@ -680,7 +682,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
-| 2026-07-31(晚3) | **掉落系统字段命名统一重构**。①monster loot entry type `resource_pool`→`resource`。②顶层集合 key：`qualityTables`→`itemDropTables`、`dropTables`→`resourceDropTables`。③entry 字段：`qualityTable`→`itemDropTable`、`pool`/`dropTable`→`resourceDropTable`。④宝箱 loot 同步更新。⑤全项目零旧字段名残留。 |
+| 2026-08-04 | **掉落表命名统一 + roomClearDrop配置驱动化**。①`itemDropTables` 9张表全部加 `item_drop_` 前缀，`resourceDropTables` 11张表全部加 `resource_drop_` 前缀，宝箱资源对象名不变以消除歧义。②全项目 6 文件同步更新所有引用（monster-db/floor-data/map-viewer/demo2）。③`rollRoomClearDrop()` 从硬编码 roomType→tableKey 映射改为读取 `room.roomClearDrop` 配置。④修复地图编辑器 `floorFileInput` 缺少 grid 转置导致显示不正确。 |
 | 2026-07-31(晚2) | **context.md Boss Jumper 文档不实描述批量修正**。①怪物表概览行展开为 3 个 action 完整描述（steps:[2/3/3]、repeatChance:0.5 在第二个 jump_small、落地伤害由 after_effect:attack_side 实现）。②字段说明范例 landDamage→target。③Action 类型枚举 jump_small 补 repeatChance、jump_big_land 移除 landDamage/repeatChance 改 target+after_effect。④§2.13 大跳跃行 landDamage→after_effect:attack_side。⑤§2.13 关键设计 jump_big_land.repeatChance→第二个 jump_small.repeatChance。⑥历史记录 2026-07-27 参数迁移路径修正。⑦global-rules §2.2 追加「同步前回溯本轮所有待修条目」硬性步骤。 |
 | 2026-07-31(晚) | **JSON尾随逗号修复 + AI JSON编辑后校验规范确立**。①修复 `item-db.json` 中 `boss_room` 尾部多余逗号（删除 `monster_very_rare` 表后 `boss_room` 变成末位，逗号未联动清理导致 JSON 解析失败）。②确立规范：每次编辑 JSON 文件后主动调用 `read_lints` 校验，增删成员时联动检查尾部逗号。③context.md 品质表同步修正（8张→7张，移除 monster_very_rare 行，common/ranged/heavy 数值修正为 90/5/3/2）。④文件清单移除 `isaac-room-pool - original backup.json`（已删除）。 |
 | 2026-07-31 | **满血拾取修复 + 幽灵资源修复 + checkpoint时机修正**。①`simulateFromCheckpoint` BFS路径重放中资源拾取改为判断`handleResourcePickup`返回值后再splice，修复满血走过红心被无条件消耗的bug。②`updateRoomCombatState` 中 `room._groundResources` 从深拷贝改为直接引用，消除因引用断裂导致离房再回房时已拾取资源幽灵重现。③移除子弹发射时的过早 `saveCheckpoint`，改为在`damageMonster`中怪物受击(含非致命)时更新，确保checkpoint始终反映操作的实际结果而非操作瞬间。 |

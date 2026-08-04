@@ -285,55 +285,55 @@
   },
 
   "itemDropTables": {
-    "default": {
+    "item_drop_default": {
       "none": 0,
       "common": 0.6,
       "rare": 0.3,
       "legendary": 0.1
     },
-    "common": {
-      "none": 0.90,
-      "common": 0.05,
-      "rare": 0.03,
-      "legendary": 0.02
+    "item_drop_common": {
+      "none": 0,
+      "common": 0.6,
+      "rare": 0.3,
+      "legendary": 0.1
     },
-    "ranged": {
-      "none": 0.90,
-      "common": 0.05,
-      "rare": 0.03,
-      "legendary": 0.02
+    "item_drop_ranged": {
+      "none": 0,
+      "common": 0.6,
+      "rare": 0.3,
+      "legendary": 0.1
     },
-    "heavy": {
-      "none": 0.90,
-      "common": 0.05,
-      "rare": 0.03,
-      "legendary": 0.02
+    "item_drop_heavy": {
+      "none": 0,
+      "common": 0.6,
+      "rare": 0.3,
+      "legendary": 0.1
     },
-    "boss": {
+    "item_drop_boss": {
       "none": 0,
       "common": 0.20,
       "rare": 0.45,
       "legendary": 0.35
     },
-    "treasure_room": {
+    "item_drop_treasure_room": {
       "none": 0,
       "common": 0.0,
       "rare": 0.75,
       "legendary": 0.25
     },
-    "boss_room": {
+    "item_drop_boss_room": {
       "none": 0,
       "common": 0.25,
       "rare": 0.45,
       "legendary": 0.3
     },
-    "item_chest_normal": {
+    "item_drop_chest_normal": {
       "none": 0.65,
       "common": 0,
       "rare": 0.25,
       "legendary": 0.10
     },
-    "item_chest_golden": {
+    "item_drop_chest_golden": {
       "none": 0.50,
       "common": 0,
       "rare": 0.30,

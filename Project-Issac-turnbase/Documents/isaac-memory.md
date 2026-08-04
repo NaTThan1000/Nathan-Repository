@@ -11,7 +11,7 @@
 >
 > **组织方式**：纯时间顺序，不做模块分类。给 AI 快速浏览聊天记忆用。
 >
-> 最后更新: 2026-07-31
+> 最后更新: 2026-08-04
 
 ---
 
@@ -616,6 +616,7 @@
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-08-04 | **掉落表命名统一 + roomClearDrop配置驱动化 + 地图编辑器修复**。①itemDropTables 9张表加 `item_drop_` 前缀，resourceDropTables 11张表加 `resource_drop_` 前缀，宝箱资源对象名不变以消除歧义。②`rollRoomClearDrop()` 从硬编码映射改为读取 `room.roomClearDrop` 配置。③修复地图编辑器 fileInput 缺少 grid 转置。详见当日记忆条目。 |
 | 2026-07-31(3) | **掉落系统字段命名统一重构**。①monster loot entry type `resource_pool`→`resource`。②顶层集合 key：`qualityTables`→`itemDropTables`、`dropTables`→`resourceDropTables`。③entry 字段：`qualityTable`→`itemDropTable`、`pool`/`dropTable`→`resourceDropTable`。④宝箱 loot 同步更新。⑤影响 6 文件，全项目零旧字段名残留。详见当日记忆条目。 |
 | 2026-07-31(2) | **怪物死亡掉落位置修正**。移除资源掉落随机散布(±1格)，所有掉落物精确生成在怪物死亡位置。详见当日记忆条目。 |
 | 2026-07-31 | **满血拾取修复 + 幽灵资源修复 + checkpoint时机修正**。详见当日记忆条目。 |
@@ -636,5 +637,29 @@
 | 2026-07-20 | **HP心形改造 + AI提交行为纠正**。①HP系统改为3心制+半心显示，所有玩家伤害减半。②记录AI自动提交行为被纠正事件，确认Git操作需用户明确指令。 |
 | 2026-07-20 | **格式重改为纯时间线 + 删除未确认内容**。按用户要求改为纯时间顺序组织（不做模块分类），删除未经用户确认的"下一步计划"章节。同步追加当天的文档体系规则修正记录。 |
 | 2026-07-20 | **记忆体系建立**。从三处数据源（context.md 最近更新记录 ×11条、chat-log-2026-07-20.md、当前会话）提取所有历史决策，按时间顺序整理。 |
+
+---
+
+## 2026-08-04
+
+### 掉落表命名统一 — item_drop_ / resource_drop_ 前缀 [当前方案]
+- **[触发]** 用户注意到参数命名不规范，要求统一加上前缀区分
+- **[决策]**
+  1. `item-db.json > itemDropTables` 中 9 张表全部加 `item_drop_` 前缀：`default`→`item_drop_default`、`common`→`item_drop_common`、`ranged`→`item_drop_ranged`、`heavy`→`item_drop_heavy`、`boss`→`item_drop_boss`、`treasure_room`→`item_drop_treasure_room`、`boss_room`→`item_drop_boss_room`、`item_chest_normal`→`item_drop_chest_normal`、`item_chest_golden`→`item_drop_chest_golden`
+  2. `resource-db.json > resourceDropTables` 中 11 张表全部加 `resource_drop_` 前缀：`monster_default`→`resource_drop_monster_default`、`monster_heavy`→`resource_drop_monster_heavy`、`boss_drop`→`resource_drop_boss`、`room_clear_default`→`resource_drop_room_clear_default`、`room_clear_boss`→`resource_drop_room_clear_boss`、`room_clear_treasure`→`resource_drop_room_clear_treasure`、`terrain_rock`→`resource_drop_terrain_rock`、`terrain_poop`→`resource_drop_terrain_poop`、`chest_normal`→`resource_drop_chest_normal`、`chest_golden`→`resource_drop_chest_golden`、`shop_stock`→`resource_drop_shop_stock`
+  3. **命名冲突解决**：`chest_normal` 和 `chest_golden` 在 `resources` 对象中作为宝箱资源 key 保持不变，只在 `resourceDropTables` 中改名为 `resource_drop_chest_normal` / `resource_drop_chest_golden`，消除了之前的歧义问题
+- **[影响范围]** 6 个文件：`item-db.json`(9个key)、`resource-db.json`(11个key+宝箱loot内部引用+schema注释)、`monster-db.json`(12只怪物loot entries)、`floor-data.json`(所有roomClearDrop引用)、`isaac-map-viewer.html`(roomClearDropDefaults)、`isaac-turnbased-demo2.html`(14处fallback和引用)
+- **[验证]** 全项目零旧表名残留，所有 JSON 文件 lint 通过
+
+### roomClearDrop 配置驱动化 [当前方案]
+- **[触发]** floor-data.json 中每个房间已带有 `roomClearDrop: { resourceDropTable, itemDropTable }` 配置，但 demo2.html 中 `rollRoomClearDrop()` 仍用硬编码的 roomType→tableKey 映射，造成配置与代码不一致
+- **[决策]** `rollRoomClearDrop()` 改为读取 `room.roomClearDrop` 配置，移除硬编码的 `tableKeyMap` 映射表
+- **[影响文件]** `isaac-turnbased-demo2.html`（`rollRoomClearDrop` 函数重写，净减少约 8 行代码）
+
+### 地图编辑器 fileInput 缺少 grid 转置修复 [当前方案]
+- **[问题]** 通过文件选择按钮加载 floor-data.json 后，地图编辑器显示的房间布局不正确（房间方向错乱）
+- **[根因]** 地图编辑器有三个加载入口：`readFloorFromHandle`(File System Access API) 和 `tryLoadFloorData`(localStorage) 都有 `transposeGridRowToCol` 转置，但 `floorFileInput` change handler 缺少此步骤
+- **[修复]** 在 `floorFileInput` change handler 中补上：`else if(r.grid.length>0 && Array.isArray(r.grid[0]) && r.grid.length===ROWS) r.grid=transposeGridRowToCol(r.grid);`
+- **[原因]** floor-data.json 中 grid 存储为 row-major(7×13)，渲染需要 col-major(13×7)，三个加载路径中有一个遗漏了转置
 
 ---

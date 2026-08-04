@@ -9,17 +9,17 @@
       "resourceDropTables": {
         "_desc": "资源掉落表，每张表结构 { mode, table }。mode: pick_one(权重抽1) / roll_all(每种独立判定) / pick_first(顺序首个命中即停)。被 monster-db.json > loot > entries[].resourceDropTable 引用",
         "_tables": {
-          "monster_default": "普通小怪 (threat<3) 掉落 — pick_one",
-          "monster_heavy": "重型小怪 (threat≥3) 掉落 — pick_one",
-          "boss_drop": "Tank怪/Boss怪击杀掉落 — pick_one",
-          "room_clear_default": "普通/商店/起始房间清空奖励 — pick_one",
-          "room_clear_boss": "Boss房间清空奖励 — pick_one(空table)",
-          "room_clear_treasure": "宝藏房间清空奖励 — pick_one(空table)",
-          "terrain_rock": "破坏岩石掉落 — pick_one",
-          "terrain_poop": "破坏便便掉落 — pick_one",
-          "chest_normal": "普通宝箱额外资源 — pick_one",
-          "chest_golden": "金宝箱(需钥匙)额外资源 — pick_one",
-          "shop_stock": "商店商品生成 — roll_all"
+          "resource_drop_monster_default": "普通小怪 (threat<3) 掉落 — pick_one",
+          "resource_drop_monster_heavy": "重型小怪 (threat≥3) 掉落 — pick_one",
+          "resource_drop_boss": "Tank怪/Boss怪击杀掉落 — pick_one",
+          "resource_drop_room_clear_default": "普通/商店/起始房间清空奖励 — pick_one",
+          "resource_drop_room_clear_boss": "Boss房间清空奖励 — pick_one(空table)",
+          "resource_drop_room_clear_treasure": "宝藏房间清空奖励 — pick_one(空table)",
+          "resource_drop_terrain_rock": "破坏岩石掉落 — pick_one",
+          "resource_drop_terrain_poop": "破坏便便掉落 — pick_one",
+          "resource_drop_chest_normal": "普通宝箱额外资源 — pick_one",
+          "resource_drop_chest_golden": "金宝箱(需钥匙)额外资源 — pick_one",
+          "resource_drop_shop_stock": "商店商品生成 — roll_all"
         }
       },
       "_limits": {
@@ -146,7 +146,7 @@
       "icon": "c",
       "locked": false,
       "color": "#aa8855",
-      "resourceDropTable": "chest_normal",
+      "resourceDropTable": "resource_drop_chest_normal",
       "desc": "碰触打开，获得随机资源，有概率掉落道具",
       "loot": {
         "rounds": [
@@ -154,11 +154,11 @@
             "mode": "pick_first",
             "_comment": "先判断是否掉道具(35%)，命中则停；否则随机掉1~4个资源",
             "entries": [
-              { "type": "item", "itemDropTable": "item_chest_normal", "rate": 0.35,
+              { "type": "item", "itemDropTable": "item_drop_chest_normal", "rate": 0.35,
                 "_desc": "35%概率掉1个道具，命中后不再继续" },
               { "type": "resource", "rate": 1.0,
-                "resourceDropTable": "chest_normal", "minDrop": 1, "maxDrop": 4,
-                "_desc": "没掉道具 → 从chest_normal表随机抽1~4次资源(每次独立pick_one)" }
+                "resourceDropTable": "resource_drop_chest_normal", "minDrop": 1, "maxDrop": 4,
+                "_desc": "没掉道具 → 从resource_drop_chest_normal表随机抽1~4次资源(每次独立pick_one)" }
             ]
           }
         ]
@@ -171,7 +171,7 @@
       "icon": "C",
       "locked": true,
       "color": "#ffcc44",
-      "resourceDropTable": "chest_golden",
+      "resourceDropTable": "resource_drop_chest_golden",
       "desc": "需要1把钥匙才能打开，获得随机资源，有概率掉落道具",
       "loot": {
         "rounds": [
@@ -179,11 +179,11 @@
             "mode": "pick_first",
             "_comment": "先判断是否掉道具(50%)，命中则停；否则随机掉1~4个资源",
             "entries": [
-              { "type": "item", "itemDropTable": "item_chest_golden", "rate": 0.50,
+              { "type": "item", "itemDropTable": "item_drop_chest_golden", "rate": 0.50,
                 "_desc": "50%概率掉1个道具，命中后不再继续" },
               { "type": "resource", "rate": 1.0,
-                "resourceDropTable": "chest_golden", "minDrop": 1, "maxDrop": 4,
-                "_desc": "没掉道具 → 从chest_golden表随机抽1~4次资源(每次独立pick_one)" }
+                "resourceDropTable": "resource_drop_chest_golden", "minDrop": 1, "maxDrop": 4,
+                "_desc": "没掉道具 → 从resource_drop_chest_golden表随机抽1~4次资源(每次独立pick_one)" }
             ]
           }
         ]
@@ -217,7 +217,7 @@
   },
 
   "resourceDropTables": {
-    "monster_default": {
+    "resource_drop_monster_default": {
       "mode": "pick_one",
       "_desc": "普通小怪(威胁<3)掉落 — 按权重抽1种资源",
       "table": {
@@ -238,7 +238,7 @@
         "key_double":      0
       }
     },
-    "monster_heavy": {
+    "resource_drop_monster_heavy": {
       "mode": "pick_one",
       "_desc": "重型小怪(威胁≥3)掉落 — 按权重抽1种资源",
       "table": {
@@ -259,7 +259,7 @@
         "key_double":      0
       }
     },
-    "boss_drop": {
+    "resource_drop_boss": {
       "mode": "pick_one",
       "_desc": "蓄力魔像类坦克怪掉落 — 按权重抽1种资源",
       "table": {
@@ -281,7 +281,7 @@
       }
     },
 
-    "room_clear_default": {
+    "resource_drop_room_clear_default": {
       "mode": "pick_one",
       "_desc": "普通/商店/起始房间清空奖励 — 按权重抽1种资源",
       "table": {
@@ -302,7 +302,7 @@
         "key_double":      0
       }
     },
-    "room_clear_boss": {
+    "resource_drop_room_clear_boss": {
       "mode": "pick_one",
       "_desc": "Boss房间清空奖励 — 全0(不掉落资源)，需要时改数值即可",
       "table": {
@@ -323,7 +323,7 @@
         "key_double":      0
       }
     },
-    "room_clear_treasure": {
+    "resource_drop_room_clear_treasure": {
       "mode": "pick_one",
       "_desc": "宝藏房间清空奖励 — 全0(不掉落资源)，需要时改数值即可",
       "table": {
@@ -345,7 +345,7 @@
       }
     },
 
-    "terrain_rock": {
+    "resource_drop_terrain_rock": {
       "mode": "pick_one",
       "_desc": "破坏岩石掉落 — 按权重抽1种资源",
       "table": {
@@ -366,7 +366,7 @@
         "key_double":      0
       }
     },
-    "terrain_poop": {
+    "resource_drop_terrain_poop": {
       "mode": "pick_one",
       "_desc": "破坏便便掉落 — 按权重抽1种资源",
       "table": {
@@ -388,7 +388,7 @@
       }
     },
 
-    "chest_normal": {
+    "resource_drop_chest_normal": {
       "mode": "pick_one",
       "_desc": "打开普通宝箱额外获得的1种资源",
       "table": {
@@ -409,7 +409,7 @@
         "key_double":      0
       }
     },
-    "chest_golden": {
+    "resource_drop_chest_golden": {
       "mode": "pick_one",
       "_desc": "打开金宝箱额外获得的1种资源",
       "table": {
@@ -431,7 +431,7 @@
       }
     },
 
-    "shop_stock": {
+    "resource_drop_shop_stock": {
       "mode": "roll_all",
       "_desc": "商店商品生成 — 每种资源独立判定概率，最多6个",
       "table": {
