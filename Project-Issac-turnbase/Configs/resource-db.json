@@ -6,6 +6,10 @@
         "_values": ["coin", "bomb", "heart", "blue_heart", "chest", "key"],
         "_desc": "资源类型"
       },
+      "resources.*.price": {
+        "_desc": "商店售价（金币），非coin/chest类型默认为5",
+        "_type": "number"
+      },
       "resourceDropTables": {
         "_desc": "资源掉落表，每张表结构 { mode, table }。mode: pick_one(权重抽1) / roll_all(每种独立判定) / pick_first(顺序首个命中即停)。被 monster-db.json > loot > entries[].resourceDropTable 引用",
         "_tables": {
@@ -69,7 +73,8 @@
       "desc": "可放置的炸弹，爆炸造成50伤害",
       "damage": 50,
       "radius": 2,
-      "detonateTurns": 3
+      "detonateTurns": 3,
+      "price": 5
     },
     "bomb_double": {
       "type": "bomb",
@@ -80,7 +85,8 @@
       "desc": "两个炸弹，爆炸造成50伤害",
       "damage": 50,
       "radius": 2,
-      "detonateTurns": 3
+      "detonateTurns": 3,
+      "price": 5
     },
 
     "heart_half": {
@@ -90,7 +96,8 @@
       "icon": "v",
       "heal": 0.5,
       "color": "#ff4444",
-      "desc": "回复半颗红心生命值"
+      "desc": "回复半颗红心生命值",
+      "price": 5
     },
     "heart_full": {
       "type": "heart",
@@ -99,7 +106,8 @@
       "icon": "V",
       "heal": 1,
       "color": "#ff3333",
-      "desc": "回复一颗红心生命值"
+      "desc": "回复一颗红心生命值",
+      "price": 5
     },
     "heart_double": {
       "type": "heart",
@@ -108,7 +116,8 @@
       "icon": "W",
       "heal": 2,
       "color": "#ff2222",
-      "desc": "回复两颗红心生命值"
+      "desc": "回复两颗红心生命值",
+      "price": 5
     },
 
     "blue_heart_half": {
@@ -118,7 +127,8 @@
       "icon": "b",
       "amount": 0.5,
       "color": "#4488ff",
-      "desc": "获得半颗临时蓝心，受伤优先扣除"
+      "desc": "获得半颗临时蓝心，受伤优先扣除",
+      "price": 5
     },
     "blue_heart_full": {
       "type": "blue_heart",
@@ -127,7 +137,8 @@
       "icon": "B",
       "amount": 1,
       "color": "#3366ff",
-      "desc": "获得一颗临时蓝心，受伤优先扣除"
+      "desc": "获得一颗临时蓝心，受伤优先扣除",
+      "price": 5
     },
     "blue_heart_double": {
       "type": "blue_heart",
@@ -136,7 +147,8 @@
       "icon": "8",
       "amount": 2,
       "color": "#2255ff",
-      "desc": "获得两颗临时蓝心，受伤优先扣除"
+      "desc": "获得两颗临时蓝心，受伤优先扣除",
+      "price": 5
     },
 
     "chest_normal": {
@@ -197,7 +209,8 @@
       "icon": "k",
       "amount": 1,
       "color": "#cccc88",
-      "desc": "用来打开上锁的门或宝箱"
+      "desc": "用来打开上锁的门或宝箱",
+      "price": 5
     },
     "key_double": {
       "type": "key",
@@ -206,7 +219,8 @@
       "icon": "K",
       "amount": 2,
       "color": "#ddaa44",
-      "desc": "两把钥匙，用来打开上锁的门或宝箱"
+      "desc": "两把钥匙，用来打开上锁的门或宝箱",
+      "price": 5
     }
   },
 

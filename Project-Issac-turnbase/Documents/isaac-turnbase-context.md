@@ -395,7 +395,7 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
 | 空格 | 战斗 | 直接结束回合 → 进入怪物回合（无二次确认弹窗） |
 | Esc | 战斗 | 全重置本回合 + 时间倒流动画（角色/怪物/HP 全部回到回合开始时） |
 | F | 任意 | 拾取道具（demo2） |
-| R | 任意 | 重置游戏 → 回到第1层起点 |
+| R | 任意 | 重置游戏 → 回到第1层起点（重置地形/门/掉落物/标记等全部运行时状态） |
 | B | 任意 | 放置炸弹（消耗1个炸弹资源，3回合后引爆，50范围伤害） |
 
 ### 3.2 UI 面板
@@ -550,15 +550,17 @@ function project(wx, wy) {
 | `detonateBomb(bomb)` | 炸弹引爆：曼哈顿半径2范围内怪物50伤害 + 20爆炸粒子 |
 | `handleResourcePickup(res)` | 拾取单个资源实体：金币/炸弹/红心/蓝心/钥匙/宝箱（宝箱触发展开loot），返回是否成功拾取 |
 | `autoPickupResources(col, row)` | 检测指定坐标上的资源实体并自动拾取（含 pickup log 用于回溯撤销） |
-| `spawnShopItems(room)` | 商店房商品生成，统一调用 `rollResourceDrop('resource_drop_shop_stock')`（mode: roll_all，每种独立判定），最多6个 |
+| `spawnShopItems(room)` | 商店房商品生成，统一调用 `rollResourceDrop('resource_drop_shop_stock')`（mode: roll_all，每种独立判定），最多6个。同时为每个商品分配 `_shopSlots` 记录价格和类型 |
+| `tryBuyShopSlot(col, row)` | 商店购买：检测坐标上商品，扣除金币后获得道具/资源，标记售出并移除实体 |
+| `drawShopPrices()` | 渲染商店价格标签（未售出=金色，已售出=灰色），在 `render()` 中调用 |
 | `resolveAfterEffects(action, context)` | 执行 action 的 after_effect：attack_adjacent(四方向十字攻击)/attack_side(Boss冲击波范围) |
 | `spawnItemOnGrid(col, row, cfgId)` | 在指定网格位置生成道具实体 |
 | `recalcAllStats()` | 遍历背包重算所有属性（effects 数值累加 + specials[] 注册表分发） |
 | `getTpl(key)` | 按 key 获取模板，优先 poolTemplates，回退内置 |
 | `generateFloor(floorNum)` | 两步法生成单层地牢：骨架房扩展布局→Boss/宝箱挂载到集群边界→模板填充→边转门 |
 | `generateAllFloors()` | 生成全部 6 层地牢 |
-| `loadOrGenerateFloors(forceReload)` | 从 `floor-data.json` 加载楼层数据（hash 变化时触发重置） |
-| `resetGameToFloor1()` | 重置游戏状态回到第1层起点（R键调用） |
+| `loadOrGenerateFloors(forceReload)` | 从 `floor-data.json` 加载楼层数据（hash 变化时触发重置），首次加载后深拷贝保存 `_initGrid`/`_initDoors` 供 R 键恢复 |
+| `resetGameToFloor1()` | 重置游戏状态回到第1层起点（R键调用），从 `_initGrid`/`_initDoors` 恢复所有房间地形和门状态 |
 | `enterFloor(floorNum)` | 进入指定楼层起始房间 |
 | `tryWalkIntoDoor(fromCol,fromRow,dir)` | 检测门触发：站在门前格+按方向→切换房间 |
 | `updateRoomCombatState()` | 更新战斗/探索状态，触发回合初始化或结束。房间清空时同步 `room._groundResources = resourcesOnGround`（直接引用不再深拷贝，防幽灵资源） |
@@ -627,7 +629,7 @@ function project(wx, wy) {
   gameLoop → render()
            → 墙壁 → 地板 → TILE瓷砖(岩/便/坑/刺/梯) → 房门(开/关)
            → 网格高亮 → 可移动范围(浅蓝呼吸) → 子弹 → 粒子
-           → 资源道具(金币/心/炸弹/钥匙/宝箱 图标渲染) → 炸弹(闪烁倒计时) → 怪物 → 角色本体(无敌闪烁)
+           → 资源道具(金币/心/炸弹/钥匙/宝箱 图标渲染) → 商店价格标签 → 炸弹(闪烁倒计时) → 怪物 → 角色本体(无敌闪烁)
            → 战斗开始剑动画 → Esc时间倒流动画
            → DOM 覆盖层独立渲染文字(怪物名/伤害飘字/A-AP圆点)
 ```
@@ -682,6 +684,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-08-04(晚) | **R键重置完整性修复 + 商店购买系统 + AP视觉修复**。①`loadOrGenerateFloors` 首次加载后深拷贝保存 `_initGrid`/`_initDoors`，R键重置时从备份恢复所有房间的地形破坏、门状态、Boss梯子、道具标记等，彻底修复R键后大便/岩石未恢复的问题。②合并原来分散的两个清理循环为一个统一循环。③`buildApDots`/`buildHearts`/`buildBlueHearts` 移到 `updateUI` 之前执行，修复因 `buildApDots` 在 `updateApDots` 之后调用导致 AP 圆点视觉未更新的 bug。④新增商店购买系统：`tryBuyShopSlot(col,row)` 检测商品→扣金币→获得道具/资源→标记售出；`drawShopPrices()` 渲染价格标签(金色/灰色)。⑤商店房进入时不调用 `spawnShopItems`（已在 `finishTransition` 中处理）。 |
 | 2026-08-04 | **掉落表命名统一 + roomClearDrop配置驱动化**。①`itemDropTables` 9张表全部加 `item_drop_` 前缀，`resourceDropTables` 11张表全部加 `resource_drop_` 前缀，宝箱资源对象名不变以消除歧义。②全项目 6 文件同步更新所有引用（monster-db/floor-data/map-viewer/demo2）。③`rollRoomClearDrop()` 从硬编码 roomType→tableKey 映射改为读取 `room.roomClearDrop` 配置。④修复地图编辑器 `floorFileInput` 缺少 grid 转置导致显示不正确。 |
 | 2026-07-31(晚2) | **context.md Boss Jumper 文档不实描述批量修正**。①怪物表概览行展开为 3 个 action 完整描述（steps:[2/3/3]、repeatChance:0.5 在第二个 jump_small、落地伤害由 after_effect:attack_side 实现）。②字段说明范例 landDamage→target。③Action 类型枚举 jump_small 补 repeatChance、jump_big_land 移除 landDamage/repeatChance 改 target+after_effect。④§2.13 大跳跃行 landDamage→after_effect:attack_side。⑤§2.13 关键设计 jump_big_land.repeatChance→第二个 jump_small.repeatChance。⑥历史记录 2026-07-27 参数迁移路径修正。⑦global-rules §2.2 追加「同步前回溯本轮所有待修条目」硬性步骤。 |
 | 2026-07-31(晚) | **JSON尾随逗号修复 + AI JSON编辑后校验规范确立**。①修复 `item-db.json` 中 `boss_room` 尾部多余逗号（删除 `monster_very_rare` 表后 `boss_room` 变成末位，逗号未联动清理导致 JSON 解析失败）。②确立规范：每次编辑 JSON 文件后主动调用 `read_lints` 校验，增删成员时联动检查尾部逗号。③context.md 品质表同步修正（8张→7张，移除 monster_very_rare 行，common/ranged/heavy 数值修正为 90/5/3/2）。④文件清单移除 `isaac-room-pool - original backup.json`（已删除）。 |

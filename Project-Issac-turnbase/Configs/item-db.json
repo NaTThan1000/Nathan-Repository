@@ -22,6 +22,10 @@
         "_keys": ["maxHp", "attack", "fireRate", "moveSpeed", "range"],
         "_desc": "追加的属性修正值"
       },
+      "price": {
+        "_desc": "商店售价（金币），默认15",
+        "_type": "number"
+      },
       "itemDropTables.*.none": { "_desc": "不掉落道具概率 (0~1), 0=必定掉落, 1=完全不掉落", "_type": "number" },
       "itemDropTables.*.common": { "_desc": "普通品质概率 (0~1)", "_type": "number" },
       "itemDropTables.*.rare": { "_desc": "稀有品质概率 (0~1)", "_type": "number" },
@@ -38,7 +42,8 @@
       "quality": "common",
       "tags": ["属性提升", "射速"],
       "effects": { "fireRate": 1 },
-      "specials": []
+      "specials": [],
+      "price": 15
     },
     "the_belt": {
       "id": "the_belt",
@@ -48,7 +53,8 @@
       "quality": "common",
       "tags": ["属性提升", "移速"],
       "effects": { "moveSpeed": 1 },
-      "specials": []
+      "specials": [],
+      "price": 15
     },
     "jesus_juice": {
       "id": "jesus_juice",
@@ -58,7 +64,8 @@
       "quality": "common",
       "tags": ["属性提升", "攻击", "射程"],
       "effects": { "attack": 0.5, "range": 1 },
-      "specials": []
+      "specials": [],
+      "price": 15
     },
     "iron_bar": {
       "id": "iron_bar",
@@ -68,7 +75,8 @@
       "quality": "common",
       "tags": ["属性提升", "攻击"],
       "effects": { "attack": 0.5 },
-      "specials": []
+      "specials": [],
+      "price": 15
     },
     "wire_coat_hanger": {
       "id": "wire_coat_hanger",
@@ -78,7 +86,8 @@
       "quality": "common",
       "tags": ["属性提升", "射速"],
       "effects": { "fireRate": 1 },
-      "specials": []
+      "specials": [],
+      "price": 15
     },
     "breakfast": {
       "id": "breakfast",
@@ -88,7 +97,8 @@
       "quality": "common",
       "tags": ["属性提升", "HP"],
       "effects": { "maxHp": 1 },
-      "specials": [{ "type": "heal_full" }]
+      "specials": [{ "type": "heal_full" }],
+      "price": 15
     },
     "lunch": {
       "id": "lunch",
@@ -98,7 +108,8 @@
       "quality": "common",
       "tags": ["属性提升", "HP"],
       "effects": { "maxHp": 1 },
-      "specials": [{ "type": "heal_full" }]
+      "specials": [{ "type": "heal_full" }],
+      "price": 15
     },
     "dinner": {
       "id": "dinner",
@@ -108,7 +119,8 @@
       "quality": "common",
       "tags": ["属性提升", "HP"],
       "effects": { "maxHp": 1 },
-      "specials": [{ "type": "heal_full" }]
+      "specials": [{ "type": "heal_full" }],
+      "price": 15
     },
     "dessert": {
       "id": "dessert",
@@ -118,7 +130,8 @@
       "quality": "common",
       "tags": ["属性提升", "HP"],
       "effects": { "maxHp": 1 },
-      "specials": [{ "type": "heal_full" }]
+      "specials": [{ "type": "heal_full" }],
+      "price": 15
     },
     "roid_rage": {
       "id": "roid_rage",
@@ -128,7 +141,8 @@
       "quality": "common",
       "tags": ["属性提升", "移速"],
       "effects": { "moveSpeed": 1 },
-      "specials": []
+      "specials": [],
+      "price": 15
     },
     "speed_ball": {
       "id": "speed_ball",
@@ -138,7 +152,8 @@
       "quality": "common",
       "tags": ["属性提升", "移速"],
       "effects": { "moveSpeed": 1 },
-      "specials": []
+      "specials": [],
+      "price": 15
     },
     "screw": {
       "id": "screw",
@@ -148,7 +163,8 @@
       "quality": "common",
       "tags": ["属性提升", "射速"],
       "effects": { "fireRate": 1 },
-      "specials": []
+      "specials": [],
+      "price": 15
     },
     "synthol": {
       "id": "synthol",
@@ -158,7 +174,8 @@
       "quality": "common",
       "tags": ["属性提升", "攻击", "射程"],
       "effects": { "attack": 0.5, "range": 1 },
-      "specials": []
+      "specials": [],
+      "price": 15
     },
     "pentagram": {
       "id": "pentagram",
@@ -168,7 +185,8 @@
       "quality": "common",
       "tags": ["属性提升", "攻击"],
       "effects": { "attack": 1 },
-      "specials": []
+      "specials": [],
+      "price": 15
     },
     "meat": {
       "id": "meat",
@@ -178,7 +196,8 @@
       "quality": "common",
       "tags": ["属性提升", "HP", "攻击"],
       "effects": { "maxHp": 1, "attack": 0.5 },
-      "specials": [{ "type": "heal_full" }]
+      "specials": [{ "type": "heal_full" }],
+      "price": 15
     },
 
     "the_halo": {
@@ -189,7 +208,8 @@
       "quality": "rare",
       "tags": ["属性提升", "HP", "攻击", "射速", "移速", "射程", "全属性"],
       "effects": { "maxHp": 1, "attack": 0.5, "fireRate": 0.5, "moveSpeed": 0.5, "range": 1 },
-      "specials": []
+      "specials": [],
+      "price": 15
     },
     "magic_mushroom": {
       "id": "magic_mushroom",
@@ -199,7 +219,8 @@
       "quality": "rare",
       "tags": ["属性提升", "HP", "攻击", "移速", "射程", "全属性", "回复"],
       "effects": { "maxHp": 1, "attack": 1, "moveSpeed": 0.5, "range": 2 },
-      "specials": [{ "type": "heal_full" }]
+      "specials": [{ "type": "heal_full" }],
+      "price": 15
     },
     "stigmata": {
       "id": "stigmata",
@@ -209,7 +230,8 @@
       "quality": "rare",
       "tags": ["属性提升", "HP", "攻击"],
       "effects": { "maxHp": 1, "attack": 0.5 },
-      "specials": []
+      "specials": [],
+      "price": 15
     },
     "growth_hormones": {
       "id": "growth_hormones",
@@ -219,7 +241,8 @@
       "quality": "rare",
       "tags": ["属性提升", "攻击", "移速"],
       "effects": { "attack": 1, "moveSpeed": 1 },
-      "specials": []
+      "specials": [],
+      "price": 15
     },
     "cupids_arrow": {
       "id": "cupids_arrow",
@@ -229,7 +252,8 @@
       "quality": "rare",
       "tags": ["属性提升", "攻击", "穿透"],
       "effects": { "attack": 1 },
-      "specials": [{ "type": "piercing" }]
+      "specials": [{ "type": "piercing" }],
+      "price": 15
     },
     "champion_belt": {
       "id": "champion_belt",
@@ -239,7 +263,8 @@
       "quality": "rare",
       "tags": ["属性提升", "攻击"],
       "effects": { "attack": 1.5 },
-      "specials": []
+      "specials": [],
+      "price": 15
     },
     "the_mark": {
       "id": "the_mark",
@@ -249,7 +274,8 @@
       "quality": "rare",
       "tags": ["属性提升", "攻击", "移速"],
       "effects": { "attack": 1, "moveSpeed": 0.5 },
-      "specials": []
+      "specials": [],
+      "price": 15
     },
 
     "sacred_heart": {
@@ -260,7 +286,8 @@
       "quality": "legendary",
       "tags": ["属性提升", "攻击", "HP", "回复"],
       "effects": { "attack": 2.5, "maxHp": 2 },
-      "specials": [{ "type": "heal_full" }]
+      "specials": [{ "type": "heal_full" }],
+      "price": 15
     },
     "crickets_head": {
       "id": "crickets_head",
@@ -270,7 +297,8 @@
       "quality": "legendary",
       "tags": ["属性提升", "攻击", "伤害倍率"],
       "effects": { "attack": 1 },
-      "specials": [{ "type": "damage_mult", "mult": 1.5 }]
+      "specials": [{ "type": "damage_mult", "mult": 1.5 }],
+      "price": 15
     },
     "deaths_touch": {
       "id": "deaths_touch",
@@ -280,7 +308,8 @@
       "quality": "legendary",
       "tags": ["属性提升", "攻击", "穿透"],
       "effects": { "attack": 2 },
-      "specials": [{ "type": "piercing" }]
+      "specials": [{ "type": "piercing" }],
+      "price": 15
     }
   },
 

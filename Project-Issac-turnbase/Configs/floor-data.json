@@ -2,6 +2,7 @@
   "1": {
     "floorNum": 1,
     "name": "地牢1层",
+    "shopModifier": { "type": "none" },
     "rooms": [
       {
         "id": "f1_r0",
@@ -414,6 +415,7 @@
   "2": {
     "floorNum": 2,
     "name": "地牢2层",
+    "shopModifier": { "type": "none" },
     "rooms": [
       {
         "id": "f2_r0",
@@ -932,6 +934,7 @@
   "3": {
     "floorNum": 3,
     "name": "地牢3层",
+    "shopModifier": { "type": "multiply", "value": 1.5 },
     "rooms": [
       {
         "id": "f3_r0",
@@ -1548,6 +1551,7 @@
   "4": {
     "floorNum": 4,
     "name": "地牢4层",
+    "shopModifier": { "type": "multiply", "value": 1.5 },
     "rooms": [
       {
         "id": "f4_r0",
@@ -2119,6 +2123,7 @@
   "5": {
     "floorNum": 5,
     "name": "地牢5层",
+    "shopModifier": { "type": "add", "value": 5 },
     "rooms": [
       {
         "id": "f5_r0",
@@ -2730,6 +2735,7 @@
   "6": {
     "floorNum": 6,
     "name": "地牢6层",
+    "shopModifier": { "type": "add", "value": 5 },
     "rooms": [
       {
         "id": "f6_r0",

@@ -662,4 +662,28 @@
 - **[修复]** 在 `floorFileInput` change handler 中补上：`else if(r.grid.length>0 && Array.isArray(r.grid[0]) && r.grid.length===ROWS) r.grid=transposeGridRowToCol(r.grid);`
 - **[原因]** floor-data.json 中 grid 存储为 row-major(7×13)，渲染需要 col-major(13×7)，三个加载路径中有一个遗漏了转置
 
+### R键重置完整性修复 — _initGrid / _initDoors 备份恢复机制 [当前方案]
+- **[问题]** 按R键重置游戏后，房间的大便被破坏状态没有恢复（之前破坏过的便便仍然显示为已破坏）
+- **[排查过程]** 全面审查了所有代码路径：`currentRoomGrid` 和 `room.grid` 的引用关系、`finishTransition` 的切换逻辑、`loadOrGenerateFloors` 的 3 秒定时器、ESC 回溯的深拷贝切断引用、`saveCheckpoint` 不保存地形等，均未找到明确的引用断裂点。期间还出现过一次严重 bug：在压缩的单行代码中加 `//` 注释导致后面的 `r._initGrid=...` 和 `;});}` 闭合括号全部被注释掉，造成语法错误页面打不开
+- **[最终方案]** 不纠结根因，采用防御性修复：在 `loadOrGenerateFloors` 首次加载时深拷贝保存每个房间的 `_initGrid`（初始地形）和 `_initDoors`（初始门状态），R键重置时从备份恢复
+- **[具体改动]**
+  1. `loadOrGenerateFloors` 第 990 行循环中：`r._initGrid = r.grid.map(col => [...col])`、`r._initDoors = { up: ..., down: ..., left: ..., right: ... }` 深拷贝
+  2. `resetGameToFloor1`：合并原来分散的两个清理 for 循环为一个统一循环，从 `_initGrid`/`_initDoors` 恢复 grid 和 doors，同时重置 `bossLadderPlaced`、`itemSpawned`、`itemDropped`、`locked`、`_shopSlots`、`_groundResources`、`_groundItems`
+- **[恢复内容]** 地形破坏（便便/岩石）、Boss 梯子放置、炸弹破坏的门、地面掉落物、商店槽位
+
+### AP 圆点视觉修复 — buildApDots 与 updateApDots 执行顺序 [当前方案]
+- **[问题]** 按R键后 M-AP 和 A-AP 圆点视觉上没有正确显示（虽然值已正确重置）
+- **[根因]** `resetGameToFloor1` 中 `updateUI()`（含 `updateApDots` 填充圆点）在第 978 行，`buildApDots`（重建圆点为 empty）在第 979 行。`buildApDots` 在 `updateApDots` 之后执行，把已填充的圆点全部重置为 empty
+- **[修复]** 将 `buildHearts`/`buildBlueHearts`/`buildApDots` 移到 `updateUI` 之前，让 `updateUI` 中的 `updateApDots` 在圆点重建后正确填充
+- **[额外加固]** 同时在 `clearInventory()` 后显式设置 `playerStats.moveSpeed = 3; playerStats.fireRate = 3;`，确保 `resetTurnAP()` 计算的基值正确
+
+### 商店购买系统 [当前方案]
+- **[触发]** 用户要求实现商店购买功能，走进商品格子自动购买
+- **[实现]**
+  1. `spawnShopItems(room)` 同时创建 `room._shopSlots` 数组，记录每个商品的价格(price)、类型(type: item/resource)、cfgId、坐标(priceCol/priceRow)、售出状态(sold)
+  2. 玩家移动到商品格子上时触发 `tryBuyShopSlot(col, row)`：检测坐标上是否有未售出商品 → 检查金币是否足够 → 扣除金币 → 获得道具(`applyItem`)或资源(`handleResourcePickup`) → 标记售出并从地面移除实体
+  3. `drawShopPrices()` 在 `render()` 中调用，渲染金色价格标签（已售出显示灰色）
+  4. 商店房进入时不再在 `spawnRoomMonsters` 中调用 `spawnShopItems`（已由 `finishTransition` 统一处理）
+- **[关键设计]** 商店价格标签通过 Canvas 渲染（而非 DOM 覆盖层），使用金色/灰色区分售出状态
+
 ---

@@ -959,22 +959,24 @@ function resetGameToFloor1(){
   player.targetPx=null;player.targetPy=null;player.animTime=0;player.facing='down';player.walkFrame=0;
   player.shootTimer=0;player.hitFlash=0;player.shakeX=0;player.shakeY=0;player.invincibleSteps=0;
   clearInventory();
+  // 重置 playerStats 到初始值（clearInventory已调用recalcAllStats，但这里确保一下）
+  playerStats.moveSpeed = 3; playerStats.fireRate = 3;
   // 清空资源
-  resourcesOnGround = []; bombs = [];
+  resourcesOnGround = []; itemsOnGround = []; bombs = [];
   playerResources.coins = 0; playerResources.bombs = 0; playerResources.keys = 0;
   playerResources.blueHearts = 0;
+  // 重置所有房间的运行时状态（地形、门、掉落物、标记等）
+  for(let f=1;f<=6;f++){if(allFloors[f])allFloors[f].rooms.forEach(r=>{r.grid=r._initGrid?r._initGrid.map(col=>[...col]):r.grid;r.doors=r._initDoors?{up:r._initDoors.up?{...r._initDoors.up}:null,down:r._initDoors.down?{...r._initDoors.down}:null,left:r._initDoors.left?{...r._initDoors.left}:null,right:r._initDoors.right?{...r._initDoors.right}:null}:r.doors;r.bossLadderPlaced=false;r.itemSpawned=false;r.itemDropped=false;r.locked=r._initLocked||false;r._shopSlots=null;r._groundResources=[];r._groundItems=[];});}
   updateResourceUI();
   visitedRooms = new Set(); // 重置已访问记录
-  // 清除所有房间的道具生成标记，恢复初始锁状态
-  for(let f=1;f<=6;f++){if(allFloors[f])allFloors[f].rooms.forEach(r=>{r.itemSpawned=false;r.itemDropped=false;r.locked=r._initLocked||false;});}
   playerStats.hp=playerStats.maxHp;
   currentFloor=allFloors[1];currentRoomId=currentFloor.startRoomId;
   visitedRooms.add(currentRoomId); // 起始房间已访问
   const room=currentFloor.rooms.find(r=>r.id===currentRoomId);currentRoomGrid=room.grid;
   initTileData();inCombat=false;
   turnState.phase='player_select';turnState.turnNumber=0;turnState.monsterTurnCounter=0;resetTurnAP();turnState.reachableTiles=new Set();
-  updateDoorsLocked();updateUI();updateFloorUI();
   buildHearts(playerStats.maxHp);buildBlueHearts();buildApDots('ui-aap-row',turnState.maxAAP);buildApDots('ui-map-row',turnState.maxMAP);
+  updateDoorsLocked();updateUI();updateFloorUI();
   updateItemBar();
 }
 let _lastFloorHash='';
@@ -987,7 +989,7 @@ async function loadOrGenerateFloors(forceReload){
       if(_lastFloorHash===text&&Object.keys(allFloors).length>0)return false;
       _lastFloorHash=text;
       const data=JSON.parse(text);
-      for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(r.tplKey?getTpl(r.tplKey).tiles:BUILTIN_TEMPLATES()['open'].tiles);else if(r.grid.length>0&&Array.isArray(r.grid[0])&&r.grid.length===ROWS)r.grid=transposeGridRowToCol(r.grid);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;r.type=r.type||'normal';r._initLocked=r.locked;});}
+      for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(r.tplKey?getTpl(r.tplKey).tiles:BUILTIN_TEMPLATES()['open'].tiles);else if(r.grid.length>0&&Array.isArray(r.grid[0])&&r.grid.length===ROWS)r.grid=transposeGridRowToCol(r.grid);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;r.type=r.type||'normal';r._initLocked=r.locked;r._shopSlots=null;r._groundResources=r._groundResources||[];r._groundItems=r._groundItems||[];r._initGrid=r.grid.map(col=>[...col]);r._initDoors={up:r.doors.up?{...r.doors.up}:null,down:r.doors.down?{...r.doors.down}:null,left:r.doors.left?{...r.doors.left}:null,right:r.doors.right?{...r.doors.right}:null};});}
       if(forceReload){console.log('🔄 检测到楼层更新，已重新加载');resetGameToFloor1();}
       return true;
     }
@@ -1005,9 +1007,18 @@ function enterFloor(floorNum){
   monsters.length=0;
   // 清空当前楼层所有炸弹和地面资源
   bombs = [];
-  // 重置所有房间的地面资源
-  for (const r of currentFloor.rooms) r._groundResources = [];
+  // 重置所有房间的地面资源和道具
+  for (const r of currentFloor.rooms) { r._groundResources = []; r._groundItems = []; }
   resourcesOnGround = room._groundResources || [];
+  itemsOnGround = room._groundItems || [];
+  // 预初始化所有商店房间的槽位（进入新楼层时固定商品）
+  const shopIds = currentFloor.shopRoomIds || [];
+  for (const sid of shopIds) {
+    const sroom = currentFloor.rooms.find(r => r.id === sid);
+    if (sroom && !sroom._shopSlots) {
+      rollShopSlots(sroom, floorNum);
+    }
+  }
   player.col=6;player.row=3;
   const p=gridToPixel(6,3);player.px=p.x;player.py=p.y;player.facing='down';
   player.targetPx=null;player.targetPy=null;player.animTime=0; // 防残留滑动
@@ -1089,10 +1100,15 @@ function finishTransition(){
   visitedRooms.add(currentRoomId); // 标记为已访问
 
   if (!alreadyVisited) {
-    // 首次进入：刷怪 + 宝箱房生成道具
+    // 首次进入：刷怪 + 宝箱房生成道具 + 商店生成商品
     spawnRoomMonsters();
     if(room.type==='treasure'){
       spawnTreasureRoomItem();
+    }
+    if(room.type==='shop'){
+      // 如果槽位未初始化（理论上 enterFloor 已初始化），在此兜底
+      if(!room._shopSlots) rollShopSlots(room, currentFloor.floorNum);
+      spawnShopGoods(room);
     }
   } else {
     // 再次进入：不刷怪，但有炸弹则重新进入战斗模式
@@ -1574,6 +1590,15 @@ let itemsOnGround = [];     // [{id, cfgId, col, row, px, py, name, icon, qualit
 let playerInventory = [];   // 已拾取道具的 cfgId 列表
 let itemIdCounter = 0;
 let pickupHintTimer = 0;    // 拾取提示计时器
+
+// Fisher-Yates 洗牌
+function shuffleArray(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
 
 // ==================== 资源系统状态 ====================
 let resourcesOnGround = [];  // 地面资源实体 [{id, cfgId, type, col, row, ...}]
@@ -2882,6 +2907,16 @@ function spawnItemOnGrid(col, row, cfgId) {
 
 // 尝试拾取玩家脚下的道具
 function pickUpItems() {
+  // 在商店房间时，道具走购买逻辑
+  const room = currentFloor.rooms.find(r => r.id === currentRoomId);
+  if (room && room.type === 'shop' && room._shopSlots) {
+    const slot = room._shopSlots.find(s => s.col === player.col && s.row === player.row && !s.sold);
+    if (slot) {
+      tryBuyShopItem(player.col, player.row);
+      return false;
+    }
+  }
+
   let picked = false;
   for (let i = itemsOnGround.length - 1; i >= 0; i--) {
     const it = itemsOnGround[i];
@@ -2935,6 +2970,17 @@ function pickUpItems() {
 // 自动拾取玩家脚下的资源 (移动时自动触发)
 function autoPickupResources() {
   let pickedAny = false;
+
+  // 先检查脚下是否有商店商品（需要购买）
+  const room = currentFloor.rooms.find(r => r.id === currentRoomId);
+  if (room && room.type === 'shop' && room._shopSlots) {
+    const slot = room._shopSlots.find(s => s.col === player.col && s.row === player.row && !s.sold);
+    if (slot) {
+      tryBuyShopItem(player.col, player.row);
+      return pickedAny; // 购买处理后返回，不管成功与否
+    }
+  }
+
   for (let i = resourcesOnGround.length - 1; i >= 0; i--) {
     const res = resourcesOnGround[i];
     if (res.col === player.col && res.row === player.row) {
@@ -3451,27 +3497,134 @@ function spawnBossRoomItem() {
   }
 }
 
-// 商店房生成商品
-function spawnShopItems(room) {
+// ==================== 商店系统 ====================
+
+// 楼层价格修正
+function applyShopModifier(floorNum, basePrice) {
+  const floor = allFloors[floorNum];
+  if (!floor || !floor.shopModifier) return basePrice;
+  const mod = floor.shopModifier;
+  switch (mod.type) {
+    case 'none':   return basePrice;
+    case 'add':    return basePrice + (mod.value || 0);
+    case 'multiply': return Math.round(basePrice * (mod.value || 1));
+    case 'halve':  return Math.ceil(basePrice / 2);
+    default:       return basePrice;
+  }
+}
+
+// 为商店房间随机选商品并构造槽位
+function rollShopSlots(room, floorNum) {
   if (!room || room.type !== 'shop') return;
-  if (room.itemSpawned) return;
 
-  // 统一走 rollResourceDrop，resource_drop_shop_stock 配置 mode: roll_all (每种独立判定)
-  const selected = rollResourceDrop('resource_drop_shop_stock').slice(0, 6);
+  // 从全部道具中随机选2个不同道具
+  const allItemIds = Object.keys(ITEMS_DB);
+  const shuffledItems = shuffleArray([...allItemIds]).slice(0, 2);
 
-  // 摆放在房间中央区域
+  // 从资源中随机选3个可购买资源（排除 coin 和 chest 类型）
+  const buyableResources = Object.keys(RESOURCE_DB).filter(k => {
+    const r = RESOURCE_DB[k];
+    return r.type !== 'coin' && r.type !== 'chest';
+  });
+  const shuffledRes = shuffleArray([...buyableResources]).slice(0, 3);
+
+  const floor = floorNum || (currentFloor ? currentFloor.floorNum : 1);
+
+  // 构造槽位：道具2个(row=2)，资源3个(row=4)，价格显示在下一行(row+1)
   const slots = [
-    {c:4,r:2},{c:6,r:2},{c:8,r:2},
-    {c:4,r:4},{c:6,r:4},{c:8,r:4},
+    { col: 4, row: 2, type: 'item',     cfgId: shuffledItems[0], sold: false, priceCol: 4, priceRow: 3 },
+    { col: 8, row: 2, type: 'item',     cfgId: shuffledItems[1], sold: false, priceCol: 8, priceRow: 3 },
+    { col: 3, row: 4, type: 'resource', cfgId: shuffledRes[0],   sold: false, priceCol: 3, priceRow: 5 },
+    { col: 6, row: 4, type: 'resource', cfgId: shuffledRes[1],   sold: false, priceCol: 6, priceRow: 5 },
+    { col: 9, row: 4, type: 'resource', cfgId: shuffledRes[2],   sold: false, priceCol: 9, priceRow: 5 },
   ];
 
-  for (let i = 0; i < Math.min(selected.length, slots.length); i++) {
-    const {c, r} = slots[i];
-    if (!isWall(c, r)) {
-      spawnResourceOnGrid(c, r, selected[i]);
+  // 计算每个槽位的最终价格
+  for (const slot of slots) {
+    const basePrice = slot.type === 'item'
+      ? (ITEMS_DB[slot.cfgId] && ITEMS_DB[slot.cfgId].price != null ? ITEMS_DB[slot.cfgId].price : 15)
+      : (RESOURCE_DB[slot.cfgId] && RESOURCE_DB[slot.cfgId].price != null ? RESOURCE_DB[slot.cfgId].price : 5);
+    slot.price = applyShopModifier(floor, basePrice);
+  }
+
+  room._shopSlots = slots;
+}
+
+// 根据槽位生成地面商品实体
+function spawnShopGoods(room) {
+  if (!room || !room._shopSlots) return;
+
+  for (const slot of room._shopSlots) {
+    if (slot.sold) continue;
+    if (isWall(slot.col, slot.row)) continue;
+
+    if (slot.type === 'item') {
+      spawnItemOnGrid(slot.col, slot.row, slot.cfgId);
+    } else {
+      spawnResourceOnGrid(slot.col, slot.row, slot.cfgId);
     }
   }
-  room.itemSpawned = true;
+}
+
+// 玩家尝试购买商店商品（移动到时调用）
+function tryBuyShopItem(col, row) {
+  const room = currentFloor.rooms.find(r => r.id === currentRoomId);
+  if (!room || room.type !== 'shop' || !room._shopSlots) return false;
+
+  const slot = room._shopSlots.find(s => s.col === col && s.row === row);
+  if (!slot || slot.sold) return false;
+
+  // 金币不足 → 静默不购买
+  if (playerResources.coins < slot.price) return false;
+
+  // 扣除金币
+  playerResources.coins -= slot.price;
+
+  // 获得商品
+  if (slot.type === 'item') {
+    applyItem(slot.cfgId);
+  } else {
+    // 资源：模拟一次拾取
+    const fakeRes = { cfgId: slot.cfgId, col: col, row: row, px: 0, py: 0 };
+    handleResourcePickup(fakeRes);
+  }
+
+  // 标记售出，从地面移除商品实体
+  slot.sold = true;
+  itemsOnGround = itemsOnGround.filter(it => !(it.col === col && it.row === row));
+  resourcesOnGround = resourcesOnGround.filter(r => !(r.col === col && r.row === row));
+  // 同步到房间持久存储
+  if (room._groundItems) room._groundItems = itemsOnGround;
+  if (room._groundResources) room._groundResources = resourcesOnGround;
+
+  updateResourceUI();
+  updateUI();
+  return true;
+}
+
+// 渲染商店价格文字
+function drawShopPrices() {
+  const room = currentFloor.rooms.find(r => r.id === currentRoomId);
+  if (!room || room.type !== 'shop' || !room._shopSlots) return;
+
+  for (const slot of room._shopSlots) {
+    const gp = gridToPixel(slot.priceCol, slot.priceRow);
+    const pp = project(gp.x, gp.y);
+    const cx = Math.round(pp.x), cy = Math.round(pp.y);
+    const s = pp.s;
+
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    const fontSize = Math.max(3, Math.round(6 * s));
+    ctx.font = `bold ${fontSize}px var(--font-mono)`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // 已售出：灰色，未售出：金色
+    ctx.fillStyle = slot.sold ? '#555555' : '#ffcc44';
+    ctx.fillText('$' + slot.price, cx, cy);
+    ctx.restore();
+  }
 }
 
 // ==================== Boss Jumper 行动系统 ====================
@@ -4653,6 +4806,7 @@ function render() {
   if(inCombat)drawReachableOverlay(); // 战斗模式显示可移动范围
   drawItemsOnGround(); // 地上道具
   drawResourcesOnGround(); // 地上资源
+  drawShopPrices(); // 商店价格标签
   drawBombs(); // 炸弹
   drawBullets();
   drawParticles();
@@ -6727,10 +6881,6 @@ function spawnRoomMonsters() {
 
   // 起点/宝藏/商店房间：不生成怪物
   if (roomType === 'start' || roomType === 'treasure' || roomType === 'shop') {
-    // 商店房首次进入生成商店资源
-    if (roomType === 'shop' && !room.itemSpawned) {
-      spawnShopItems(room);
-    }
     updateRoomCombatState();
     return;
   }
