@@ -11,7 +11,7 @@
 >
 > **组织方式**：纯时间顺序，不做模块分类。给 AI 快速浏览聊天记忆用。
 >
-> 最后更新: 2026-08-04
+> 最后更新: 2026-08-05
 
 ---
 
@@ -685,5 +685,30 @@
   3. `drawShopPrices()` 在 `render()` 中调用，渲染金色价格标签（已售出显示灰色）
   4. 商店房进入时不再在 `spawnRoomMonsters` 中调用 `spawnShopItems`（已由 `finishTransition` 统一处理）
 - **[关键设计]** 商店价格标签通过 Canvas 渲染（而非 DOM 覆盖层），使用金色/灰色区分售出状态
+
+---
+
+## 2026-08-05
+
+### 刷怪配置架构重构：spawnConfig 从 floor-data 硬编码移至运行时计算 [当前方案]
+
+- **[背景]** 用户需要"每层配置不同怪物数量 + 不同房间类型微调"的功能，之前的方案在 floor-data.json 中每个 room 硬编码 spawnConfig，导致冗余且与 floor-data 生成产物的定位冲突
+- **[方案演变]**
+  1. 最初考虑在 floor-data.json 中加 spawnConfig 覆盖字段 → 用户质疑这与"floor-data 是生成产物"的矛盾
+  2. AI 一度又引入"地图编辑器手动覆盖单个房间"概念 → 用户指出这是画蛇添足
+  3. 最终方案：spawnConfig 只在 `spawn-config.json` 中配置，`demo2.html` 运行时计算
+- **[最终架构]**
+  - `spawn-config.json`：删除 `baseSpawnConfig` 整节（公式/增长率），`floorBudgets` 从 `{bonus}` 改为 `{minMonsters, maxMonsters, budget}` 三元组每层独立配置，`terrainModifiers` 从仅有 `budget` 扩展为 `{budget, minDelta, maxDelta}`
+  - `floor-data.json`：移除所有 67 个 room 的 `spawnConfig` 字段
+  - `demo2.html`：新增 `resolveSpawnConfig(room, floorNum)` → `floorBudgets[楼层] + terrainModifiers[模板]`，`room.spawnConfig` 存在时覆盖兜底
+  - `map-viewer.html`：删除硬编码 terrainModifiers 和 spawnConfig 计算循环，`saveFloorToFile` 增加 `delete r.spawnConfig`
+- **[调参方式]** 只改 spawn-config.json：调某层全局难度改 `floorBudgets["N"]`，调某种房间模板偏差改 `terrainModifiers["模板名"]`
+- **[关键洞察]** floor-data.json 是编辑器生成的产物，不应包含设计决策参数；参数应集中在 spawn-config.json 中，运行时由 resolveSpawnConfig 动态计算
+
+### 编辑器 pool.json 加载 _schema 过滤修复 [当前方案]
+
+- **[问题]** 地图编辑器选择 pool.json 文件时报错
+- **[根因]** `pool.json` 包含 `_schema` 元数据 key，`getMergedTemplates()` 遍历 `poolFromJson` 时把 `_schema` 也当作模板合并到 `allTemplates`，后续 `refreshTemplates()` 尝试访问 `_schema.tiles`/`_schema.types` 时报错
+- **[修复]** 在 4 个加载 pool.json 的入口统一 `delete loaded._schema`：File System Access API 选择文件、回退模式 file input、autoLoadPool 从 localStorage 缓存加载、autoLoadPool 从 IndexedDB handle 加载
 
 ---

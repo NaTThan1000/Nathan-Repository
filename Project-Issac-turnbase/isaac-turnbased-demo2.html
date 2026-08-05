@@ -938,18 +938,18 @@ function getTpl(key){
 }
 function BUILTIN_TEMPLATES(){
   return {
-    'open':{name:'空旷大厅',types:['start','normal','treasure','shop'],tiles:['.............','.............','.............','.............','.............','.............','.............'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:8}},
-    'boss_arena':{name:'Boss竞技场',types:['boss'],tiles:['.............','...#.....#...','.............','.......#.....','.............','...#.....#...','.............'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:1,budget:0}},
-    'cross_rocks':{name:'十字岩石',types:['normal','treasure'],tiles:['.............','......#......','......#......','...##.#.##...','......#......','......#......','.............'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:7}},
-    'four_corners':{name:'四角岩石',types:['normal','treasure'],tiles:['P##.......##P','.##.......##.','.............','.............','.............','.##.......##.','P##.......##P'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:2,maxMonsters:4,budget:9}},
-    'pillars':{name:'四柱大厅',types:['normal','treasure'],tiles:['.............','...#P...P#...','.............','.....#.#.....','.............','...#P...P#...','.............'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:8}},
-    'corridor':{name:'横向窄道',types:['normal'],tiles:['..###...###..','..###...###..','.............','.............','.............','..###...###..','..###...###..'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:2,budget:5}},
-    'corridor_v':{name:'纵向窄道',types:['normal'],tiles:['O..##...##..O','...##...##...','...#.....#...','.....P#P.....','...#.....#...','...##...##...','O..##...##..O'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:2,budget:5}},
-    'scattered':{name:'散落岩石',types:['normal'],tiles:['...........#.','.....#.......','.......#.....','..#..........','.........#...','......#......','...#.........'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:6}},
-    'ring':{name:'环形壁垒',types:['normal','treasure'],tiles:['...##...##...','..#.......#..','..#........#.','.............','..#........#.','..#.......#..','...##...##...'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:8}},
-    'room_split':{name:'裂半之室',types:['normal'],tiles:['.............','.....#^#.....','....#...^....','...##...##...','....^...#....','.....#^#.....','.............'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:2,maxMonsters:4,budget:9}},
-    'alcoves':{name:'壁龛石室',types:['normal','treasure'],tiles:['..##P...P##..','.............','.#.........#.','.............','.#.........#.','.............','..##P...P##..'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:8}},
-    'diagonal':{name:'斜岩通道',types:['normal'],tiles:['##...........','.##..........','..##.........','...##........','....##.......','.....##......','.............'],spawnConfig:{allowedMovement:['地面','飞行'],minMonsters:1,maxMonsters:3,budget:7}},
+    'open':{name:'空旷大厅',types:['start','normal','treasure','shop'],tiles:['.............','.............','.............','.............','.............','.............','.............'],allowedMovement:['地面','飞行']},
+    'boss_arena':{name:'Boss竞技场',types:['boss'],tiles:['.............','...#.....#...','.............','.......#.....','.............','...#.....#...','.............'],allowedMovement:['地面','飞行']},
+    'cross_rocks':{name:'十字岩石',types:['normal','treasure'],tiles:['.............','......#......','......#......','...##.#.##...','......#......','......#......','.............'],allowedMovement:['地面','飞行']},
+    'four_corners':{name:'四角岩石',types:['normal','treasure'],tiles:['P##.......##P','.##.......##.','.............','.............','.............','.##.......##.','P##.......##P'],allowedMovement:['地面','飞行']},
+    'pillars':{name:'四柱大厅',types:['normal','treasure'],tiles:['.............','...#P...P#...','.............','.....#.#.....','.............','...#P...P#...','.............'],allowedMovement:['地面','飞行']},
+    'corridor':{name:'横向窄道',types:['normal'],tiles:['..###...###..','..###...###..','.............','.............','.............','..###...###..','..###...###..'],allowedMovement:['地面','飞行']},
+    'corridor_v':{name:'纵向窄道',types:['normal'],tiles:['O..##...##..O','...##...##...','...#.....#...','.....P#P.....','...#.....#...','...##...##...','O..##...##..O'],allowedMovement:['地面','飞行']},
+    'scattered':{name:'散落岩石',types:['normal'],tiles:['...........#.','.....#.......','.......#.....','..#..........','.........#...','......#......','...#.........'],allowedMovement:['地面','飞行']},
+    'ring':{name:'环形壁垒',types:['normal','treasure'],tiles:['...##...##...','..#.......#..','..#........#.','.............','..#........#.','..#.......#..','...##...##...'],allowedMovement:['地面','飞行']},
+    'room_split':{name:'裂半之室',types:['normal'],tiles:['.............','.....#^#.....','....#...^....','...##...##...','....^...#....','.....#^#.....','.............'],allowedMovement:['地面','飞行']},
+    'alcoves':{name:'壁龛石室',types:['normal','treasure'],tiles:['..##P...P##..','.............','.#.........#.','.............','.#.........#.','.............','..##P...P##..'],allowedMovement:['地面','飞行']},
+    'diagonal':{name:'斜岩通道',types:['normal'],tiles:['##...........','.##..........','..##.........','...##........','....##.......','.....##......','.............'],allowedMovement:['地面','飞行']},
   };
 }
 
@@ -989,7 +989,7 @@ async function loadOrGenerateFloors(forceReload){
       if(_lastFloorHash===text&&Object.keys(allFloors).length>0)return false;
       _lastFloorHash=text;
       const data=JSON.parse(text);
-      for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(r.tplKey?getTpl(r.tplKey).tiles:BUILTIN_TEMPLATES()['open'].tiles);else if(r.grid.length>0&&Array.isArray(r.grid[0])&&r.grid.length===ROWS)r.grid=transposeGridRowToCol(r.grid);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;r.type=r.type||'normal';r._initLocked=r.locked;r._shopSlots=null;r._groundResources=r._groundResources||[];r._groundItems=r._groundItems||[];r._initGrid=r.grid.map(col=>[...col]);r._initDoors={up:r.doors.up?{...r.doors.up}:null,down:r.doors.down?{...r.doors.down}:null,left:r.doors.left?{...r.doors.left}:null,right:r.doors.right?{...r.doors.right}:null};});}
+      for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{r.grid=r.grid&&r.grid.length>0?(Array.isArray(r.grid[0])&&r.grid.length===ROWS?transposeGridRowToCol(r.grid):r.grid):parseGrid(r.tplKey?getTpl(r.tplKey).tiles:BUILTIN_TEMPLATES()['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;r.type=r.type||'normal';r._initLocked=r.locked;r._shopSlots=null;r._groundResources=r._groundResources||[];r._groundItems=r._groundItems||[];r._initGrid=r.grid.map(col=>[...col]);r._initDoors={up:r.doors.up?{...r.doors.up}:null,down:r.doors.down?{...r.doors.down}:null,left:r.doors.left?{...r.doors.left}:null,right:r.doors.right?{...r.doors.right}:null};});}
       if(forceReload){console.log('🔄 检测到楼层更新，已重新加载');resetGameToFloor1();}
       return true;
     }
@@ -5515,7 +5515,14 @@ function drawMinimap() {
     if (!r) continue;
     const x1 = offsetX + (pos.gx - minX) * (cellSize + cellGap) + cellSize / 2;
     const y1 = offsetY + (pos.gy - minY) * (cellSize + cellGap) + cellSize / 2;
-    for (const conn of r.connections || []) {
+    // 从 doors 推导连接（替代旧 connections 字段）
+    const conns = [];
+    for (const d of ['up','down','left','right']) {
+      if (r.doors && r.doors[d] && r.doors[d].targetRoomId) {
+        conns.push({ targetId: r.doors[d].targetRoomId });
+      }
+    }
+    for (const conn of conns) {
       const tpos = currentFloor.layout[conn.targetId];
       if (!tpos) continue;
       const x2 = offsetX + (tpos.gx - minX) * (cellSize + cellGap) + cellSize / 2;
@@ -6850,11 +6857,42 @@ function spawnMonsterAtRandomPos(cfgId) {
 }
 
 /**
+ * 运行时计算房间的刷怪配置
+ * floorBudgets[楼层] 提供基准值 + terrainModifiers[模板] 提供微调
+ * room.spawnConfig 存在时覆盖对应字段（兜底兼容）
+ */
+function resolveSpawnConfig(room, floorNum) {
+  const fb = (SPAWN_CONFIG.floorBudgets || {})[String(floorNum)] || {};
+  const tm = (SPAWN_CONFIG.terrainModifiers || {})[room.tplKey] || {};
+
+  const baseMin = fb.minMonsters || 1;
+  const baseMax = fb.maxMonsters || 3;
+  const baseBudget = fb.budget || 8;
+
+  const minDelta = tm.minDelta || 0;
+  const maxDelta = tm.maxDelta || 0;
+  const budgetDelta = tm.budget || 0;
+
+  let minMonsters = Math.max(1, baseMin + minDelta);
+  let maxMonsters = Math.max(minMonsters, baseMax + maxDelta);
+  let budget = Math.max(1, baseBudget + budgetDelta);
+
+  // room.spawnConfig 存在时覆盖对应字段（旧数据兜底 / 手动覆盖）
+  if (room.spawnConfig) {
+    if (room.spawnConfig.minMonsters !== undefined) minMonsters = room.spawnConfig.minMonsters;
+    if (room.spawnConfig.maxMonsters !== undefined) maxMonsters = room.spawnConfig.maxMonsters;
+    if (room.spawnConfig.budget !== undefined) budget = room.spawnConfig.budget;
+  }
+
+  return { minMonsters, maxMonsters, budget };
+}
+
+/**
  * 根据房间类型和模板配置，生成符合规则的怪物群
  * 三层递进：
  *   1. 标签过滤（地形适配）: monster.movementTags ∩ room.allowedMovement
  *   2. 组合规则（体验质量）: 至少1近战、类型多样性加权
- *   3. 点数预算（难度递进）: 基础预算 + 楼层系数，按 threat 消耗
+ *   3. 点数预算（难度递进）: floorBudgets + terrainModifiers，按 threat 消耗
  */
 function spawnRoomMonsters() {
   // 清除当前房间怪物
@@ -6865,7 +6903,8 @@ function spawnRoomMonsters() {
 
   const roomType = room.type;
   const tpl = getTpl(room.tplKey);
-  const spawnCfg = tpl.spawnConfig || { allowedMovement: ['地面', '飞行'], minMonsters: 1, maxMonsters: 3, budget: 8 };
+  // allowedMovement 来自模板（地形属性），minMonsters/maxMonsters/budget 由 resolveSpawnConfig 运行时计算
+  const spawnCfg = resolveSpawnConfig(room, currentFloor.floorNum);
 
   // Boss 房间：从配置文件按楼层随机选取 Boss
   if (roomType === 'boss') {
@@ -6886,7 +6925,7 @@ function spawnRoomMonsters() {
   }
 
   // ============ 第一层：标签过滤 ============
-  const allowedMovement = spawnCfg.allowedMovement || ['地面', '飞行'];
+  const allowedMovement = (tpl && tpl.allowedMovement) ? tpl.allowedMovement : ['地面', '飞行'];
   let eligiblePool = MONSTER_POOL_NORMAL.filter(cfgId => {
     const cfg = MONSTER_DB[cfgId];
     return cfg.movementTags && cfg.movementTags.some(tag => allowedMovement.includes(tag));
@@ -6904,11 +6943,8 @@ function spawnRoomMonsters() {
     return;
   }
 
-  // ============ 第三层：点数预算（含楼层递进） ============
-  const fb = SPAWN_CONFIG.floorBudgets || {};
-  const flCfg = fb[String(floorNum)] || {};
-  const floorBonus = flCfg.bonus !== undefined ? flCfg.bonus : ((floorNum - 1) * 2);
-  const totalBudget = (spawnCfg.budget || 8) + floorBonus;
+  // ============ 第三层：点数预算（resolveSpawnConfig 已包含楼层递进+地形修正） ============
+  const totalBudget = spawnCfg.budget || 8;
   const minMonsters = spawnCfg.minMonsters || 1;
   const maxMonsters = spawnCfg.maxMonsters || 3;
 

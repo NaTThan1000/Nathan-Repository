@@ -501,6 +501,8 @@ fileInput.addEventListener('change', async () => {
   try {
     const text = await file.text();
     const loaded = JSON.parse(text);
+    // 过滤掉 _schema 等元数据 key，只保留模板数据
+    delete loaded._schema;
     // 文件是权威数据源 → 覆盖 poolFromJson 并清空 localStorage
     poolFromJson = loaded;
     localStorage.removeItem(STORAGE_KEY);
@@ -524,6 +526,7 @@ btnPick.addEventListener('click', async () => {
       });
       fileHandle = handle;
       poolFromJson = await readPoolFromHandle(handle);
+      delete poolFromJson._schema;  // 过滤元数据
       localStorage.removeItem(STORAGE_KEY);  // 文件是权威源
       localStorage.setItem(CACHE_KEY, JSON.stringify(poolFromJson));  // 记忆文件内容
       await storeHandle(handle);
@@ -568,6 +571,7 @@ async function autoLoadPool() {
   if (cached) {
     try {
       poolFromJson = JSON.parse(cached);
+      delete poolFromJson._schema;  // 过滤元数据
       localStorage.removeItem(STORAGE_KEY);
       btnSync.textContent = '📄 生成json';
       console.log('📂 从缓存加载关卡池: ' + Object.keys(poolFromJson).length + ' 个模板');
@@ -585,6 +589,7 @@ async function autoLoadPool() {
         if (ok) {
           fileHandle = handle;
           poolFromJson = await readPoolFromHandle(handle);
+          delete poolFromJson._schema;  // 过滤元数据
           localStorage.removeItem(STORAGE_KEY);
           btnSync.textContent = '📄 生成json';
           return;
@@ -1423,8 +1428,8 @@ function generateFloor(floorNum){
   const DIRS={up:{dx:0,dy:-1,opp:'down'},down:{dx:0,dy:1,opp:'up'},left:{dx:-1,dy:0,opp:'right'},right:{dx:1,dy:0,opp:'left'}};
   const DIR_KEYS=Object.keys(DIRS);
 
-  // 1. 创建N个房间
-  const rooms=[];for(let i=0;i<N;i++)rooms.push({id:`f${floorNum}_r${i}`,type:null,tplKey:null,grid:null,connections:[],doors:{up:null,down:null,left:null,right:null},locked:false});
+  // 1. 创建N个房间（grid/connections 不再持久化到 floor-data.json，运行时从 tpl tiles parse 和 doors 推导）
+  const rooms=[];for(let i=0;i<N;i++)rooms.push({id:`f${floorNum}_r${i}`,type:null,tplKey:null,doors:{up:null,down:null,left:null,right:null},locked:false});
   const nodeIds=rooms.map(r=>r.id);const roomMap={};rooms.forEach(r=>{roomMap[r.id]=r;});
 
   // 2. 拆分：骨架房（普通+起点）vs 特殊房（boss+宝箱+商店）
@@ -1517,7 +1522,10 @@ function generateFloor(floorNum){
   const validTpls={};for(const[k,v]of Object.entries(allTemplates)){if(validateTiles(v.tiles).pass)validTpls[k]=v;}if(Object.keys(validTpls).length===0)validTpls['open']=BUILTIN_TEMPLATES['open'];
   rooms.forEach(r=>{if(!r.type)r.type='normal'; // 兜底：未放置的特殊房降级为普通
     const cands=Object.keys(validTpls).filter(k=>{if(r.type==='start')return k==='open';if(r.type==='boss')return k==='boss_arena'&&validateTiles(validTpls[k].tiles).pass;if(r.type==='shop')return validTpls[k].types.includes('shop');return validTpls[k].types.includes(r.type);});
-    if(cands.length===0){r.tplKey='open';r.grid=parseGrid(BUILTIN_TEMPLATES['open'].tiles);}else{r.tplKey=cands[Math.floor(Math.random()*cands.length)];r.grid=parseGrid(validTpls[r.tplKey].tiles);}});
+    if(cands.length===0){r.tplKey='open';}else{r.tplKey=cands[Math.floor(Math.random()*cands.length)];}
+    // 编辑器运行时仍需 grid 用于渲染，但不持久化到 floor-data.json
+    r.grid = parseGrid((validTpls[r.tplKey]||BUILTIN_TEMPLATES['open']).tiles);
+  });
 
   // 11.5 房间清空奖励配置 (方案A: 按房间类型自动填充默认值)
   const roomClearDropDefaults = {
@@ -1531,11 +1539,10 @@ function generateFloor(floorNum){
     r.roomClearDrop = roomClearDropDefaults[r.type] || roomClearDropDefaults['normal'];
   });
 
-  // 12. 边转门
+  // 12. 边转门（connections 不再生成，运行时从 doors 推导）
   edges.forEach(([idA,idB])=>{const pa=layout[idA],pb=layout[idB],dx=pb.gx-pa.gx,dy=pb.gy-pa.gy;
     const dA=dx>0?'right':dx<0?'left':dy>0?'down':'up';const dB=dx>0?'left':dx<0?'right':dy>0?'up':'down';
-    roomMap[idA].doors[dA]={targetRoomId:idB,open:true};roomMap[idB].doors[dB]={targetRoomId:idA,open:true};
-    roomMap[idA].connections.push({targetId:idB,dir:dA});roomMap[idB].connections.push({targetId:idA,dir:dB});});
+    roomMap[idA].doors[dA]={targetRoomId:idB,open:true};roomMap[idB].doors[dB]={targetRoomId:idA,open:true};});
 
   return{floorNum,name:cfg.name,rooms,edges,layout,startRoomId:startId,bossRoomId:bossId,treasureRoomIds:treasureIds,shopRoomIds:shopIds};
 }
@@ -1544,11 +1551,9 @@ function generateAllFloors(){for(let f=1;f<=6;f++)allFloors[f]=generateFloor(f);
 
 async function saveFloorToFile(){
   try{
-    const data={};for(let f=1;f<=6;f++){const fl=allFloors[f];if(!fl)continue;data[f]={floorNum:fl.floorNum,name:fl.name,rooms:JSON.parse(JSON.stringify(fl.rooms)),edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds,shopRoomIds:fl.shopRoomIds||[]};}
-    // 转置 grid 为 row-major 用于 JSON 存储 (紧凑可读)
-    for(let f=1;f<=6;f++){if(!data[f])continue;data[f].rooms.forEach(r=>{if(r.grid&&r.grid.length===COLS&&Array.isArray(r.grid[0]))r.grid=transposeGridColToRow(r.grid);});}
+    const data={};for(let f=1;f<=6;f++){const fl=allFloors[f];if(!fl)continue;const rooms=JSON.parse(JSON.stringify(fl.rooms));rooms.forEach(r=>{delete r.grid;delete r.connections;delete r.spawnConfig;});data[f]={floorNum:fl.floorNum,name:fl.name,shopModifier:fl.shopModifier||{type:'none'},rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds,shopRoomIds:fl.shopRoomIds||[]};}
+    // grid 不再持久化到 JSON（运行时从 pool tiles parse 生成），connections 从 doors 推导
     let json=JSON.stringify(data, null, 2);
-    json=compactGridJson(json);
     // 写入 localStorage 缓存
     localStorage.setItem(FLOOR_CACHE_KEY, json);
     // 如果有文件句柄，写入文件
@@ -1655,11 +1660,9 @@ async function tryLoadFloorData(){
 
 document.getElementById('btn-pick-floor').addEventListener('click',pickFloorFile);
 document.getElementById('btn-floor-json').addEventListener('click',()=>{
-  const data={};for(let f=1;f<=6;f++){const fl=allFloors[f];if(!fl)continue;data[f]={floorNum:fl.floorNum,name:fl.name,rooms:JSON.parse(JSON.stringify(fl.rooms)),edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds,shopRoomIds:fl.shopRoomIds||[]};}
-  // 转置 grid 为 row-major 用于 JSON 存储 (紧凑可读)
-  for(let f=1;f<=6;f++){if(!data[f])continue;data[f].rooms.forEach(r=>{if(r.grid&&r.grid.length===COLS&&Array.isArray(r.grid[0]))r.grid=transposeGridColToRow(r.grid);});}
+  const data={};for(let f=1;f<=6;f++){const fl=allFloors[f];if(!fl)continue;const rooms=JSON.parse(JSON.stringify(fl.rooms));rooms.forEach(r=>{delete r.grid;delete r.connections;});data[f]={floorNum:fl.floorNum,name:fl.name,shopModifier:fl.shopModifier||{type:'none'},rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds,shopRoomIds:fl.shopRoomIds||[]};}
+  // grid 不再持久化到 JSON（运行时从 pool tiles parse 生成），connections 从 doors 推导
   let json=JSON.stringify(data, null, 2);
-  json=compactGridJson(json);
   document.getElementById('download-textarea').value=json;
   document.querySelector('#download-modal h3').textContent='📄 floor-data.json（请复制后覆盖到 Configs/floor-data.json）';
   document.getElementById('download-modal').classList.add('show');

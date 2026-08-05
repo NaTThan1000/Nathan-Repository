@@ -1,6 +1,6 @@
 # 以撒·半回合制战斗 — 项目总览
 
-> 文件: `Project-Issac-turnbase/isaac-turnbased-demo2.html`（v3道具系统版，主开发文件） | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据(含roomClearDrop配置) + `Configs/monster-db.json` 怪物配置表(含loot) + `Configs/item-db.json` 道具数据库(含itemDropTables, 9张item_drop_*表) + `Configs/resource-db.json` 资源数据库(定义+11张resource_drop_*掉落表+宝箱loot) + `Configs/spawn-config.json` 楼层刷怪配置 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 统一掉落调度器(rollLoot) + 资源掉落系统(mode驱动) + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层 + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表 + Boss Jumper 2×2跳跃Boss + 怪物行动系统重构(actionMode+actions[]) + 掉落表命名统一(item_drop_/resource_drop_前缀) + roomClearDrop配置驱动
+> 文件: `Project-Issac-turnbase/isaac-turnbased-demo2.html`（v3道具系统版，主开发文件） | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据(含roomClearDrop配置) + `Configs/monster-db.json` 怪物配置表(含loot) + `Configs/item-db.json` 道具数据库(含itemDropTables, 9张item_drop_*表) + `Configs/resource-db.json` 资源数据库(定义+11张resource_drop_*掉落表+宝箱loot) + `Configs/spawn-config.json` 楼层刷怪配置(floorBudgets+terrainModifiers运行时计算) | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 统一掉落调度器(rollLoot) + 资源掉落系统(mode驱动) + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层 + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表 + Boss Jumper 2×2跳跃Boss + 怪物行动系统重构(actionMode+actions[]) + 掉落表命名统一(item_drop_/resource_drop_前缀) + roomClearDrop配置驱动 + 刷怪配置运行时计算(resolveSpawnConfig)
 
 ---
 
@@ -75,8 +75,8 @@
 - **自动刷怪**：`spawnRoomMonsters()` — 进入房间/楼层切换时自动调用，三层递进：
   1. **标签过滤**：怪物 `movementTags` 与房间 `allowedMovement` 取交集，仅匹配的怪物可生成
   2. **组合规则**：优先保底 1 只近战（如有），后续按角色多样性加权（未出现的 role ×3 权重）
-  3. **点数预算**：总预算 = 房间 `budget` + (楼层-1) × 2，按怪物 `threat` 消耗填充
-  - Boss 房固定生成 `boss_jumper`（2×2体型），起点/宝藏房不生成怪物
+  3. **点数预算**：`resolveSpawnConfig(room, floorNum)` 运行时计算 → `floorBudgets[楼层]` 基准值 + `terrainModifiers[模板]` 微调，按怪物 `threat` 消耗填充
+  - Boss 房固定生成 `boss_jumper`（2×2体型），起点/宝藏/商店房不生成怪物
 - **调试生怪**：C键或"生怪"按钮 → `spawnMonster()` 生成 1 只地面标签随机怪
 
 **移动与碰撞**：
@@ -475,6 +475,7 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
     ├── 宝箱系统 (chest_normal普通碰触开 / chest_golden金宝箱需钥匙，loot通过rollLoot调度)
     ├── 掉落系统 (rollLoot 统一调度器 + executeDropEntry 分发 + rollMonsterKillDrop + chest loot in resource-db.json)
     ├── 数据加载层 (loadMonsterDB/loadItemDB/loadResourceDB/loadSpawnConfig — 异步fetch JSON配置文件)
+    ├── 刷怪配置解析 (resolveSpawnConfig — floorBudgets + terrainModifiers 运行时计算)
     ├── UI 更新 (updateUI, updateActionBar, updateFloorUI)
     ├── 输入处理 (keydown — WASD移动/箭头射击/Esc重置/Space结束/R重置/F拾取)
     └── 游戏循环 (gameLoop → requestAnimationFrame)
@@ -582,7 +583,8 @@ function project(wx, wy) {
 | `updateParticles(dt)` | 粒子物理+淡出 |
 | `spawnMonster(cfgId?)` | 调试生怪：生成 1 只地面标签随机怪 |
 | `spawnMonsterAtRandomPos(cfgId)` | 在随机可行走位置生成指定怪物（支持2×2体型判定），返回是否成功 |
-| `spawnRoomMonsters()` | 混合刷怪主函数：Boss房→`boss_jumper`、宝藏/起点房无怪、普通房三层递进 |
+| `resolveSpawnConfig(room, floorNum)` | 运行时计算房间刷怪配置：`floorBudgets[楼层]` + `terrainModifiers[模板]`，返回 {minMonsters, maxMonsters, budget} |
+| `spawnRoomMonsters()` | 混合刷怪主函数：Boss房→`boss_jumper`、宝藏/起点/商店房无怪、普通房三层递进 |
 | `monsterCells(m)` / `isInMonsterFootprint(m,c,r)` | 2×2怪物辅助：获取占据格列表 / 检测格子是否在怪物范围内 |
 | `isValidLandingZone(c,r,size)` | 2×2落脚验证：不越界、不是墙、不能全深坑 |
 | `processJumperAction(m)` | Boss Jumper行动分发：phase 1/2→小跳、phase 4→大跳消失、justLanded→跳过 |
@@ -601,7 +603,7 @@ function project(wx, wy) {
 启动:
   loadTemplates() → poolTemplates
   loadMonsterDB() → MONSTER_DB (异步fetch monster-db.json)
-  loadSpawnConfig() → SPAWN_CONFIG (异步fetch spawn-config.json)
+  loadSpawnConfig() → SPAWN_CONFIG (异步fetch spawn-config.json，floorBudgets + terrainModifiers + bossMonsters)
   loadItemDB() → ITEMS_DB (异步fetch item-db.json, 含掉落表itemDropTables)
   loadResourceDB() → RESOURCE_DB (异步fetch resource-db.json, 含资源定义+掉落表+宝箱loot)
   loadOrGenerateFloors() → allFloors (从 floor-data.json / 兜底 generateAllFloors)
@@ -659,12 +661,12 @@ function project(wx, wy) {
 
 | 文件 | 类型 | 说明 |
 |------|------|------|
-| `pool.json` | JSON | 关卡池数据文件（模板定义 + spawnConfig 刷怪配置，编辑器读写） |
-| `floor-data.json` | JSON | 楼层生成数据（房间结构+grid，编辑器/游戏加载） |
+| `pool.json` | JSON | 关卡池数据文件（模板定义 + allowedMovement 配置，编辑器读写） |
+| `floor-data.json` | JSON | 楼层生成数据（房间结构+grid，编辑器/游戏加载，不含 spawnConfig） |
 | `monster-db.json` | JSON | 怪物配置数据（12只怪物：4类型×3等级，含 `actionMode`+`actions[]` 行动列表 + `loot` 掉落配置） |
 | `item-db.json` | JSON | 道具数据库（25种被动道具 + `itemDropTables` 9张掉落表，全部 `item_drop_` 前缀） |
 | `resource-db.json` | JSON | 资源数据库（金币/炸弹/红心/蓝心/宝箱/钥匙定义 + `resourceDropTables` 11张资源掉落表，全部 `resource_drop_` 前缀 + `_limits` 上限配置 + `_schema` 文档） |
-| `spawn-config.json` | JSON | 楼层刷怪配置（每层预算加成 + Boss 分配表） |
+| `spawn-config.json` | JSON | 楼层刷怪配置（`floorBudgets` 每层独立 minMonsters/maxMonsters/budget 三元组 + `terrainModifiers` 模板微调 + `bossMonsters` Boss 分配表） |
 
 > **已删除文件**：`item-drop-tables.json` — 品质表已合并至 `item-db.json > itemDropTables` | `isaac-room-pool - original backup.json` — 原始关卡池备份（已清理）
 
@@ -684,6 +686,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-08-05 | **刷怪配置架构重构：spawnConfig 从 floor-data 移至运行时计算**。①`spawn-config.json` 重构：删除 `baseSpawnConfig` 公式层，`floorBudgets` 改为 `{minMonsters, maxMonsters, budget}` 完整三元组每层独立配置，`terrainModifiers` 扩展为 `{budget, minDelta, maxDelta}` 支持对 min/max 怪物数做微调。②`floor-data.json` 移除全部 67 个 room 的 `spawnConfig` 字段（不再硬编码在生成产物中）。③`demo2.html` 新增 `resolveSpawnConfig(room, floorNum)` 函数，运行时计算 `floorBudgets[楼层] + terrainModifiers[模板]`，`room.spawnConfig` 存在时覆盖兜底。④`map-viewer.html` 删除硬编码 terrainModifiers 和 spawnConfig 计算循环，`saveFloorToFile` 增加 `delete r.spawnConfig`。⑤修复编辑器选择 pool.json 时报错：4个加载入口统一 `delete loaded._schema` 过滤元数据 key。 |
 | 2026-08-04(晚) | **R键重置完整性修复 + 商店购买系统 + AP视觉修复**。①`loadOrGenerateFloors` 首次加载后深拷贝保存 `_initGrid`/`_initDoors`，R键重置时从备份恢复所有房间的地形破坏、门状态、Boss梯子、道具标记等，彻底修复R键后大便/岩石未恢复的问题。②合并原来分散的两个清理循环为一个统一循环。③`buildApDots`/`buildHearts`/`buildBlueHearts` 移到 `updateUI` 之前执行，修复因 `buildApDots` 在 `updateApDots` 之后调用导致 AP 圆点视觉未更新的 bug。④新增商店购买系统：`tryBuyShopSlot(col,row)` 检测商品→扣金币→获得道具/资源→标记售出；`drawShopPrices()` 渲染价格标签(金色/灰色)。⑤商店房进入时不调用 `spawnShopItems`（已在 `finishTransition` 中处理）。 |
 | 2026-08-04 | **掉落表命名统一 + roomClearDrop配置驱动化**。①`itemDropTables` 9张表全部加 `item_drop_` 前缀，`resourceDropTables` 11张表全部加 `resource_drop_` 前缀，宝箱资源对象名不变以消除歧义。②全项目 6 文件同步更新所有引用（monster-db/floor-data/map-viewer/demo2）。③`rollRoomClearDrop()` 从硬编码 roomType→tableKey 映射改为读取 `room.roomClearDrop` 配置。④修复地图编辑器 `floorFileInput` 缺少 grid 转置导致显示不正确。 |
 | 2026-07-31(晚2) | **context.md Boss Jumper 文档不实描述批量修正**。①怪物表概览行展开为 3 个 action 完整描述（steps:[2/3/3]、repeatChance:0.5 在第二个 jump_small、落地伤害由 after_effect:attack_side 实现）。②字段说明范例 landDamage→target。③Action 类型枚举 jump_small 补 repeatChance、jump_big_land 移除 landDamage/repeatChance 改 target+after_effect。④§2.13 大跳跃行 landDamage→after_effect:attack_side。⑤§2.13 关键设计 jump_big_land.repeatChance→第二个 jump_small.repeatChance。⑥历史记录 2026-07-27 参数迁移路径修正。⑦global-rules §2.2 追加「同步前回溯本轮所有待修条目」硬性步骤。 |
