@@ -711,4 +711,25 @@
 - **[根因]** `pool.json` 包含 `_schema` 元数据 key，`getMergedTemplates()` 遍历 `poolFromJson` 时把 `_schema` 也当作模板合并到 `allTemplates`，后续 `refreshTemplates()` 尝试访问 `_schema.tiles`/`_schema.types` 时报错
 - **[修复]** 在 4 个加载 pool.json 的入口统一 `delete loaded._schema`：File System Access API 选择文件、回退模式 file input、autoLoadPool 从 localStorage 缓存加载、autoLoadPool 从 IndexedDB handle 加载
 
+### 小队模板系统（squad-templates.json）[当前方案]
+
+- **[背景]** 之前的刷怪系统在普通房间中按怪物独立选取（标签过滤→组合规则→点数预算），缺乏"怪物组合"的概念。用户需要一个预定义小队模板系统来控制怪物组合
+- **[实现]**
+  - 新建 `Configs/squad-templates.json`：预定义怪物小队模板，每个 squad 含 `monsters[]`（cfgId列表）、`budget`（预算消耗）、`movementTags`（与房间标签匹配）、`minFloor`（最低楼层限制）
+  - `demo2.html` 新增 `SQUAD_TEMPLATES` 全局变量 + `loadSquadTemplates()` 异步加载函数
+  - 新增 `filterSquadsByRoom(floorNum, roomType, tpl)`：按 minFloor + movementTags 过滤可用 squad
+  - `spawnRoomMonsters()` 重构：Boss 房从 `bossMonsters[楼层]` 随机选 squad 生成，普通房贪心选取 squad（预算上限内随机选直到超预算）
+  - `spawn-config.json` 中的 `bossMonsters` 改为 squad ID 列表（而非单一 cfgId）
+
+### 锚点聚拢生成逻辑优化 [当前方案]
+
+- **[问题]** 原 `spawnMonsterAtRandomPos` 中 squad 锚点生成逻辑有 `topN` 退路：距离=1 无空格时取前 4 个最近的候选。这导致怪物可能生成在距离锚点 ≥2 的位置，失去聚拢意义
+- **[方案讨论]**
+  - 用户提出：距离=1 不够应该换锚点重新选位置，而不是退到 topN
+  - AI 分析 tradeoff：换锚点不会导致 squad 分裂（只有一个活跃锚点），方案合理
+- **[最终实现]**
+  - `spawnMonsterAtRandomPos`：锚点存在时只取距离=1 的候选，无则返回 `false`（去掉 topN 退路和排序逻辑）
+  - 两处调用方（Boss 房 + 普通房）：生成失败且锚点存在时 → 重置锚点为 null → 纯随机重试 → 新位置成为锚点
+  - 后续怪物继续围绕新锚点距离=1 聚拢，保证 squad 始终严格相邻
+
 ---

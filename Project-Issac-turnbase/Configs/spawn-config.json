@@ -1,42 +1,19 @@
 {
   "_schema": {
-    "_description": "楼层刷怪配置 — 每层怪物数量+预算独立配置，不同房间模板微调",
+    "_description": "楼层刷怪配置 — 每层 squad 预算 + 地形修正，squad 从 squad-templates.json 选取",
     "_fields": {
-      "floorBudgets.*.minMonsters": { "_desc": "该楼层最少刷怪数量" },
-      "floorBudgets.*.maxMonsters": { "_desc": "该楼层最多刷怪数量" },
-      "floorBudgets.*.budget": { "_desc": "该楼层怪物预算基准值" },
-      "terrainModifiers.*.budget": { "_desc": "该地形模板的预算偏移量（加到楼层 budget 上）" },
-      "terrainModifiers.*.minDelta": { "_desc": "该地形模板的最小怪物数偏移量（加到楼层 minMonsters 上）" },
-      "terrainModifiers.*.maxDelta": { "_desc": "该地形模板的最大怪物数偏移量（加到楼层 maxMonsters 上）" },
-      "bossMonsters.*": { "_desc": "该楼层 Boss 房刷出的怪物 cfgId 列表，对应 monster-db.json" }
+      "floorBudgets.*.budget": { "_desc": "该楼层 squad 预算总值，贪心选取 squad 直到超预算" },
+      "terrainModifiers.*.budget": { "_desc": "该地形模板的预算偏移量（加到楼层 budget 上）" }
     }
   },
 
   "floorBudgets": {
-    "1": { "minMonsters": 1, "maxMonsters": 3, "budget": 8 },
-    "2": { "minMonsters": 1, "maxMonsters": 3, "budget": 10 },
-    "3": { "minMonsters": 1, "maxMonsters": 4, "budget": 12 },
-    "4": { "minMonsters": 2, "maxMonsters": 5, "budget": 14 },
-    "5": { "minMonsters": 2, "maxMonsters": 5, "budget": 16 },
-    "6": { "minMonsters": 2, "maxMonsters": 5, "budget": 18 }
-  },
-
-  "terrainModifiers": {
-    "open":          { "budget": 0,  "minDelta": 0, "maxDelta": 0 },
-    "cross_rocks":   { "budget": -1, "minDelta": 0, "maxDelta": 0 },
-    "four_corners":  { "budget": 1,  "minDelta": 1, "maxDelta": 1 },
-    "pillars":       { "budget": 0,  "minDelta": 0, "maxDelta": 0 },
-    "corridor":      { "budget": -3, "minDelta": 0, "maxDelta": -1 },
-    "corridor_v":    { "budget": -3, "minDelta": 0, "maxDelta": -1 },
-    "scattered":     { "budget": -2, "minDelta": 0, "maxDelta": 0 },
-    "ring":          { "budget": 0,  "minDelta": 0, "maxDelta": 0 },
-    "room_split":    { "budget": 1,  "minDelta": 1, "maxDelta": 1 },
-    "alcoves":       { "budget": 0,  "minDelta": 0, "maxDelta": 0 },
-    "diagonal":      { "budget": -1, "minDelta": 0, "maxDelta": 0 },
-    "boss_arena":    { "budget": 0,  "minDelta": 0, "maxDelta": -2 },
-    "custom_1":      { "budget": -1, "minDelta": 0, "maxDelta": 0 },
-    "custom_2":      { "budget": 0,  "minDelta": 0, "maxDelta": 0 },
-    "custom_3":      { "budget": 0,  "minDelta": 0, "maxDelta": 0 }
+    "1": { "budget": 12 },
+    "2": { "budget": 14 },
+    "3": { "budget": 16 },
+    "4": { "budget": 18 },
+    "5": { "budget": 20 },
+    "6": { "budget": 22 }
   },
 
   "bossMonsters": {
@@ -46,5 +23,23 @@
     "4": ["boss_jumper_ii"],
     "5": ["boss_jumper_iii"],
     "6": ["boss_jumper_iii"]
+  },
+
+  "terrainModifiers": {
+    "open":          { "budget": 0 },
+    "cross_rocks":   { "budget": -1 },
+    "four_corners":  { "budget": 1 },
+    "pillars":       { "budget": 0 },
+    "corridor":      { "budget": -3 },
+    "corridor_v":    { "budget": -3 },
+    "scattered":     { "budget": -2 },
+    "ring":          { "budget": 0 },
+    "room_split":    { "budget": 1 },
+    "alcoves":       { "budget": 0 },
+    "diagonal":      { "budget": -1 },
+    "boss_arena":    { "budget": 0 },
+    "custom_1":      { "budget": -1 },
+    "custom_2":      { "budget": 0 },
+    "custom_3":      { "budget": 0 }
   }
 }

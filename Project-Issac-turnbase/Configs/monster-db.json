@@ -6,18 +6,7 @@
         "_values": ["chase", "ranged_kite", "charge", "boss_jumper", "boss_chase"],
         "_desc": "chase=追逐玩家, ranged_kite=远程风筝, charge=蓄力冲刺, boss_jumper=跳跃Boss, boss_chase=追逐Boss"
       },
-      "role": {
-        "_values": ["melee", "ranged", "tank", "boss"],
-        "_desc": "怪物定位分类"
-      },
-      "roomTypes": {
-        "_values": ["normal", "treasure", "boss"],
-        "_desc": "怪物可出现的房间类型"
-      },
-      "movementTags": {
-        "_values": ["地面", "飞行"],
-        "_desc": "移动标签，匹配房间 spawnConfig.allowedMovement"
-      },
+
       "actionMode.mode": {
         "_values": ["sequence", "random"],
         "_desc": "sequence=顺序执行actions, random=按weights权重随机选action"
@@ -81,12 +70,7 @@
         { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "item_drop_common" },
         { "type": "resource", "weight": 0.97, "rate": 0.26, "resourceDropTable": "resource_drop_monster_heavy" }
       ]
-    },
-    "roomTypes": ["normal"],
-    "movementTags": ["地面"],
-    "role": "melee",
-    "threat": 3,
-    "minFloor": 1
+    }
   },
   "crack_maw_ii": {
     "id": "crack_maw_ii",
@@ -105,12 +89,7 @@
         { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "item_drop_common" },
         { "type": "resource", "weight": 0.97, "rate": 0.26, "resourceDropTable": "resource_drop_monster_heavy" }
       ]
-    },
-    "roomTypes": ["normal"],
-    "movementTags": ["地面"],
-    "role": "melee",
-    "threat": 5,
-    "minFloor": 3
+    }
   },
   "crack_maw_iii": {
     "id": "crack_maw_iii",
@@ -129,12 +108,7 @@
         { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "common" },
         { "type": "resource", "weight": 0.97, "rate": 0.27, "resourceDropTable": "monster_heavy" }
       ]
-    },
-    "roomTypes": ["normal"],
-    "movementTags": ["地面"],
-    "role": "melee",
-    "threat": 7,
-    "minFloor": 5
+    }
   },
   "flying_eye_i": {
     "id": "flying_eye_i",
@@ -155,12 +129,7 @@
         { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "item_drop_ranged" },
         { "type": "resource", "weight": 0.97, "rate": 0.24, "resourceDropTable": "resource_drop_monster_default" }
       ]
-    },
-    "roomTypes": ["normal"],
-    "movementTags": ["飞行"],
-    "role": "ranged",
-    "threat": 2,
-    "minFloor": 1
+    }
   },
   "flying_eye_ii": {
     "id": "flying_eye_ii",
@@ -181,12 +150,7 @@
         { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "item_drop_ranged" },
         { "type": "resource", "weight": 0.97, "rate": 0.26, "resourceDropTable": "resource_drop_monster_heavy" }
       ]
-    },
-    "roomTypes": ["normal"],
-    "movementTags": ["飞行"],
-    "role": "ranged",
-    "threat": 4,
-    "minFloor": 3
+    }
   },
   "flying_eye_iii": {
     "id": "flying_eye_iii",
@@ -207,12 +171,7 @@
         { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "ranged" },
         { "type": "resource", "weight": 0.97, "rate": 0.28, "resourceDropTable": "monster_heavy" }
       ]
-    },
-    "roomTypes": ["normal"],
-    "movementTags": ["飞行"],
-    "role": "ranged",
-    "threat": 6,
-    "minFloor": 5
+    }
   },
   "charge_golem_i": {
     "id": "charge_golem_i",
@@ -234,12 +193,7 @@
         { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "item_drop_heavy" },
         { "type": "resource", "weight": 0.97, "rate": 0.28, "resourceDropTable": "resource_drop_boss" }
       ]
-    },
-    "roomTypes": ["normal"],
-    "movementTags": ["地面"],
-    "role": "tank",
-    "threat": 5,
-    "minFloor": 1
+    }
   },
   "charge_golem_ii": {
     "id": "charge_golem_ii",
@@ -261,12 +215,7 @@
         { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "item_drop_heavy" },
         { "type": "resource", "weight": 0.97, "rate": 0.30, "resourceDropTable": "resource_drop_boss" }
       ]
-    },
-    "roomTypes": ["normal"],
-    "movementTags": ["地面"],
-    "role": "tank",
-    "threat": 8,
-    "minFloor": 3
+    }
   },
   "charge_golem_iii": {
     "id": "charge_golem_iii",
@@ -288,12 +237,7 @@
         { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "item_drop_heavy" },
         { "type": "resource", "weight": 0.97, "rate": 0.32, "resourceDropTable": "resource_drop_boss" }
       ]
-    },
-    "roomTypes": ["normal"],
-    "movementTags": ["地面"],
-    "role": "tank",
-    "threat": 12,
-    "minFloor": 5
+    }
   },
   "boss_jumper_i": {
     "id": "boss_jumper_i",
@@ -325,12 +269,7 @@
         }
       ]
     },
-    "roomTypes": ["boss"],
-    "movementTags": ["地面", "飞行"],
-    "role": "boss",
-    "threat": 20,
-    "size": 2,
-    "minFloor": 1
+    "size": 2
   },
   "boss_jumper_ii": {
     "id": "boss_jumper_ii",
@@ -362,12 +301,7 @@
         }
       ]
     },
-    "roomTypes": ["boss"],
-    "movementTags": ["地面", "飞行"],
-    "role": "boss",
-    "threat": 22,
-    "size": 2,
-    "minFloor": 3
+    "size": 2
   },
   "boss_jumper_iii": {
     "id": "boss_jumper_iii",
@@ -399,11 +333,6 @@
         }
       ]
     },
-    "roomTypes": ["boss"],
-    "movementTags": ["地面", "飞行"],
-    "role": "boss",
-    "threat": 25,
-    "size": 2,
-    "minFloor": 5
+    "size": 2
   }
 }

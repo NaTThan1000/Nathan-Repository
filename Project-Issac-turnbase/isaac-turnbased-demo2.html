@@ -1288,6 +1288,7 @@ function _rebuildMonsterPools() {
 }
 
 let SPAWN_CONFIG = {};
+let SQUAD_TEMPLATES = {};
 
 async function loadSpawnConfig() {
   try {
@@ -1298,6 +1299,18 @@ async function loadSpawnConfig() {
       return true;
     }
   } catch(e) { console.warn('⚠ 刷怪配置加载失败，使用默认值'); }
+  return false;
+}
+
+async function loadSquadTemplates() {
+  try {
+    const r = await fetch('Configs/squad-templates.json?' + Date.now());
+    if (r.ok) {
+      SQUAD_TEMPLATES = await r.json();
+      console.log('✅ 已加载小队模板 (' + Object.keys(SQUAD_TEMPLATES.squads || {}).length + ' 个 squad)');
+      return true;
+    }
+  } catch(e) { console.warn('⚠ 小队模板加载失败，使用默认值'); }
   return false;
 }
 
@@ -6764,6 +6777,7 @@ async function bootGame(){
   await loadTemplates();
   await loadMonsterDB();    // 加载怪物数据库
   await loadSpawnConfig();  // 加载刷怪配置
+  await loadSquadTemplates(); // 加载小队模板
   await loadItemDB();       // 加载道具数据库（含道具定义+品质掉落表）
   await loadResourceDB();   // 加载资源数据库
   await loadOrGenerateFloors(false);
@@ -6791,7 +6805,7 @@ bootGame();
  * @param {string} cfgId - 怪物配置ID
  * @returns {boolean} 是否成功生成
  */
-function spawnMonsterAtRandomPos(cfgId) {
+function spawnMonsterAtRandomPos(cfgId, overrideMovementTags, anchorPos) {
   const cfg = MONSTER_DB[cfgId];
   if (!cfg) return false;
 
@@ -6819,7 +6833,15 @@ function spawnMonsterAtRandomPos(cfgId) {
 
   if (candidates.length === 0) return false;
 
-  const pos = candidates[Math.floor(Math.random() * candidates.length)];
+  // 有锚点时，只选距离=1的候选（上下左右相邻），没有则返回false让调用方换锚点
+  let pos;
+  if (anchorPos) {
+    const adjacent = candidates.filter(c => Math.abs(c.col - anchorPos.col) + Math.abs(c.row - anchorPos.row) === 1);
+    if (adjacent.length === 0) return false;
+    pos = adjacent[Math.floor(Math.random() * adjacent.length)];
+  } else {
+    pos = candidates[Math.floor(Math.random() * candidates.length)];
+  }
   const pix = gridToPixel(pos.col, pos.row);
 
   monsters.push({
@@ -6846,8 +6868,8 @@ function spawnMonsterAtRandomPos(cfgId) {
     // charge 冲刺状态
     chargeDir: (cfg.aiType === 'charge') ? null : undefined,
     chargeDistance: (cfg.aiType === 'charge') ? 0 : undefined,
-    // 移动标签（地面/飞行），用于路径障碍检查
-    movementTags: cfg.movementTags || ['地面'],
+    // 移动标签（地面/飞行），用于路径障碍检查。优先用传入值，否则兜底地面
+    movementTags: overrideMovementTags || ['地面'],
   });
   const newMonster = monsters[monsters.length - 1];
   // 怪物生成时预 roll 掉落（保证 Esc 回溯后再次击杀结果一致）
@@ -6865,34 +6887,23 @@ function resolveSpawnConfig(room, floorNum) {
   const fb = (SPAWN_CONFIG.floorBudgets || {})[String(floorNum)] || {};
   const tm = (SPAWN_CONFIG.terrainModifiers || {})[room.tplKey] || {};
 
-  const baseMin = fb.minMonsters || 1;
-  const baseMax = fb.maxMonsters || 3;
   const baseBudget = fb.budget || 8;
-
-  const minDelta = tm.minDelta || 0;
-  const maxDelta = tm.maxDelta || 0;
   const budgetDelta = tm.budget || 0;
-
-  let minMonsters = Math.max(1, baseMin + minDelta);
-  let maxMonsters = Math.max(minMonsters, baseMax + maxDelta);
   let budget = Math.max(1, baseBudget + budgetDelta);
 
   // room.spawnConfig 存在时覆盖对应字段（旧数据兜底 / 手动覆盖）
   if (room.spawnConfig) {
-    if (room.spawnConfig.minMonsters !== undefined) minMonsters = room.spawnConfig.minMonsters;
-    if (room.spawnConfig.maxMonsters !== undefined) maxMonsters = room.spawnConfig.maxMonsters;
     if (room.spawnConfig.budget !== undefined) budget = room.spawnConfig.budget;
   }
 
-  return { minMonsters, maxMonsters, budget };
+  return { budget };
 }
 
 /**
- * 根据房间类型和模板配置，生成符合规则的怪物群
- * 三层递进：
- *   1. 标签过滤（地形适配）: monster.movementTags ∩ room.allowedMovement
- *   2. 组合规则（体验质量）: 至少1近战、类型多样性加权
- *   3. 点数预算（难度递进）: floorBudgets + terrainModifiers，按 threat 消耗
+ * Squad 贪心随机生成系统：
+ *   1. 按楼层 + 房间类型 + 移动标签过滤可用 squad
+ *   2. 贪心随机选取 squad（完全随机，不去重），直到 budget 不够任何 squad
+ *   3. 每个 squad 的怪物逐一生成到房间内
  */
 function spawnRoomMonsters() {
   // 清除当前房间怪物
@@ -6902,17 +6913,31 @@ function spawnRoomMonsters() {
   if (!room) return;
 
   const roomType = room.type;
+  const floorNum = currentFloor.floorNum;
   const tpl = getTpl(room.tplKey);
-  // allowedMovement 来自模板（地形属性），minMonsters/maxMonsters/budget 由 resolveSpawnConfig 运行时计算
-  const spawnCfg = resolveSpawnConfig(room, currentFloor.floorNum);
+  const spawnCfg = resolveSpawnConfig(room, floorNum);
 
-  // Boss 房间：从配置文件按楼层随机选取 Boss
-  if (roomType === 'boss') {
-    const floorNum = currentFloor.floorNum;
-    const bm = SPAWN_CONFIG.bossMonsters || {};
-    const bosses = bm[String(floorNum)] || ['boss_jumper_i'];
-    const bossId = bosses[Math.floor(Math.random() * bosses.length)];
-    spawnMonsterAtRandomPos(bossId);
+    // Boss 房间：从 SPAWN_CONFIG.bossMonsters 按楼层读取 squad ID 列表
+    if (roomType === 'boss') {
+      const bossSquadIds = SPAWN_CONFIG.bossMonsters && SPAWN_CONFIG.bossMonsters[floorNum];
+      if (bossSquadIds && bossSquadIds.length > 0) {
+        const allSquads = SQUAD_TEMPLATES.squads || {};
+        const pickedId = bossSquadIds[Math.floor(Math.random() * bossSquadIds.length)];
+        const squad = allSquads[pickedId];
+        if (squad) {
+          let squadAnchor = null;
+          for (const cfgId of squad.monsters) {
+            let spawned = spawnMonsterAtRandomPos(cfgId, squad.movementTags, squadAnchor);
+            if (!spawned && squadAnchor) {
+              squadAnchor = null;
+              spawned = spawnMonsterAtRandomPos(cfgId, squad.movementTags, squadAnchor);
+            }
+            if (spawned && !squadAnchor) {
+              squadAnchor = { col: monsters[monsters.length - 1].col, row: monsters[monsters.length - 1].row };
+            }
+          }
+        }
+      }
     calcAllMonsterPaths();
     updateRoomCombatState();
     return;
@@ -6924,76 +6949,41 @@ function spawnRoomMonsters() {
     return;
   }
 
-  // ============ 第一层：标签过滤 ============
-  const allowedMovement = (tpl && tpl.allowedMovement) ? tpl.allowedMovement : ['地面', '飞行'];
-  let eligiblePool = MONSTER_POOL_NORMAL.filter(cfgId => {
-    const cfg = MONSTER_DB[cfgId];
-    return cfg.movementTags && cfg.movementTags.some(tag => allowedMovement.includes(tag));
-  });
-
-  // ============ 按楼层过滤 ============
-  const floorNum = currentFloor.floorNum;
-  eligiblePool = eligiblePool.filter(cfgId => {
-    const m = MONSTER_DB[cfgId];
-    return m.minFloor === undefined || m.minFloor <= floorNum;
-  });
-
-  if (eligiblePool.length === 0) {
+  // ============ 过滤可用 squad ============
+  const availableSquads = filterSquadsByRoom(floorNum, roomType, tpl);
+  if (availableSquads.length === 0) {
     updateRoomCombatState();
     return;
   }
 
-  // ============ 第三层：点数预算（resolveSpawnConfig 已包含楼层递进+地形修正） ============
+  // ============ 贪心随机选取 squad ============
   const totalBudget = spawnCfg.budget || 8;
-  const minMonsters = spawnCfg.minMonsters || 1;
-  const maxMonsters = spawnCfg.maxMonsters || 3;
-
-  // 按 role 分组
-  const meleePool = eligiblePool.filter(id => MONSTER_DB[id].role === 'melee');
-  const rangedPool = eligiblePool.filter(id => MONSTER_DB[id].role === 'ranged');
-  const tankPool = eligiblePool.filter(id => MONSTER_DB[id].role === 'tank');
-
   let remainingBudget = totalBudget;
-  let spawnedCount = 0;
-  const spawnedRoles = new Set();
+  const selectedSquads = [];
 
-  // ============ 第二层：组合规则 ============
-  // 规则1: 优先保证至少1个近战（如有），保证基础交战体验
-  if (meleePool.length > 0 && spawnedCount < maxMonsters) {
-    const cfgId = meleePool[Math.floor(Math.random() * meleePool.length)];
-    if (spawnMonsterAtRandomPos(cfgId)) {
-      remainingBudget -= MONSTER_DB[cfgId].threat;
-      spawnedCount++;
-      spawnedRoles.add('melee');
-    }
+  for (let i = 0; i < 50; i++) {
+    // 过滤 budget ≤ 剩余 budget 的 squad
+    const affordable = availableSquads.filter(s => s.budget <= remainingBudget);
+    if (affordable.length === 0) break;
+
+    // 完全随机选一个
+    const squad = affordable[Math.floor(Math.random() * affordable.length)];
+    selectedSquads.push(squad);
+    remainingBudget -= squad.budget;
   }
 
-  // 规则2: 在预算和数量限制内填充剩余怪物
-  for (let i = 0; i < 50; i++) {
-    if (spawnedCount >= maxMonsters || remainingBudget <= 0) break;
-    // 达到最小数量后，30%概率提前停止（增加随机性）
-    if (spawnedCount >= minMonsters && Math.random() < 0.3) break;
-
-    const affordablePool = eligiblePool.filter(id => MONSTER_DB[id].threat <= remainingBudget);
-    if (affordablePool.length === 0) break;
-
-    // 类型多样性加权：未出现的 role 权重×3
-    const weighted = affordablePool.map(id => {
-      const role = MONSTER_DB[id].role;
-      return { id, weight: spawnedRoles.has(role) ? 1 : 3 };
-    });
-    const totalWeight = weighted.reduce((s, w) => s + w.weight, 0);
-    let roll = Math.random() * totalWeight;
-    let chosen = weighted[0].id;
-    for (const w of weighted) {
-      roll -= w.weight;
-      if (roll <= 0) { chosen = w.id; break; }
-    }
-
-    if (spawnMonsterAtRandomPos(chosen)) {
-      remainingBudget -= MONSTER_DB[chosen].threat;
-      spawnedCount++;
-      spawnedRoles.add(MONSTER_DB[chosen].role);
+  // ============ 生成怪物 ============
+  for (const squad of selectedSquads) {
+    let squadAnchor = null;
+    for (const cfgId of squad.monsters) {
+      let spawned = spawnMonsterAtRandomPos(cfgId, squad.movementTags, squadAnchor);
+      if (!spawned && squadAnchor) {
+        squadAnchor = null;
+        spawned = spawnMonsterAtRandomPos(cfgId, squad.movementTags, squadAnchor);
+      }
+      if (spawned && !squadAnchor) {
+        squadAnchor = { col: monsters[monsters.length - 1].col, row: monsters[monsters.length - 1].row };
+      }
     }
   }
 
@@ -7001,16 +6991,34 @@ function spawnRoomMonsters() {
   updateRoomCombatState();
 }
 
+/**
+ * 根据楼层、房间类型、地形标签过滤可用 squad
+ */
+function filterSquadsByRoom(floorNum, roomType, tpl) {
+  const allSquads = SQUAD_TEMPLATES.squads || {};
+  const allowedMovement = (tpl && tpl.allowedMovement) ? tpl.allowedMovement : ['地面', '飞行'];
+
+  return Object.entries(allSquads).filter(([id, squad]) => {
+    // minFloor 过滤
+    if (squad.minFloor !== undefined && squad.minFloor > floorNum) return false;
+    // roomTypes 过滤
+    if (squad.roomTypes && !squad.roomTypes.includes(roomType)) return false;
+    // movementTags 过滤：squad 的 movementTags 必须与房间 allowedMovement 有交集
+    if (squad.movementTags && squad.movementTags.length > 0) {
+      if (!squad.movementTags.some(tag => allowedMovement.includes(tag))) return false;
+    }
+    return true;
+  }).map(([id, squad]) => {
+    squad.id = id;
+    return squad;
+  });
+}
+
 // 保留旧接口兼容调试按钮
 function spawnMonster(cfgId = null) {
   if (!cfgId) {
-    const eligiblePool = MONSTER_POOL_NORMAL.filter(id => {
-      const cfg = MONSTER_DB[id];
-      return cfg.movementTags && cfg.movementTags.includes('地面');
-    });
-    cfgId = eligiblePool.length > 0
-      ? eligiblePool[Math.floor(Math.random() * eligiblePool.length)]
-      : MONSTER_POOL_NORMAL[Math.floor(Math.random() * MONSTER_POOL_NORMAL.length)];
+    const keys = Object.keys(MONSTER_DB).filter(k => !k.startsWith('_'));
+    cfgId = keys[Math.floor(Math.random() * keys.length)];
   }
   spawnMonsterAtRandomPos(cfgId);
   calcAllMonsterPaths();

@@ -1,0 +1,165 @@
+{
+  "_schema": {
+    "_description": "怪物小队模板 — 预配置的固定怪物组合，每个 squad 是一个最小战斗单元。生成时贪心随机选取，budget 匹配房间预算。",
+    "_fields": {
+      "squads.<id>.monsters": { "_desc": "怪物 cfgId 列表，对应 monster-db.json 中的怪物 ID" },
+      "squads.<id>.budget": { "_desc": "该小队的预算消耗值，贪心选取时累计不能超过房间 budget" },
+      "squads.<id>.minFloor": { "_desc": "该小队从第几层开始可用" },
+      "squads.<id>.roomTypes": { "_desc": "该小队可出现的房间类型: normal / treasure / boss" },
+      "squads.<id>.movementTags": { "_desc": "移动标签，必须与房间模板的 allowedMovement 有交集才能被选取" },
+      "squads.<id>.role": { "_desc": "怪物定位分类: melee / ranged / tank / boss" }
+    }
+  },
+
+  "squads": {
+    "crack_duo_i": {
+      "monsters": ["crack_maw_i", "crack_maw_i"],
+      "budget": 6,
+      "minFloor": 1,
+      "roomTypes": ["normal"],
+      "movementTags": ["地面"],
+      "role": "melee"
+    },
+    "crack_duo_ii": {
+      "monsters": ["crack_maw_ii", "crack_maw_ii"],
+      "budget": 8,
+      "minFloor": 3,
+      "roomTypes": ["normal"],
+      "movementTags": ["地面"],
+      "role": "melee"
+    },
+    "crack_duo_iii": {
+      "monsters": ["crack_maw_iii", "crack_maw_iii"],
+      "budget": 10,
+      "minFloor": 5,
+      "roomTypes": ["normal"],
+      "movementTags": ["地面"],
+      "role": "melee"
+    },
+
+    "crack_trio_i": {
+      "monsters": ["crack_maw_i", "crack_maw_i", "crack_maw_i"],
+      "budget": 9,
+      "minFloor": 1,
+      "roomTypes": ["normal"],
+      "movementTags": ["地面"],
+      "role": "melee"
+    },
+    "crack_trio_ii": {
+      "monsters": ["crack_maw_ii", "crack_maw_ii", "crack_maw_ii"],
+      "budget": 12,
+      "minFloor": 3,
+      "roomTypes": ["normal"],
+      "movementTags": ["地面"],
+      "role": "melee"
+    },
+    "crack_trio_iii": {
+      "monsters": ["crack_maw_iii", "crack_maw_iii", "crack_maw_iii"],
+      "budget": 15,
+      "minFloor": 5,
+      "roomTypes": ["normal"],
+      "movementTags": ["地面"],
+      "role": "melee"
+    },
+
+    "eye_pair_i": {
+      "monsters": ["flying_eye_i", "flying_eye_i"],
+      "budget": 4,
+      "minFloor": 1,
+      "roomTypes": ["normal"],
+      "movementTags": ["飞行"],
+      "role": "ranged"
+    },
+    "eye_pair_ii": {
+      "monsters": ["flying_eye_ii", "flying_eye_ii"],
+      "budget": 6,
+      "minFloor": 3,
+      "roomTypes": ["normal"],
+      "movementTags": ["飞行"],
+      "role": "ranged"
+    },
+    "eye_pair_iii": {
+      "monsters": ["flying_eye_iii", "flying_eye_iii"],
+      "budget": 8,
+      "minFloor": 5,
+      "roomTypes": ["normal"],
+      "movementTags": ["飞行"],
+      "role": "ranged"
+    },
+
+    "eye_trio_i": {
+      "monsters": ["flying_eye_i", "flying_eye_i", "flying_eye_i"],
+      "budget": 6,
+      "minFloor": 2,
+      "roomTypes": ["normal"],
+      "movementTags": ["飞行"],
+      "role": "ranged"
+    },
+    "eye_trio_ii": {
+      "monsters": ["flying_eye_ii", "flying_eye_ii", "flying_eye_ii"],
+      "budget": 9,
+      "minFloor": 3,
+      "roomTypes": ["normal"],
+      "movementTags": ["飞行"],
+      "role": "ranged"
+    },
+    "eye_trio_iii": {
+      "monsters": ["flying_eye_iii", "flying_eye_iii", "flying_eye_iii"],
+      "budget": 12,
+      "minFloor": 5,
+      "roomTypes": ["normal"],
+      "movementTags": ["飞行"],
+      "role": "ranged"
+    },
+
+    "golem_solo_i": {
+      "monsters": ["charge_golem_i"],
+      "budget": 4,
+      "minFloor": 1,
+      "roomTypes": ["normal"],
+      "movementTags": ["地面"],
+      "role": "tank"
+    },
+    "golem_solo_ii": {
+      "monsters": ["charge_golem_ii"],
+      "budget": 6,
+      "minFloor": 3,
+      "roomTypes": ["normal"],
+      "movementTags": ["地面"],
+      "role": "tank"
+    },
+    "golem_solo_iii": {
+      "monsters": ["charge_golem_iii"],
+      "budget": 8,
+      "minFloor": 5,
+      "roomTypes": ["normal"],
+      "movementTags": ["地面"],
+      "role": "tank"
+    },
+
+    "boss_jumper_i": {
+      "monsters": ["boss_jumper_i"],
+      "budget": 99,
+      "minFloor": 1,
+      "roomTypes": ["boss"],
+      "movementTags": ["地面", "飞行"],
+      "role": "boss"
+    },
+    "boss_jumper_ii": {
+      "monsters": ["boss_jumper_ii"],
+      "budget": 99,
+      "minFloor": 3,
+      "roomTypes": ["boss"],
+      "movementTags": ["地面", "飞行"],
+      "role": "boss"
+    },
+    "boss_jumper_iii": {
+      "monsters": ["boss_jumper_iii"],
+      "budget": 99,
+      "minFloor": 5,
+      "roomTypes": ["boss"],
+      "movementTags": ["地面", "飞行"],
+      "role": "boss"
+    }
+  }
+}
