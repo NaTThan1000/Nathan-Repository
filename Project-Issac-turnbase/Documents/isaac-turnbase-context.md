@@ -1,6 +1,6 @@
 # 以撒·半回合制战斗 — 项目总览
 
-> 文件: `Project-Issac-turnbase/isaac-turnbased-demo2.html`（v3道具系统版，主开发文件） | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据(含roomClearDrop配置) + `Configs/monster-db.json` 怪物配置表(含loot) + `Configs/item-db.json` 道具数据库(含itemDropTables, 9张item_drop_*表) + `Configs/resource-db.json` 资源数据库(定义+11张resource_drop_*掉落表+宝箱loot) + `Configs/spawn-config.json` 楼层刷怪配置(floorBudgets+terrainModifiers运行时计算) + `Configs/squad-templates.json` 怪物小队模板(squad组合+预算+标签+楼层限制) | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 统一掉落调度器(rollLoot) + 资源掉落系统(mode驱动) + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层 + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表 + Boss Jumper 2×2跳跃Boss + 怪物行动系统重构(actionMode+actions[]) + 掉落表命名统一(item_drop_/resource_drop_前缀) + roomClearDrop配置驱动 + 刷怪配置运行时计算(resolveSpawnConfig) + 小队模板系统(squad-templates.json + SQUAD_TEMPLATES + 锚点聚拢生成)
+> 文件: `Project-Issac-turnbase/isaac-turnbased-demo2.html`（v3道具系统版，主开发文件） | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据(含roomClearDrop配置) + `Configs/monster-db.json` 怪物配置表(含loot) + `Configs/item-db.json` 道具数据库(含itemDropTables, 9张item_drop_*表) + `Configs/resource-db.json` 资源数据库(定义+11张resource_drop_*掉落表+宝箱loot) + `Configs/spawn-config.json` 楼层刷怪配置(floorBudgets+terrainModifiers运行时计算) + `Configs/squad-templates.json` 怪物小队模板(squad组合+预算+标签+楼层限制) + `build-pack.js` 打包脚本 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 统一掉落调度器(rollLoot) + 资源掉落系统(mode驱动) + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层 + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表 + Boss Jumper 2×2跳跃Boss + 怪物行动系统重构(actionMode+actions[]) + 掉落表命名统一(item_drop_/resource_drop_前缀) + roomClearDrop配置驱动 + 刷怪配置运行时计算(resolveSpawnConfig) + 小队模板系统(squad-templates.json + SQUAD_TEMPLATES + 锚点聚拢生成) + 单文件打包版(isaac-turnbased-demo-pack.html)
 
 ---
 
@@ -648,7 +648,10 @@ function project(wx, wy) {
 | 文件 | 类型 | 说明 |
 |------|------|------|
 | `isaac-turnbased-demo.html` | HTML/JS | ~~已废弃删除~~（功能已合并至 demo2.html） |
+| `isaac-turnbased-demo2.html` | HTML/JS | 主开发文件（v3道具系统版，即时操作回合制） |
 | `isaac-map-viewer.html` | HTML/JS | 房间模板编辑器（File System Access API 直读直写，生成json手动复制） |
+| `isaac-turnbased-demo-pack.html` | HTML/JS | 单文件独立打包版（JSON内联+图片base64，可双击直接打开） |
+| `build-pack.js` | Node.js | 打包脚本：生成 `demo-pack.html`（内联JSON/图片+移除外部依赖） |
 | `sprite-debug.html` | HTML/JS | 精灵表调试工具（网格叠加查看帧坐标） |
 | `walk-preview.html` | HTML/JS | 走路动画预览工具（循环播放各方向帧） |
 
@@ -692,7 +695,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
-| 2026-08-06 | **资源掉落 none 权重 bug 修复**。`rollResourceDrop()` 的 `pick_one` 分支错误地将 `none` 条目从 entries 过滤掉再计算 totalWeight，导致 totalWeight 不含 none 权重，资源几乎 100% 掉落。修复：totalWeight 改为 `Object.values(table)` 包含 none，遍历不过滤 none 正常参与权重累减，命中 none 时返回空数组。 |
+| 2026-08-06(晚) | **打包脚本 build-pack.js 创建**。生成 `isaac-turnbased-demo-pack.html` 单文件独立打包版（7个JSON内联 + 22个PNG base64 + Google Fonts移除 + file://检测移除），可双击直接打开无需本地服务器。修复打包脚本三个bug：正则未匹配`?`、模拟对象缺`text()`方法、替换后缺`await`。 |
 | 2026-08-05 | **刷怪配置架构重构：spawnConfig 从 floor-data 移至运行时计算**。①`spawn-config.json` 重构：删除 `baseSpawnConfig` 公式层，`floorBudgets` 改为 `{minMonsters, maxMonsters, budget}` 完整三元组每层独立配置，`terrainModifiers` 扩展为 `{budget, minDelta, maxDelta}` 支持对 min/max 怪物数做微调。②`floor-data.json` 移除全部 67 个 room 的 `spawnConfig` 字段（不再硬编码在生成产物中）。③`demo2.html` 新增 `resolveSpawnConfig(room, floorNum)` 函数，运行时计算 `floorBudgets[楼层] + terrainModifiers[模板]`，`room.spawnConfig` 存在时覆盖兜底。④`map-viewer.html` 删除硬编码 terrainModifiers 和 spawnConfig 计算循环，`saveFloorToFile` 增加 `delete r.spawnConfig`。⑤修复编辑器选择 pool.json 时报错：4个加载入口统一 `delete loaded._schema` 过滤元数据 key。 |
 | 2026-08-04(晚) | **R键重置完整性修复 + 商店购买系统 + AP视觉修复**。①`loadOrGenerateFloors` 首次加载后深拷贝保存 `_initGrid`/`_initDoors`，R键重置时从备份恢复所有房间的地形破坏、门状态、Boss梯子、道具标记等，彻底修复R键后大便/岩石未恢复的问题。②合并原来分散的两个清理循环为一个统一循环。③`buildApDots`/`buildHearts`/`buildBlueHearts` 移到 `updateUI` 之前执行，修复因 `buildApDots` 在 `updateApDots` 之后调用导致 AP 圆点视觉未更新的 bug。④新增商店购买系统：`tryBuyShopSlot(col,row)` 检测商品→扣金币→获得道具/资源→标记售出；`drawShopPrices()` 渲染价格标签(金色/灰色)。⑤商店房进入时不调用 `spawnShopItems`（已在 `finishTransition` 中处理）。 |
 | 2026-08-04 | **掉落表命名统一 + roomClearDrop配置驱动化**。①`itemDropTables` 9张表全部加 `item_drop_` 前缀，`resourceDropTables` 11张表全部加 `resource_drop_` 前缀，宝箱资源对象名不变以消除歧义。②全项目 6 文件同步更新所有引用（monster-db/floor-data/map-viewer/demo2）。③`rollRoomClearDrop()` 从硬编码 roomType→tableKey 映射改为读取 `room.roomClearDrop` 配置。④修复地图编辑器 `floorFileInput` 缺少 grid 转置导致显示不正确。 |

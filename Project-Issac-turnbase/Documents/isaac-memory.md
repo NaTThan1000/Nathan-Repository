@@ -746,3 +746,13 @@
   2. 遍历时不过滤 `none`，正常参与权重累减；权重 ≤0 的条目 `continue` 跳过
   3. 当 `roll <= 0` 命中的 key 为 `'none'` 时返回空数组 `[]`
 - **[影响]** 所有使用 `pick_one` 模式的掉落表（terrain_poop/terrain_rock/room_clear_default/room_clear_boss/room_clear_treasure/monster_default/monster_heavy/boss 等）现在 `none` 权重正确生效，不掉落概率与配置一致
+
+### 打包脚本 build-pack.js 创建及三次 bug 修复
+
+- **目标**：生成单文件 `isaac-turnbased-demo-pack.html`，可直接双击打开发送给他人，所有 JSON 和图片内联，无外部依赖
+- **打包脚本功能**：① 移除 Google Fonts → 系统回退字体；② 内联 7 个 JSON 配置文件；③ 内联 22 个 PNG 图片为 base64 data URI；④ 移除 `file://` 协议检测代码
+- **Bug 1 — 正则不匹配 `?`**：源码 fetch 格式是 `fetch('Configs/xxx.json?'+Date.now())`，`?` 在引号内，原正则 `Configs/xxx.json['"\`]` 匹配不到 → 在文件名后加 `\\?`
+- **Bug 2 — 缺少 `text()` 方法**：`loadOrGenerateFloors` 使用 `resp.text()` 获取原始字符串做 hash 比对，模拟对象只有 `json()` → 加 `text: async () => d`
+- **Bug 3 — 缺少 `await` 关键字**：正则匹配 `await fetch(...)` 整段替换为 `(async () => ...)()`，`await` 被吞掉导致 `resp` 拿到 Promise 而非对象 → 替换内容前补 `await`
+- **最终模拟响应对象**：`{ ok: true, json: async () => JSON.parse(d), text: async () => d }`
+- **[文件]** 新增 `build-pack.js` 和 `isaac-turnbased-demo-pack.html`（0.48 MB）
