@@ -3,7 +3,7 @@
     "_description": "道具数据库 — 所有可拾取道具的属性与效果定义 + 道具掉落表",
     "_structure": {
       "items": "所有道具定义 (key=cgId, value=道具属性)",
-      "itemDropTables": "道具品质概率表 (key=表名, value={common,rare,legendary})"
+      "itemDropTables": "道具掉落表，每张表结构 { mode, table }。mode 当前统一为 pick_one(权重抽1个品质，再从品质池均匀随机具体道具)。table 中 key=品质(none/common/rare/legendary)，value=权重(整数)。"
     },
     "_fields": {
       "quality": {
@@ -26,10 +26,14 @@
         "_desc": "商店售价（金币），默认15",
         "_type": "number"
       },
-      "itemDropTables.*.none": { "_desc": "不掉落道具概率 (0~1), 0=必定掉落, 1=完全不掉落", "_type": "number" },
-      "itemDropTables.*.common": { "_desc": "普通品质概率 (0~1)", "_type": "number" },
-      "itemDropTables.*.rare": { "_desc": "稀有品质概率 (0~1)", "_type": "number" },
-      "itemDropTables.*.legendary": { "_desc": "传说品质概率 (0~1)", "_type": "number" }
+      "itemDropTables.*.mode": {
+        "_values": ["pick_one"],
+        "_desc": "掉落模式：pick_one=按权重抽1个品质，再从品质池均匀随机具体道具"
+      },
+      "itemDropTables.*.table.none": { "_desc": "不掉落道具权重 (整数), 0=必定掉落", "_type": "number" },
+      "itemDropTables.*.table.common": { "_desc": "普通品质权重 (整数)", "_type": "number" },
+      "itemDropTables.*.table.rare": { "_desc": "稀有品质权重 (整数)", "_type": "number" },
+      "itemDropTables.*.table.legendary": { "_desc": "传说品质权重 (整数)", "_type": "number" }
     }
   },
 
@@ -315,58 +319,104 @@
 
   "itemDropTables": {
     "item_drop_default": {
-      "none": 0,
-      "common": 0.6,
-      "rare": 0.3,
-      "legendary": 0.1
+      "mode": "pick_one",
+      "_desc": "默认道具掉落(通用fallback)",
+      "table": {
+        "none": 0,
+        "common": 60,
+        "rare": 30,
+        "legendary": 10
+      }
     },
     "item_drop_common": {
-      "none": 0,
-      "common": 0.6,
-      "rare": 0.3,
-      "legendary": 0.1
+      "mode": "pick_one",
+      "_desc": "普通怪物道具掉落",
+      "table": {
+        "none": 0,
+        "common": 60,
+        "rare": 30,
+        "legendary": 10
+      }
     },
     "item_drop_ranged": {
-      "none": 0,
-      "common": 0.6,
-      "rare": 0.3,
-      "legendary": 0.1
+      "mode": "pick_one",
+      "_desc": "远程怪物道具掉落",
+      "table": {
+        "none": 0,
+        "common": 60,
+        "rare": 30,
+        "legendary": 10
+      }
     },
     "item_drop_heavy": {
-      "none": 0,
-      "common": 0.6,
-      "rare": 0.3,
-      "legendary": 0.1
+      "mode": "pick_one",
+      "_desc": "重型怪物道具掉落",
+      "table": {
+        "none": 0,
+        "common": 60,
+        "rare": 30,
+        "legendary": 10
+      }
     },
     "item_drop_boss": {
-      "none": 0,
-      "common": 0.20,
-      "rare": 0.45,
-      "legendary": 0.35
+      "mode": "pick_one",
+      "_desc": "Boss怪物道具掉落",
+      "table": {
+        "none": 0,
+        "common": 20,
+        "rare": 45,
+        "legendary": 35
+      }
     },
     "item_drop_treasure_room": {
-      "none": 0,
-      "common": 0.0,
-      "rare": 0.75,
-      "legendary": 0.25
+      "mode": "pick_one",
+      "_desc": "宝藏房间道具掉落(无common)",
+      "table": {
+        "none": 0,
+        "common": 0,
+        "rare": 75,
+        "legendary": 25
+      }
     },
     "item_drop_boss_room": {
-      "none": 0,
-      "common": 0.25,
-      "rare": 0.45,
-      "legendary": 0.3
+      "mode": "pick_one",
+      "_desc": "Boss房间清空道具掉落",
+      "table": {
+        "none": 0,
+        "common": 25,
+        "rare": 45,
+        "legendary": 30
+      }
     },
     "item_drop_chest_normal": {
-      "none": 0.65,
-      "common": 0,
-      "rare": 0.25,
-      "legendary": 0.10
+      "mode": "pick_one",
+      "_desc": "普通宝箱道具掉落(65%不掉落)",
+      "table": {
+        "none": 65,
+        "common": 0,
+        "rare": 25,
+        "legendary": 10
+      }
     },
     "item_drop_chest_golden": {
-      "none": 0.50,
-      "common": 0,
-      "rare": 0.30,
-      "legendary": 0.20
+      "mode": "pick_one",
+      "_desc": "金宝箱道具掉落(50%不掉落)",
+      "table": {
+        "none": 50,
+        "common": 0,
+        "rare": 30,
+        "legendary": 20
+      }
+    },
+    "item_drop_shop_stock": {
+      "mode": "pick_one",
+      "_desc": "商店道具生成",
+      "table": {
+        "none": 0,
+        "common": 60,
+        "rare": 30,
+        "legendary": 10
+      }
     }
   }
 }

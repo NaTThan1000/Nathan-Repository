@@ -11,7 +11,7 @@
 >
 > **组织方式**：纯时间顺序，不做模块分类。给 AI 快速浏览聊天记忆用。
 >
-> 最后更新: 2026-08-05
+> 最后更新: 2026-08-06
 
 ---
 
@@ -616,6 +616,7 @@
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-08-06 | **资源掉落 none 权重 bug 修复**。`rollResourceDrop()` 的 `pick_one` 分支错误地将 `none` 条目从 entries 过滤掉再计算 totalWeight，导致 totalWeight 不含 none 权重，资源几乎 100% 掉落。修复：totalWeight 改为 `Object.values(table)` 包含 none，遍历不过滤 none 正常参与权重累减，命中 none 时返回空数组。详见当日记忆条目。 |
 | 2026-08-04 | **掉落表命名统一 + roomClearDrop配置驱动化 + 地图编辑器修复**。①itemDropTables 9张表加 `item_drop_` 前缀，resourceDropTables 11张表加 `resource_drop_` 前缀，宝箱资源对象名不变以消除歧义。②`rollRoomClearDrop()` 从硬编码映射改为读取 `room.roomClearDrop` 配置。③修复地图编辑器 fileInput 缺少 grid 转置。详见当日记忆条目。 |
 | 2026-07-31(3) | **掉落系统字段命名统一重构**。①monster loot entry type `resource_pool`→`resource`。②顶层集合 key：`qualityTables`→`itemDropTables`、`dropTables`→`resourceDropTables`。③entry 字段：`qualityTable`→`itemDropTable`、`pool`/`dropTable`→`resourceDropTable`。④宝箱 loot 同步更新。⑤影响 6 文件，全项目零旧字段名残留。详见当日记忆条目。 |
 | 2026-07-31(2) | **怪物死亡掉落位置修正**。移除资源掉落随机散布(±1格)，所有掉落物精确生成在怪物死亡位置。详见当日记忆条目。 |
@@ -733,3 +734,15 @@
   - 后续怪物继续围绕新锚点距离=1 聚拢，保证 squad 始终严格相邻
 
 ---
+
+## 2026-08-06
+
+### 资源掉落 none 权重 bug 修复 [当前方案]
+
+- **[问题]** 用户测试发现摧毁大便几乎一直掉资源，清空房间也从不空掉，和配置中 `none` 的高权重（如 850/1000=85%不掉）明显不符
+- **[根因]** `rollResourceDrop()` 的 `pick_one` 分支（第 1434 行）`Object.entries(table).filter(([key, val]) => key !== 'none' && val > 0)` 把 `none` 过滤掉，然后 `totalWeight = entries.reduce(...)` 只用剩余条目计算总权重。以 `terrain_poop` 为例：`none:850` + 其他 150 = 1000，过滤后 totalWeight=150，100% 抽中资源
+- **[修复]**
+  1. `totalWeight` 改用 `Object.values(table).reduce((sum, v) => sum + v, 0)` — 包含 `none` 权重
+  2. 遍历时不过滤 `none`，正常参与权重累减；权重 ≤0 的条目 `continue` 跳过
+  3. 当 `roll <= 0` 命中的 key 为 `'none'` 时返回空数组 `[]`
+- **[影响]** 所有使用 `pick_one` 模式的掉落表（terrain_poop/terrain_rock/room_clear_default/room_clear_boss/room_clear_treasure/monster_default/monster_heavy/boss 等）现在 `none` 权重正确生效，不掉落概率与配置一致

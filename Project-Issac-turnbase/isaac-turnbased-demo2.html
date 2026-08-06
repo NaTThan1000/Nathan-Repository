@@ -1430,7 +1430,8 @@ function rollResourceDrop(tableKey) {
     table = entry;
   }
 
-  const entries = Object.entries(table);
+  // 过滤掉 none key（不掉落）和权重为0的条目
+  const entries = Object.entries(table).filter(([key, val]) => key !== 'none' && val > 0);
   if (entries.length === 0) return [];
 
   if (mode === 'roll_all') {
@@ -1441,14 +1442,15 @@ function rollResourceDrop(tableKey) {
     }
     return results;
 
-  } else if (mode === 'pick_one') {
-    // 按权重随机抽1种
-    const totalWeight = entries.reduce((sum, [, prob]) => sum + prob, 0);
+  } else   if (mode === 'pick_one') {
+    // 按权重随机抽1种（none 参与总权重计算，抽中则返回空）
+    const totalWeight = Object.values(table).reduce((sum, v) => sum + v, 0);
     if (totalWeight <= 0) return [];
     let roll = Math.random() * totalWeight;
-    for (const [resId, prob] of entries) {
+    for (const [resId, prob] of Object.entries(table)) {
+      if (prob <= 0) continue;
       roll -= prob;
-      if (roll <= 0) return [resId];
+      if (roll <= 0) return resId === 'none' ? [] : [resId];
     }
     return [];
 
@@ -1567,7 +1569,19 @@ function rollItem(qualityOverride, itemDropTable = 'item_drop_default') {
   if (qualityOverride) {
     quality = qualityOverride;
   } else {
-    const table = ITEM_DROP_TABLES[itemDropTable] || ITEM_DROP_TABLES['item_drop_default'] || { none: 0, common: 0.6, rare: 0.3, legendary: 0.1 };
+    const entry = ITEM_DROP_TABLES[itemDropTable] || ITEM_DROP_TABLES['item_drop_default'];
+    if (!entry) return null;
+
+    // 新格式：{ mode, table: { none, common, rare, legendary } }
+    // 旧格式兼容：扁平 { none, common, rare, legendary }
+    let table;
+    if (entry.table !== undefined && entry.mode !== undefined) {
+      table = entry.table;
+    } else {
+      // 旧格式兼容：直接读取扁平结构，概率 ×100 转权重
+      table = entry;
+    }
+
     const n = table.none || 0;
     const L = table.legendary || 0;
     const R = table.rare || 0;
@@ -3530,30 +3544,49 @@ function applyShopModifier(floorNum, basePrice) {
 function rollShopSlots(room, floorNum) {
   if (!room || room.type !== 'shop') return;
 
-  // 从全部道具中随机选2个不同道具
-  const allItemIds = Object.keys(ITEMS_DB);
-  const shuffledItems = shuffleArray([...allItemIds]).slice(0, 2);
-
-  // 从资源中随机选3个可购买资源（排除 coin 和 chest 类型）
-  const buyableResources = Object.keys(RESOURCE_DB).filter(k => {
-    const r = RESOURCE_DB[k];
-    return r.type !== 'coin' && r.type !== 'chest';
-  });
-  const shuffledRes = shuffleArray([...buyableResources]).slice(0, 3);
-
   const floor = floorNum || (currentFloor ? currentFloor.floorNum : 1);
+
+  // ——— 道具：用 item_drop_shop_stock 掉落表抽2次不重复 ———
+  const pickedItems = [];
+  for (let i = 0; i < 2; i++) {
+    // 连续抽，最多尝试20次避免死循环
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const cfgId = rollItem(null, 'item_drop_shop_stock');
+      if (cfgId && !pickedItems.includes(cfgId)) {
+        pickedItems.push(cfgId);
+        break;
+      }
+    }
+    // 如果实在抽不够（道具池太小），跳出
+    if (pickedItems.length <= i) break;
+  }
+
+  // ——— 资源：用 resource_drop_shop_stock 掉落表抽3次不重复 ———
+  const pickedResources = [];
+  for (let i = 0; i < 3; i++) {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const result = rollResourceDrop('resource_drop_shop_stock');
+      const cfgId = result.length > 0 ? result[0] : null;
+      if (cfgId && !pickedResources.includes(cfgId)) {
+        pickedResources.push(cfgId);
+        break;
+      }
+    }
+    if (pickedResources.length <= i) break;
+  }
 
   // 构造槽位：道具2个(row=2)，资源3个(row=4)，价格显示在下一行(row+1)
   const slots = [
-    { col: 4, row: 2, type: 'item',     cfgId: shuffledItems[0], sold: false, priceCol: 4, priceRow: 3 },
-    { col: 8, row: 2, type: 'item',     cfgId: shuffledItems[1], sold: false, priceCol: 8, priceRow: 3 },
-    { col: 3, row: 4, type: 'resource', cfgId: shuffledRes[0],   sold: false, priceCol: 3, priceRow: 5 },
-    { col: 6, row: 4, type: 'resource', cfgId: shuffledRes[1],   sold: false, priceCol: 6, priceRow: 5 },
-    { col: 9, row: 4, type: 'resource', cfgId: shuffledRes[2],   sold: false, priceCol: 9, priceRow: 5 },
+    { col: 4, row: 2, type: 'item',     cfgId: pickedItems[0],    sold: false, priceCol: 4, priceRow: 3 },
+    { col: 8, row: 2, type: 'item',     cfgId: pickedItems[1],    sold: false, priceCol: 8, priceRow: 3 },
+    { col: 3, row: 4, type: 'resource', cfgId: pickedResources[0], sold: false, priceCol: 3, priceRow: 5 },
+    { col: 6, row: 4, type: 'resource', cfgId: pickedResources[1], sold: false, priceCol: 6, priceRow: 5 },
+    { col: 9, row: 4, type: 'resource', cfgId: pickedResources[2], sold: false, priceCol: 9, priceRow: 5 },
   ];
 
   // 计算每个槽位的最终价格
   for (const slot of slots) {
+    if (!slot.cfgId) continue;
     const basePrice = slot.type === 'item'
       ? (ITEMS_DB[slot.cfgId] && ITEMS_DB[slot.cfgId].price != null ? ITEMS_DB[slot.cfgId].price : 15)
       : (RESOURCE_DB[slot.cfgId] && RESOURCE_DB[slot.cfgId].price != null ? RESOURCE_DB[slot.cfgId].price : 5);
