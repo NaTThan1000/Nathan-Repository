@@ -1415,9 +1415,6 @@ const FLOOR_CONFIG = {
   1:{name:'地牢1层',roomCount:[8,10],bossCount:[1,1],treasureCount:[1,1],shopCount:[1,1]},
   2:{name:'地牢2层',roomCount:[9,11],bossCount:[1,1],treasureCount:[1,2],shopCount:[1,1]},
   3:{name:'地牢3层',roomCount:[10,12],bossCount:[1,1],treasureCount:[1,2],shopCount:[1,1]},
-  4:{name:'地牢4层',roomCount:[10,13],bossCount:[1,1],treasureCount:[1,2],shopCount:[1,1]},
-  5:{name:'地牢5层',roomCount:[11,14],bossCount:[1,1],treasureCount:[0,1],shopCount:[0,1]},
-  6:{name:'地牢6层',roomCount:[12,15],bossCount:[1,1],treasureCount:[0,1],shopCount:[0,1]},
 };
 
 function randInt(min,max){return Math.floor(Math.random()*(max-min+1))+min;}
@@ -1547,11 +1544,11 @@ function generateFloor(floorNum){
   return{floorNum,name:cfg.name,rooms,edges,layout,startRoomId:startId,bossRoomId:bossId,treasureRoomIds:treasureIds,shopRoomIds:shopIds};
 }
 
-function generateAllFloors(){for(let f=1;f<=6;f++)allFloors[f]=generateFloor(f);saveFloorToFile();}
+function generateAllFloors(){for(let f=1;f<=3;f++)allFloors[f]=generateFloor(f);saveFloorToFile();}
 
 async function saveFloorToFile(){
   try{
-    const data={};for(let f=1;f<=6;f++){const fl=allFloors[f];if(!fl)continue;const rooms=JSON.parse(JSON.stringify(fl.rooms));rooms.forEach(r=>{delete r.grid;delete r.connections;delete r.spawnConfig;});data[f]={floorNum:fl.floorNum,name:fl.name,shopModifier:fl.shopModifier||{type:'none'},rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds,shopRoomIds:fl.shopRoomIds||[]};}
+    const data={};for(let f=1;f<=3;f++){const fl=allFloors[f];if(!fl)continue;const rooms=JSON.parse(JSON.stringify(fl.rooms));rooms.forEach(r=>{delete r.grid;delete r.connections;delete r.spawnConfig;});data[f]={floorNum:fl.floorNum,name:fl.name,shopModifier:fl.shopModifier||{type:'none'},rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds,shopRoomIds:fl.shopRoomIds||[]};}
     // grid 不再持久化到 JSON（运行时从 pool tiles parse 生成），connections 从 doors 推导
     let json=JSON.stringify(data, null, 2);
     // 写入 localStorage 缓存
@@ -1580,7 +1577,7 @@ async function readFloorFromHandle(handle){
   const f=await handle.getFile();
   const text=await f.text();
   const data=JSON.parse(text);
-  for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);else if(r.grid.length>0&&Array.isArray(r.grid[0])&&r.grid.length===ROWS)r.grid=transposeGridRowToCol(r.grid);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;});}
+  for(let f=1;f<=3;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);else if(r.grid.length>0&&Array.isArray(r.grid[0])&&r.grid.length===ROWS)r.grid=transposeGridRowToCol(r.grid);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;});}
   localStorage.setItem(FLOOR_CACHE_KEY,text);
   console.log('📂 已加载 floor-data.json');
   return true;
@@ -1653,14 +1650,14 @@ async function tryLoadFloorData(){
     if(h){floorFileHandle=h;await readFloorFromHandle(h);return true;}
   }catch(e){}
   const c=localStorage.getItem(FLOOR_CACHE_KEY);
-  if(c){try{const d=JSON.parse(c);for(let f=1;f<=6;f++){allFloors[f]=d[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);else if(r.grid.length>0&&Array.isArray(r.grid[0])&&r.grid.length===ROWS)r.grid=transposeGridRowToCol(r.grid);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;});}console.log('📂 从缓存加载楼层');return true;}catch(e){}}
+  if(c){try{const d=JSON.parse(c);for(let f=1;f<=3;f++){allFloors[f]=d[f];allFloors[f].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);else if(r.grid.length>0&&Array.isArray(r.grid[0])&&r.grid.length===ROWS)r.grid=transposeGridRowToCol(r.grid);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;});}console.log('📂 从缓存加载楼层');return true;}catch(e){}}
   console.warn('⚠ 请点击「选择 floor-data.json」加载楼层文件');
   return false;
 }
 
 document.getElementById('btn-pick-floor').addEventListener('click',pickFloorFile);
 document.getElementById('btn-floor-json').addEventListener('click',()=>{
-  const data={};for(let f=1;f<=6;f++){const fl=allFloors[f];if(!fl)continue;const rooms=JSON.parse(JSON.stringify(fl.rooms));rooms.forEach(r=>{delete r.grid;delete r.connections;});data[f]={floorNum:fl.floorNum,name:fl.name,shopModifier:fl.shopModifier||{type:'none'},rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds,shopRoomIds:fl.shopRoomIds||[]};}
+  const data={};for(let f=1;f<=3;f++){const fl=allFloors[f];if(!fl)continue;const rooms=JSON.parse(JSON.stringify(fl.rooms));rooms.forEach(r=>{delete r.grid;delete r.connections;});data[f]={floorNum:fl.floorNum,name:fl.name,shopModifier:fl.shopModifier||{type:'none'},rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds,shopRoomIds:fl.shopRoomIds||[]};}
   // grid 不再持久化到 JSON（运行时从 pool tiles parse 生成），connections 从 doors 推导
   let json=JSON.stringify(data, null, 2);
   document.getElementById('download-textarea').value=json;
@@ -1716,7 +1713,7 @@ mapCanvas.addEventListener('click',(e)=>{
   }
 });
 
-function buildFloorNav(){const nav=document.getElementById('floor-nav');nav.innerHTML='';for(let f=1;f<=6;f++){if(!allFloors[f])continue;const btn=document.createElement('button');btn.className='floor-btn'+(f===currentFloorNum?' active':'');btn.textContent=allFloors[f].name;btn.dataset.floor=f;btn.addEventListener('click',()=>{currentFloorNum=f;document.querySelectorAll('.floor-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderFloor(allFloors[f]);});nav.appendChild(btn);}}
+function buildFloorNav(){const nav=document.getElementById('floor-nav');nav.innerHTML='';for(let f=1;f<=3;f++){if(!allFloors[f])continue;const btn=document.createElement('button');btn.className='floor-btn'+(f===currentFloorNum?' active':'');btn.textContent=allFloors[f].name;btn.dataset.floor=f;btn.addEventListener('click',()=>{currentFloorNum=f;document.querySelectorAll('.floor-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderFloor(allFloors[f]);});nav.appendChild(btn);}}
 
 // ================================================================
 //  标签切换

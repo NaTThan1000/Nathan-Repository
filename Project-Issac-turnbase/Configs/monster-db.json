@@ -3,8 +3,8 @@
     "_description": "怪物数据库 — 每只怪物的属性、AI行为、掉落配置",
     "_fields": {
       "aiType": {
-        "_values": ["chase", "ranged_kite", "charge", "boss_jumper", "boss_chase"],
-        "_desc": "chase=追逐玩家, ranged_kite=远程风筝, charge=蓄力冲刺, boss_jumper=跳跃Boss, boss_chase=追逐Boss"
+        "_values": ["chase", "ranged_kite", "charge", "boss_jumper", "boss_chase", "boss_duke"],
+        "_desc": "chase=追逐玩家, ranged_kite=远程风筝, charge=蓄力冲刺, boss_jumper=跳跃Boss, boss_chase=追逐Boss, boss_duke=公爵Boss"
       },
 
       "actionMode.mode": {
@@ -12,8 +12,8 @@
         "_desc": "sequence=顺序执行actions, random=按weights权重随机选action"
       },
       "actions[].type": {
-        "_values": ["chase", "random_wander", "shoot_fan", "charge_up", "charge_line", "jump_small", "jump_big_land"],
-        "_desc": "AI行动类型。charge_up=蓄力(原地+感叹号), charge_line=冲刺"
+        "_values": ["chase", "random_wander", "shoot_fan", "shoot_single", "charge_up", "charge_line", "jump_small", "jump_big_land", "duke_idle", "duke_diagonal_move"],
+        "_desc": "AI行动类型。shoot_single=单发直射, charge_up=蓄力(原地+感叹号), charge_line=冲刺, jump_big_land=大跳(chargeSteps蓄力→砸下), duke_idle=公爵首回合静止, duke_diagonal_move=公爵对角移动"
       },
       "actions[].stepMode": {
         "_values": ["sequence", "random"],
@@ -32,8 +32,28 @@
         "_desc": "跳跃落点模式: cover_player=覆盖玩家所在格"
       },
       "actions[].after_effect[].type": {
-        "_values": ["attack_adjacent", "attack_side"],
-        "_desc": "行动后附带的攻击效果: attack_adjacent=邻格攻击, attack_side=侧面攻击"
+        "_values": ["attack_adjacent", "attack_side", "summon", "random_wander"],
+        "_desc": "行动后附带的攻击效果: attack_adjacent=邻格攻击, attack_side=侧面攻击, summon=召唤怪物, random_wander=随机移动"
+      },
+      "actions[].once": {
+        "_desc": "仅首回合执行一次（true则后续回合跳过此action），用于boss_duke的首回合静止",
+        "_type": "boolean"
+      },
+      "actions[].after_effect.chance": {
+        "_desc": "summon类型的召唤概率 (0~1)",
+        "_type": "number"
+      },
+      "actions[].after_effect.monsterId": {
+        "_desc": "summon类型召唤的怪物cfgId",
+        "_type": "string"
+      },
+      "actions[].after_effect.maxCount": {
+        "_desc": "summon类型召唤的怪物在场数量上限",
+        "_type": "number"
+      },
+      "actions[].after_effect.spawnRange": {
+        "_values": ["adjacent"],
+        "_desc": "summon类型召唤位置: adjacent=相邻格随机空格"
       },
       "loot.mode": {
         "_values": ["pick_one", "roll_all", "pick_first"],
@@ -251,7 +271,7 @@
       { "type": "jump_small", "steps": [2], "repeatChance": 0.5 },
       {
         "type": "jump_big_land",
-        "disappearSteps": 1,
+        "chargeSteps": 1,
         "target": { "mode": "cover_player" },
         "after_effect": [
           { "type": "attack_side", "damage": 1, "range": 1 }
@@ -283,7 +303,7 @@
       { "type": "jump_small", "steps": [3], "repeatChance": 0.5 },
       {
         "type": "jump_big_land",
-        "disappearSteps": 1,
+        "chargeSteps": 1,
         "target": { "mode": "cover_player" },
         "after_effect": [
           { "type": "attack_side", "damage": 1, "range": 1 }
@@ -315,7 +335,7 @@
       { "type": "jump_small", "steps": [3], "repeatChance": 0.5 },
       {
         "type": "jump_big_land",
-        "disappearSteps": 1,
+        "chargeSteps": 1,
         "target": { "mode": "cover_player" },
         "after_effect": [
           { "type": "attack_side", "damage": 1, "range": 1 }
@@ -334,5 +354,50 @@
       ]
     },
     "size": 2
+  },
+  "duke_fly": {
+    "id": "duke_fly",
+    "name": "苍蝇公爵",
+    "hp": 100,
+    "damage": 1,
+    "aiType": "boss_duke",
+    "actionMode": { "mode": "sequence" },
+    "actions": [
+      { "type": "duke_diagonal_move", "steps": [3],
+        "after_effect": { "type": "summon", "chance": 0.3, "monsterId": "duke_floater", "maxCount": 3, "spawnRange": "adjacent" } }
+    ],
+    "tint": "rgba(255,200,100,0.40)",
+    "loot": {
+      "rounds": [
+        {
+          "mode": "pick_one",
+          "entries": [
+            { "type": "item", "rate": 0, "itemDropTable": "item_drop_boss" }
+          ]
+        }
+      ]
+    },
+    "size": 2
+  },
+  "duke_floater": {
+    "id": "duke_floater",
+    "name": "公爵浮游眼",
+    "hp": 6,
+    "damage": 0.5,
+    "aiType": "ranged_kite",
+    "actionMode": { "mode": "condition" },
+    "actions": [
+      { "type": "random_wander", "steps": [2, 2, 2], "stepMode": "random", "condition": "out_of_range", "range": 4 },
+      { "type": "shoot_single", "range": 4, "directMode": "toward_player_axis", "condition": "in_range",
+        "after_effect": { "type": "random_wander", "steps": [2, 2, 2], "stepMode": "random" } }
+    ],
+    "tint": "rgba(180,180,255,0.35)",
+    "loot": {
+      "mode": "pick_one",
+      "entries": [
+        { "type": "item", "weight": 0.03, "rate": 1.0, "itemDropTable": "item_drop_ranged" },
+        { "type": "resource", "weight": 0.97, "rate": 0.24, "resourceDropTable": "resource_drop_monster_default" }
+      ]
+    }
   }
 }

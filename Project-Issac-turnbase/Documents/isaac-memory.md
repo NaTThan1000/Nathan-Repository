@@ -756,3 +756,38 @@
 - **Bug 3 — 缺少 `await` 关键字**：正则匹配 `await fetch(...)` 整段替换为 `(async () => ...)()`，`await` 被吞掉导致 `resp` 拿到 Promise 而非对象 → 替换内容前补 `await`
 - **最终模拟响应对象**：`{ ok: true, json: async () => JSON.parse(d), text: async () => d }`
 - **[文件]** 新增 `build-pack.js` 和 `isaac-turnbased-demo-pack.html`（0.48 MB）
+
+---
+
+## 2026-08-07
+
+### 苍蝇公爵（Duke of Flies）Boss 系统 [当前方案]
+
+- **[触发]** 用户需要第 2 层新 Boss 类型，不同于第 1 层的跳跃巨兽
+- **[设计]** 苍蝇公爵（`duke_fly`）：2×2 体型，对角移动 + 召唤浮游眼
+  - `aiType: "boss_duke"`，独立关键帧动画系统（不走逐步移动），第 0 遍优先计算判定层
+  - `duke_diagonal_move` action：按象限方向对角移动 3 步，after_effect 触发 summon
+  - `summon` after_effect：30% 概率在相邻格召唤 `duke_floater`（公爵浮游眼），上限 3 只
+  - 首回合静止（`_dukeFirstTurn`），第二回合起进入对角移动循环
+  - 新增 4 个核心函数：`initDukeQuadrant()` / `calcDukePath()` / `updateDukeAnim()` / `handleDukeSummon()`
+- **[召唤物]** `duke_floater`：HP=6，行为类似浮游眼但用 `shoot_single` 单发直射（非扇形三连射）
+- **[squad 模板]** 新增 4 个 Boss squad：`boss_duke`（纯 duke）、`boss_duke_and_jumper_i`（第 1 层双 boss）、`boss_duke_and_jumper_iii`（第 3 层双 boss）
+- **[spawn-config 简化]** 从三元组 `{minMonsters, maxMonsters, budget}` 回退到单值 `{budget}`，`terrainModifiers` 也简化为 `{budget}` 单偏移值
+- **[怪物总数]** 从 4 类型 × 3 级 = 12 只 → 5 类型共 14 只（+duke_fly + duke_floater）
+
+### squad/spawn 命名一致性讨论
+
+- **[问题]** AI 在检查用户手动修改的 squad-templates.json 和 spawn-config.json 时，因 squad ID 与 monster cfgId 同名（`boss_jumper_i` 两者都有），误报 `spawn-config.json` 第 1 层 `bossMonsters` 填的可能不是 squad ID
+- **[结论]** 用户确认填写正确，`boss_jumper_i` 在 squad-templates.json 中是合法的 squad template。AI 之前建的 squad 模板命名不一致（有的 squad 与 monster 重名如 `boss_jumper_i`，有的不重名如 squad=`boss_duke` 对应 monster=`duke_fly`）是 AI 自己的锅，不应反过来质疑用户
+- **[教训]** 命名一致性应在设计阶段统一，不能事后发现不一致后倒推用户填写有问题
+
+### 打包版本开发阶段暂不维护规范确立
+
+- **[触发]** 用户删除 `isaac-turnbased-demo-pack.html`，确认日常开发只维护源码版
+- **[决策]** 确立规范：日常开发只改源码文件，打包版本不同步维护。只有当用户明确要求打包时，才一次性更新并生成新的 pack 文件。写入 `global-rules.md §3.5`
+
+### 最近更新记录（memory.md）
+
+| 日期 | 更新内容 |
+|------|---------|
+| 2026-08-07 | **苍蝇公爵 Boss 系统 + squad/spawn 命名一致性讨论 + 打包版本开发阶段暂不维护规范**。新增 duke_fly（对角移动关键帧动画 + summon 召唤 duff_floater）+ 4 个 Boss squad 模板 + spawn-config 简化为单值 budget。详见当日记忆条目。 |

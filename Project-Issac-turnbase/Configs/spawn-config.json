@@ -9,20 +9,14 @@
 
   "floorBudgets": {
     "1": { "budget": 12 },
-    "2": { "budget": 14 },
-    "3": { "budget": 16 },
-    "4": { "budget": 18 },
-    "5": { "budget": 20 },
-    "6": { "budget": 22 }
+    "2": { "budget": 16 },
+    "3": { "budget": 20 }
   },
 
   "bossMonsters": {
     "1": ["boss_jumper_i"],
-    "2": ["boss_jumper_i"],
-    "3": ["boss_jumper_ii"],
-    "4": ["boss_jumper_ii"],
-    "5": ["boss_jumper_iii"],
-    "6": ["boss_jumper_iii"]
+    "2": ["boss_duke"],
+    "3": ["boss_duke_and_jumper_iii"]
   },
 
   "terrainModifiers": {

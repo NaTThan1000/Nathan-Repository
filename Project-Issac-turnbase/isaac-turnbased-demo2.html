@@ -976,7 +976,7 @@ function transposeGridRowToCol(rowGrid){const g=[];for(let c=0;c<COLS;c++){g[c]=
 function transposeGridColToRow(colGrid){const g=[];for(let r=0;r<ROWS;r++){g[r]=[];for(let c=0;c<COLS;c++)g[r][c]=colGrid[c][r];}return g;}
 
 // ==================== 房间/楼层系统 ====================
-const FLOOR_CONFIG = {1:{name:'地牢1层',roomCount:[8,10],bossCount:[1,1],treasureCount:[1,1],shopCount:[0,0]},2:{name:'地牢2层',roomCount:[9,11],bossCount:[1,1],treasureCount:[1,2],shopCount:[0,0]},3:{name:'地牢3层',roomCount:[10,12],bossCount:[1,1],treasureCount:[1,2],shopCount:[0,1]},4:{name:'地牢4层',roomCount:[10,13],bossCount:[1,1],treasureCount:[1,2],shopCount:[0,1]},5:{name:'地牢5层',roomCount:[11,14],bossCount:[1,1],treasureCount:[2,2],shopCount:[0,1]},6:{name:'地牢6层',roomCount:[12,15],bossCount:[1,1],treasureCount:[2,2],shopCount:[1,1]}};
+const FLOOR_CONFIG = {1:{name:'地牢1层',roomCount:[8,10],bossCount:[1,1],treasureCount:[1,1],shopCount:[0,0]},2:{name:'地牢2层',roomCount:[10,12],bossCount:[1,1],treasureCount:[1,2],shopCount:[0,1]},3:{name:'地牢3层',roomCount:[12,15],bossCount:[1,1],treasureCount:[2,2],shopCount:[1,1]}};
 const DOOR_POS = {up:{col:6,row:0},down:{col:6,row:6},left:{col:0,row:3},right:{col:12,row:3}};
 const DOOR_FROM_DIR = {up:'down',down:'up',left:'right',right:'left'};
 
@@ -1137,7 +1137,7 @@ function resetGameToFloor1(){
   playerResources.coins = 0; playerResources.bombs = 0; playerResources.keys = 0;
   playerResources.blueHearts = 0;
   // 重置所有房间的运行时状态（地形、门、掉落物、标记等）
-  for(let f=1;f<=6;f++){if(allFloors[f])allFloors[f].rooms.forEach(r=>{r.grid=r._initGrid?r._initGrid.map(col=>[...col]):r.grid;r.doors=r._initDoors?{up:r._initDoors.up?{...r._initDoors.up}:null,down:r._initDoors.down?{...r._initDoors.down}:null,left:r._initDoors.left?{...r._initDoors.left}:null,right:r._initDoors.right?{...r._initDoors.right}:null}:r.doors;r.bossLadderPlaced=false;r.itemSpawned=false;r.itemDropped=false;r.locked=r._initLocked||false;r._shopSlots=null;r._groundResources=[];r._groundItems=[];});}
+  for(let f=1;f<=3;f++){if(allFloors[f])allFloors[f].rooms.forEach(r=>{r.grid=r._initGrid?r._initGrid.map(col=>[...col]):r.grid;r.doors=r._initDoors?{up:r._initDoors.up?{...r._initDoors.up}:null,down:r._initDoors.down?{...r._initDoors.down}:null,left:r._initDoors.left?{...r._initDoors.left}:null,right:r._initDoors.right?{...r._initDoors.right}:null}:r.doors;r.bossLadderPlaced=false;r.itemSpawned=false;r.itemDropped=false;r.locked=r._initLocked||false;r._shopSlots=null;r._groundResources=[];r._groundItems=[];});}
   updateResourceUI();
   visitedRooms = new Set(); // 重置已访问记录
   playerStats.hp=playerStats.maxHp;
@@ -1160,7 +1160,7 @@ async function loadOrGenerateFloors(forceReload){
       if(_lastFloorHash===text&&Object.keys(allFloors).length>0)return false;
       _lastFloorHash=text;
       const data=JSON.parse(text);
-      for(let f=1;f<=6;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{r.grid=r.grid&&r.grid.length>0?(Array.isArray(r.grid[0])&&r.grid.length===ROWS?transposeGridRowToCol(r.grid):r.grid):parseGrid(r.tplKey?getTpl(r.tplKey).tiles:BUILTIN_TEMPLATES()['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;r.type=r.type||'normal';r._initLocked=r.locked;r._shopSlots=null;r._groundResources=r._groundResources||[];r._groundItems=r._groundItems||[];r._initGrid=r.grid.map(col=>[...col]);r._initDoors={up:r.doors.up?{...r.doors.up}:null,down:r.doors.down?{...r.doors.down}:null,left:r.doors.left?{...r.doors.left}:null,right:r.doors.right?{...r.doors.right}:null};});}
+      for(let f=1;f<=3;f++){allFloors[f]=data[f];allFloors[f].rooms.forEach(r=>{r.grid=r.grid&&r.grid.length>0?(Array.isArray(r.grid[0])&&r.grid.length===ROWS?transposeGridRowToCol(r.grid):r.grid):parseGrid(r.tplKey?getTpl(r.tplKey).tiles:BUILTIN_TEMPLATES()['open'].tiles);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;r.type=r.type||'normal';r._initLocked=r.locked;r._shopSlots=null;r._groundResources=r._groundResources||[];r._groundItems=r._groundItems||[];r._initGrid=r.grid.map(col=>[...col]);r._initDoors={up:r.doors.up?{...r.doors.up}:null,down:r.doors.down?{...r.doors.down}:null,left:r.doors.left?{...r.doors.left}:null,right:r.doors.right?{...r.doors.right}:null};});}
       if(forceReload){console.log('🔄 检测到楼层更新，已重新加载');resetGameToFloor1();}
       return true;
     }
@@ -1444,6 +1444,7 @@ const AI_TYPE = {
   STATIONARY:   'stationary',    // 不动但远程射击
   BOSS_CHASE:   'boss_chase',    // 追踪+特殊攻击
   BOSS_JUMPER:  'boss_jumper',   // 2×2跳跃Boss (小跳/大跳循环)
+  BOSS_DUKE:    'boss_duke',     // 2×2苍蝇公爵 (对角移动+反弹+召唤浮游眼)
 };
 
 // 怪物配置数据库 (异步从 JSON 加载)
@@ -1454,7 +1455,7 @@ let MONSTER_POOL_ALL = [];
 function _rebuildMonsterPools() {
   // skip meta keys like _schema, _comment etc.
   const keys = Object.keys(MONSTER_DB).filter(k => !k.startsWith('_'));
-  MONSTER_POOL_NORMAL = keys.filter(k => MONSTER_DB[k].aiType !== 'boss_chase' && MONSTER_DB[k].aiType !== 'boss_jumper');
+  MONSTER_POOL_NORMAL = keys.filter(k => MONSTER_DB[k].aiType !== 'boss_chase' && MONSTER_DB[k].aiType !== 'boss_jumper' && MONSTER_DB[k].aiType !== 'boss_duke');
   MONSTER_POOL_ALL = keys;
 }
 
@@ -1862,7 +1863,15 @@ function saveTurnSnapshot() {
         jumperCheckRepeated: m.jumperCheckRepeated, jumperVanished: m.jumperVanished,
         jumperJustLanded: m.jumperJustLanded || false,
         _showingExclaim: m._showingExclaim || false,
+        _charging: m._charging || false,
+        _shaking: m._shaking || false,
+        _landingPhase: m._landingPhase !== undefined ? m._landingPhase : null,
         _killLoot: m._killLoot ? [...m._killLoot] : null,
+        _diagDir: m._diagDir ? { dCol: m._diagDir.dCol, dRow: m._diagDir.dRow } : undefined,
+        _dukeFirstTurn: m._dukeFirstTurn,
+        _spawnedThisTurn: m._spawnedThisTurn || false,
+        _dukeKeyframes: m._dukeKeyframes ? m._dukeKeyframes.map(k => ({ targetCol: k.targetCol, targetRow: k.targetRow, pushedFloaters: k.pushedFloaters ? Array.from(k.pushedFloaters.entries()) : [], playerHit: k.playerHit })) : [],
+        _dukeKeyframeIdx: m._dukeKeyframeIdx || 0,
       };
     }),
     pendingBossLanding: pendingBossLanding ? {
@@ -1929,7 +1938,15 @@ function saveCheckpoint() {
         jumperCheckRepeated: m.jumperCheckRepeated, jumperVanished: m.jumperVanished,
         jumperJustLanded: m.jumperJustLanded || false,
         _showingExclaim: m._showingExclaim || false,
+        _charging: m._charging || false,
+        _shaking: m._shaking || false,
+        _landingPhase: m._landingPhase !== undefined ? m._landingPhase : null,
         _killLoot: m._killLoot ? [...m._killLoot] : null,
+        _diagDir: m._diagDir ? { dCol: m._diagDir.dCol, dRow: m._diagDir.dRow } : undefined,
+        _dukeFirstTurn: m._dukeFirstTurn,
+        _spawnedThisTurn: m._spawnedThisTurn || false,
+        _dukeKeyframes: m._dukeKeyframes ? m._dukeKeyframes.map(k => ({ targetCol: k.targetCol, targetRow: k.targetRow, pushedFloaters: k.pushedFloaters ? Array.from(k.pushedFloaters.entries()) : [], playerHit: k.playerHit })) : [],
+        _dukeKeyframeIdx: m._dukeKeyframeIdx || 0,
       };
     }),
     pendingBossLanding: pendingBossLanding ? {
@@ -2003,8 +2020,26 @@ function restoreCheckpoint() {
     jumperCheckRepeated: m.jumperCheckRepeated, jumperVanished: m.jumperVanished || false,
     jumperJustLanded: m.jumperJustLanded || false,
     _showingExclaim: m._showingExclaim || false,
+    _charging: m._charging || false,
+    _shaking: m._shaking || false,
+    _landingPhase: m._landingPhase !== undefined ? m._landingPhase : null,
     _killLoot: m._killLoot ? [...m._killLoot] : null,
+    _diagDir: m._diagDir ? { dCol: m._diagDir.dCol, dRow: m._diagDir.dRow } : undefined,
+    _dukeFirstTurn: m._dukeFirstTurn,
+    _spawnedThisTurn: m._spawnedThisTurn || false,
+    _dukeKeyframes: m._dukeKeyframes ? m._dukeKeyframes.map(k => ({ targetCol: k.targetCol, targetRow: k.targetRow, pushedFloaters: k.pushedFloaters ? Array.from(k.pushedFloaters.entries()) : [], playerHit: k.playerHit })) : [],
+    _dukeKeyframeIdx: m._dukeKeyframeIdx || 0,
   }));
+  // 恢复 Duke 关键帧中的 Map（快照序列化为数组）
+  for (const rm of monsters) {
+    if (rm._dukeKeyframes && rm._dukeKeyframes.length > 0) {
+      rm._dukeKeyframes = rm._dukeKeyframes.map(k => ({
+        targetCol: k.targetCol, targetRow: k.targetRow,
+        pushedFloaters: new Map(k.pushedFloaters || []),
+        playerHit: k.playerHit,
+      }));
+    }
+  }
   if (s.pendingBossLanding && s.pendingBossLanding.monsterId) {
     const landingMonster = monsters.find(m2 => m2.id === s.pendingBossLanding.monsterId);
     let landAction = null;
@@ -2091,8 +2126,25 @@ function restoreCheckpointWithoutBullets() {
     jumperCheckRepeated: m.jumperCheckRepeated, jumperVanished: m.jumperVanished || false,
     jumperJustLanded: m.jumperJustLanded || false,
     _showingExclaim: m._showingExclaim || false,
+    _charging: m._charging || false,
+    _shaking: m._shaking || false,
+    _landingPhase: m._landingPhase !== undefined ? m._landingPhase : null,
     _killLoot: m._killLoot ? [...m._killLoot] : null,
+    _diagDir: m._diagDir ? { dCol: m._diagDir.dCol, dRow: m._diagDir.dRow } : undefined,
+    _dukeFirstTurn: m._dukeFirstTurn,
+    _spawnedThisTurn: m._spawnedThisTurn || false,
+    _dukeKeyframes: m._dukeKeyframes ? m._dukeKeyframes.map(k => ({ targetCol: k.targetCol, targetRow: k.targetRow, pushedFloaters: k.pushedFloaters ? Array.from(k.pushedFloaters.entries()) : [], playerHit: k.playerHit })) : [],
+    _dukeKeyframeIdx: m._dukeKeyframeIdx || 0,
   }));
+  for (const rm of monsters) {
+    if (rm._dukeKeyframes && rm._dukeKeyframes.length > 0) {
+      rm._dukeKeyframes = rm._dukeKeyframes.map(k => ({
+        targetCol: k.targetCol, targetRow: k.targetRow,
+        pushedFloaters: new Map(k.pushedFloaters || []),
+        playerHit: k.playerHit,
+      }));
+    }
+  }
   if (s.pendingBossLanding && s.pendingBossLanding.monsterId) {
     const landingMonster = monsters.find(m2 => m2.id === s.pendingBossLanding.monsterId);
     let landAction = null;
@@ -2177,8 +2229,25 @@ function restoreTurnSnapshot() {
     jumperCheckRepeated: m.jumperCheckRepeated, jumperVanished: m.jumperVanished || false,
     jumperJustLanded: m.jumperJustLanded || false,
     _showingExclaim: m._showingExclaim || false,
+    _charging: m._charging || false,
+    _shaking: m._shaking || false,
+    _landingPhase: m._landingPhase !== undefined ? m._landingPhase : null,
     _killLoot: m._killLoot ? [...m._killLoot] : null,
+    _diagDir: m._diagDir ? { dCol: m._diagDir.dCol, dRow: m._diagDir.dRow } : undefined,
+    _dukeFirstTurn: m._dukeFirstTurn,
+    _spawnedThisTurn: m._spawnedThisTurn || false,
+    _dukeKeyframes: m._dukeKeyframes ? m._dukeKeyframes.map(k => ({ targetCol: k.targetCol, targetRow: k.targetRow, pushedFloaters: k.pushedFloaters ? Array.from(k.pushedFloaters.entries()) : [], playerHit: k.playerHit })) : [],
+    _dukeKeyframeIdx: m._dukeKeyframeIdx || 0,
   }));
+  for (const rm of monsters) {
+    if (rm._dukeKeyframes && rm._dukeKeyframes.length > 0) {
+      rm._dukeKeyframes = rm._dukeKeyframes.map(k => ({
+        targetCol: k.targetCol, targetRow: k.targetRow,
+        pushedFloaters: new Map(k.pushedFloaters || []),
+        playerHit: k.playerHit,
+      }));
+    }
+  }
   // 恢复pendingBossLanding
   if (s.pendingBossLanding && s.pendingBossLanding.monsterId) {
     const landingMonster = monsters.find(m2 => m2.id === s.pendingBossLanding.monsterId);
@@ -2346,8 +2415,25 @@ function simulateFromCheckpoint(path) {
     jumperCheckRepeated: m.jumperCheckRepeated, jumperVanished: m.jumperVanished || false,
     jumperJustLanded: m.jumperJustLanded || false,
     _showingExclaim: m._showingExclaim || false,
+    _charging: m._charging || false,
+    _shaking: m._shaking || false,
+    _landingPhase: m._landingPhase !== undefined ? m._landingPhase : null,
     _killLoot: m._killLoot ? [...m._killLoot] : null,
+    _diagDir: m._diagDir ? { dCol: m._diagDir.dCol, dRow: m._diagDir.dRow } : undefined,
+    _dukeFirstTurn: m._dukeFirstTurn,
+    _spawnedThisTurn: m._spawnedThisTurn || false,
+    _dukeKeyframes: m._dukeKeyframes ? m._dukeKeyframes.map(k => ({ targetCol: k.targetCol, targetRow: k.targetRow, pushedFloaters: k.pushedFloaters ? Array.from(k.pushedFloaters.entries()) : [], playerHit: k.playerHit })) : [],
+    _dukeKeyframeIdx: m._dukeKeyframeIdx || 0,
   }));
+  for (const rm of monsters) {
+    if (rm._dukeKeyframes && rm._dukeKeyframes.length > 0) {
+      rm._dukeKeyframes = rm._dukeKeyframes.map(k => ({
+        targetCol: k.targetCol, targetRow: k.targetRow,
+        pushedFloaters: new Map(k.pushedFloaters || []),
+        playerHit: k.playerHit,
+      }));
+    }
+  }
   if (s.pendingBossLanding && s.pendingBossLanding.monsterId) {
     const landingMonster = monsters.find(m2 => m2.id === s.pendingBossLanding.monsterId);
     let landAction = null;
@@ -2719,6 +2805,8 @@ function resolveMonsterAction(cfg, turnIdx, mCol, mRow, pCol, pRow) {
   const eligible = [];
   for (let i = 0; i < actions.length; i++) {
     const a = actions[i];
+    // once 标记：仅首回合(turnIdx===0)可执行，后续回合自动跳过
+    if (a.once && turnIdx > 0) continue;
     if (checkActionCondition(a, pCol, pRow, mCol, mRow)) {
       eligible.push({ action: a, idx: i });
     }
@@ -2758,9 +2846,23 @@ function resolveMonsterAction(cfg, turnIdx, mCol, mRow, pCol, pRow) {
 function calcAllMonsterPaths() {
   const turnIdx = turnState.monsterTurnCounter;
 
+  // ===== 第0遍：Boss Duke 优先计算路径（判定层先于其他小怪） =====
+  const dukes = monsters.filter(m => m.aiType === 'boss_duke' && !m.jumperVanished);
+  for (const m of dukes) {
+    calcDukePath(m, turnIdx);
+  }
+
   for (const m of monsters) {
     // Boss Jumper 的移动由 processJumperAction 单独处理，此处只清空路径
     if (m.aiType === 'boss_jumper') {
+      m.predictedPath = [];
+      continue;
+    }
+    // Boss Duke 已在上面的循环中处理
+    if (m.aiType === 'boss_duke') continue;
+
+    // 本回合刚生成的怪物（如公爵浮游眼）不移动
+    if (m._spawnedThisTurn) {
       m.predictedPath = [];
       continue;
     }
@@ -2873,6 +2975,60 @@ function calcAllMonsterPaths() {
           }
           m.predictedPath = path;
           m._showingExclaim = false; // after_effect 执行后清除感叹号
+        }
+        break;
+      }
+
+      case 'shoot_single': {
+        // 单发直射：与 shoot_fan 相同的主轴向判定，但只射 1 发（不扩散）
+        m.predictedPath = [];
+        const dx2 = player.col - m.col;
+        const dy2 = player.row - m.row;
+        const adx2 = Math.abs(dx2), ady2 = Math.abs(dy2);
+        let shootDir2;
+        if (adx2 > ady2 || (adx2 === ady2 && Math.random() < 0.5)) {
+          shootDir2 = dx2 > 0 ? 'right' : 'left';
+        } else {
+          shootDir2 = dy2 > 0 ? 'down' : 'up';
+        }
+        const range2 = selectedAction.range || 4;
+        const gp2 = gridToPixel(m.col, m.row);
+        if (turnState.phase === 'monster_turn') {
+          spawnMonsterBullet(shootDir2, gp2.x, gp2.y, range2);
+        }
+
+        // after_effect: 射击后执行附加行为（如随机移动）
+        const ae2 = m._turnAfterAction;
+        if (ae2 && ae2.type === 'random_wander') {
+          const aeSteps2 = resolveSteps(ae2.steps, ae2.stepMode, ae2.stepWeights, turnIdx);
+          const dirs2 = [
+            { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+            { dx: -1, dy: 0 }, { dx: 1, dy: 0 }
+          ];
+          const validDirs2 = dirs2.filter(d => {
+            const nc = m.col + d.dx, nr = m.row + d.dy;
+            if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) return false;
+            const tags = m.movementTags || ['地面'];
+            if (tags.includes('地面') && isWall(nc, nr)) return false;
+            if (isMonsterAt(nc, nr, m.id)) return false;
+            return true;
+          });
+          const d2 = validDirs2.length > 0
+            ? validDirs2[Math.floor(Math.random() * validDirs2.length)]
+            : dirs2[Math.floor(Math.random() * dirs2.length)];
+          const path2 = [];
+          let col2 = m.col, row2 = m.row;
+          for (let step = 0; step < aeSteps2; step++) {
+            const nc = col2 + d2.dx, nr = row2 + d2.dy;
+            if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) break;
+            const tags = m.movementTags || ['地面'];
+            if (tags.includes('地面') && isWall(nc, nr)) break;
+            if (isMonsterAt(nc, nr, m.id)) break;
+            path2.push({ fromCol: col2, fromRow: row2, toCol: nc, toRow: nr });
+            col2 = nc; row2 = nr;
+          }
+          m.predictedPath = path2;
+          m._showingExclaim = false;
         }
         break;
       }
@@ -3949,38 +4105,42 @@ function calcJumperSmallJump(m) {
   return true;
 }
 
-// 大跳跃：按 action.target.mode 选择落点 → 消失 → 等待落地
+// 大跳跃：回合1蓄力颤抖+感叹号 → 回合2砸下（快速过渡动画：原地颤抖→跳起消失→落地）
 function calcJumperBigJump(m) {
   const cfg = MONSTER_DB[m.cfgId];
   const landAction = (cfg.actions || []).find(a => a.type === 'jump_big_land');
   const sz = m.size || 2;
 
-  // 从配置读取落点选择策略
-  const target = selectLandingTarget(landAction, m);
+  // === 回合1：蓄力颤抖（首次进入 phase 4） ===
+  if (!m._charging) {
+    // 预计算落点（用于延迟落地和UI显示）
+    const target = selectLandingTarget(landAction, m);
+    if (!target) {
+      // 无有效落点，退化为小跳跃
+      return calcJumperSmallJump(m);
+    }
 
-  if (!target) {
-    // 无有效落点，退化为小跳跃
-    return calcJumperSmallJump(m);
+    // 设置蓄力状态：原地颤抖 + 感叹号提示（复用 charge_up 样式）
+    m._charging = true;
+    m._showingExclaim = true;
+    m._shaking = true;
+    m.chargeStepsRemaining = (landAction && landAction.chargeSteps !== undefined) ? landAction.chargeSteps : 1;
+
+    // 预存延迟落地信息（携带 action 配置供落地时使用）
+    pendingBossLanding = {
+      monster: m,
+      targetCol: target.col,
+      targetRow: target.row,
+      landAction: landAction,
+    };
+
+    m.predictedPath = [];
+    return true;
   }
 
-  // 读取消失回合数（默认1回合）
-  const disappearSteps = (landAction && landAction.disappearSteps !== undefined) ? landAction.disappearSteps : 1;
-  m.disappearStepsRemaining = disappearSteps;
-
-  // 设置延迟落地（携带 action 配置供落地时使用）
-  pendingBossLanding = {
-    monster: m,
-    targetCol: target.col,
-    targetRow: target.row,
-    landAction: landAction,   // 落地时读取 after_effect 等参数
-  };
-
-  // Boss消失（保留动画计时器用于残影渲染）
-  m.jumperVanished = true;
-  m.jumpAnimTimer = 0.35; // 消失动画
-  m.jumpType = 'vanish';
-  m.jumpFrom = { col: m.col, row: m.row };
-  m.jumpTo = { col: m.col, row: m.row };
+  // === 回合2：砸下（_charging 已为 true，再次进入即为砸下回合） ===
+  // 砸下逻辑由 processJumperAction → executeBossLandingNow 处理
+  m.predictedPath = [];
   return true;
 }
 
@@ -3995,8 +4155,14 @@ function processJumperAction(m) {
     return;
   }
 
+  // === phase 4 蓄力中：执行砸下（回合2） ===
+  if (m._charging) {
+    executeBossLandingNow(m);
+    m.predictedPath = [];
+    return;
+  }
+
   const phase = m.jumperPhase || 1;
-  let advanced = false;
 
   if (phase === 1 || phase === 2) {
     // 小跳跃
@@ -4015,11 +4181,9 @@ function processJumperAction(m) {
         m.jumperCheckRepeated = false;
       }
     }
-    advanced = true;
   } else if (phase === 4) {
-    // 大跳跃：消失
+    // 大跳跃：蓄力（回合1）
     calcJumperBigJump(m);
-    advanced = true;
   }
 
   // 清除路径（jumper不参与逐步移动）
@@ -4114,13 +4278,296 @@ function resolveAfterEffects(action, context) {
   }
 }
 
-// 处理大跳跃延迟落地（在玩家回合结束时调用）
+// ==================== 苍蝇公爵 (Duke Fly) 系统 ====================
+
+// 战斗开始时判定公爵初始对角方向（仅执行一次）
+function initDukeQuadrant(m) {
+  // 计算公爵 4 格中心点
+  const centerCol = m.col + (m.size || 2) / 2 - 0.5;
+  const centerRow = m.row + (m.size || 2) / 2 - 0.5;
+  // 房间中心点
+  const roomCenterCol = (COLS - 1) / 2;
+  const roomCenterRow = (ROWS - 1) / 2;
+
+  const relCol = centerCol - roomCenterCol;
+  const relRow = centerRow - roomCenterRow;
+
+  if (relCol >= 0 && relRow < 0) {
+    // 右上象限 → 左下
+    m._diagDir = { dCol: -1, dRow: 1 };
+  } else if (relCol < 0 && relRow < 0) {
+    // 左上象限 → 右下
+    m._diagDir = { dCol: 1, dRow: 1 };
+  } else if (relCol < 0 && relRow >= 0) {
+    // 左下象限 → 右上
+    m._diagDir = { dCol: 1, dRow: -1 };
+  } else {
+    // 右下象限 → 左上
+    m._diagDir = { dCol: -1, dRow: -1 };
+  }
+  m._dukeFirstTurn = true;
+}
+
+// 计算公爵本回合的完整路径（含对角移动、碰壁反弹、浮游眼推移、玩家碰撞）
+// 使用关键帧动画系统：路径存储在 _dukeKeyframes，由 updateDukeAnim 逐帧驱动 px/py
+function calcDukePath(m, turnIdx) {
+  const cfg = MONSTER_DB[m.cfgId];
+  if (!cfg) { m.predictedPath = []; m._dukeKeyframes = []; return; }
+
+  const resolved = resolveMonsterAction(cfg, turnIdx, m.col, m.row, player.col, player.row);
+  const selectedAction = resolved.action;
+  const stepCount = resolved.steps;
+  const afterAction = resolved.afterAction;
+
+  m.moveSpeed = stepCount;
+  m._turnAction = selectedAction;
+  m._turnAfterAction = afterAction;
+
+  if (!selectedAction || selectedAction.type !== 'duke_diagonal_move') {
+    m.predictedPath = []; m._dukeKeyframes = []; return;
+  }
+
+  const dir = m._diagDir || { dCol: 1, dRow: 1 };
+  const keyframes = [];
+  let curCol = m.col, curRow = m.row;
+
+  for (let step = 0; step < stepCount; step++) {
+    const targetCol = curCol + dir.dCol;
+    const targetRow = curRow + dir.dRow;
+
+    // 检查 4 格体积是否出界 → 碰壁反弹
+    const sz = m.size || 2;
+    let blockedH = false, blockedV = false;
+    if (targetCol < 0 || targetCol + sz - 1 >= COLS) blockedH = true;
+    if (targetRow < 0 || targetRow + sz - 1 >= ROWS) blockedV = true;
+
+    if (blockedH) dir.dCol *= -1;
+    if (blockedV) dir.dRow *= -1;
+
+    const finalTargetCol = curCol + dir.dCol;
+    const finalTargetRow = curRow + dir.dRow;
+
+    if (finalTargetCol < 0 || finalTargetCol + sz - 1 >= COLS) break;
+    if (finalTargetRow < 0 || finalTargetRow + sz - 1 >= ROWS) break;
+
+    // === 检查路径上是否有其他怪物（非公爵浮游眼） ===
+    // 其他Boss → 视为墙壁反弹；其他小怪 → 视为浮游眼推移/挤走
+    const otherMonsters = monsters.filter(om =>
+      om.id !== m.id && om.hp > 0 && !om.jumperVanished && om.cfgId !== 'duke_floater'
+    );
+
+    let pushedFloaters = new Map();  // 提前声明（浮游眼 + 小怪共用）
+    let blockedByBoss = false;
+    for (const om of otherMonsters) {
+      const isBoss = om.aiType === 'boss_jumper' || om.aiType === 'boss_chase' || om.aiType === 'boss_duke';
+      const omSz = om.size || 1;
+      // 检查 Duke 移动后的 4 格体积是否和该怪物重叠
+      for (let ddc = 0; ddc < sz; ddc++) {
+        for (let ddr = 0; ddr < sz; ddr++) {
+          const dukeNewC = finalTargetCol + ddc;
+          const dukeNewR = finalTargetRow + ddr;
+          if (dukeNewC >= om.col && dukeNewC < om.col + omSz && dukeNewR >= om.row && dukeNewR < om.row + omSz) {
+            if (isBoss) {
+              // 其他Boss → 视为墙壁反弹
+              blockedByBoss = true;
+            } else {
+              // 小怪 → 推移/挤走（同浮游眼逻辑）
+              let pushedCol = om.col + dir.dCol;
+              let pushedRow = om.row + dir.dRow;
+              if (pushedCol < 0 || pushedCol >= COLS) pushedCol = om.col;
+              if (pushedRow < 0 || pushedRow >= ROWS) pushedRow = om.row;
+              const pushedOccupied = monsters.some(om2 => {
+                if (om2.id === om.id) return false;
+                if (om2.id === m.id) return false;
+                const osz2 = om2.size || 1;
+                return pushedCol >= om2.col && pushedCol < om2.col + osz2 && pushedRow >= om2.row && pushedRow < om2.row + osz2;
+              });
+              if (!pushedOccupied && pushedCol >= 0 && pushedCol < COLS && pushedRow >= 0 && pushedRow < ROWS) {
+                if (!pushedFloaters.has(om.id)) {
+                  pushedFloaters.set(om.id, { col: pushedCol, row: pushedRow });
+                }
+              }
+            }
+            break;
+          }
+        }
+      }
+      if (blockedByBoss) break;
+    }
+
+    // 被其他Boss阻挡 → 反弹方向，本步不走
+    if (blockedByBoss) {
+      dir.dCol *= -1;
+      dir.dRow *= -1;
+      // 检查反弹后是否出界
+      const reboundCol = curCol + dir.dCol;
+      const reboundRow = curRow + dir.dRow;
+      if (reboundCol < 0 || reboundCol + sz - 1 >= COLS) break;
+      if (reboundRow < 0 || reboundRow + sz - 1 >= ROWS) break;
+      // 反弹后跳过本步（不产生关键帧），下一步用新方向
+      continue;
+    }
+
+    // === 检查路径上的浮游眼：整体推移 ===
+    const dukeFloaters = monsters.filter(om =>
+      om.id !== m.id && om.cfgId === 'duke_floater' && om.hp > 0 && !om.jumperVanished
+    );
+
+    for (const df of dukeFloaters) {
+      const dfCells = monsterCells(df);
+      for (const dc of dfCells) {
+        for (let ddc = 0; ddc < sz; ddc++) {
+          for (let ddr = 0; ddr < sz; ddr++) {
+            const dukeNewC = finalTargetCol + ddc;
+            const dukeNewR = finalTargetRow + ddr;
+            if (dc.col === dukeNewC && dc.row === dukeNewR) {
+              let pushedCol = df.col + dir.dCol;
+              let pushedRow = df.row + dir.dRow;
+              if (pushedCol < 0 || pushedCol >= COLS) pushedCol = df.col;
+              if (pushedRow < 0 || pushedRow >= ROWS) pushedRow = df.row;
+              // 检查推移目标是否被其他怪物占据（排除浮游眼自身和 Duke）
+              const pushedOccupied = monsters.some(om => {
+                if (om.id === df.id) return false;  // 排除浮游眼自身
+                if (om.id === m.id) return false;   // 排除 Duke（Duke 正在移动到这个位置附近）
+                const osz = om.size || 1;
+                return pushedCol >= om.col && pushedCol < om.col + osz && pushedRow >= om.row && pushedRow < om.row + osz;
+              });
+              if (!pushedOccupied && pushedCol >= 0 && pushedCol < COLS && pushedRow >= 0 && pushedRow < ROWS) {
+                if (!pushedFloaters.has(df.id)) {
+                  pushedFloaters.set(df.id, { col: pushedCol, row: pushedRow });
+                }
+              }
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // 检查玩家碰撞
+    let playerHitThisStep = false;
+    for (let ddc = 0; ddc < sz; ddc++) {
+      for (let ddr = 0; ddr < sz; ddr++) {
+        const dukeNewC = finalTargetCol + ddc;
+        const dukeNewR = finalTargetRow + ddr;
+        if (!playerHitThisStep && dukeNewC === player.col && dukeNewR === player.row) {
+          damagePlayer(m.damage || 1);
+          playerHitThisStep = true;
+        }
+      }
+    }
+
+    // 记录关键帧（目标格子坐标）
+    keyframes.push({
+      targetCol: finalTargetCol,
+      targetRow: finalTargetRow,
+      pushedFloaters: pushedFloaters,
+      playerHit: playerHitThisStep,
+    });
+    curCol = finalTargetCol;
+    curRow = finalTargetRow;
+  }
+
+  m._dukeKeyframes = keyframes;
+  m._dukeKeyframeIdx = 0;
+  m.predictedPath = []; // Duke 不走逐帧机制
+}
+
+// 每帧更新 Duke 关键帧动画（在 animateMonsters 之后调用，直接控制 px/py）
+// Duke 走独立动画轨道，animateMonsters 跳过 Duke
+const DUKE_ANIM_SPEED = 200; // px/s
+function updateDukeAnim(dt) {
+  if (turnState.phase !== 'monster_turn') return;
+  for (const m of monsters) {
+    if (m.aiType !== 'boss_duke') continue;
+    if (!m._dukeKeyframes || m._dukeKeyframes.length === 0) continue;
+    if (m._dukeKeyframeIdx >= m._dukeKeyframes.length) continue;
+
+    const kf = m._dukeKeyframes[m._dukeKeyframeIdx];
+    const targetPix = gridToPixel(kf.targetCol, kf.targetRow);
+    const sz = m.size || 2;
+    // 用 4 格体积中心点计算距离
+    const centerTargetX = targetPix.x + CELL * (sz - 1) / 2;
+    const centerTargetY = targetPix.y + CELL * (sz - 1) / 2;
+    const centerCurX = m.px + CELL * (sz - 1) / 2;
+    const centerCurY = m.py + CELL * (sz - 1) / 2;
+
+    const dx = centerTargetX - centerCurX;
+    const dy = centerTargetY - centerCurY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < 2) {
+      // 到达当前关键帧 → 更新 col/row 和 px/py
+      m.col = kf.targetCol;
+      m.row = kf.targetRow;
+      m.px = targetPix.x;
+      m.py = targetPix.y;
+
+      // 执行浮游眼推移（同步更新 col/row 和 px/py）
+      if (kf.pushedFloaters) {
+        for (const [fId, newPos] of kf.pushedFloaters) {
+          const floater = monsters.find(om => om.id === fId);
+          if (floater) {
+            floater.col = newPos.col;
+            floater.row = newPos.row;
+            const fpix = gridToPixel(newPos.col, newPos.row);
+            floater.px = fpix.x; floater.py = fpix.y;
+          }
+        }
+      }
+
+      m._dukeKeyframeIdx++;
+    } else {
+      // 沿对角线方向平滑移动 px/py（只移 px/py，col/row 不变直到到达）
+      const step = DUKE_ANIM_SPEED * dt;
+      const r = Math.min(step / dist, 1);
+      m.px += dx * r;
+      m.py += dy * r;
+    }
+  }
+}
+
+// 回合2砸下：怪物回合中调用，先播跳起消失动画 → 然后落地
+function executeBossLandingNow(m) {
+  if (!pendingBossLanding || pendingBossLanding.monster.id !== m.id) return;
+
+  const { targetCol, targetRow } = pendingBossLanding;
+  let { landAction } = pendingBossLanding;
+
+  if (!landAction) {
+    const mCfg = MONSTER_DB[m.cfgId];
+    landAction = (mCfg && mCfg.actions) ? mCfg.actions.find(a => a.type === 'jump_big_land') : null;
+  }
+
+  const sz = m.size || 2;
+
+  // === 第1阶段：跳起消失动画（原地颤抖→缩小消失，0.2s） ===
+  m._charging = false;
+  m._shaking = false;
+  m._showingExclaim = false;
+  m.jumperVanished = true;
+  m.jumpFrom = { col: m.col, row: m.row };
+  m.jumpTo = { col: m.col, row: m.row };
+  m.jumpAnimTimer = 0.2;
+  m.jumpType = 'charge_vanish';
+  // 记录落地参数（动画结束后在 update 循环中触发第二阶段）
+  m._pendingLandCol = targetCol;
+  m._pendingLandRow = targetRow;
+  m._pendingLandAction = landAction;
+  m._landingPhase = 0; // 0=vanish中, 1=等待big_land
+}
+
+// 处理大跳跃延迟落地（在玩家回合结束时调用 — 仅旧版 vanish 流程，新流程已不再走此路径）
 function executeBossLanding() {
   if (!pendingBossLanding) return;
 
-  const { monster: m, targetCol, targetRow } = pendingBossLanding;
+  // 检查是否是新流程的蓄力中Boss（新流程在怪物回合中直接处理）
+  const m = pendingBossLanding.monster;
+  if (m && m._charging) return; // 新流程：不在玩家回合结束时处理，等怪物回合处理
+
+  // 旧版兼容：直接落地
+  const { targetCol, targetRow } = pendingBossLanding;
   let { landAction } = pendingBossLanding;
-  // fallback：如果 landAction 缺失（例如旧存档），从怪物配置重建
   if (!landAction) {
     const mCfg = MONSTER_DB[m.cfgId];
     landAction = (mCfg && mCfg.actions) ? mCfg.actions.find(a => a.type === 'jump_big_land') : null;
@@ -4133,25 +4580,31 @@ function executeBossLanding() {
   m.px = newPix.x; m.py = newPix.y;
   m.jumperVanished = false;
   m.jumperPhase = 1;
-  m.jumperJustLanded = true; // 落地回合不行动，下回合再循环
+  m.jumperJustLanded = true;
   m.jumpFrom = { col: targetCol, row: targetRow };
   m.jumpTo = { col: targetCol, row: targetRow };
   m.jumpAnimTimer = 0.55;
   m.jumpType = 'big_land';
 
-  // === 第2步：本体落地碰撞（落在玩家格 → 碰撞伤害 + 玩家获得无敌帧） ===
-  // 落地 2×2 区域直接碰撞
+  doLandingDamage(m, targetCol, targetRow, sz, landAction);
+
+  inCombat = true;
+  updateDoorsLocked();
+  pendingBossLanding = null;
+}
+
+// 落地伤害+效果（抽成共用函数）
+function doLandingDamage(m, targetCol, targetRow, sz, landAction) {
+  // 本体落地碰撞
   let playerDirectHit = false;
   for (let dc = 0; dc < sz; dc++) {
     for (let dr = 0; dr < sz; dr++) {
       const tc = targetCol + dc, tr = targetRow + dr;
       if (!playerDirectHit && tc === player.col && tr === player.row) {
-        // 碰撞伤害使用怪物接触伤害
         const collisionDmg = m.damage || 0.5;
         damagePlayer(collisionDmg);
         playerDirectHit = true;
       }
-      // 对其他怪物也造成碰撞伤害
       for (const om of monsters) {
         if (om.id === m.id || om.jumperVanished) continue;
         if (isInMonsterFootprint(om, tc, tr)) {
@@ -4161,14 +4614,103 @@ function executeBossLanding() {
     }
   }
 
-  // === 第3步：执行 after_effect（冲击波等后置效果） ===
-  // 玩家如果被本体碰撞触发无敌，冲击波自动免疫
+  // after_effect（冲击波等）
   resolveAfterEffects(landAction, { monster: m, targetCol, targetRow, sz });
+}
 
-  // Boss 落地重出后恢复战斗模式（消失期间 inCombat 可能被 finishMonsterTurn 设为 false）
+// 公爵召唤浮游眼（概率判定 + 上限检查 + 相邻格随机空格生成）
+function handleDukeSummon(m) {
+  const ae = m._turnAfterAction;
+  if (!ae) return;
+  const chance = ae.chance !== undefined ? ae.chance : 0.3;
+  const maxCount = ae.maxCount !== undefined ? ae.maxCount : 3;
+  const monsterId = ae.monsterId || 'duke_floater';
+
+  // 概率判定
+  if (Math.random() >= chance) return;
+
+  // 检查场上公爵浮游眼数量
+  const currentFloaters = monsters.filter(om =>
+    om.cfgId === monsterId && om.hp > 0 && !om.jumperVanished
+  ).length;
+  if (currentFloaters >= maxCount) return;
+
+  // 公爵 12 个相邻格（4 格体积外围），随机选一个空格召唤
+  const sz = m.size || 2;
+  const adjacentCandidates = [];
+  for (let dc = -1; dc <= sz; dc++) {
+    for (let dr = -1; dr <= sz; dr++) {
+      // 跳过公爵本体格子
+      if (dc >= 0 && dc < sz && dr >= 0 && dr < sz) continue;
+      const nc = m.col + dc, nr = m.row + dr;
+      if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) continue;
+      if (isMonsterAt(nc, nr)) continue;
+      if (nc === player.col && nr === player.row) continue;
+      // 飞行单位：不检查地形，但检查是否是墙壁
+      if (!TILE_WALKABLE[currentRoomGrid[nc][nr]]) continue;
+      adjacentCandidates.push({ col: nc, row: nr });
+    }
+  }
+
+  if (adjacentCandidates.length === 0) return;
+
+  const spawnPos = adjacentCandidates[Math.floor(Math.random() * adjacentCandidates.length)];
+  const spawnCfg = MONSTER_DB[monsterId];
+  if (!spawnCfg) return;
+
+  const pix = gridToPixel(spawnPos.col, spawnPos.row);
+  const newMonster = {
+    id: ++monsterIdCounter,
+    cfgId: spawnCfg.id,
+    name: spawnCfg.name,
+    col: spawnPos.col, row: spawnPos.row,
+    px: pix.x, py: pix.y,
+    hp: spawnCfg.hp, maxHp: spawnCfg.hp,
+    displayHp: spawnCfg.hp,
+    damage: spawnCfg.damage,
+    aiType: spawnCfg.aiType,
+    tint: spawnCfg.tint,
+    predictedPath: [], moveSpeed: 2,
+    hitFlash: 0, shakeX: 0, shakeY: 0,
+    size: spawnCfg.size || 1,
+    jumperVanished: false,
+    disappearStepsRemaining: 0,
+    movementTags: ['飞行'],
+    _spawnedThisTurn: true,  // 本回合生成，不参与当前回合的路径计算
+  };
+  if (spawnCfg.loot) newMonster._killLoot = preRollLoot(spawnCfg.loot);
+  monsters.push(newMonster);
+}
+
+// 砸下第二阶段：vanish动画结束后在目标位置播 big_land
+function finishBossLandingPhase2(m) {
+  const targetCol = m._pendingLandCol;
+  const targetRow = m._pendingLandRow;
+  const landAction = m._pendingLandAction;
+  const sz = m.size || 2;
+
+  m.col = targetCol; m.row = targetRow;
+  const newPix = gridToPixel(m.col, m.row);
+  m.px = newPix.x; m.py = newPix.y;
+  m.jumperVanished = false;
+  m.jumperPhase = 1;
+  m.jumperJustLanded = true;
+  m.jumpFrom = { col: targetCol, row: targetRow };
+  m.jumpTo = { col: targetCol, row: targetRow };
+  m.jumpAnimTimer = 0.55;
+  m.jumpType = 'big_land';
+
+  doLandingDamage(m, targetCol, targetRow, sz, landAction);
+
   inCombat = true;
   updateDoorsLocked();
   pendingBossLanding = null;
+
+  // 清理过渡状态
+  m._landingPhase = null;
+  m._pendingLandCol = null;
+  m._pendingLandRow = null;
+  m._pendingLandAction = null;
 }
 
 // 怪物回合执行
@@ -4186,6 +4728,13 @@ function startMonsterTurn() {
   for (const m of monsters) {
     if (m.aiType === 'boss_jumper' && !m.jumperVanished) {
       processJumperAction(m);
+    }
+  }
+
+  // 初始化 Boss Duke 象限方向（战斗开始时执行一次）
+  for (const m of monsters) {
+    if (m.aiType === 'boss_duke' && m._diagDir === undefined) {
+      initDukeQuadrant(m);
     }
   }
 
@@ -4207,15 +4756,28 @@ function updateMonsterTurn(dt) {
   const planned = []; // [{monster, toCol, toRow}]
   let anyStepLeft = false;
 
+  // 检查 Duke 是否还在动画中（关键帧未播完则保持回合不结束）
+  let dukeAnimating = false;
+  for (const m of monsters) {
+    if (m.aiType !== 'boss_duke') continue;
+    if (m._dukeKeyframes && m._dukeKeyframeIdx < m._dukeKeyframes.length) {
+      dukeAnimating = true;
+      break;
+    }
+  }
+
   for (const m of monsters) {
     if (m.jumperVanished) continue; // 跳跃Boss已消失
+    // Boss Duke 走关键帧动画，不参与逐帧移动
+    if (m.aiType === 'boss_duke') continue;
     if (!m.predictedPath || monsterExecStepIdx >= m.predictedPath.length) continue;
+
     anyStepLeft = true;
     const step = m.predictedPath[monsterExecStepIdx];
     planned.push({ monster: m, fromCol: step.fromCol, fromRow: step.fromRow, toCol: step.toCol, toRow: step.toRow });
   }
 
-  if (!anyStepLeft) { finishMonsterTurn(); return; }
+  if (!anyStepLeft && !dukeAnimating) { finishMonsterTurn(); return; }
 
   // 第二遍：应用移动 (已占用的格子不能再被其他怪物占据)
   const occupied = new Set();
@@ -4228,8 +4790,11 @@ function updateMonsterTurn(dt) {
   // 先标记起始位置 (避免怪物踩到另一个怪物的起点)
 
   for (const p of planned) {
-    const key = `${p.toCol},${p.toRow}`;
     const m = p.monster;
+    const sz = m.size || 1;
+
+    // === 普通怪物 (1×1) ===
+    const key = `${p.toCol},${p.toRow}`;
 
     // 检查目标格是否有其他怪物(也在本步移动中)早到
     if (occupied.has(key)) {
@@ -4264,36 +4829,21 @@ function updateMonsterTurn(dt) {
     occupied.add(key);
   }
 
-  // 近战攻击：移动结束后，面朝方向1格内检查玩家（已声明 after_effect 的怪物跳过）
-  for (const p of planned) {
-    const m = p.monster;
-    if (m.jumperVanished) continue;
-    const moved = (m.col === p.toCol && m.row === p.toRow);
-    if (!moved) continue;
-    // 检查该怪物的 chase action 是否已声明 after_effect
-    const mCfg = MONSTER_DB[m.cfgId];
-    const chaseAction = mCfg && mCfg.actions ? mCfg.actions.find(a => a.type === 'chase') : null;
-    if (chaseAction && chaseAction.after_effect && chaseAction.after_effect.length > 0) continue;
-    const dirX = Math.sign(p.toCol - p.fromCol);
-    const dirY = Math.sign(p.toRow - p.fromRow);
-    if (dirX === 0 && dirY === 0) continue;
-    const atkCol = m.col + dirX;
-    const atkRow = m.row + dirY;
-    if (atkCol === player.col && atkRow === player.row) {
-      damagePlayer(m.damage || 1);
-      m.meleeFlash = 0.25;
-      m.meleeDir = { dx: dirX, dy: dirY };
-    }
-  }
-
   monsterExecStepIdx++;
 
-  // 检查是否全部完成
+  // 检查是否全部完成（含 Duke 动画）
   let maxSteps = 0;
   for (const m of monsters) {
     if (m.predictedPath) maxSteps = Math.max(maxSteps, m.predictedPath.length);
   }
-  if (monsterExecStepIdx >= maxSteps) finishMonsterTurn();
+  // 检查 Duke 是否还在动画中
+  let dukeStillAnimating = false;
+  for (const m of monsters) {
+    if (m.aiType === 'boss_duke' && m._dukeKeyframes && m._dukeKeyframeIdx < m._dukeKeyframes.length) {
+      dukeStillAnimating = true; break;
+    }
+  }
+  if (monsterExecStepIdx >= maxSteps && !dukeStillAnimating) finishMonsterTurn();
 }
 
 function finishMonsterTurn() {
@@ -4306,6 +4856,17 @@ function finishMonsterTurn() {
     if (!m.predictedPath || m.predictedPath.length === 0) continue;
     resolveAfterEffects(chaseAction, { monster: m });
   }
+
+  // Boss Duke 移动后的 summon after_effect
+  for (const m of monsters) {
+    if (m.jumperVanished) continue;
+    if (m.aiType !== 'boss_duke') continue;
+    if (!m._turnAfterAction || m._turnAfterAction.type !== 'summon') continue;
+    handleDukeSummon(m);
+  }
+
+  // 清除所有怪物的 _spawnedThisTurn 标记（下回合正常移动）
+  for (const m of monsters) m._spawnedThisTurn = false;
 
   for (const m of monsters) m.predictedPath = [];
   turnState.monsterTurnCounter++;
@@ -5074,6 +5635,8 @@ function render() {
 const MONSTER_ANIM_SPEED = 170; // px/s
 function animateMonsters(dt) {
   for (const m of monsters) {
+    // Boss Duke 走独立关键帧动画（updateDukeAnim 直接控制 px/py）
+    if (m.aiType === 'boss_duke') continue;
     const target = gridToPixel(m.col, m.row);
     const dx = target.x - m.px, dy = target.y - m.py;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -5104,8 +5667,9 @@ function drawMonsters() {
   for (const m of monsters) {
     // 跳跃Boss消失中：渲染残影动画
     if (m.jumperVanished) {
-      if (m.jumpAnimTimer > 0 && m.jumpType === 'vanish' && m.jumpFrom) {
-        const vanishT = 1 - m.jumpAnimTimer / 0.35; // 0→1 消失进度
+      if (m.jumpAnimTimer > 0 && (m.jumpType === 'vanish' || m.jumpType === 'charge_vanish') && m.jumpFrom) {
+        const vanishDur = m.jumpType === 'charge_vanish' ? 0.2 : 0.35;
+        const vanishT = 1 - m.jumpAnimTimer / vanishDur; // 0→1 消失进度
         const fromPix = gridToPixel(m.jumpFrom.col, m.jumpFrom.row);
         const centerPx = fromPix.x + CELL * ((m.size || 1) - 1) / 2;
         const centerPy = fromPix.y + CELL * ((m.size || 1) - 1) / 2;
@@ -5121,6 +5685,13 @@ function drawMonsters() {
         ctx.restore();
       }
       continue;
+    }
+
+    // 蓄力颤抖：大幅随机偏移（±3~4px），每帧刷新
+    let shakeOffX = 0, shakeOffY = 0;
+    if (m._shaking) {
+      shakeOffX = (Math.random() - 0.5) * 7; // ±3.5px
+      shakeOffY = (Math.random() - 0.5) * 7;
     }
 
     // 跳跃动画插值（jumpAnimTimer 从初始值递减到0，progress 0→1）
@@ -5208,7 +5779,7 @@ function drawMonsters() {
     const szRender = m.size || 1;
     const renderPx = szRender > 1 ? drawPx + CELL * (szRender - 1) / 2 : drawPx;
     const renderPy = szRender > 1 ? drawPy + CELL * (szRender - 1) / 2 : drawPy;
-    const pp = project(renderPx + m.shakeX, renderPy + m.shakeY);
+    const pp = project(renderPx + m.shakeX + shakeOffX, renderPy + m.shakeY + shakeOffY);
     const cx = Math.round(pp.x), cy = Math.round(pp.y);
     const s = pp.s;
     const baseSize = szRender > 1 ? Math.round(CELL * szRender * s) : Math.round(SPRITE.BASE_SIZE * s * 1.1);
@@ -6002,7 +6573,7 @@ function updateTextOverlay() {
 
     let el = existingNames[nameIdx];
     if (!el) { el = document.createElement('div'); el.className = 'txt-monster-name'; overlay.appendChild(el); }
-    if (m.aiType === 'boss_chase' || m.aiType === 'boss_jumper') { el.className = 'txt-monster-name boss'; } else { el.className = 'txt-monster-name'; }
+    if (m.aiType === 'boss_chase' || m.aiType === 'boss_jumper' || m.aiType === 'boss_duke') { el.className = 'txt-monster-name boss'; } else { el.className = 'txt-monster-name'; }
     el.textContent = m.name;
     el.style.left = sx + 'px';
     el.style.top = sy + 'px';
@@ -6760,7 +7331,7 @@ document.addEventListener('keydown', (e) => {
         if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.LADDER){
           const nextF=currentFloor.floorNum+1;
           if(allFloors[nextF]){enterFloor(nextF);return;}
-          else if (nextF > 6) { triggerVictoryScreen(); return; }
+          else if (nextF > 3) { triggerVictoryScreen(); return; }
         }
         updateActionBar();updateUI();
         updateFlyingEyeExclaim();  // 动态更新浮游眼感叹号
@@ -6974,6 +7545,8 @@ function gameLoop(timestamp) {
 
   // 怪物平滑动画 (插值 px/py → 网格坐标)
   animateMonsters(dt);
+  // 公爵关键帧动画（独立于逐帧机制，按路径逐格移动 px/py）
+  updateDukeAnim(dt);
   // 怪物受击效果衰减
   for (const m of monsters) {
     if (m.hitFlash > 0) m.hitFlash = Math.max(0, m.hitFlash - dt);
@@ -6994,6 +7567,11 @@ function gameLoop(timestamp) {
   for (const m of monsters) {
     if (m.jumpAnimTimer > 0) {
       m.jumpAnimTimer = Math.max(0, m.jumpAnimTimer - dt);
+      // charge_vanish 动画结束后，切换到 big_land 第二阶段
+      if (m.jumpAnimTimer <= 0 && m.jumpType === 'charge_vanish' && m._landingPhase === 0) {
+        m._landingPhase = 1;
+        finishBossLandingPhase2(m);
+      }
     }
 
   }
@@ -7156,6 +7734,9 @@ function spawnMonsterAtRandomPos(cfgId, overrideMovementTags, anchorPos) {
     jumperVanished: false,
     jumperJustLanded: false,
     disappearStepsRemaining: 0,
+    // boss_duke 状态
+    _diagDir: undefined,          // 象限方向（initDukeQuadrant 中初始化）
+    _dukeFirstTurn: (cfg.aiType === 'boss_duke') ? true : undefined,
     // charge 冲刺状态
     chargeDir: (cfg.aiType === 'charge') ? null : undefined,
     chargeDistance: (cfg.aiType === 'charge') ? 0 : undefined,

@@ -1,6 +1,6 @@
 # 以撒·半回合制战斗 — 项目总览
 
-> 文件: `Project-Issac-turnbase/isaac-turnbased-demo2.html`（v3道具系统版，主开发文件） | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据(含roomClearDrop配置) + `Configs/monster-db.json` 怪物配置表(含loot) + `Configs/item-db.json` 道具数据库(含itemDropTables, 9张item_drop_*表) + `Configs/resource-db.json` 资源数据库(定义+11张resource_drop_*掉落表+宝箱loot) + `Configs/spawn-config.json` 楼层刷怪配置(floorBudgets+terrainModifiers运行时计算) + `Configs/squad-templates.json` 怪物小队模板(squad组合+预算+标签+楼层限制) + `build-pack.js` 打包脚本 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 统一掉落调度器(rollLoot) + 资源掉落系统(mode驱动) + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层 + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表 + Boss Jumper 2×2跳跃Boss + 怪物行动系统重构(actionMode+actions[]) + 掉落表命名统一(item_drop_/resource_drop_前缀) + roomClearDrop配置驱动 + 刷怪配置运行时计算(resolveSpawnConfig) + 小队模板系统(squad-templates.json + SQUAD_TEMPLATES + 锚点聚拢生成) + 单文件打包版(isaac-turnbased-demo-pack.html)
+> 文件: `Project-Issac-turnbase/isaac-turnbased-demo2.html`（v3道具系统版，主开发文件） | 配套: `isaac-map-viewer.html` 房间编辑器 + `Configs/pool.json` 关卡池 + `Configs/floor-data.json` 楼层数据(含roomClearDrop配置) + `Configs/monster-db.json` 怪物配置表(含loot，14只怪物) + `Configs/item-db.json` 道具数据库(含itemDropTables, 9张item_drop_*表) + `Configs/resource-db.json` 资源数据库(定义+11张resource_drop_*掉落表+宝箱loot) + `Configs/spawn-config.json` 楼层刷怪配置(floorBudgets{单值budget}+terrainModifiers预算偏移+bossMonsters squad列表) + `Configs/squad-templates.json` 怪物小队模板(18个squad组合+预算+标签+楼层限制) + `build-pack.js` 打包脚本 | 文档: `isaac-memory.md` 项目决策记忆 + `isaac-turnbase-context.md` 策划+技术速查 | 编辑器通过 File System Access API 直读直写 JSON 文件，无需服务器 | 状态: 即时操作回合制 + 25种被动道具 + 统一掉落调度器(rollLoot) + 资源掉落系统(mode驱动) + 宝箱/Boss掉落 + 小地图 + 访问记录不刷怪 + AP动态绑定 + DOM文字覆盖层 + 战斗开始交叉剑动画 + Esc时间倒流动画 + 数据外置JSON加载 + 特效注册表 + Boss Jumper 2×2跳跃Boss + 苍蝇公爵(Duke of Flies)对角移动+召唤Boss + 怪物行动系统重构(actionMode+actions[]) + 掉落表命名统一(item_drop_/resource_drop_前缀) + roomClearDrop配置驱动 + 刷怪配置运行时计算(resolveSpawnConfig) + 小队模板系统(squad-templates.json + SQUAD_TEMPLATES + 锚点聚拢生成)
 
 ---
 
@@ -39,36 +39,46 @@
 
 ### 1.5 怪物系统
 
-**怪物配置数据库** `MONSTER_DB`（4种基础类型 × 3等级 = 12只怪物），数据来源 `Configs/monster-db.json` 外部 JSON 配置文件：
+**怪物配置数据库** `MONSTER_DB`（5种基础类型，共14只怪物），数据来源 `Configs/monster-db.json` 外部 JSON 配置文件：
 
 | cfgId | 名称(I/II/III) | HP | 伤害 | actionMode | actions[] (type + 核心参数) | 颜色叠加(tint) | 移动标签 | 角色 | 威胁值 | 体型 |
 |-------|------|-----|------|------------|------|---------------|:--:|:--:|:--:|:--:|
 | `crack_maw` | 裂口尸 | 10/20/30 | 0.5/1/1 | sequence | `chase` steps:[2,2]→[3,3]→[4,4], stepMode:seq, after_effect:attack_adjacent(damage:0.5/1/1,range:1) | 无 | 地面 | melee | 3/5/7 | 1×1 |
 | `flying_eye` | 浮游眼 | 6/12/20 | 0.5/0.5/1 | condition | `random_wander` steps:[2,2,2]→[3,3,3]→[4,4,4], cond:out_of_range + `shoot_fan` range:4→5→6, cond:in_range, after_effect:random_wander | 蓝紫半透 | 飞行 | ranged | 2/4/6 | 1×1 |
 | `charge_golem` | 蓄力魔像 | 30/45/65 | 1/1/1.5 | sequence | `random_wander` steps:2/3/4 ×2 + `charge_up`(蓄力+感叹号) + `charge_line` steps:[3,13], stepMode:rand | 棕半透 | 地面 | tank | 5/8/12 | 1×1 |
-| `boss_jumper` | 跳跃巨兽 | 60/80/105 | 0.5/0.5/1 | sequence | `jump_small` steps:[2/3/3] → `jump_small` steps:[2/3/3], repeatChance:0.5 → `jump_big_land` disappearSteps:1, target:cover_player, after_effect:attack_side(damage:1,range:1) | 紫半透 | 地面,飞行 | boss | 20/22/25 | **2×2** |
+| `boss_jumper` | 跳跃巨兽 | 60/80/105 | 0.5/0.5/1 | sequence | `jump_small` steps:[2/3/3] → `jump_small` steps:[2/3/3], repeatChance:0.5 → `jump_big_land` chargeSteps:1, target:cover_player, after_effect:attack_side(damage:1,range:1) | 紫半透 | 地面,飞行 | boss | 20/22/25 | **2×2** |
+| `duke_fly` | 苍蝇公爵 | 100 | 1 | sequence | `duke_diagonal_move` steps:[3], after_effect:summon(chance:0.3, monsterId:duke_floater, maxCount:3, spawnRange:adjacent) | 橙黄半透 | 飞行 | boss | 30 | **2×2** |
+| `duke_floater` | 公爵浮游眼 | 6 | 0.5 | condition | `random_wander` steps:[2,2,2], cond:out_of_range, range:4 + `shoot_single` range:4, cond:in_range, after_effect:random_wander | 蓝紫半透 | 飞行 | ranged | 2 | 1×1 |
 
 **怪物配置字段说明**：
 - `actionMode`：行为选择模式 `{ mode, [weights] }`。`mode: "sequence"` 按索引顺序循环执行 actions；`mode: "random"` 按 `weights[]` 加权随机选一个 action；`mode: "condition"` 按顺序逐条评估 action 的 condition，选中第一个满足条件的 action。权重默认 1（均匀随机）
 - `actions[]`：行为列表，每行为独立配置对象。通用字段：`type`（行为类型标识）、`steps`（步数池数组）、`stepMode`（sequence按序轮换 / random均匀随机）。每个 action 类型可携带额外专有参数（如 `range`/`condition`/`directMode`/`repeatChance`/`disappearSteps`/`target`/`after_effect` 等）
 - `condition`（action 可选字段）：`"in_range"` → 仅当玩家在 action 的 `range`（切比雪夫距离）内时该 action 可选；`"out_of_range"` → 仅当玩家在射程外时可选。无 condition 则始终可选
-- `after_effect`（action 可选字段）：主 action 执行完毕后追加执行的附加行为，支持两种格式：①单一对象 `{ type, steps, stepMode }`（浮游眼 shoot_fan→random_wander）；②数组 `[{ type, damage, range }]`（裂口尸 chase→attack_adjacent 十字邻格攻击，上下左右各 range 格；Boss Jumper jump_big_land→attack_side 冲击波范围攻击）
-- `aiType`：行为标签（chase/ranged_kite/charge/boss_jumper），保留用于特殊路由（如 boss_jumper 跳过普通 AI 分发进入 `processJumperAction`），但不再携带参数
+- `after_effect`（action 可选字段）：主 action 执行完毕后追加执行的附加行为，支持三种格式：①单一对象 `{ type, steps, stepMode }`（浮游眼 shoot_fan→random_wander）；②数组 `[{ type, damage, range }]`（裂口尸 chase→attack_adjacent 十字邻格攻击，上下左右各 range 格；Boss Jumper jump_big_land→attack_side 冲击波范围攻击）；③召唤配置对象 `{ type: "summon", chance, monsterId, maxCount, spawnRange }`（苍蝇公爵 duke_diagonal_move→summon 召唤浮游眼）
+- `once`（action 可选字段，boolean）：设为 true 时该 action 仅首回合执行一次（duke 首回合静止用）
+- `chance`（summon after_effect 字段）：召唤触发概率 (0~1)
+- `monsterId`（summon after_effect 字段）：召唤的怪物 cfgId
+- `maxCount`（summon after_effect 字段）：召唤怪物在场数量上限
+- `spawnRange`（summon after_effect 字段）：召唤位置模式（`"adjacent"`=相邻格随机空格）
+- `aiType`：行为标签（chase/ranged_kite/charge/boss_jumper/boss_duke），保留用于特殊路由（如 boss_jumper 跳过普通 AI 分发进入 `processJumperAction`、boss_duke 走独立关键帧动画 + 召唤逻辑），但不再携带参数
 - `movementTags`：怪物移动特征标签，用于与房间 `allowedMovement` 做标签匹配。`地面` 表示只能在地面行走（无法穿越深坑），`飞行` 表示可无视地形障碍
 - `role`：战斗角色定位（melee/ranged/tank/boss），用于组合规则保证类型多样性
 - `threat`：威胁值，用于点数预算消耗，控制每房间怪物总体难度
 
-**Action 类型枚举**（8种，替代旧 `movement.mode` + `aiType` 的分离结构）：
+**Action 类型枚举**（11种，替代旧 `movement.mode` + `aiType` 的分离结构）：
 
 | action type | 行为描述 |
 |------------|---------|
 | `chase` | 向玩家追踪移动（BFS寻路），步数从 `steps`/`stepMode` 取。支持 after_effect: [attack_adjacent] → 移动结束后对四方向邻格造成伤害 |
 | `random_wander` | 随机方向漫步，步数从 `steps`/`stepMode` 取。`stepMode:"random"` + 无 `stepWeights` → 均匀随机（每步等权重） |
 | `shoot_fan` | 扇形三连射，`range` 控制射程，`directMode:"toward_player_axis"` 朝玩家主轴向射击。通常配 `condition:"in_range"` 仅射程内可选 |
+| `shoot_single` | 单发直射（公爵浮游眼用），与 shoot_fan 相同的主轴向判定但只射 1 发 |
 | `charge_up` | 蓄力：原地不动，头顶红色感叹号提示（闪烁脉动动画），为下一轮 `charge_line` 冲刺做准备 |
 | `charge_line` | 蓄力冲刺：选择方向 + 计算路径 + 执行移动一气呵成（不再分两阶段），`steps` 从池中随机取冲刺距离 |
 | `jump_small` | Boss Jumper 小跳跃，中心距离判定 × `steps`[0] 步。可选 `repeatChance` 控制重复小跳概率 |
-| `jump_big_land` | Boss Jumper 大跳+落地，`disappearSteps`消失回合数、`target`落点选择模式(cover_player)、`after_effect: attack_side`落地范围伤害 |
+| `jump_big_land` | Boss Jumper 大跳+落地，`chargeSteps`蓄力回合数、`target`落点选择模式(cover_player)、`after_effect: attack_side`落地范围伤害 |
+| `duke_diagonal_move` | 苍蝇公爵对角移动：按象限方向走关键帧动画，after_effect 可触发 summon 召唤浮游眼 |
+| `summon` | 召唤效果（作为 after_effect 存在）：按 chance 概率在相邻空格召唤指定怪物，受 maxCount 上限约束 |
 | (patrol/stationary) | 巡逻/不移动（通过 `aiType` 路由，暂无独立 action 配置） |
 
 **生成方式**：
@@ -76,7 +86,7 @@
   - **Boss 房**：从 `spawn-config.json > bossMonsters[楼层]` 取 squad ID 列表，随机选一个 squad，按 squad 的 `monsters[]` 逐个生成（2×2体型 Boss）
   - **普通房**：`filterSquadsByRoom(floorNum, roomType, tpl)` 按 `minFloor`/`movementTags` 过滤可用 squad → 贪心选取（预算上限内随机选 squad 直到超预算）→ 逐个 squad 生成怪物
   - 起点/宝藏/商店房不生成怪物
-- **squad 模板系统**（`squad-templates.json` + `SQUAD_TEMPLATES`）：预定义怪物组合，含 `squad.monsters[]`（怪物cfgId列表）、`budget`（消耗预算）、`movementTags`（与房间标签匹配）、`minFloor`（最低楼层限制）
+- **squad 模板系统**（`squad-templates.json` + `SQUAD_TEMPLATES`）：预定义怪物组合，含 `squad.monsters[]`（怪物cfgId列表）、`budget`（消耗预算）、`movementTags`（与房间标签匹配）、`minFloor`（最低楼层限制）。现有 18 个 squad：裂口尸 2/3 人组（I/II/III 级共 6 个）+ 浮游眼 2/3 人组（I/II/III 级共 6 个）+ 魔像单人（I/II/III 级共 3 个）+ Boss 单挑 squad（boss_jumper_i/ii/iii, boss_duke, boss_duke_and_jumper_i, boss_duke_and_jumper_iii 共 6 个）
 - **squad 锚点聚拢生成**：同一 squad 的怪物聚在一起生成。第一只纯随机选位置作为锚点，后续怪物在锚点距离=1的相邻空格中随机选。若锚点周围无相邻空格则换锚点（重新纯随机选位）重试
 - **调试生怪**：C键或"生怪"按钮 → `spawnMonster()` 生成 1 只地面标签随机怪
 
@@ -330,7 +340,7 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
 | 行动 | 机制 | 伤害 | 动画 |
 |------|------|------|------|
 | **小跳跃** | Boss中心与玩家坐标比较 → 横向/纵向选远的走 N 格（`jump_small.steps[0]`，默认3）→ 落点4格内单位0.5伤害。无视岩石/尖刺/深坑，但不能全深坑 | 0.5心(玩家) | 弧线跳跃(sin弧线+ease-in-out+缩放弹跳) |
-| **大跳跃** | Boss消失1回合（缩小淡出残影）→ 跳起时判定玩家位置选2×2落点 → 玩家回合结束时落下 → 对12格(目标2×2+8邻格)造成 `after_effect: attack_side` 冲击波伤害（damage:1, range:1） | 1心(12格范围) | 消失:缩小淡出 / 落地:缩放弹出+双圈冲击波 |
+| **大跳跃** | Boss蓄力1回合（`chargeSteps:1`，缩小淡出残影）→ 跳起时判定玩家位置选2×2落点 → 玩家回合结束时落下 → 对12格(目标2×2+8邻格)造成 `after_effect: attack_side` 冲击波伤害（damage:1, range:1） | 1心(12格范围) | 消失:缩小淡出 / 落地:缩放弹出+双圈冲击波 |
 
 **关键设计**：
 - `pendingBossLanding`：大跳落点跳起时即确定（不依赖落下时玩家位置），跨回合延迟执行
@@ -360,7 +370,25 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
 - **快照支持**：炸弹纳入 `saveTurnSnapshot()` / `restoreTurnSnapshot()`，ESC 回溯可恢复炸弹状态
 - **战斗状态联动**：房间有未引爆的炸弹时 `inCombat=true`（即使怪物已清空），`updateDoorsLocked()` 不判断炸弹只判断怪物
 
-### 2.15 资源与宝箱系统
+### 2.15 苍蝇公爵（Duke of Flies）Boss 系统
+
+第 2 层 Boss 房专属怪物，占 2×2=4 格（`size:2`），独立关键帧动画系统 + 召唤机制。
+
+**行动循环**：`duke_diagonal_move`（对角移动 3 步）→ 移动结束后触发 `after_effect: summon`（30% 概率召唤 `duke_floater`，在场数量上限 3 只）→ 循环
+
+**关键帧动画**：Duke 不走逐步移动（`predictedPath` 固定为空），而是通过 `initDukeQuadrant()` 初始化象限方向 → `calcDukePath()` 计算对角移动关键帧 → `updateDukeAnim()` 逐帧插值控制 px/py。关键帧在 `calcAllMonsterPaths()` 中作为第 0 遍优先计算（判定层先于其他小怪），确保 Duke 移动完成后其他怪物再行动。
+
+**召唤机制**（`handleDukeSummon()`）：
+- Duke 对角移动结束后，按 `after_effect.chance`（默认 0.3）判定是否触发召唤
+- 被召唤怪物 `duke_floater`（公爵浮游眼，HP=6，行为类似浮游眼但用 `shoot_single` 单发直射）
+- `maxCount` 限制召唤物在场数量上限（默认 3 只）
+- `spawnRange: "adjacent"` 在 Duke 相邻空格随机生成
+
+**首回合静止**：Duke 首回合不移动（`_dukeFirstTurn=true`），第二回合起进入正常循环。
+
+**渲染**：Duke 走独立关键帧动画（`updateDukeAnim` 直接控制 px/py），不参与普通怪物逐帧移动循环。DOM 标签与 Boss Jumper 同级（红色名字）。
+
+### 2.16 资源与宝箱系统
 
 资源系统（`RESOURCE_DB`，数据来源 `resource-db.json`）管理六类可拾取物品：
 
@@ -434,9 +462,10 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
    - ↑↓←→ 即时射击，-1 A-AP，角色右上角黄色圆点实时显示 A-AP
    - Esc → 时间倒流动画 + 恢复回合快照
    - Space → 先处理大跳Boss落地 → 直接结束回合（无弹窗）→ monster_turn
-5. `monster_turn` → 跳跃Boss一次性行动（不逐步移动）+ 普通怪逐步移动 + 碰撞(按类型伤害) + 尖刺5伤害 → `updateRoomCombatState()`
-   - Boss Jumper状态机：大跳时Boss消失，玩家回合结束后落下（延迟执行）
-   - 清怪 → 门打开 → Boss房掉落道具(spawnBossRoomItem) → 回到探索模式
+5. `monster_turn` → Duke 优先计算关键帧（对角移动判定层先于其他小怪）→ Boss Jumper 一次性行动（不逐步移动）+ 普通怪逐步移动 + Duke 关键帧动画 + 碰撞(按类型伤害) + 尖刺5伤害 + Duke 召唤 → `updateRoomCombatState()`
+   - Boss Jumper 状态机：大跳时 Boss 消失，玩家回合结束后落下（延迟执行）
+   - Duke 召唤：对角移动后按概率在相邻格召唤 duff_floater（上限 3 只）
+   - 清怪（含召唤物）→ 门打开 → Boss房掉落道具(spawnBossRoomItem) → 回到探索模式
    - 有怪 → 继续战斗，回合数+1
 6. 6层通关后游戏结束（当前无通关处理）
 
@@ -470,6 +499,7 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
     ├── 粒子系统 (updateParticles) & 受伤系统 (damagePlayer)
     ├── 怪物系统 (MONSTER_DB 配置表 + actionMode/actions[] 行动列表 + resolveMonsterAction 行为选择 + AI行为路由 + calcAllMonsterPaths/startMonsterTurn/updateMonsterTurn/spawnMonster + 2×2怪物辅助函数)
     ├── Boss Jumper系统 (processJumperAction/calcJumperSmallJump/calcJumperBigJump/executeBossLanding — 状态机驱动2×2跳跃Boss)
+    ├── 苍蝇公爵系统 (initDukeQuadrant/calcDukePath/updateDukeAnim/handleDukeSummon — 对角移动关键帧动画 + 召唤浮游眼)
     ├── 道具系统 (ITEMS_DB 道具数据库 + SPECIAL_EFFECT_HANDLERS 特效注册表 + playerInventory 背包 + recalcAllStats 属性重算)
     ├── 资源系统 (RESOURCE_DB 资源定义 + RES_DROP_TABLES 掉落表(mode/table结构) + playerResources 背包 + rollResourceDrop/rollRoomClearDrop/rollTerrainDestroyDrop)
     ├── 炸弹系统 (placeBomb放置/tickBombCountdown倒计时/detonateBomb引爆 — 纳入快照，最高优先级于怪物行动前执行)
@@ -595,7 +625,11 @@ function project(wx, wy) {
 | `calcJumperSmallJump(m)` | 小跳跃计算：中心距离判定×3步 → 落点验证 → 移动Boss → 0.5范围伤害 |
 | `calcJumperBigJump(m)` | 大跳跃计算：记录玩家位置 → 选2×2落点 → 标记vanished + pendingBossLanding |
 | `executeBossLanding()` | 大跳落地执行：Boss出现 → 12格1点伤害 → 重置phase → 标记justLanded |
-| `calcAllMonsterPaths()` / `startMonsterTurn()` / `updateMonsterTurn(dt)` | 怪物回合系统：`resolveMonsterAction()` 选择行为（按 actionMode 过滤+加权）→ AI路由分发 → 每怪移动路径计算 + ranged_kite 射程判断 |
+| `initDukeQuadrant(m)` | 初始化苍蝇公爵象限方向（首回合调用），随机选一个对角象限方向 |
+| `calcDukePath(m, turnIdx)` | 计算苍蝇公爵对角移动关键帧（判定+动画用），duke_diagonal_move action 专用 |
+| `updateDukeAnim(dt)` | 苍蝇公爵关键帧动画更新：逐帧插值控制 px/py |
+| `handleDukeSummon(m)` | 苍蝇公爵召唤处理：按概率在相邻空格召唤 duke_floater，受 maxCount 上限约束 |
+| `calcAllMonsterPaths()` / `startMonsterTurn()` / `updateMonsterTurn(dt)` | 怪物回合系统：第 0 遍先计算 Duke 关键帧（判定层优先）→ `resolveMonsterAction()` 选择行为（按 actionMode 过滤+加权）→ AI路由分发 → 每怪移动路径计算 + ranged_kite 射程判断 |
 | `resolveMonsterAction(cfg, turnIdx, mCol, mRow, pCol, pRow)` | 解析怪物本回合行为：按 action.condition 过滤 eligible → 按 actionMode (sequence/random weight) 选择一个 action → 按 stepMode/stepWeights 解析步数 |
 | `updateActionBar()` | 更新底部状态栏（探索模式隐藏 / 战斗模式显示 AP） |
 | `updateUI()` / `updateFloorUI()` | 更新所有 DOM UI 面板（含AP面板显隐、楼层信息栏） |
@@ -627,9 +661,11 @@ function project(wx, wy) {
   Esc  → restoreTurnSnapshot(含道具/库存/属性/地形/炸弹) → 重置所有状态
   Space → 结束回合 → 未消耗M-AP计入invincibleSteps → monster_turn:
          startMonsterTurn → tickBombCountdown(炸弹倒计时,优先于怪物)
-         → calcAllMonsterPaths() → resolveMonsterAction(按condition过滤+actionMode选择)
-         → AI路由分发(action type: chase/random_wander/shoot_fan/charge_line)
-         → 怪物逐步移动+碰撞+尖刺5 → finishMonsterTurn(检查怪物+炸弹决定战斗结束)
+         → calcAllMonsterPaths() → 第0遍优先计算Duke关键帧(initDukeQuadrant+calcDukePath)
+         → resolveMonsterAction(按condition过滤+actionMode选择)
+         → AI路由分发(action type: chase/random_wander/shoot_fan/shoot_single/charge_line/duke_diagonal_move)
+         → 怪物逐步移动+碰撞+尖刺5 + Duke关键帧动画(updateDukeAnim) + Duke召唤(handleDukeSummon)
+         → finishMonsterTurn(检查怪物+炸弹决定战斗结束)
        → updateDoorsLocked(仅判断怪物,不判断炸弹) → 无怪有炸弹:战斗继续/门开
 
 渲染层序:
@@ -650,8 +686,8 @@ function project(wx, wy) {
 | `isaac-turnbased-demo.html` | HTML/JS | ~~已废弃删除~~（功能已合并至 demo2.html） |
 | `isaac-turnbased-demo2.html` | HTML/JS | 主开发文件（v3道具系统版，即时操作回合制） |
 | `isaac-map-viewer.html` | HTML/JS | 房间模板编辑器（File System Access API 直读直写，生成json手动复制） |
-| `isaac-turnbased-demo-pack.html` | HTML/JS | 单文件独立打包版（JSON内联+图片base64，可双击直接打开） |
-| `build-pack.js` | Node.js | 打包脚本：生成 `demo-pack.html`（内联JSON/图片+移除外部依赖） |
+| `isaac-turnbased-demo-pack.html` | HTML/JS | ~~已删除~~（日常开发只维护源码版，按需打包） |
+| `build-pack.js` | Node.js | 打包脚本：按需生成 `demo-pack.html`（内联JSON/图片+移除外部依赖） |
 | `sprite-debug.html` | HTML/JS | 精灵表调试工具（网格叠加查看帧坐标） |
 | `walk-preview.html` | HTML/JS | 走路动画预览工具（循环播放各方向帧） |
 
@@ -674,8 +710,8 @@ function project(wx, wy) {
 | `monster-db.json` | JSON | 怪物配置数据（12只怪物：4类型×3等级，含 `actionMode`+`actions[]` 行动列表 + `loot` 掉落配置） |
 | `item-db.json` | JSON | 道具数据库（25种被动道具 + `itemDropTables` 9张掉落表，全部 `item_drop_` 前缀） |
 | `resource-db.json` | JSON | 资源数据库（金币/炸弹/红心/蓝心/宝箱/钥匙定义 + `resourceDropTables` 11张资源掉落表，全部 `resource_drop_` 前缀 + `_limits` 上限配置 + `_schema` 文档） |
-| `spawn-config.json` | JSON | 楼层刷怪配置（`floorBudgets` 每层独立 minMonsters/maxMonsters/budget 三元组 + `terrainModifiers` 模板微调 + `bossMonsters` Boss 分配表） |
-| `squad-templates.json` | JSON | 怪物小队模板（预定义 squad 组合，含 `monsters[]`/`budget`/`movementTags`/`minFloor`，供 `spawnRoomMonsters()` 贪心选取） |
+| `spawn-config.json` | JSON | 楼层刷怪配置（`floorBudgets` 每层独立 `{budget}` 单值 + `terrainModifiers` 模板预算偏移 + `bossMonsters` Boss 分配表） |
+| `squad-templates.json` | JSON | 怪物小队模板（18 个预定义 squad 组合，含 `monsters[]`/`budget`/`movementTags`/`minFloor`，供 `spawnRoomMonsters()` 贪心选取。含 Boss 单挑 squad：boss_jumper_i/ii/iii, boss_duke, boss_duke_and_jumper_i, boss_duke_and_jumper_iii） |
 
 > **已删除文件**：`item-drop-tables.json` — 品质表已合并至 `item-db.json > itemDropTables` | `isaac-room-pool - original backup.json` — 原始关卡池备份（已清理）
 
@@ -695,6 +731,7 @@ function project(wx, wy) {
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-08-07 | **苍蝇公爵 Boss 系统**。新增 `duke_fly`（2×2 对角移动 Boss）+ `duke_floater`（公爵浮游眼召唤物），含独立关键帧动画系统（initDukeQuadrant/calcDukePath/updateDukeAnim）和 summon 召唤机制（handleDukeSummon）。新增 4 个 Boss squad 模板（boss_duke/boss_duke_and_jumper_i/boss_duke_and_jumper_iii 等）。spawn-config 从三元组简化回单值 `{budget}`。action 类型枚举新增 shoot_single/duke_diagonal_move/summon。怪物总数从 12 增至 14 只。 |
 | 2026-08-06(晚) | **打包脚本 build-pack.js 创建**。生成 `isaac-turnbased-demo-pack.html` 单文件独立打包版（7个JSON内联 + 22个PNG base64 + Google Fonts移除 + file://检测移除），可双击直接打开无需本地服务器。修复打包脚本三个bug：正则未匹配`?`、模拟对象缺`text()`方法、替换后缺`await`。 |
 | 2026-08-05 | **刷怪配置架构重构：spawnConfig 从 floor-data 移至运行时计算**。①`spawn-config.json` 重构：删除 `baseSpawnConfig` 公式层，`floorBudgets` 改为 `{minMonsters, maxMonsters, budget}` 完整三元组每层独立配置，`terrainModifiers` 扩展为 `{budget, minDelta, maxDelta}` 支持对 min/max 怪物数做微调。②`floor-data.json` 移除全部 67 个 room 的 `spawnConfig` 字段（不再硬编码在生成产物中）。③`demo2.html` 新增 `resolveSpawnConfig(room, floorNum)` 函数，运行时计算 `floorBudgets[楼层] + terrainModifiers[模板]`，`room.spawnConfig` 存在时覆盖兜底。④`map-viewer.html` 删除硬编码 terrainModifiers 和 spawnConfig 计算循环，`saveFloorToFile` 增加 `delete r.spawnConfig`。⑤修复编辑器选择 pool.json 时报错：4个加载入口统一 `delete loaded._schema` 过滤元数据 key。 |
 | 2026-08-04(晚) | **R键重置完整性修复 + 商店购买系统 + AP视觉修复**。①`loadOrGenerateFloors` 首次加载后深拷贝保存 `_initGrid`/`_initDoors`，R键重置时从备份恢复所有房间的地形破坏、门状态、Boss梯子、道具标记等，彻底修复R键后大便/岩石未恢复的问题。②合并原来分散的两个清理循环为一个统一循环。③`buildApDots`/`buildHearts`/`buildBlueHearts` 移到 `updateUI` 之前执行，修复因 `buildApDots` 在 `updateApDots` 之后调用导致 AP 圆点视觉未更新的 bug。④新增商店购买系统：`tryBuyShopSlot(col,row)` 检测商品→扣金币→获得道具/资源→标记售出；`drawShopPrices()` 渲染价格标签(金色/灰色)。⑤商店房进入时不调用 `spawnShopItems`（已在 `finishTransition` 中处理）。 |
@@ -730,4 +767,4 @@ function project(wx, wy) {
 
 ---
 
-> **下一步方向**：掉落参数微调（概率和数值）、更多Boss类型、商店房间交易功能、Sound/FX 音效系统、patrol/stationary 迁移到 actions[] 体系。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。
+> **下一步方向**：掉落参数微调（概率和数值）、第 3 层 Boss 设计（duke+双 jumper 连战）、商店房间交易功能、Sound/FX 音效系统、patrol/stationary 迁移到 actions[] 体系。后续可迁移到 Godot 引擎。参考 `godot-setup-checklist.md` 中的实现思路。
