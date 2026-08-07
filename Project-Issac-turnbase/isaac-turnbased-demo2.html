@@ -759,10 +759,6 @@
       <div class="help-desc">重置本回合所有操作, 回到回合开始时</div>
     </div>
     <div class="help-row">
-      <div class="help-keys"><span class="help-key">F</span></div>
-      <div class="help-desc">拾取脚下道具 / 宝箱房物品</div>
-    </div>
-    <div class="help-row">
       <div class="help-keys"><span class="help-key">E</span></div>
       <div class="help-desc">在当前位置放置炸弹 (需要拥有炸弹)</div>
     </div>
@@ -3702,8 +3698,8 @@ function applyItem(cfgId) {
   // 累计道具拾取记录（不受Esc回溯影响）
   itemsCollected.push(cfg.name);
 
-  // 记录改变前的HP百分比
-  const hpRatio = playerStats.hp / playerStats.maxHp;
+  // 记录改变前的HP百分比（防除零）
+  const hpRatio = playerStats.maxHp > 0 ? playerStats.hp / playerStats.maxHp : 0;
 
   // 应用数值属性
   if (cfg.effects.maxHp) {
@@ -3733,7 +3729,7 @@ function applyItem(cfgId) {
 
   // HP上限增加时按比例恢复（未在 specials 中声明 heal_full 时的默认行为）
   if (cfg.effects.maxHp && !_hasHealFull(cfg)) {
-    playerStats.hp = Math.min(playerStats.maxHp, Math.ceil(playerStats.maxHp * hpRatio) + 1);
+    playerStats.hp = Math.max(1, Math.min(playerStats.maxHp, Math.ceil(playerStats.maxHp * hpRatio) + 1));
   }
 
   // 确保属性不小于下限
@@ -3800,11 +3796,11 @@ function recalcAllStats() {
   // 穿透标识 (存储在player对象上)
   player.hasPiercing = effectState.hasPiercing;
 
-  // 确保下限
+  // 确保下限 + 上限
   playerStats.fireRate = Math.max(1, playerStats.fireRate);
   playerStats.moveSpeed = Math.max(1, playerStats.moveSpeed);
   playerStats.range = Math.max(3, playerStats.range);
-  playerStats.maxHp = Math.max(1, playerStats.maxHp);
+  playerStats.maxHp = Math.max(1, Math.min(MAX_TOTAL_HEARTS, playerStats.maxHp));
 
   updatePlayerStatsUI(); // 同步攻击力/射程/运气到侧边栏
 }
@@ -7287,10 +7283,28 @@ document.addEventListener('keydown', (e) => {
         const t=gridToPixel(nc,nr);player.targetPx=t.x;player.targetPy=t.y;player.animTime=0;
 
         if(!inCombat){
-          // 探索模式：直接结算
+          // 探索模式：直接结算 + 自动拾取道具和资源
           if(player.invincibleSteps>0)player.invincibleSteps--;
           if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.SPIKE){damagePlayer(1);}
           autoPickupResources();
+          // 自动拾取脚下道具
+          let itemPickedExplore = false;
+          for (let j = itemsOnGround.length - 1; j >= 0; j--) {
+            const it = itemsOnGround[j];
+            if (it.col === player.col && it.row === player.row) {
+              if (!playerInventory.includes(it.cfgId)) {
+                applyItem(it.cfgId);
+                itemsOnGround.splice(j, 1);
+                itemPickedExplore = true;
+              }
+            }
+          }
+          if (itemPickedExplore) {
+            updateItemBar();
+            updateUI();
+            buildHearts(playerStats.maxHp);
+            buildBlueHearts();
+          }
         } else {
           // 战斗模式：自动拾取 + 接触伤害
           const resPicked = autoPickupResources();

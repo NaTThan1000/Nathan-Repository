@@ -222,7 +222,7 @@
 
 ### 2.8 多房间楼层系统
 
-- **楼层结构**：两步法生成 6 层地牢，每层 8~15 个房间，BFS 全连通验证
+- **楼层结构**：两步法生成 3 层地牢，每层 8~15 个房间，BFS 全连通验证
 - **生成算法 [2026-07-22 更新]**：①先布局骨架房（起点+普通房），从所有已放房间的相邻空位扩展；②骨架房全连通后，Boss 从边界最远空位挂载，宝箱从剩余边界随机挂载。Boss/宝箱天然只有 1 个连接（始终在集群外围），无需裁边修复。
 - **房间类型**：start(起点)/normal(普通)/treasure(宝箱)/boss(Boss)/shop(商店)
 - **模板系统**：每个房间引用 `pool.json` 中的模板(tplKey)，生成时解析 TILE 布局。`BUILTIN_TEMPLATES()` 作为兜底，已与 `pool.json` 对齐
@@ -425,7 +425,7 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
 | Esc | 战斗 | 全重置本回合 + 时间倒流动画（角色/怪物/HP 全部回到回合开始时） |
 | F | 任意 | 拾取道具（demo2） |
 | R | 任意 | 重置游戏 → 回到第1层起点（重置地形/门/掉落物/标记等全部运行时状态） |
-| B | 任意 | 放置炸弹（消耗1个炸弹资源，3回合后引爆，50范围伤害） |
+| E | 任意 | 放置炸弹（消耗1个炸弹资源，3回合后引爆，50范围伤害） |
 
 ### 3.2 UI 面板
 
@@ -447,7 +447,7 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
 
 ## 4. 游戏流程（当前原型）
 
-1. 页面加载 → `loadTemplates()` 加载关卡池 → `loadOrGenerateFloors()` 加载/生成6层地牢
+1. 页面加载 → `loadTemplates()` 加载关卡池 → `loadOrGenerateFloors()` 加载/生成3层地牢
 2. `enterFloor(1)` → 进入第1层起始房间 → 探索模式(`inCombat=false`)
 3. **探索模式**：
    - WASD 自由移动，不受 AP 限制
@@ -467,7 +467,7 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
    - Duke 召唤：对角移动后按概率在相邻格召唤 duff_floater（上限 3 只）
    - 清怪（含召唤物）→ 门打开 → Boss房掉落道具(spawnBossRoomItem) → 回到探索模式
    - 有怪 → 继续战斗，回合数+1
-6. 6层通关后游戏结束（当前无通关处理）
+6. 3层通关后触发胜利画面
 
 ---
 
@@ -592,7 +592,7 @@ function project(wx, wy) {
 | `recalcAllStats()` | 遍历背包重算所有属性（effects 数值累加 + specials[] 注册表分发） |
 | `getTpl(key)` | 按 key 获取模板，优先 poolTemplates，回退内置 |
 | `generateFloor(floorNum)` | 两步法生成单层地牢：骨架房扩展布局→Boss/宝箱挂载到集群边界→模板填充→边转门 |
-| `generateAllFloors()` | 生成全部 6 层地牢 |
+| `generateAllFloors()` | 生成全部 3 层地牢 |
 | `loadOrGenerateFloors(forceReload)` | 从 `floor-data.json` 加载楼层数据（hash 变化时触发重置），首次加载后深拷贝保存 `_initGrid`/`_initDoors` 供 R 键恢复 |
 | `resetGameToFloor1()` | 重置游戏状态回到第1层起点（R键调用），从 `_initGrid`/`_initDoors` 恢复所有房间地形和门状态 |
 | `enterFloor(floorNum)` | 进入指定楼层起始房间 |
