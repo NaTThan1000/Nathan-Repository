@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rockman X4 操作原型</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    font-family: 'Courier New', monospace;
+    color: #e0e0e0;
+    user-select: none;
+  }
+  canvas {
+    border: 2px solid #4a4a6a;
+    image-rendering: pixelated;
+    background: #0f0f23;
+  }
+  #ui {
+    display: flex;
+    gap: 40px;
+    margin-top: 12px;
+    align-items: center;
+  }
+  #controls-info {
+    font-size: 12px;
+    line-height: 1.6;
+    color: #888;
+  }
+  #controls-info span.key {
+    display: inline-block;
+    background: #333;
+    color: #ffcc00;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin: 0 2px;
+    font-weight: bold;
+    min-width: 20px;
+    text-align: center;
+  }
+  #debug-panel {
+    font-size: 11px;
+    line-height: 1.5;
+    color: #666;
+    min-width: 200px;
+  }
+  #debug-panel .label { color: #888; }
+  #debug-panel .value { color: #4fc3f7; }
+  h2 {
+    font-size: 14px;
+    color: #ffcc00;
+    margin-bottom: 8px;
+    letter-spacing: 2px;
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="ui">
+  <div>
+    <h2>操作说明</h2>
+    <div id="controls-info">
+      <span class="key">A</span><span class="key">D</span> 移动 &nbsp;
+      <span class="key">K</span> 跳跃<br>
+      <span class="key">J</span> 射击/蓄力(短按=射击, 长按=蓄力) &nbsp;
+      <span class="key">L</span> 冲刺<br>
+      <span class="key">空格</span> 重置<br>
+      <br>
+      贴墙滑落需按住面墙方向键 &nbsp; 墙跳:<span class="key">K</span><br>
+      蓄力: 0~0.1s仅子弹 / 0.1~1s小蓄力炮 / 1s+大蓄力炮
+    </div>
+  </div>
+  <div id="debug-panel">
+    <h2>调试信息</h2>
+    <div><span class="label">状态:</span> <span class="value" id="db-state">idle</span></div>
+    <div><span class="label">位置:</span> <span class="value" id="db-pos">0, 0</span></div>
+    <div><span class="label">速度:</span> <span class="value" id="db-vel">0, 0</span></div>
+    <div><span class="label">地面:</span> <span class="value" id="db-grounded">-</span></div>
+    <div><span class="label">贴墙:</span> <span class="value" id="db-wall">-</span></div>
+    <div><span class="label">蓄力:</span> <span class="value" id="db-charge">0%</span></div>
+    <div><span class="label">Dash:</span> <span class="value" id="db-dash">就绪</span></div>
+    <div><span class="label">Dash加成:</span> <span class="value" id="db-dashbonus">否</span></div>
+    <div><span class="label">墙跳锁定:</span> <span class="value" id="db-wjlock">-</span></div>
+  </div>
+</div>
+
+<script>
+// ==================== 常量配置 ====================
+const CANVAS_W = 800;
+const CANVAS_H = 500;
+const GRAVITY = 0.55;
+const MAX_FALL_SPEED = 12;
+const FPS = 60;
+
+// 玩家属性 (高度 2 倍: 40 -> 80)
+const PLAYER = {
+  W: 28, H: 80,
+  SPEED: 4.0,
+  JUMP_VEL: -12.0,
+  WALL_SLIDE_SPEED: 1.5,
+  WALL_JUMP_X: 5.5,
+  WALL_JUMP_Y: -10.0,
+  DASH_SPEED_MULT: 1.5,    // Dash 速度倍率
+  DASH_DISTANCE: 128,       // Dash 最大距离 (4 Tile)
+  CHARGE_LV1: 6,            // 0.1s = 6 帧 (仅普通子弹区间)
+  CHARGE_LV2: 60,           // 1s = 60 帧 (满蓄力)
+  BULLET_SPEED: 14.0,
+  INVINCIBLE_FRAMES: 30,
+  WALL_JUMP_LOCK_FRAMES: 6, // 墙跳后方向锁定 0.1s = 6 帧
+};
+
+// Dash 冲刺速度 = SPEED * DASH_SPEED_MULT = 6.0
+// Dash 冲刺帧数 = DASH_DISTANCE / (SPEED * DASH_SPEED_MULT) ≈ 21 帧
+
+// 关卡碰撞块
+const TILE = 32;
+
+// ==================== Canvas 初始化 ====================
+const canvas = document.getElementById('game');
+canvas.width = CANVAS_W;
+canvas.height = CANVAS_H;
+const ctx = canvas.getContext('2d');
+
+// ==================== 输入系统 ====================
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (e.key === ' ') e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// ==================== 关卡数据 ====================
+const LEVEL_W = 25;
+const LEVEL_H = 16;
+const levelData = [
+  1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,
+  1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+];
+
+function getTile(x, y) {
+  const col = Math.floor(x / TILE);
+  const row = Math.floor(y / TILE);
+  if (col < 0 || col >= LEVEL_W || row < 0 || row >= LEVEL_H) return 1;
+  return levelData[row * LEVEL_W + col];
+}
+
+// ==================== 碰撞检测辅助 ====================
+function rectsOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x &&
+         a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+// ==================== 子弹系统 ====================
+let bullets = [];
+
+function spawnBullet(x, y, dir, power) {
+  bullets.push({
+    x, y: y + PLAYER.H / 2 - 4,
+    vx: PLAYER.BULLET_SPEED * dir,
+    vy: 0,
+    w: power === 2 ? 12 : 6,
+    h: power === 2 ? 8 : 4,
+    power,
+    life: 120,
+    color: power === 2 ? '#ff4444' : power === 1 ? '#ffaa00' : '#ffff00',
+  });
+}
+
+// ==================== 粒子效果 ====================
+let particles = [];
+
+function spawnParticles(x, y, count, color) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 4,
+      vy: (Math.random() - 0.5) * 4 - 2,
+      life: 15 + Math.random() * 15,
+      color,
+      size: 1 + Math.random() * 3,
+    });
+  }
+}
+
+// ==================== 玩家状态机 ====================
+const player = {
+  x: 100, y: 200,
+  vx: 0, vy: 0,
+  w: PLAYER.W, h: PLAYER.H,
+  facing: 1,
+  grounded: false,
+  onWall: 0,
+  wallSliding: false,
+
+  // Dash (两阶段)
+  isDashing: false,       // 阶段1: 冲刺阶段
+  dashTimer: 0,           // 冲刺剩余帧数
+  dashDir: 0,             // 冲刺方向
+  dashReady: false,       // 阶段2: Dash 就绪状态 (冲刺结束但L还按着)
+  dashAirborne: false,    // 空中Dash资格 (从触发Dash起跳开始，到落地/贴墙结束)
+
+  // Charge (J键三区间)
+  chargeTimer: 0,         // J键按住帧数
+  isCharging: false,      // 是否在蓄力中
+  jPressedThisFrame: false, // 防止连续发射
+
+  // 墙跳
+  wallJumpLockTimer: 0,   // 墙跳后方向锁定计时器
+
+  // 跳跃消费
+  kConsumed: false,       // K键已消费（防止按住连跳）
+  lConsumed: false,       // L键已消费（落地后需松手再按才能Dash）
+
+  // 受伤
+  invincibleTimer: 0,
+  hp: 28,
+
+  // 动画
+  animFrame: 0,
+  animTimer: 0,
+};
+
+function resetPlayer() {
+  player.x = 100; player.y = 200;
+  player.vx = 0; player.vy = 0;
+  player.facing = 1;
+  player.grounded = false;
+  player.onWall = 0;
+  player.wallSliding = false;
+  player.isDashing = false;
+  player.dashTimer = 0;
+  player.dashDir = 0;
+  player.dashReady = false;
+  player.dashAirborne = false;
+  player.chargeTimer = 0;
+  player.isCharging = false;
+  player.jPressedThisFrame = false;
+  player.wallJumpLockTimer = 0;
+  player.kConsumed = false;
+  player.lConsumed = false;
+  player.invincibleTimer = 0;
+  player.hp = 28;
+  bullets = [];
+  particles = [];
+  afterimages = [];
+}
+
+// ==================== 物理 & 碰撞 ====================
+function checkWall(playerRect) {
+  let leftWall = false, rightWall = false;
+  const margin = 8;
+  const checkLeft = { x: playerRect.x - 1, y: playerRect.y + margin, w: 2, h: playerRect.h - margin * 2 };
+  const checkRight = { x: playerRect.x + playerRect.w - 1, y: playerRect.y + margin, w: 2, h: playerRect.h - margin * 2 };
+
+  for (let row = 0; row < LEVEL_H; row++) {
+    for (let col = 0; col < LEVEL_W; col++) {
+      if (levelData[row * LEVEL_W + col] === 0) continue;
+      const tile = { x: col * TILE, y: row * TILE, w: TILE, h: TILE };
+      if (rectsOverlap(checkLeft, tile)) leftWall = true;
+      if (rectsOverlap(checkRight, tile)) rightWall = true;
+    }
+  }
+  return { leftWall, rightWall };
+}
+
+// ==================== 更新逻辑 ====================
+function update() {
+  const p = player;
+
+  // --- 冷却计时 ---
+  if (p.invincibleTimer > 0) p.invincibleTimer--;
+  if (p.wallJumpLockTimer > 0) p.wallJumpLockTimer--;
+
+  // --- 读取输入 ---
+  const jDown = keys['j'] || keys['J'];
+  const kRaw = keys['k'] || keys['K'];
+  const lRaw = keys['l'] || keys['L'];
+
+  // K键消费机制：松手后重置，按住只触发一次跳跃
+  if (!kRaw) {
+    p.kConsumed = false;
+  }
+  const kDown = kRaw && !p.kConsumed;
+
+  // L键消费机制：落地时如果一直按住L，必须松手再按才能Dash
+  if (!lRaw) {
+    p.lConsumed = false;
+  }
+  const lDown = lRaw && !p.lConsumed;
+
+  let moveX = 0;
+  if (keys['a'] || keys['A']) moveX = -1;
+  if (keys['d'] || keys['D']) moveX += 1;
+  if ((keys['a'] || keys['A']) && (keys['d'] || keys['D'])) moveX = 0;
+
+  // ============ 墙面检测 ============
+  const playerRect = { x: p.x, y: p.y, w: p.w, h: p.h };
+  const walls = checkWall(playerRect);
+  const wasOnWall = p.onWall;
+  p.onWall = 0;
+  p.wallSliding = false;
+
+  if (!p.grounded) {
+    if (walls.leftWall) { p.onWall = -1; }
+    if (walls.rightWall) { p.onWall = 1; }
+
+    // 贴墙滑落: 必须按住面向墙的方向键
+    if (p.onWall !== 0 && p.vy > 0) {
+      const pressingTowardWall = (p.onWall === -1 && moveX === -1) ||
+                                  (p.onWall === 1 && moveX === 1);
+      if (pressingTowardWall) {
+        p.vy = Math.min(p.vy, PLAYER.WALL_SLIDE_SPEED);
+        p.wallSliding = true;
+      }
+      // 松手则自由下落，不减速
+    }
+  }
+
+  // ============ J 键：射击 + 蓄力 (三区间) ============
+  if (jDown) {
+    if (!p.isCharging) {
+      // 按下瞬间：发射普通子弹 + 开始蓄力
+      p.isCharging = true;
+      p.chargeTimer = 0;
+      p.jPressedThisFrame = true;
+      // 贴墙时射击方向为反方向
+      let shootDir = p.facing;
+      if (p.wallSliding) {
+        shootDir = -p.onWall;
+      }
+      spawnBullet(p.x + p.w / 2, p.y, shootDir, 0);
+    } else {
+      // 持续按住：蓄力计时
+      p.chargeTimer++;
+      if (p.chargeTimer >= PLAYER.CHARGE_LV2) {
+        // 满蓄力粒子效果（仅触发一次）
+        if (p.chargeTimer === PLAYER.CHARGE_LV2) {
+          spawnParticles(p.x + p.w / 2, p.y + p.h / 2, 3, '#ff4444');
+        }
+      }
+    }
+  } else {
+    // 松开 J 键
+    if (p.isCharging) {
+      let power = 0;
+      if (p.chargeTimer >= PLAYER.CHARGE_LV2) {
+        power = 2; // 大型蓄力炮 (2s+)
+      } else if (p.chargeTimer > PLAYER.CHARGE_LV1) {
+        power = 1; // 小型蓄力炮 (0.1s~2s)
+      }
+      // chargeTimer <= 0.1s (6帧): power=0，不发射蓄力弹（普通子弹已在按下时发射）
+      if (power > 0) {
+        let shootDir = p.facing;
+        if (p.wallSliding) {
+          shootDir = -p.onWall;
+        }
+        spawnBullet(p.x + p.w / 2, p.y, shootDir, power);
+      }
+      p.isCharging = false;
+      p.chargeTimer = 0;
+    }
+    p.jPressedThisFrame = false;
+  }
+
+  // ============ Dash 阶段1：冲刺阶段 ============
+  if (p.isDashing) {
+    p.dashTimer--;
+
+    // 以 1.5 倍速度冲刺
+    p.vx = p.dashDir * PLAYER.SPEED * PLAYER.DASH_SPEED_MULT;
+
+    // 中止条件检查
+    let cancelDash = false;
+
+    // 1. 到达最大距离
+    if (p.dashTimer <= 0) {
+      cancelDash = true;
+    }
+
+    // 2. 同时松开 L + 方向键 (用原始按键状态判断，不受消费机制影响)
+    const holdingFwd = (p.dashDir === 1 && moveX === 1) || (p.dashDir === -1 && moveX === -1);
+    if (!lRaw && !holdingFwd) {
+      cancelDash = true;
+    }
+
+    // 3. 按下反方向键
+    if (moveX !== 0 && moveX !== p.dashDir) {
+      cancelDash = true;
+    }
+
+    // 4. 撞墙（在X轴碰撞中处理）
+
+    if (cancelDash) {
+      p.isDashing = false;
+      p.vx = 0;
+      // 如果 L 还按着（原始按键），进入阶段2：Dash 就绪状态
+      if (lRaw) {
+        p.dashReady = true;
+      } else {
+        p.dashReady = false;
+      }
+    }
+
+    // 冲刺阶段中跳跃 → Dash 加速跳跃，获得空中Dash资格
+    if (kDown) {
+      p.vy = PLAYER.JUMP_VEL;
+      p.grounded = false;
+      if (moveX !== 0) {
+        p.vx = moveX * PLAYER.SPEED * PLAYER.DASH_SPEED_MULT;
+      } else {
+        p.vx = 0;
+      }
+      p.isDashing = false;
+      p.dashReady = false;
+      p.dashAirborne = true;
+      p.kConsumed = true;
+      spawnParticles(p.x + p.w / 2, p.y + p.h, 5, '#aaaaff');
+    }
+  }
+
+  // ============ Dash 阶段2：Dash 就绪状态 ============
+  if (p.dashReady) {
+    // 松 L（原始按键） → 退出就绪状态
+    if (!lRaw) {
+      p.dashReady = false;
+    }
+
+    // 就绪状态中跳跃 → Dash 加速跳跃，获得空中Dash资格
+    if (kRaw && p.grounded && !p.kConsumed) {
+      p.vy = PLAYER.JUMP_VEL;
+      p.grounded = false;
+      if (moveX !== 0) {
+        p.vx = moveX * PLAYER.SPEED * PLAYER.DASH_SPEED_MULT;
+      }
+      p.dashReady = false;
+      p.dashAirborne = true;
+      p.kConsumed = true;
+      spawnParticles(p.x + p.w / 2, p.y + p.h, 5, '#aaaaff');
+    }
+  }
+
+  // ============ 普通移动 (非冲刺阶段，且无空中Dash资格) ============
+  if (!p.isDashing && !p.dashAirborne) {
+    if (p.wallJumpLockTimer > 0) {
+      // 墙跳锁定期间：强制保持反方向速度，忽略玩家输入
+      p.vx = -p.onWall * PLAYER.WALL_JUMP_X;
+    } else {
+      if (moveX !== 0) {
+        p.facing = moveX;
+        p.vx = moveX * PLAYER.SPEED;
+      } else {
+        p.vx = 0;
+      }
+    }
+  }
+
+  // ============ 触发 Dash（仅地面） ============
+  if (lDown && p.grounded && !p.isDashing && !p.dashReady) {
+    p.isDashing = true;
+    p.dashDir = p.facing;
+    p.lConsumed = true;
+    const dashSpeed = PLAYER.SPEED * PLAYER.DASH_SPEED_MULT;
+    p.dashTimer = Math.floor(PLAYER.DASH_DISTANCE / dashSpeed);
+    p.vx = p.dashDir * dashSpeed;
+    spawnParticles(p.x + p.w / 2, p.y + p.h / 2, 8, '#aaaaff');
+  }
+
+  // ============ K 键跳跃 & 墙跳 ============
+  if (kDown) {
+    // 地面跳跃 (按住L则Dash加速，否则普通跳跃)
+    if (p.grounded && !p.isDashing) {
+      if (!p.dashReady) {
+        p.vy = PLAYER.JUMP_VEL;
+        p.grounded = false;
+        p.kConsumed = true;
+        if (lRaw) {
+          if (moveX !== 0) {
+            p.vx = moveX * PLAYER.SPEED * PLAYER.DASH_SPEED_MULT;
+          }
+          p.dashReady = false;
+          p.dashAirborne = true;
+          spawnParticles(p.x + p.w / 2, p.y + p.h, 5, '#aaaaff');
+        } else {
+          spawnParticles(p.x + p.w / 2, p.y + p.h, 5, '#ffffff');
+        }
+      }
+    }
+
+    // 墙跳（空中 + 贴墙）—— 按住L则加速墙跳 + 获得空中Dash资格
+    if (p.onWall !== 0 && !p.grounded) {
+      p.vy = PLAYER.WALL_JUMP_Y;
+      p.facing = -p.onWall;
+      p.wallJumpLockTimer = PLAYER.WALL_JUMP_LOCK_FRAMES;
+      p.kConsumed = true;
+      if (lRaw) {
+        p.vx = -p.onWall * PLAYER.WALL_JUMP_X * PLAYER.DASH_SPEED_MULT;
+        p.dashAirborne = true;
+        spawnParticles(p.x + p.w / 2, p.y + p.h / 2, 6, '#aaaaff');
+      } else {
+        p.vx = -p.onWall * PLAYER.WALL_JUMP_X;
+        spawnParticles(p.x + p.w / 2, p.y + p.h / 2, 6, '#88ccff');
+      }
+    }
+  }
+
+  // ============ 空中 Dash 资格加速（松L也保持，直到落地/贴墙） ============
+  if (p.dashAirborne && !p.grounded && !p.onWall && !p.isDashing && p.wallJumpLockTimer <= 0) {
+    if (moveX !== 0) {
+      p.vx = moveX * PLAYER.SPEED * PLAYER.DASH_SPEED_MULT;
+    } else {
+      p.vx = 0;
+    }
+  }
+
+  // ============ 应用重力 ============
+  if (!p.isDashing) {
+    p.vy += GRAVITY;
+    if (p.vy > MAX_FALL_SPEED) p.vy = MAX_FALL_SPEED;
+  }
+
+  // ============ 移动 & 碰撞 ============
+  // X 轴
+  p.x += p.vx;
+  const xRect = { x: p.x, y: p.y, w: p.w, h: p.h };
+  for (let row = 0; row < LEVEL_H; row++) {
+    for (let col = 0; col < LEVEL_W; col++) {
+      if (levelData[row * LEVEL_W + col] === 0) continue;
+      const tile = { x: col * TILE, y: row * TILE, w: TILE, h: TILE };
+      if (rectsOverlap(xRect, tile)) {
+        if (p.vx > 0) p.x = tile.x - p.w;
+        else if (p.vx < 0) p.x = tile.x + tile.w;
+        if (p.isDashing) {
+          p.isDashing = false;
+          p.dashReady = lRaw;
+          spawnParticles(p.x + p.w / 2, p.y + p.h / 2, 6, '#888888');
+        }
+        p.vx = 0;
+      }
+    }
+  }
+
+  // Y 轴
+  p.y += p.vy;
+  const yRect = { x: p.x, y: p.y, w: p.w, h: p.h };
+  const wasGrounded = p.grounded;
+  p.grounded = false;
+  for (let row = 0; row < LEVEL_H; row++) {
+    for (let col = 0; col < LEVEL_W; col++) {
+      if (levelData[row * LEVEL_W + col] === 0) continue;
+      const tile = { x: col * TILE, y: row * TILE, w: TILE, h: TILE };
+      if (rectsOverlap(yRect, tile)) {
+        if (p.vy > 0) {
+          p.y = tile.y - p.h;
+          p.vy = 0;
+          p.grounded = true;
+        } else if (p.vy < 0) {
+          p.y = tile.y + tile.h;
+          p.vy = 0;
+        }
+      }
+    }
+  }
+
+  // 落地或刚贴墙时清除空中Dash资格
+  if ((p.grounded && !wasGrounded) || (p.onWall !== 0 && wasOnWall === 0)) {
+    p.dashAirborne = false;
+  }
+  if (p.grounded && !wasGrounded && lRaw) {
+    p.lConsumed = true;
+  }
+
+  // --- 边界限制 ---
+  if (p.x < 0) p.x = 0;
+  if (p.x + p.w > CANVAS_W) p.x = CANVAS_W - p.w;
+  if (p.y < -200) p.y = -200;
+  if (p.y > CANVAS_H + 50) resetPlayer();
+
+  // --- 更新子弹 ---
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.x += b.vx;
+    b.life--;
+    const bRect = { x: b.x - b.w / 2, y: b.y - b.h / 2, w: b.w, h: b.h };
+    let hitWall = false;
+    for (let row = 0; row < LEVEL_H; row++) {
+      for (let col = 0; col < LEVEL_W; col++) {
+        if (levelData[row * LEVEL_W + col] === 0) continue;
+        const tile = { x: col * TILE, y: row * TILE, w: TILE, h: TILE };
+        if (rectsOverlap(bRect, tile)) {
+          hitWall = true;
+          spawnParticles(b.x, b.y, b.power === 2 ? 8 : 3, b.color);
+        }
+      }
+    }
+    if (hitWall || b.life <= 0 || b.x < -50 || b.x > CANVAS_W + 50) {
+      bullets.splice(i, 1);
+    }
+  }
+
+  // --- 更新粒子 ---
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const pt = particles[i];
+    pt.x += pt.vx;
+    pt.y += pt.vy;
+    pt.vy += 0.1;
+    pt.life--;
+    if (pt.life <= 0) particles.splice(i, 1);
+  }
+
+  // --- 更新残影 ---
+  updateAfterimages();
+
+  // --- 录制 Dash 残影 (每3帧记录一次，冲刺阶段 + L按住时空中) ---
+  if ((p.isDashing || p.dashAirborne) && p.animTimer % 3 === 0) {
+    recordAfterimage();
+  }
+
+  // --- 重置 ---
+  if (keys[' ']) {
+    resetPlayer();
+    keys[' '] = false;
+  }
+
+  // --- 动画 ---
+  p.animTimer++;
+  if (p.animTimer >= 8) {
+    p.animTimer = 0;
+    p.animFrame = (p.animFrame + 1) % 4;
+  }
+}
+
+// ==================== 渲染 ====================
+function drawTile(x, y) {
+  ctx.fillStyle = '#3a3a5c';
+  ctx.fillRect(x, y, TILE, TILE);
+  ctx.fillStyle = '#4a4a7c';
+  ctx.fillRect(x + 1, y + 1, TILE - 2, TILE - 2);
+  ctx.fillStyle = '#5a5a9c';
+  ctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 2);
+  ctx.fillStyle = '#6a6aac';
+  ctx.fillRect(x + 2, y + 2, TILE - 4, 3);
+  ctx.strokeStyle = '#2a2a4c';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x, y, TILE, TILE);
+}
+
+// Dash 残影系统
+let afterimages = [];
+
+function recordAfterimage() {
+  const p = player;
+  afterimages.push({
+    x: Math.floor(p.x + p.w / 2),
+    y: Math.floor(p.y + p.h / 2),
+    facing: p.facing,
+    life: 12,  // 渐隐帧数
+  });
+}
+
+function updateAfterimages() {
+  for (let i = afterimages.length - 1; i >= 0; i--) {
+    afterimages[i].life--;
+    if (afterimages[i].life <= 0) {
+      afterimages.splice(i, 1);
+    }
+  }
+}
+
+function drawPlayer() {
+  const p = player;
+
+  if (p.invincibleTimer > 0 && Math.floor(p.invincibleTimer / 3) % 2 === 0) return;
+
+  ctx.save();
+  const cx = Math.floor(p.x + p.w / 2);
+  const cy = Math.floor(p.y + p.h / 2);
+
+  // 冲刺残影 (从旧到新渲染，最旧的最后面)
+  for (const img of afterimages) {
+    const alpha = (img.life / 12) * 0.35;
+    ctx.globalAlpha = alpha;
+    drawXSprite(img.x, img.y, img.facing);
+  }
+  ctx.globalAlpha = 1.0;
+
+  drawXSprite(cx, cy, p.facing);
+  ctx.restore();
+
+  // 蓄力光环
+  if (p.isCharging && p.chargeTimer > PLAYER.CHARGE_LV1) {
+    const radius = 22 + (p.chargeTimer >= PLAYER.CHARGE_LV2 ? 8 : 0);
+    const alpha = 0.4 + Math.sin(Date.now() / 100) * 0.2;
+    ctx.strokeStyle = p.chargeTimer >= PLAYER.CHARGE_LV2
+      ? `rgba(255, 60, 60, ${alpha})`
+      : `rgba(255, 180, 60, ${alpha})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy - 4, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+  }
+}
+
+function drawXSprite(cx, cy, facing) {
+  const p = player;
+  const isMoving = Math.abs(p.vx) > 0.5;
+  const legOffset = p.grounded && isMoving ? Math.sin(p.animTimer * 0.8) * 2 : 0;
+
+  // 身体 (高度2倍: 加长)
+  ctx.fillStyle = '#2244aa';
+  ctx.fillRect(cx - 12, cy - 34, 24, 48);
+  // 身体高光
+  ctx.fillStyle = '#3366cc';
+  ctx.fillRect(cx - 10, cy - 32, 20, 20);
+
+  // 头盔
+  ctx.fillStyle = '#2244aa';
+  ctx.fillRect(cx - 11, cy - 38, 22, 8);
+  ctx.fillStyle = '#3355bb';
+  ctx.fillRect(cx - 9, cy - 36, 18, 4);
+  // 头盔角 (X 标志)
+  ctx.fillStyle = '#cc3333';
+  ctx.fillRect(cx - 3, cy - 42, 6, 6);
+  ctx.fillStyle = '#ff5555';
+  ctx.fillRect(cx - 2, cy - 41, 4, 4);
+
+  // 眼睛
+  ctx.fillStyle = '#ffffff';
+  const eyeX = cx + facing * 5;
+  ctx.fillRect(eyeX - 3, cy - 31, 6, 5);
+  ctx.fillStyle = '#111111';
+  ctx.fillRect(eyeX + facing * 1, cy - 29, 3, 3);
+
+  // 手臂 (炮) - 移到身体中部
+  ctx.fillStyle = '#3355bb';
+  const armX = cx + facing * 13;
+  ctx.fillRect(armX - 3, cy - 16, 8, 6);
+  // 炮口
+  ctx.fillStyle = '#4455cc';
+  ctx.fillRect(armX + (facing > 0 ? 5 : -4), cy - 14, 4, 3);
+
+  // 腰带
+  ctx.fillStyle = '#ccaa33';
+  ctx.fillRect(cx - 12, cy + 10, 24, 4);
+
+  // 腿
+  ctx.fillStyle = '#1a3388';
+  ctx.fillRect(cx - 8, cy + 14 + legOffset, 6, 16);
+  ctx.fillRect(cx + 2, cy + 14 - legOffset, 6, 16);
+  // 靴子
+  ctx.fillStyle = '#cc3333';
+  ctx.fillRect(cx - 9, cy + 28 + legOffset, 8, 4);
+  ctx.fillRect(cx + 1, cy + 28 - legOffset, 8, 4);
+}
+
+function drawBullets() {
+  for (const b of bullets) {
+    ctx.fillStyle = b.color;
+    if (b.power === 2) {
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = b.color;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 10, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = b.color;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (b.power === 1) {
+      ctx.fillStyle = b.color;
+      ctx.fillRect(b.x - 4, b.y - 3, 8, 6);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(b.x - 2, b.y - 2, 4, 4);
+    } else {
+      ctx.fillStyle = '#ffff00';
+      ctx.fillRect(b.x - 3, b.y - 2, 6, 4);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(b.x - 1, b.y - 1, 3, 2);
+    }
+  }
+}
+
+function drawParticles() {
+  for (const pt of particles) {
+    const alpha = pt.life / 30;
+    ctx.fillStyle = pt.color;
+    ctx.globalAlpha = alpha;
+    ctx.fillRect(pt.x - pt.size / 2, pt.y - pt.size / 2, pt.size, pt.size);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawUI() {
+  // HP 条
+  const hpX = 10, hpY = 10, hpW = 200, hpH = 14;
+  ctx.fillStyle = '#222';
+  ctx.fillRect(hpX - 1, hpY - 1, hpW + 2, hpH + 2);
+  ctx.fillStyle = '#440000';
+  ctx.fillRect(hpX, hpY, hpW, hpH);
+  const hpRatio = Math.max(0, player.hp / 28);
+  const hpColor = hpRatio > 0.5 ? '#44cc44' : hpRatio > 0.25 ? '#cccc44' : '#cc4444';
+  ctx.fillStyle = hpColor;
+  ctx.fillRect(hpX, hpY, hpW * hpRatio, hpH);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '10px "Courier New"';
+  ctx.textAlign = 'center';
+  ctx.fillText(`HP: ${player.hp}/28`, hpX + hpW / 2, hpY + 11);
+
+  // 蓄力条
+  if (player.isCharging) {
+    const chX = hpX, chY = hpY + hpH + 6, chW = hpW, chH = 6;
+    ctx.fillStyle = '#222';
+    ctx.fillRect(chX, chY, chW, chH);
+    const chRatio = Math.min(1, player.chargeTimer / PLAYER.CHARGE_LV2);
+    ctx.fillStyle = chRatio >= 1 ? '#ff3333' : chRatio >= 0.05 ? '#ffaa00' : '#ffff00';
+    ctx.fillRect(chX, chY, chW * chRatio, chH);
+  }
+
+  // Dash 状态指示器
+  let dashText = '';
+  if (player.isDashing) {
+    dashText = `DASH冲刺: ${player.dashTimer}f`;
+  } else if (player.dashReady) {
+    dashText = 'DASH就绪(可加速跳)';
+  } else if (player.grounded) {
+    dashText = 'DASH可用';
+  } else {
+    dashText = '空中不可DASH';
+  }
+  const dashColor = player.isDashing ? '#44aaff' :
+                    player.dashReady ? '#ffaa44' :
+                    player.grounded ? '#44ff44' : '#666666';
+  ctx.fillStyle = dashColor;
+  ctx.font = '10px "Courier New"';
+  ctx.textAlign = 'left';
+  ctx.fillText(dashText, hpX, hpY + hpH + 28);
+}
+
+function render() {
+  ctx.fillStyle = '#0a0a1a';
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  // 背景网格
+  ctx.strokeStyle = '#111133';
+  ctx.lineWidth = 0.5;
+  for (let x = 0; x < CANVAS_W; x += TILE) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, CANVAS_H); ctx.stroke();
+  }
+  for (let y = 0; y < CANVAS_H; y += TILE) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(CANVAS_W, y); ctx.stroke();
+  }
+
+  // 绘制关卡
+  for (let row = 0; row < LEVEL_H; row++) {
+    for (let col = 0; col < LEVEL_W; col++) {
+      if (levelData[row * LEVEL_W + col] === 1) {
+        drawTile(col * TILE, row * TILE);
+      }
+    }
+  }
+
+  drawParticles();
+  drawBullets();
+  drawPlayer();
+  drawUI();
+
+  // 更新调试面板
+  document.getElementById('db-pos').textContent =
+    `${Math.round(player.x)}, ${Math.round(player.y)}`;
+  document.getElementById('db-vel').textContent =
+    `${player.vx.toFixed(1)}, ${player.vy.toFixed(1)}`;
+  document.getElementById('db-grounded').textContent = player.grounded ? '是' : '否';
+  document.getElementById('db-wall').textContent =
+    player.onWall === -1 ? '左墙' : player.onWall === 1 ? '右墙' : '无';
+  document.getElementById('db-charge').textContent =
+    player.isCharging ? `${Math.round(player.chargeTimer / PLAYER.CHARGE_LV2 * 100)}%` : '0%';
+  document.getElementById('db-dash').textContent =
+    player.isDashing ? `冲刺${player.dashTimer}f` :
+    player.dashReady ? '就绪' :
+    player.grounded ? '可用' : '空中禁止';
+  document.getElementById('db-dashbonus').textContent = '-';
+  document.getElementById('db-wjlock').textContent =
+    player.wallJumpLockTimer > 0 ? `${player.wallJumpLockTimer}f` : '-';
+
+  let state = 'idle';
+  if (player.isDashing) state = '冲刺阶段1';
+  else if (player.dashReady) state = 'Dash就绪阶段2';
+  else if (player.wallSliding) state = '贴墙滑落';
+  else if (!player.grounded && player.onWall !== 0) state = '贴墙';
+  else if (!player.grounded) state = '空中';
+  else if (Math.abs(player.vx) > 0.5) state = '行走';
+  document.getElementById('db-state').textContent = state;
+}
+
+// ==================== 游戏循环 ====================
+function gameLoop() {
+  update();
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+// ==================== 启动 ====================
+resetPlayer();
+gameLoop();
+</script>
+</body>
+</html>
