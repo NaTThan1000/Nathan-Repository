@@ -3,7 +3,7 @@
 > 跨项目通用规则，适用于所有项目（match3-rpg / tarot-battle / Project-Issac-turnbase 等）。
 > 与 CodeBuddy Memories 互补：Memories = 自动加载精简索引，本文档 = 详细版 + 时间戳 + 上下文说明。
 >
-> 最后更新: 2026-08-06
+> 最后更新: 2026-08-11
 
 ---
 
@@ -17,6 +17,7 @@
 | `dev/match3` | match3-rpg-project 专属开发分支 |
 | `dev/tarot` | tarot-battle-project 专属开发分支 |
 | `dev/issac` | Project-Issac-turnbase 专属开发分支 |
+| `dev/rockman` | Project-rockman 专属开发分支 |
 
 - 每次打开项目或新会话时，根据当前工作项目自动切换到对应分支
 - 无法判断当前项目时，主动询问用户选择
@@ -222,7 +223,7 @@
 
 - 所有项目统一在同一个 CodeBuddy 对话中管理
 - 工作区根目录：`c:/Users/nathan.tian/CodeBuddy/test/`
-- 包含项目：match3-rpg-project / tarot-battle-project / Project-Issac-turnbase / Workflow/
+- 包含项目：match3-rpg-project / tarot-battle-project / Project-Issac-turnbase / Project-rockman / Workflow/
 
 ### 3.3 项目上下文文件清单 [2026-07-20]
 

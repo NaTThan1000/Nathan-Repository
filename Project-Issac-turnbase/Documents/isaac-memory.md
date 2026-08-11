@@ -11,7 +11,7 @@
 >
 > **组织方式**：纯时间顺序，不做模块分类。给 AI 快速浏览聊天记忆用。
 >
-> 最后更新: 2026-08-06
+> 最后更新: 2026-08-11
 
 ---
 
@@ -612,35 +612,6 @@
 
 ---
 
-## 最近更新记录
-
-| 日期 | 更新内容 |
-|------|---------|
-| 2026-08-06 | **资源掉落 none 权重 bug 修复**。`rollResourceDrop()` 的 `pick_one` 分支错误地将 `none` 条目从 entries 过滤掉再计算 totalWeight，导致 totalWeight 不含 none 权重，资源几乎 100% 掉落。修复：totalWeight 改为 `Object.values(table)` 包含 none，遍历不过滤 none 正常参与权重累减，命中 none 时返回空数组。详见当日记忆条目。 |
-| 2026-08-04 | **掉落表命名统一 + roomClearDrop配置驱动化 + 地图编辑器修复**。①itemDropTables 9张表加 `item_drop_` 前缀，resourceDropTables 11张表加 `resource_drop_` 前缀，宝箱资源对象名不变以消除歧义。②`rollRoomClearDrop()` 从硬编码映射改为读取 `room.roomClearDrop` 配置。③修复地图编辑器 fileInput 缺少 grid 转置。详见当日记忆条目。 |
-| 2026-07-31(3) | **掉落系统字段命名统一重构**。①monster loot entry type `resource_pool`→`resource`。②顶层集合 key：`qualityTables`→`itemDropTables`、`dropTables`→`resourceDropTables`。③entry 字段：`qualityTable`→`itemDropTable`、`pool`/`dropTable`→`resourceDropTable`。④宝箱 loot 同步更新。⑤影响 6 文件，全项目零旧字段名残留。详见当日记忆条目。 |
-| 2026-07-31(2) | **怪物死亡掉落位置修正**。移除资源掉落随机散布(±1格)，所有掉落物精确生成在怪物死亡位置。详见当日记忆条目。 |
-| 2026-07-31 | **满血拾取修复 + 幽灵资源修复 + checkpoint时机修正**。详见当日记忆条目。 |
-| 2026-07-30 | **地形掉落预roll + liftDir修复 + ESC回溯补全**。详见当日记忆条目。 |
-| 2026-07-29 | **资源掉落表 mode 统一 + attack_adjacent 修正 + 条目统一化**。①`resource-db.json` resourceDropTables 升级为 `{ mode, table }` 结构，支持 pick_one/roll_all/pick_first。②`rollResourceDrop()` 重构为 mode 驱动。③`rollRoomClearDrop()` 移除硬编码改为 roomType→tableKey 配置映射。④`spawnShopItems()` 统一走 rollResourceDrop。⑤`attack_adjacent` 从面朝方向改为四方向十字范围攻击。⑥全部 11 张表统一 15 种资源条目。 |
-| 2026-07-28(晚) | **浮游眼行为模式重构**。①新增 condition actionMode + out_of_range 条件 + after_effect 机制(shoot_fan后立刻random_wander)。②玩家回合动态感叹号。③抽出 checkActionCondition + resolveSteps 辅助函数。 |
-| 2026-07-28(晚) | **蓄力魔像行为优化 + 感叹号像素风 + 文档同步触发规则**。①蓄力魔像 actions 改为4步sequence(random_wander×2+charge_up+charge_line)，新增 charge_up type(感叹号脉动)，charge_line 简化为单步执行。②感叹号改为56px Courier New像素风大号样式，8方向像素描边+3层光晕+0.5s脉动。③memory.md 新增修改规则#4：context.md和memory.md更新必须由用户"同步文档"指令触发，不得在代码任务中附带执行。 |
-| 2026-07-28(晚) | **掉落系统全面重构+资源系统建立**。①用户8条掉落需求驱动全面重配。②确立weight vs rate 语义区分。③新建 resource-db.json（资源定义+8张掉落表+宝箱loot）。④全部12只怪物loot重配：小怪极少道具(~0.9%/只)+小概率资源(~25%)；Boss纯道具无资源。⑤宝箱改为必掉1~4个道具(roll_all模式)。⑥品质表合并至item-db.json，删除 item-drop-tables.json。⑦资源掉落表全面降低概率匹配各场景。⑧用户后续手动微调数值。 |
-| 2026-07-28 | **代码-文档不一致处理约定确立**。①当 AI 发现代码与文档矛盾时，必须主动提醒用户列出差异清单，待用户决策后才行动（三个选项：代码为准/文档为准/都保留）。②明确与"同步文档"指令为独立触发路径（同步时默认以代码为准）。③确认 Ask/Craft 模式边界：都不擅自修改文件。④创建 Memory ID 32213721。⑤context.md 文件清单修正 monster-db.json 过时描述。 |
-| 2026-07-27 | **怪物行动系统重构：actionMode + actions[]**。①移除旧 `movement`/`aiParams` 分散字段，统一为 `actionMode`（sequence/random weighted）+ `actions[]`（独立配置 type + steps/range/condition 等全部参数）。②新增 `resolveMonsterAction()`：condition 过滤 → actionMode 选择 → stepMode/stepWeights 解析。③5种12只怪物全部迁移到新 actions 体系。④Boss Jumper 参数从 aiParams 移至 `actions[].jump_big_land`。⑤确认 stepWeights 未配时默认均匀随机行为。 |
-| 2026-07-24(晚) | **怪物移动配置统一重构 + 浮游眼 AI 优化**。①统一 `movement` 结构（mode/steps/stepMode/weight）替代 4 套分散步数字段，12 只怪物全部迁移。②浮游眼新增切比雪夫距离射程判断（射程外不射击只移动）。③巡逻范围从硬编码改为 `aiParams.patrolRange`。④monster-db.json 完全重写 + demo2.html 6 处改造 + 旧字段 0 残留。⑤context.md 全覆盖交叉比对：怪物表重写、AI表更新、文件清单新增 spawn-config.json。 |
-| 2026-07-24 | **验证列表遗漏事件 + Memory 对话驱动标准确立**。①7/23讨论的"验证列表"未记录到memory（因无代码变更），暴露AI以"代码变更驱动"写memory的惯性偏离了对话记忆初衷。②用户明确memory设计初衷："在任何电脑上都能像跟同一个有统一记忆的AI聊天"。③记忆触发标准从"代码变更→记录"扩展为"聊过的重要事→记录"（设计验证/待办任务/设计疑问/创意方向等）。④global-rules §2.10 更新补充此规则。⑤验证列表具体内容已不可溯源（cb_summary压缩丢失）。 |
-| 2026-07-23 | **AI行为参数外置 + 配置外置全面审计 + 双HTML同步策略 + global-rules §2.10 §4.5**。①monster-db.json 新增 `aiParams` 字段，5种怪物AI参数全部外置消除硬编码。②系统性审计6JSON+2HTML，确立分类标准：策划→JSON / 引擎/渲染/算法→代码。③建立双HTML同步策略，验证0处AI硬编码残留。④context.md全覆盖比对修正8处过时常量。⑤因AI首轮memory遗漏审计/策略讨论，触发global-rules §2.10（Memory记录完整性）。⑥因AI将疑问句误判为指令，触发global-rules §4.5（疑问句vs指令区分）。 |
-| 2026-07-22 | **楼层生成两步法重构**。`generateFloor()` 改为骨架房优先→Boss/宝箱从集群边界挂载。Boss选最远边界位，宝箱随机选剩余边界。彻底消除旧方案裁边+连通性修复逻辑，Boss/宝箱天然单门在外围。 |
-| 2026-07-21(晚) | **Boss Jumper 2×2跳跃Boss系统**。新增 `boss_jumper` 怪物（size:2占据4格），替代旧裂口之王为每层Boss房Boss。行动循环：小跳×2→50%重复→大跳消失→落地12格伤害。配套跳跃动画（弧线/消失残影/落地冲击波）。宝藏房不再刷怪。修复渲染中心偏移和落地回合额外行动。 |
-| 2026-07-20 | **SSH推送替代HTTPS**。DPI防火墙拦截git/curl HTTPS连接，诊断确认SSH 22端口正常。生成ed25519密钥，利用Deploy Key API绕行token scope限制（repo scope够用），remote永久改为SSH。记录完整诊断过程+跨电脑注意事项。 |
-| 2026-07-20 | **global-rules §1.4 正式化**。将 AI 禁止自动 Git 写入操作写入 global-rules.md 作为正式跨项目规范，创建 Memory ID 70076756。 |
-| 2026-07-20 | **HP心形改造 + AI提交行为纠正**。①HP系统改为3心制+半心显示，所有玩家伤害减半。②记录AI自动提交行为被纠正事件，确认Git操作需用户明确指令。 |
-| 2026-07-20 | **格式重改为纯时间线 + 删除未确认内容**。按用户要求改为纯时间顺序组织（不做模块分类），删除未经用户确认的"下一步计划"章节。同步追加当天的文档体系规则修正记录。 |
-| 2026-07-20 | **记忆体系建立**。从三处数据源（context.md 最近更新记录 ×11条、chat-log-2026-07-20.md、当前会话）提取所有历史决策，按时间顺序整理。 |
-
----
-
 ## 2026-08-04
 
 ### 掉落表命名统一 — item_drop_ / resource_drop_ 前缀 [当前方案]
@@ -808,9 +779,4 @@
   - 房间探索顺序：给玩家有限信息（门类型视觉线索）、创造顺序依赖（清房奖励影响后续）、风险-回报非对称信息
 - **[文档修正]** context.md 同步：楼层数 6→3（4处）、炸弹操作键 B→E
 
-### 最近更新记录（memory.md）
 
-| 日期 | 更新内容 |
-|------|---------|
-| 2026-08-07（晚间）| **项目设计合理性讨论**。玩法评估（核心循环/创新点/挑战/乐趣）+ 用户纠错（M-AP/A-AP独立、3层非6层、E键炸弹）+ 优化方向讨论（资源管理/探索深度/打破最优解/房间探索顺序）。context.md 同步修正 6 处。 |
-| 2026-08-07 | **苍蝇公爵 Boss 系统 + squad/spawn 命名一致性讨论 + 打包版本开发阶段暂不维护规范**。新增 duke_fly（对角移动关键帧动画 + summon 召唤 duff_floater）+ 4 个 Boss squad 模板 + spawn-config 简化为单值 budget。详见当日记忆条目。 |
