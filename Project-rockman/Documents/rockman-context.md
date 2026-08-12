@@ -1,6 +1,6 @@
 # Rockman X4 操作原型 - 策划文档 & 技术速查
 
-> 最后更新: 2026-08-11 (会话 #3)
+> 最后更新: 2026-08-12 (会话 #4)
 
 ---
 
@@ -21,7 +21,7 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 | `空格` | 重置角色 |
 | `E` | 切换编辑模式（游玩 ↔ 编辑） |
 | `Ctrl+S` | 编辑模式下导出关卡 JSON |
-| 鼠标左键（编辑模式） | 放置砖块/敌人（长按快速连续放置） |
+| 鼠标左键（编辑模式） | 砖块/敌人：放置（长按快速连续放置）；玩家出生点：拖动移动 |
 | 鼠标右键（编辑模式） | 删除砖块/敌人（长按快速连续删除） |
 | 鼠标中键拖动（编辑模式） | 自由平移摄像机查看关卡 |
 | 鼠标滚轮（编辑模式） | 缩放视口（0.2x ~ 4.0x） |
@@ -108,7 +108,8 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 - 关卡尺寸：100×16 Tile（3200×512），支持动态扩展（编辑模式下在边界外放置砖块自动扩大地图）
 - 数据格式：一维数组，1=砖块 0=空
 - 关卡分 4 个区域：起始峡谷(col 1~24) → 瀑布攀爬(col 25~49) → 中层丛林(col 50~74) → Boss巢穴(col 75~99)
-- 外部配置文件：`level.json`（含 tiles 规则描述 + enemies 列表），支持 fetch 加载；内联 `DEFAULT_LEVEL` 作为 fallback
+- 外部配置文件：`level.json`（含 `playerSpawn`、tiles 规则描述 + enemies 列表），支持 fetch 加载；内联 `DEFAULT_LEVEL` 作为 fallback
+- 玩家出生点：`playerSpawn: { x, y }` 可配置，编辑器支持自由拖动设置（像素级，不受 tile 网格约束），退出编辑模式时自动验证不与地形/敌人重合
 - 摄像机：支持水平+垂直居中跟随，边界限制（走到地图边缘时镜头停止）
 
 ---
@@ -171,11 +172,13 @@ camera = {
 #### 编辑模式
 
 ```javascript
-editMode: bool         // 是否编辑模式
-editTool: 'tile'|'enemy'  // 当前编辑工具
-mouseDown: 0|1|2      // 0=无, 1=左键, 2=右键
-mouseWorldX/Y: number  // 鼠标世界坐标（已考虑 zoom）
-isPanning: bool        // 是否中键拖拽中
+editMode: bool              // 是否编辑模式
+editTool: 'tile'|'enemy'|'player'  // 当前编辑工具
+mouseDown: 0|1|2           // 0=无, 1=左键, 2=右键
+mouseWorldX/Y: number      // 鼠标世界坐标（已考虑 zoom）
+isPanning: bool            // 是否中键拖拽中
+isDraggingPlayer: bool     // 是否正在拖拽玩家出生点
+dragPlayerOffX/Y: number   // 拖拽时鼠标相对出生点偏移
 ```
 
 ### 8. 关键常量
@@ -246,6 +249,8 @@ MAX_HP: 28
 | `expandMap(newCol, newRow)` | 动态扩展地图（偏移所有敌人+摄像机） |
 | `exportLevelJSON()` | 导出当前地图为 JSON |
 | `compressTiles(rawTiles)` | 压缩 tile 数据为规则格式 |
+| `getPlayerSpawn()` | 从关卡数据读取玩家出生点 |
+| `isSpawnValid(sx, sy)` | 检测出生点是否与地形/敌人重合 |
 | `setEditMode(on)` | 切换编辑/游玩模式 |
 | `doEditAction()` | 执行编辑操作（放置/删除砖块或敌人） |
 | `drawEditorOverlay()` | 渲染编辑器高亮/预览 |
@@ -265,3 +270,4 @@ MAX_HP: 28
 | 2026-08-10 | **项目初始化**。创建 Rockman X4 操作原型，实现 X 核心移动+射击机制。单文件 `prototype.html` 实现。 |
 | 2026-08-11 (上午) | **文档同步**。修正 §5 关卡尺寸，全量交叉比对。 |
 | 2026-08-11 (下午) | **关卡编辑系统**。新增 JSON 关卡配置系统（level.json + DEFAULT_LEVEL fallback）、可视化编辑模式（E 键切换）、长按放置/删除砖块和敌人、中键拖拽平移摄像机、滚轮缩放（0.2x~4.0x）、Ctrl+S 导出 JSON、动态地图扩展（边界外放置自动扩大地图+偏移敌人坐标）、摄像机居中跟随（水平+垂直）。文档全覆盖同步。 |
+| 2026-08-12 | **玩家出生点可编辑**。level.json / DEFAULT_LEVEL 新增 `playerSpawn` 字段；新增 `getPlayerSpawn()` / `isSpawnValid()` 函数；编辑器新增"玩家出生点"工具（自由拖动、像素级放置，不受 tile 网格约束）；退出编辑模式时自动验证出生点不与地形/敌人重合，不合法时弹出提示并阻止退出；覆盖层显示青色 SPAWN / 红色 INVALID! 标记。 |

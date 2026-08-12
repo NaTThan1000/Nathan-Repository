@@ -1,98 +1,744 @@
 {
   "width": 100,
-  "height": 16,
+  "height": 29,
   "tileSize": 32,
+  "playerSpawn": { "x": 60, "y": 200 },
   "tiles": [
-    { "comment": "天花板 (row 0)" },
-    { "col": [0, 99], "row": 0, "value": 1 },
-    { "comment": "地板 (row 15)" },
-    { "col": [0, 99], "row": 15, "value": 1 },
-    { "comment": "左墙 (col 0)" },
-    { "col": 0, "row": [1, 14], "value": 1 },
-    { "comment": "右墙 (col 99)" },
-    { "col": 99, "row": [1, 14], "value": 1 },
-
-    { "comment": "=== 区域1: 起始峡谷 (col 1~24) ===" },
-    { "comment": "初始地面" },
-    { "col": [1, 16], "row": [13, 14], "value": 1 },
-    { "comment": "低台" },
-    { "col": [8, 12], "row": 11, "value": 1 },
-    { "comment": "中台" },
-    { "col": [14, 18], "row": 9, "value": 1 },
-    { "comment": "高台" },
-    { "col": [17, 21], "row": 7, "value": 1 },
-    { "comment": "过渡台" },
-    { "col": [20, 24], "row": 5, "value": 1 },
-
-    { "comment": "=== 区域2: 瀑布攀爬 (col 25~49) ===" },
-    { "comment": "竖井左墙" },
-    { "col": 30, "row": [5, 14], "value": 1 },
-    { "comment": "竖井右墙" },
-    { "col": 40, "row": [5, 14], "value": 1 },
-    { "comment": "平台" },
-    { "col": [25, 29], "row": 13, "value": 1 },
-    { "col": [31, 39], "row": 11, "value": 1 },
-    { "col": [41, 49], "row": 9, "value": 1 },
-    { "col": [25, 29], "row": 7, "value": 1 },
-    { "col": [31, 39], "row": 5, "value": 1 },
-    { "col": [41, 49], "row": 3, "value": 1 },
-    { "comment": "连接台" },
-    { "col": [39, 41], "row": 10, "value": 1 },
-    { "col": [29, 31], "row": 8, "value": 1 },
-    { "col": [39, 41], "row": 6, "value": 1 },
-    { "col": [29, 31], "row": 4, "value": 1 },
-
-    { "comment": "=== 区域3: 中层丛林 (col 50~74) ===" },
-    { "col": [50, 56], "row": 13, "value": 1 },
-    { "col": [54, 60], "row": 11, "value": 1 },
-    { "col": [58, 64], "row": 9, "value": 1 },
-    { "col": [60, 66], "row": 13, "value": 1 },
-    { "col": [62, 68], "row": 7, "value": 1 },
-    { "col": [66, 72], "row": 5, "value": 1 },
-    { "col": [68, 74], "row": 13, "value": 1 },
-    { "comment": "浮台" },
-    { "col": [52, 53], "row": 9, "value": 1 },
-    { "col": [56, 57], "row": 7, "value": 1 },
-    { "col": [60, 61], "row": 5, "value": 1 },
-
-    { "comment": "=== 区域4: Boss巢穴 (col 75~98) ===" },
-    { "comment": "Boss房天花板" },
-    { "col": [75, 98], "row": 1, "value": 1 },
-    { "comment": "房间隔墙" },
-    { "col": 75, "row": [2, 14], "value": 1 },
-    { "comment": "Boss房地板" },
-    { "col": [76, 97], "row": [13, 14], "value": 1 },
-    { "comment": "上层平台" },
-    { "col": [78, 82], "row": 8, "value": 1 },
-    { "col": [90, 94], "row": 8, "value": 1 },
-    { "col": [84, 88], "row": 5, "value": 1 }
+    {
+      "col": [
+        0,
+        99
+      ],
+      "row": 0,
+      "value": 1
+    },
+    {
+      "col": 0,
+      "row": 1,
+      "value": 1
+    },
+    {
+      "col": [
+        75,
+        99
+      ],
+      "row": 1,
+      "value": 1
+    },
+    {
+      "col": 0,
+      "row": 2,
+      "value": 1
+    },
+    {
+      "col": 75,
+      "row": 2,
+      "value": 1
+    },
+    {
+      "col": 99,
+      "row": 2,
+      "value": 1
+    },
+    {
+      "col": 0,
+      "row": 3,
+      "value": 1
+    },
+    {
+      "col": [
+        41,
+        49
+      ],
+      "row": 3,
+      "value": 1
+    },
+    {
+      "col": 75,
+      "row": 3,
+      "value": 1
+    },
+    {
+      "col": 99,
+      "row": 3,
+      "value": 1
+    },
+    {
+      "col": 0,
+      "row": 4,
+      "value": 1
+    },
+    {
+      "col": [
+        29,
+        31
+      ],
+      "row": 4,
+      "value": 1
+    },
+    {
+      "col": 75,
+      "row": 4,
+      "value": 1
+    },
+    {
+      "col": 99,
+      "row": 4,
+      "value": 1
+    },
+    {
+      "col": 0,
+      "row": 5,
+      "value": 1
+    },
+    {
+      "col": [
+        20,
+        24
+      ],
+      "row": 5,
+      "value": 1
+    },
+    {
+      "col": [
+        30,
+        40
+      ],
+      "row": 5,
+      "value": 1
+    },
+    {
+      "col": [
+        60,
+        61
+      ],
+      "row": 5,
+      "value": 1
+    },
+    {
+      "col": [
+        66,
+        72
+      ],
+      "row": 5,
+      "value": 1
+    },
+    {
+      "col": 75,
+      "row": 5,
+      "value": 1
+    },
+    {
+      "col": [
+        84,
+        88
+      ],
+      "row": 5,
+      "value": 1
+    },
+    {
+      "col": 99,
+      "row": 5,
+      "value": 1
+    },
+    {
+      "col": 0,
+      "row": 6,
+      "value": 1
+    },
+    {
+      "col": 30,
+      "row": 6,
+      "value": 1
+    },
+    {
+      "col": [
+        39,
+        41
+      ],
+      "row": 6,
+      "value": 1
+    },
+    {
+      "col": 75,
+      "row": 6,
+      "value": 1
+    },
+    {
+      "col": 99,
+      "row": 6,
+      "value": 1
+    },
+    {
+      "col": 0,
+      "row": 7,
+      "value": 1
+    },
+    {
+      "col": [
+        17,
+        21
+      ],
+      "row": 7,
+      "value": 1
+    },
+    {
+      "col": [
+        25,
+        30
+      ],
+      "row": 7,
+      "value": 1
+    },
+    {
+      "col": 40,
+      "row": 7,
+      "value": 1
+    },
+    {
+      "col": [
+        56,
+        57
+      ],
+      "row": 7,
+      "value": 1
+    },
+    {
+      "col": [
+        62,
+        68
+      ],
+      "row": 7,
+      "value": 1
+    },
+    {
+      "col": 75,
+      "row": 7,
+      "value": 1
+    },
+    {
+      "col": 99,
+      "row": 7,
+      "value": 1
+    },
+    {
+      "col": 0,
+      "row": 8,
+      "value": 1
+    },
+    {
+      "col": [
+        6,
+        7
+      ],
+      "row": 8,
+      "value": 1
+    },
+    {
+      "col": [
+        29,
+        31
+      ],
+      "row": 8,
+      "value": 1
+    },
+    {
+      "col": 40,
+      "row": 8,
+      "value": 1
+    },
+    {
+      "col": 75,
+      "row": 8,
+      "value": 1
+    },
+    {
+      "col": [
+        78,
+        82
+      ],
+      "row": 8,
+      "value": 1
+    },
+    {
+      "col": [
+        90,
+        94
+      ],
+      "row": 8,
+      "value": 1
+    },
+    {
+      "col": 99,
+      "row": 8,
+      "value": 1
+    },
+    {
+      "col": 0,
+      "row": 9,
+      "value": 1
+    },
+    {
+      "col": [
+        14,
+        18
+      ],
+      "row": 9,
+      "value": 1
+    },
+    {
+      "col": 30,
+      "row": 9,
+      "value": 1
+    },
+    {
+      "col": [
+        40,
+        49
+      ],
+      "row": 9,
+      "value": 1
+    },
+    {
+      "col": [
+        52,
+        53
+      ],
+      "row": 9,
+      "value": 1
+    },
+    {
+      "col": [
+        58,
+        64
+      ],
+      "row": 9,
+      "value": 1
+    },
+    {
+      "col": 75,
+      "row": 9,
+      "value": 1
+    },
+    {
+      "col": 99,
+      "row": 9,
+      "value": 1
+    },
+    {
+      "col": 0,
+      "row": 10,
+      "value": 1
+    },
+    {
+      "col": 30,
+      "row": 10,
+      "value": 1
+    },
+    {
+      "col": [
+        39,
+        41
+      ],
+      "row": 10,
+      "value": 1
+    },
+    {
+      "col": 75,
+      "row": 10,
+      "value": 1
+    },
+    {
+      "col": 99,
+      "row": 10,
+      "value": 1
+    },
+    {
+      "col": 0,
+      "row": 11,
+      "value": 1
+    },
+    {
+      "col": [
+        8,
+        12
+      ],
+      "row": 11,
+      "value": 1
+    },
+    {
+      "col": [
+        30,
+        40
+      ],
+      "row": 11,
+      "value": 1
+    },
+    {
+      "col": [
+        54,
+        60
+      ],
+      "row": 11,
+      "value": 1
+    },
+    {
+      "col": 75,
+      "row": 11,
+      "value": 1
+    },
+    {
+      "col": 99,
+      "row": 11,
+      "value": 1
+    },
+    {
+      "col": 0,
+      "row": 12,
+      "value": 1
+    },
+    {
+      "col": 30,
+      "row": 12,
+      "value": 1
+    },
+    {
+      "col": 40,
+      "row": 12,
+      "value": 1
+    },
+    {
+      "col": 75,
+      "row": 12,
+      "value": 1
+    },
+    {
+      "col": 99,
+      "row": 12,
+      "value": 1
+    },
+    {
+      "col": [
+        0,
+        4
+      ],
+      "row": 13,
+      "value": 1
+    },
+    {
+      "col": [
+        12,
+        16
+      ],
+      "row": 13,
+      "value": 1
+    },
+    {
+      "col": [
+        25,
+        30
+      ],
+      "row": 13,
+      "value": 1
+    },
+    {
+      "col": 40,
+      "row": 13,
+      "value": 1
+    },
+    {
+      "col": [
+        50,
+        56
+      ],
+      "row": 13,
+      "value": 1
+    },
+    {
+      "col": [
+        60,
+        66
+      ],
+      "row": 13,
+      "value": 1
+    },
+    {
+      "col": [
+        68,
+        97
+      ],
+      "row": 13,
+      "value": 1
+    },
+    {
+      "col": 99,
+      "row": 13,
+      "value": 1
+    },
+    {
+      "col": [
+        0,
+        6
+      ],
+      "row": 14,
+      "value": 1
+    },
+    {
+      "col": [
+        12,
+        16
+      ],
+      "row": 14,
+      "value": 1
+    },
+    {
+      "col": 30,
+      "row": 14,
+      "value": 1
+    },
+    {
+      "col": 40,
+      "row": 14,
+      "value": 1
+    },
+    {
+      "col": [
+        75,
+        97
+      ],
+      "row": 14,
+      "value": 1
+    },
+    {
+      "col": 99,
+      "row": 14,
+      "value": 1
+    },
+    {
+      "col": [
+        0,
+        8
+      ],
+      "row": 15,
+      "value": 1
+    },
+    {
+      "col": [
+        12,
+        99
+      ],
+      "row": 15,
+      "value": 1
+    },
+    {
+      "col": 8,
+      "row": 16,
+      "value": 1
+    },
+    {
+      "col": [
+        9,
+        10
+      ],
+      "row": 17,
+      "value": 1
+    },
+    {
+      "col": [
+        10,
+        11
+      ],
+      "row": 18,
+      "value": 1
+    },
+    {
+      "col": [
+        11,
+        12
+      ],
+      "row": 19,
+      "value": 1
+    },
+    {
+      "col": [
+        12,
+        13
+      ],
+      "row": 20,
+      "value": 1
+    },
+    {
+      "col": 14,
+      "row": 21,
+      "value": 1
+    },
+    {
+      "col": [
+        15,
+        16
+      ],
+      "row": 22,
+      "value": 1
+    },
+    {
+      "col": [
+        16,
+        17
+      ],
+      "row": 23,
+      "value": 1
+    },
+    {
+      "col": [
+        18,
+        19
+      ],
+      "row": 24,
+      "value": 1
+    },
+    {
+      "col": [
+        20,
+        21
+      ],
+      "row": 25,
+      "value": 1
+    },
+    {
+      "col": [
+        22,
+        24
+      ],
+      "row": 26,
+      "value": 1
+    },
+    {
+      "col": 26,
+      "row": 27,
+      "value": 1
+    },
+    {
+      "col": 28,
+      "row": 27,
+      "value": 1
+    },
+    {
+      "col": 30,
+      "row": 28,
+      "value": 1
+    },
+    {
+      "col": 32,
+      "row": 28,
+      "value": 1
+    }
   ],
-
   "enemies": [
-    { "comment": "区域1: 起始峡谷" },
-    { "type": "soldier", "x": 350, "y": 336, "patrolMin": 280, "patrolMax": 420 },
-    { "type": "bee",     "x": 450, "y": 260 },
-    { "type": "soldier", "x": 550, "y": 208, "patrolMin": 480, "patrolMax": 620 },
-
-    { "comment": "区域2: 瀑布攀爬" },
-    { "type": "floater", "x": 900,  "y": 200 },
-    { "type": "soldier", "x": 1050, "y": 272, "patrolMin": 1000, "patrolMax": 1150 },
-    { "type": "bee",     "x": 1150, "y": 180 },
-    { "type": "soldier", "x": 1300, "y": 144, "patrolMin": 1250, "patrolMax": 1400 },
-    { "type": "floater", "x": 1400, "y": 110 },
-    { "type": "bee",     "x": 1500, "y": 80  },
-
-    { "comment": "区域3: 中层丛林" },
-    { "type": "soldier", "x": 1700, "y": 336, "patrolMin": 1650, "patrolMax": 1780 },
-    { "type": "bee",     "x": 1800, "y": 260 },
-    { "type": "soldier", "x": 1900, "y": 208, "patrolMin": 1850, "patrolMax": 1980 },
-    { "type": "floater", "x": 2000, "y": 160 },
-    { "type": "soldier", "x": 2100, "y": 144, "patrolMin": 2050, "patrolMax": 2180 },
-    { "type": "bee",     "x": 2200, "y": 100 },
-
-    { "comment": "区域4: Boss巢穴" },
-    { "type": "floater", "x": 2600, "y": 150 },
-    { "type": "soldier", "x": 2550, "y": 336, "patrolMin": 2500, "patrolMax": 2620 },
-    { "type": "boss",    "x": 2850, "y": 336 }
+    {
+      "type": "soldier",
+      "x": 416,
+      "y": 376,
+      "patrolMin": 280,
+      "patrolMax": 420
+    },
+    {
+      "type": "bee",
+      "x": 450,
+      "y": 279
+    },
+    {
+      "type": "soldier",
+      "x": 516,
+      "y": 248,
+      "patrolMin": 480,
+      "patrolMax": 620
+    },
+    {
+      "type": "floater",
+      "x": 900,
+      "y": 174
+    },
+    {
+      "type": "soldier",
+      "x": 1017,
+      "y": 312,
+      "patrolMin": 1000,
+      "patrolMax": 1150
+    },
+    {
+      "type": "bee",
+      "x": 1150,
+      "y": 167
+    },
+    {
+      "type": "soldier",
+      "x": 1284,
+      "y": 120,
+      "patrolMin": 1250,
+      "patrolMax": 1400
+    },
+    {
+      "type": "floater",
+      "x": 1400,
+      "y": 83
+    },
+    {
+      "type": "bee",
+      "x": 1500,
+      "y": 72
+    },
+    {
+      "type": "soldier",
+      "x": 1700,
+      "y": 376,
+      "patrolMin": 1650,
+      "patrolMax": 1780
+    },
+    {
+      "type": "bee",
+      "x": 1800,
+      "y": 279
+    },
+    {
+      "type": "soldier",
+      "x": 1956,
+      "y": 248,
+      "patrolMin": 1850,
+      "patrolMax": 1980
+    },
+    {
+      "type": "floater",
+      "x": 2000,
+      "y": 156
+    },
+    {
+      "type": "soldier",
+      "x": 2084,
+      "y": 184,
+      "patrolMin": 2050,
+      "patrolMax": 2180
+    },
+    {
+      "type": "bee",
+      "x": 2200,
+      "y": 79
+    },
+    {
+      "type": "floater",
+      "x": 2600,
+      "y": 140
+    },
+    {
+      "type": "soldier",
+      "x": 2541,
+      "y": 376,
+      "patrolMin": 2500,
+      "patrolMax": 2620
+    },
+    {
+      "type": "boss",
+      "x": 2432,
+      "y": 360
+    }
   ]
 }

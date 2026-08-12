@@ -67,6 +67,7 @@
   <span style="color:#ffcc00">编辑模式</span>
   <button class="mode-btn sel" data-mode="tile" id="btn-tile">砖块</button>
   <button class="mode-btn" data-mode="enemy" id="btn-enemy">敌人</button>
+  <button class="mode-btn" data-mode="player" id="btn-player">玩家出生点</button>
   <select id="enemy-type" style="display:none">
     <option value="soldier">丛林兵</option>
     <option value="bee">机械蜂</option>
@@ -252,6 +253,11 @@ function loadLevel(jsonData) {
   MAP_W = LW * TILE;
   // 重建敌人
   enemies = spawnEnemiesFromData(jsonData);
+  // 读取玩家出生点
+  if (jsonData.playerSpawn) {
+    player.x = jsonData.playerSpawn.x;
+    player.y = jsonData.playerSpawn.y;
+  }
 }
 
 // 默认内联关卡数据 (与 level.json 同步)
@@ -296,6 +302,7 @@ const DEFAULT_LEVEL = {
     {"col":[90,94],"row":8,"value":1},
     {"col":[84,88],"row":5,"value":1}
   ],
+  "playerSpawn": { "x": 60, "y": 200 },
   "enemies": [
     {"type":"soldier","x":350,"y":336,"patrolMin":280,"patrolMax":420},
     {"type":"bee","x":450,"y":260},
@@ -343,9 +350,12 @@ function overlap(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y 
 let bullets = [], eBullets = [], particles = [], afterimages = [], enemies = [];
 
 function spawnBullet(x, y, dir, power) {
+  // 普通子弹 3x (18×12)；蓄力 = 普通×3 (54×36)；满蓄力 = 普通×5 (90×60)
+  const baseW = 18, baseH = 12; // 普通子弹碰撞体积
   bullets.push({
     x, y: y + P.PH / 2 - 4, vx: P.BULLET * dir, vy: 0,
-    w: power === 2 ? 12 : 6, h: power === 2 ? 8 : 4,
+    w: power === 2 ? baseW * 5 : power === 1 ? baseW * 3 : baseW,
+    h: power === 2 ? baseH * 5 : power === 1 ? baseH * 3 : baseH,
     power, dmg: DMG[power], life: 120,
     color: power === 2 ? '#ff4444' : power === 1 ? '#ffaa00' : '#ffff00',
   });
@@ -511,8 +521,15 @@ function dmgPlayer(d) {
 }
 
 // ==================== 玩家 ====================
+function getPlayerSpawn() {
+  const data = levelData || DEFAULT_LEVEL;
+  if (data.playerSpawn) return { x: data.playerSpawn.x, y: data.playerSpawn.y };
+  return { x: 60, y: 200 };
+}
+
+const spawn = getPlayerSpawn();
 const player = {
-  x: 60, y: 200, vx: 0, vy: 0, w: P.PW, h: P.PH,
+  x: spawn.x, y: spawn.y, vx: 0, vy: 0, w: P.PW, h: P.PH,
   facing: 1, grounded: false, onWall: 0, wallSlide: false,
   isDash: false, dashT: 0, dashDir: 0, dashReady: false, dashAir: false,
   chgT: 0, isChg: false, wjLock: 0,
@@ -521,8 +538,9 @@ const player = {
 };
 
 function reset() {
+  const spawn = getPlayerSpawn();
   Object.assign(player, {
-    x: 60, y: 200, vx: 0, vy: 0, facing: 1, grounded: false, onWall: 0, wallSlide: false,
+    x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1, grounded: false, onWall: 0, wallSlide: false,
     isDash: false, dashT: 0, dashDir: 0, dashReady: false, dashAir: false,
     chgT: 0, isChg: false, wjLock: 0, kCon: false, lCon: false, invT: 0, hp: P.MAX_HP,
   });
@@ -690,9 +708,7 @@ function update() {
   if ((p.grounded && !wasGnd) || (p.onWall !== 0 && wasWall === 0)) p.dashAir = false;
   if (p.grounded && !wasGnd && lR) p.lCon = true;
 
-  // 世界边界
-  p.x = Math.max(0, Math.min(MAP_W - p.w, p.x));
-  if (p.y > VH + 100) reset();
+  // 世界边界（无底部边界限制，角色可自由掉落）
 
   // 摄像机
   updateCamera();
@@ -867,17 +883,20 @@ function drawBullets() {
   for (const b of bullets) {
     const bx = b.x, by = b.y;
     if (b.power === 2) {
+      // 满蓄力: 普通子弹×5 (原始圆半径 r=10/6/4 → 50/30/20)
       ctx.save(); ctx.globalAlpha = 0.4; ctx.fillStyle = b.color;
-      ctx.beginPath(); ctx.arc(bx, by, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(bx, by, 50, 0, Math.PI * 2); ctx.fill();
       ctx.globalAlpha = 1; ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(bx, by, 6, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(bx, by, 4, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      ctx.beginPath(); ctx.arc(bx, by, 30, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(bx, by, 20, 0, Math.PI * 2); ctx.fill(); ctx.restore();
     } else if (b.power === 1) {
-      ctx.fillStyle = b.color; ctx.fillRect(bx - 4, by - 3, 8, 6);
-      ctx.fillStyle = '#fff'; ctx.fillRect(bx - 2, by - 2, 4, 4);
+      // 蓄力: 普通×3 (8×6 → 24×18)
+      ctx.fillStyle = b.color; ctx.fillRect(bx - 12, by - 9, 24, 18);
+      ctx.fillStyle = '#fff'; ctx.fillRect(bx - 6, by - 6, 12, 12);
     } else {
-      ctx.fillStyle = '#ff0'; ctx.fillRect(bx - 3, by - 2, 6, 4);
-      ctx.fillStyle = '#fff'; ctx.fillRect(bx - 1, by - 1, 3, 2);
+      // 普通: 3倍 (6×4 → 18×12)
+      ctx.fillStyle = '#ff0'; ctx.fillRect(bx - 9, by - 6, 18, 12);
+      ctx.fillStyle = '#fff'; ctx.fillRect(bx - 3, by - 3, 9, 6);
     }
   }
   for (const b of eBullets) {
@@ -989,24 +1008,34 @@ function render() {
 
 // ==================== 编辑模式 ====================
 let editMode = false;
-let editTool = 'tile'; // 'tile' | 'enemy'
+let editTool = 'tile'; // 'tile' | 'enemy' | 'player'
 let mouseWorldX = 0, mouseWorldY = 0;
 
 const editorToolbar = document.getElementById('editor-toolbar');
 const editorPanel = document.getElementById('editor-panel');
 const btnTile = document.getElementById('btn-tile');
 const btnEnemy = document.getElementById('btn-enemy');
+const btnPlayer = document.getElementById('btn-player');
 const enemyTypeSelect = document.getElementById('enemy-type');
 const jsonOutput = document.getElementById('json-output');
 
 function setEditMode(on) {
-  editMode = on;
   if (on) {
+    editMode = true;
     editorToolbar.classList.add('active');
     updateToolUI();
-    // 进入编辑模式时清空子弹和粒子残留
+    // 进入编辑模式时清空子弹和粒子残留，重置所有怪物到初始状态
     bullets = []; eBullets = []; particles = []; afterimages = [];
+    const data = levelData || DEFAULT_LEVEL;
+    enemies = spawnEnemiesFromData(data);
   } else {
+    // 退出编辑模式前验证出生点合法性
+    const ps = getPlayerSpawn();
+    if (!isSpawnValid(ps.x, ps.y)) {
+      alert('初始点位置错误！出生点与地形或敌人重合，请移动到一个空位后再退出。');
+      return;
+    }
+    editMode = false;
     editorToolbar.classList.remove('active');
     editorPanel.classList.remove('active');
     // 退出编辑模式时重置摄像机，定位到玩家居中位置
@@ -1015,6 +1044,7 @@ function setEditMode(on) {
     camera.x = Math.max(0, Math.min(MAP_W - VW, player.x + player.w / 2 - VW / 2));
     camera.y = Math.max(0, Math.min(mapH - VH, player.y + player.h / 2 - VH / 2));
     isPanning = false;
+    isDraggingPlayer = false;
     canvas.style.cursor = '';
   }
 }
@@ -1022,15 +1052,42 @@ function setEditMode(on) {
 function updateToolUI() {
   btnTile.classList.toggle('sel', editTool === 'tile');
   btnEnemy.classList.toggle('sel', editTool === 'enemy');
+  btnPlayer.classList.toggle('sel', editTool === 'player');
   enemyTypeSelect.style.display = editTool === 'enemy' ? 'inline' : 'none';
+  // player 模式显示 grab 光标
+  if (editMode) {
+    canvas.style.cursor = (editTool === 'player') ? 'grab' : '';
+  }
 }
 
 btnTile.addEventListener('click', () => { editTool = 'tile'; updateToolUI(); });
 btnEnemy.addEventListener('click', () => { editTool = 'enemy'; updateToolUI(); });
+btnPlayer.addEventListener('click', () => { editTool = 'player'; updateToolUI(); });
 document.getElementById('btn-exit-edit').addEventListener('click', () => setEditMode(false));
 
 // 长按放置/删除
 let mouseDown = 0; // 0=无, 1=左键, 2=右键
+let isDraggingPlayer = false; // player 模式下是否正在拖拽出生点
+let dragPlayerOffX = 0, dragPlayerOffY = 0; // 拖拽时鼠标相对于出生点左上角的偏移
+
+// 检测玩家出生点矩形是否与地形或敌人碰撞
+function isSpawnValid(sx, sy) {
+  const rect = { x: sx, y: sy, w: P.PW, h: P.PH };
+  // 检查是否与任何 tile 碰撞
+  for (let r = 0; r < LH; r++) {
+    for (let c = 0; c < LW; c++) {
+      if (map[r * LW + c] === 0) continue;
+      if (overlap(rect, { x: c * TILE, y: r * TILE, w: TILE, h: TILE })) return false;
+    }
+  }
+  // 检查是否与任何敌人碰撞
+  for (const en of enemies) {
+    if (overlap(rect, { x: en.x, y: en.y, w: en.w, h: en.h })) return false;
+  }
+  // 检查是否超出地图边界
+  if (sx < 0 || sy < 0 || sx + P.PW > MAP_W) return false;
+  return true;
+}
 
 function doEditAction() {
   const col = Math.floor(mouseWorldX / TILE);
@@ -1067,23 +1124,42 @@ function doEditAction() {
       if (closest !== null) enemies.splice(closest, 1);
     }
   }
+  // player 模式不再通过 doEditAction 处理，而是通过拖拽处理
 }
 
 canvas.addEventListener('mousedown', e => {
   if (!editMode) return;
   if (e.button === 0) {
     e.preventDefault();
-    mouseDown = 1; // 左键=1
-    doEditAction();
+    if (editTool === 'player') {
+      // player 模式：检查是否点击在出生点矩形内
+      const ps = getPlayerSpawn();
+      if (mouseWorldX >= ps.x && mouseWorldX <= ps.x + P.PW &&
+          mouseWorldY >= ps.y && mouseWorldY <= ps.y + P.PH) {
+        isDraggingPlayer = true;
+        dragPlayerOffX = mouseWorldX - ps.x;
+        dragPlayerOffY = mouseWorldY - ps.y;
+        canvas.style.cursor = 'grabbing';
+      }
+    } else {
+      mouseDown = 1;
+      doEditAction();
+    }
   } else if (e.button === 2) {
     e.preventDefault();
-    mouseDown = 2; // 右键=2
+    mouseDown = 2;
     doEditAction();
   }
 });
 
 window.addEventListener('mouseup', e => {
-  if (e.button === 0 || e.button === 2) {
+  if (e.button === 0) {
+    if (isDraggingPlayer) {
+      isDraggingPlayer = false;
+      canvas.style.cursor = (editTool === 'player') ? 'grab' : '';
+    }
+    mouseDown = 0;
+  } else if (e.button === 2) {
     mouseDown = 0;
   }
 });
@@ -1096,7 +1172,15 @@ canvas.addEventListener('mousemove', e => {
   const sy = e.clientY - rect.top;
   mouseWorldX = sx / camera.zoom + camera.x;
   mouseWorldY = sy / camera.zoom + camera.y;
-  if (mouseDown !== 0) doEditAction();
+  if (isDraggingPlayer) {
+    // 拖拽出生点：自由像素级位置
+    const data = levelData || DEFAULT_LEVEL;
+    if (!data.playerSpawn) data.playerSpawn = {};
+    data.playerSpawn.x = Math.round(mouseWorldX - dragPlayerOffX);
+    data.playerSpawn.y = Math.round(mouseWorldY - dragPlayerOffY);
+  } else if (mouseDown !== 0) {
+    doEditAction();
+  }
 });
 
 canvas.addEventListener('contextmenu', e => { if (editMode) e.preventDefault(); });
@@ -1177,7 +1261,13 @@ function exportLevelJSON() {
     }
     return e;
   });
-  return JSON.stringify({ width: LW, height: LH, tileSize: TILE, tiles: compressed, enemies: enemyData }, null, 2);
+  const ps = getPlayerSpawn();
+  return JSON.stringify({
+    width: LW, height: LH, tileSize: TILE,
+    playerSpawn: { x: ps.x, y: ps.y },
+    tiles: compressed,
+    enemies: enemyData
+  }, null, 2);
 }
 
 function compressTiles(rawTiles) {
@@ -1273,7 +1363,44 @@ function drawEditorOverlay() {
     ctx.textAlign = 'center';
     ctx.fillText(t.name, cx, cy - t.h / 2 - 4);
     ctx.lineWidth = 1;
+  } else if (editTool === 'player') {
+    // 鼠标悬停显示玩家实际大小预览（非拖拽中）
+    if (!isDraggingPlayer) {
+      const px = mouseWorldX - P.PW / 2;
+      const py = mouseWorldY - P.PH / 2;
+      ctx.strokeStyle = 'rgba(100,255,255,0.5)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);
+      ctx.strokeRect(px, py, P.PW, P.PH);
+      ctx.setLineDash([]);
+      ctx.lineWidth = 1;
+    }
   }
+
+  // 始终绘制当前玩家出生点标记（任何编辑模式下都显示）
+  const ps = getPlayerSpawn();
+  const valid = isSpawnValid(ps.x, ps.y);
+  const psa = 0.5 + Math.sin(Date.now() / 500) * 0.3;
+
+  if (valid) {
+    // 合法：青色
+    ctx.strokeStyle = `rgba(100,255,255,${psa})`;
+    ctx.fillStyle = `rgba(100,255,255,0.2)`;
+  } else {
+    // 不合法：红色闪烁
+    ctx.strokeStyle = `rgba(255,60,60,${0.7 + psa * 0.3})`;
+    ctx.fillStyle = `rgba(255,60,60,0.25)`;
+  }
+  ctx.lineWidth = 3;
+  ctx.strokeRect(ps.x, ps.y, P.PW, P.PH);
+  ctx.fillRect(ps.x, ps.y, P.PW, P.PH);
+
+  // 标签
+  ctx.fillStyle = valid ? '#0ff' : '#f44';
+  ctx.font = '10px "Courier New"';
+  ctx.textAlign = 'center';
+  ctx.fillText(valid ? 'SPAWN' : 'INVALID!', ps.x + P.PW / 2, ps.y - 6);
+  ctx.lineWidth = 1;
 }
 
 function loop() { update(); render(); requestAnimationFrame(loop); }

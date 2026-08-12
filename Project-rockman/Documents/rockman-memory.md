@@ -146,5 +146,37 @@
 ### JSON 导出 [当前方案]
 
 - `Ctrl+S` 弹出导出面板
-- `exportLevelJSON()` 将当前 map 压缩为规则格式（合并连续行列）+ 敌人列表
+- `exportLevelJSON()` 将当前 map 压缩为规则格式（合并连续行列）+ 敌人列表 + playerSpawn
 - 支持一键复制到剪贴板或下载为 JSON 文件
+
+---
+
+## 2026-08-12 — 玩家出生点可编辑 + 文档同步合并 main
+
+### 玩家出生点系统 [当前方案]
+
+- level.json / DEFAULT_LEVEL 新增 `playerSpawn: { x, y }` 字段
+- 新增 `getPlayerSpawn()` 函数：统一从关卡数据读取出生点，无数据时回退 (60, 200)
+- `reset()` 和 `loadLevel()` 均通过 `getPlayerSpawn()` 读取，不再硬编码
+- player 对象初始化也从 `getPlayerSpawn()` 获取坐标
+
+### 编辑器 Player 模式 [当前方案]
+
+- 工具栏新增第三个按钮「玩家出生点」
+- `editTool` 类型扩展为 `'tile' | 'enemy' | 'player'`
+- **自由拖动**：鼠标悬停在出生点矩形上时显示 grab 光标，按住左键拖动到任意像素位置（不受 tile 网格约束）
+- 新增 `isDraggingPlayer` + `dragPlayerOffX/Y` 拖拽状态
+- 新增 `isSpawnValid(sx, sy)` 函数：检测出生点矩形是否与地形 tile / 敌人 / 地图边界碰撞
+
+### 退出验证 [当前方案]
+
+- 退出编辑模式（按 E 或点击退出按钮）时自动调用 `isSpawnValid()`
+- 不合法时弹出 alert "初始点位置错误！出生点与地形或敌人重合，请移动到一个空位后再退出。"，阻止退出
+- 只有出生点合法时才允许退出编辑模式
+
+### 视觉反馈 [当前方案]
+
+- Player 模式下鼠标悬停显示虚线预览框（P.PW × P.PH）
+- 出生点标记始终可见（任何编辑工具下都显示）
+- 合法位置：青色脉冲框 + "SPAWN" 标签
+- 不合法位置：红色闪烁框 + "INVALID!" 标签
