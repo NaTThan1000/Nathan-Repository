@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>动画帧预览工具</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #1a1a2e; color: #e0e0e0; display: flex; height: 100vh; overflow: hidden; }
+  a { color: #7aa2f7; }
+  
+  #sidebar { width: 300px; min-width: 300px; background: #16213e; padding: 16px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; border-right: 1px solid #0f3460; }
+  #sidebar h2 { font-size: 15px; color: #7aa2f7; text-align: center; padding-bottom: 4px; border-bottom: 1px solid #0f3460; }
+  
+  /* 模式切换 */
+  #mode-tabs { display: flex; gap: 4px; }
+  #mode-tabs button { flex: 1; padding: 6px 0; font-size: 11px; border: 1px solid #0f3460; background: #1a1a2e; color: #999; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+  #mode-tabs button:hover { background: #0f3460; color: #ccc; }
+  #mode-tabs button.active { background: #533483; border-color: #7b2ff7; color: #fff; }
+  
+  /* 动作按钮 */
+  #action-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+  #action-buttons button { flex: 1 1 auto; padding: 6px 8px; font-size: 12px; border: 1px solid #0f3460; background: #1a1a2e; color: #ccc; border-radius: 4px; cursor: pointer; white-space: nowrap; transition: 0.15s; }
+  #action-buttons button:hover { background: #0f3460; }
+  #action-buttons button.active { background: #533483; border-color: #7b2ff7; color: #fff; }
+  
+  /* 播放控制 */
+  #playback { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  #playback button { width: 32px; height: 28px; font-size: 13px; border: 1px solid #0f3460; background: #1a1a2e; color: #ccc; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  #playback button:hover { background: #0f3460; }
+  #playback button:disabled { opacity: 0.4; cursor: default; }
+  #frame-indicator { font-size: 13px; min-width: 70px; text-align: center; color: #aaa; }
+  
+  /* 自动检测结果栏 */
+  #detect-result { background: #1a1a2e; border-radius: 6px; padding: 10px; }
+  #detect-result h3 { font-size: 12px; color: #7aa2f7; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
+  #detect-info { font-size: 11px; color: #aaa; line-height: 1.6; }
+  #detect-info .val { color: #5cff7e; font-weight: bold; }
+  #detect-info .warn { color: #ff9e64; }
+  #detect-actions { display: flex; gap: 6px; margin-top: 6px; }
+  #detect-actions button { flex: 1; padding: 5px 0; font-size: 11px; border: 1px solid #0f3460; background: #1a3a5e; color: #ccc; border-radius: 3px; cursor: pointer; }
+  #detect-actions button:hover { background: #1a4a80; }
+  #detect-actions button.primary { background: #1a6b3c; border-color: #218a4c; color: #fff; }
+  
+  /* 参数面板 */
+  .param-group { background: #1a1a2e; border-radius: 6px; padding: 10px; }
+  .param-group h3 { font-size: 12px; color: #7aa2f7; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+  .param-row { display: flex; align-items: center; margin-bottom: 6px; gap: 8px; }
+  .param-row label { width: 50px; font-size: 12px; color: #999; text-align: right; flex-shrink: 0; }
+  .param-row input[type="range"] { flex: 1; height: 4px; accent-color: #7b2ff7; }
+  .param-row input[type="number"] { width: 52px; padding: 3px 4px; font-size: 12px; background: #0f3460; border: 1px solid #1a3a6e; color: #e0e0e0; border-radius: 3px; text-align: center; }
+  .param-row input[type="checkbox"] { accent-color: #7b2ff7; }
+  .param-row input[type="checkbox"] + label { width: auto; }
+  
+  /* 操作按钮 */
+  .action-row { display: flex; gap: 8px; }
+  .action-row button { flex: 1; padding: 8px 0; font-size: 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; }
+  .btn-primary { background: #533483; color: #fff; }
+  .btn-primary:hover { background: #6b3fa0; }
+  .btn-secondary { background: #0f3460; color: #ccc; }
+  .btn-secondary:hover { background: #1a4a80; }
+  .btn-export { background: #1a6b3c; color: #fff; }
+  .btn-export:hover { background: #218a4c; }
+  
+  #main { flex: 1; display: flex; align-items: center; justify-content: center; background: #1e1e30; position: relative; overflow: hidden; }
+  canvas { image-rendering: pixelated; }
+  #status-bar { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; color: #666; background: rgba(0,0,0,0.5); padding: 4px 12px; border-radius: 10px; }
+  
+  .zoom-row { display: flex; gap: 4px; }
+  .zoom-row button { flex: 1; padding: 4px 0; font-size: 11px; border: 1px solid #0f3460; background: #1a1a2e; color: #999; border-radius: 3px; cursor: pointer; }
+  .zoom-row button:hover { background: #0f3460; color: #ccc; }
+  .zoom-row button.active { background: #533483; border-color: #7b2ff7; color: #fff; }
+  
+  .hint { font-size: 11px; color: #555; text-align: center; }
+  .shortcuts { font-size: 10px; color: #444; margin-top: auto; padding-top: 8px; border-top: 1px solid #0f3460; }
+  .shortcuts kbd { background: #1a1a2e; border: 1px solid #0f3460; padding: 1px 5px; border-radius: 2px; font-size: 10px; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h2>🔫 子弹动画预览</h2>
+  
+  <div id="mode-tabs">
+    <button class="active" data-mode="single">单帧预览</button>
+    <button data-mode="strip">整图切分</button>
+  </div>
+  
+  <div id="action-buttons"></div>
+  
+  <!-- 自动检测结果 -->
+  <div id="detect-result">
+    <h3>🤖 自动检测帧宽</h3>
+    <div id="detect-info">加载中...</div>
+    <div id="detect-actions">
+      <button class="primary" id="btn-use-detect">✓ 使用检测值</button>
+      <button id="btn-re-detect">↻ 重新检测</button>
+    </div>
+  </div>
+  
+  <div id="playback">
+    <button id="btn-to-start" title="首帧">|◀</button>
+    <button id="btn-prev" title="上一帧">◀</button>
+    <button id="btn-play" title="播放/暂停" style="width:44px;font-weight:bold;">▶</button>
+    <button id="btn-next" title="下一帧">▶</button>
+    <button id="btn-to-end" title="尾帧">▶|</button>
+    <span id="frame-indicator">0 / 0</span>
+  </div>
+  
+  <div class="param-group">
+    <h3>序列帧参数</h3>
+    <div class="param-row">
+      <label>帧数</label>
+      <input type="range" id="param-frames" min="1" max="20" value="5" step="1">
+      <input type="number" id="param-frames-num" min="1" max="99" value="5">
+    </div>
+    <div class="param-row">
+      <label>帧宽</label>
+      <input type="range" id="param-fw" min="8" max="200" value="34" step="1">
+      <input type="number" id="param-fw-num" min="1" max="9999" value="34">
+    </div>
+    <div class="param-row">
+      <label>帧高</label>
+      <input type="range" id="param-fh" min="8" max="200" value="47" step="1">
+      <input type="number" id="param-fh-num" min="1" max="9999" value="47">
+    </div>
+    <div class="param-row">
+      <label>FPS</label>
+      <input type="range" id="param-fps" min="1" max="30" value="8" step="1">
+      <input type="number" id="param-fps-num" min="1" max="60" value="8">
+    </div>
+    <div class="param-row">
+      <label>Y偏移</label>
+      <input type="range" id="param-y" min="-50" max="50" value="0" step="1">
+      <input type="number" id="param-y-num" min="-999" max="999" value="0">
+    </div>
+    <div class="param-row">
+      <label>X偏移</label>
+      <input type="range" id="param-x" min="-50" max="50" value="0" step="1">
+      <input type="number" id="param-x-num" min="-999" max="999" value="0">
+    </div>
+    <div class="param-row">
+      <input type="checkbox" id="param-loop" checked>
+      <label for="param-loop">循环播放</label>
+    </div>
+    <div class="param-row">
+      <input type="checkbox" id="param-mirror">
+      <label for="param-mirror">镜像翻转</label>
+    </div>
+  </div>
+  
+  <div class="param-group">
+    <h3>显示选项</h3>
+    <div class="zoom-row">
+      <button class="active" data-zoom="1">1x</button>
+      <button data-zoom="2">2x</button>
+      <button data-zoom="3">3x</button>
+      <button data-zoom="4">4x</button>
+    </div>
+    <div class="param-row" style="margin-top:8px;">
+      <input type="checkbox" id="param-grid">
+      <label for="param-grid">网格线</label>
+    </div>
+    <div class="param-row">
+      <input type="checkbox" id="param-cross">
+      <label for="param-cross">中心十字</label>
+    </div>
+    <div class="param-row">
+      <input type="checkbox" id="param-boundary">
+      <label for="param-boundary">帧边界框</label>
+    </div>
+  </div>
+  
+  <div class="action-row">
+    <button class="btn-primary" id="btn-save">💾 保存参数</button>
+    <button class="btn-export" id="btn-export">📥 导出 JSON</button>
+  </div>
+  
+  <button class="btn-secondary" id="btn-reset" style="width:100%;">↺ 重置为默认</button>
+  
+  <div class="shortcuts">
+    快捷键：<kbd>Space</kbd> 播放/暂停 &nbsp; <kbd>←</kbd><kbd>→</kbd> 逐帧 &nbsp; <kbd>1</kbd>-<kbd>3</kbd> 切换子弹
+  </div>
+</div>
+
+<div id="main">
+  <canvas id="canvas"></canvas>
+  <div id="status-bar">准备就绪</div>
+</div>
+
+<script>
+// ============ 动作定义 ============
+const ACTIONS = [
+  { id: 'small-bullet',   file: 'small-bullet.png',   name: 'Small 小子弹',    frames: 4,  fw: 14,  fh: 19, fps: 8 },
+  { id: 'middle-bullet',  file: 'middle-bullet.png',  name: 'Middle 中子弹',   frames: 9,  fw: 30,  fh: 28, fps: 10 },
+  { id: 'big-bullet',     file: 'big-bullet.png',     name: 'Big 大子弹',      frames: 10, fw: 32,  fh: 43, fps: 10 },
+];
+
+// ============ 状态 ============
+let currentActionIdx = 0;
+let currentAction = { ...ACTIONS[0] };
+let currentFrame = 0;
+let playing = true;
+let loop = true;
+let mirror = false;
+let showGrid = false;
+let showCross = false;
+let showBoundary = false;
+let zoom = 2;
+let offsetY = 0;
+let offsetX = 0;
+let animTimer = 0;
+let lastTime = 0;
+let viewMode = 'single'; // 'single' | 'strip'
+
+const imgCache = {};
+
+// 自动检测结果缓存
+const detectCache = {};
+
+// ============ DOM ============
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const mainDiv = document.getElementById('main');
+const statusBar = document.getElementById('status-bar');
+const actionButtonsDiv = document.getElementById('action-buttons');
+const frameIndicator = document.getElementById('frame-indicator');
+const btnPlay = document.getElementById('btn-play');
+const detectInfo = document.getElementById('detect-info');
+
+const paramFrames = document.getElementById('param-frames');
+const paramFramesNum = document.getElementById('param-frames-num');
+const paramFw = document.getElementById('param-fw');
+const paramFwNum = document.getElementById('param-fw-num');
+const paramFh = document.getElementById('param-fh');
+const paramFhNum = document.getElementById('param-fh-num');
+const paramFps = document.getElementById('param-fps');
+const paramFpsNum = document.getElementById('param-fps-num');
+const paramY = document.getElementById('param-y');
+const paramYNum = document.getElementById('param-y-num');
+const paramX = document.getElementById('param-x');
+const paramXNum = document.getElementById('param-x-num');
+const paramLoop = document.getElementById('param-loop');
+const paramMirror = document.getElementById('param-mirror');
+const paramGrid = document.getElementById('param-grid');
+const paramCross = document.getElementById('param-cross');
+const paramBoundary = document.getElementById('param-boundary');
+
+// ============ 自动帧边界检测 ============
+function detectFrameBoundaries(img) {
+  const cacheKey = img.src;
+  if (detectCache[cacheKey]) return detectCache[cacheKey];
+
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = img.naturalWidth;
+  offCanvas.height = img.naturalHeight;
+  const offCtx = offCanvas.getContext('2d');
+  offCtx.drawImage(img, 0, 0);
+
+  const imageData = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
+  const data = imageData.data;
+  const w = offCanvas.width;
+  const h = offCanvas.height;
+
+  // 逐列分析：判断每列是否为"空白列"（帧间隔）
+  // 方法：统计该列中"不透明"像素的比例
+  const columnOpacity = new Float32Array(w);
+  const columnContent = new Float32Array(w); // 有实际内容的像素（非绿色幕布）
+
+  for (let col = 0; col < w; col++) {
+    let opaqueCount = 0;
+    let contentCount = 0;
+    for (let row = 0; row < h; row++) {
+      const idx = (row * w + col) * 4;
+      const r = data[idx];
+      const g = data[idx + 1];
+      const b = data[idx + 2];
+      const a = data[idx + 3];
+
+      if (a > 30) {
+        opaqueCount++;
+        // 非绿色幕布判定（绿色幕布特征：G > R+30 && G > B+30 && G > 80）
+        if (!(g > r + 30 && g > b + 30 && g > 80)) {
+          contentCount++;
+        }
+      }
+    }
+    columnOpacity[col] = opaqueCount / h;
+    columnContent[col] = contentCount / h;
+  }
+
+  // 找帧间隔列：几乎全透明，或者几乎全是绿色幕布
+  // 阈值：该列"有内容"的像素 < 5%
+  const gapThreshold = 0.05;
+
+  // 找连续的非间隔区域 = 帧
+  const regions = [];
+  let regionStart = -1;
+  for (let col = 0; col < w; col++) {
+    const isGap = columnContent[col] < gapThreshold;
+    if (!isGap && regionStart === -1) {
+      regionStart = col;
+    } else if (isGap && regionStart !== -1) {
+      regions.push({ start: regionStart, end: col - 1, width: col - regionStart });
+      regionStart = -1;
+    }
+  }
+  if (regionStart !== -1) {
+    regions.push({ start: regionStart, end: w - 1, width: w - regionStart });
+  }
+
+  // 过滤掉太窄的区域（噪点）
+  const minFrameWidth = 4;
+  const validRegions = regions.filter(r => r.width >= minFrameWidth);
+
+  const result = {
+    totalColumns: w,
+    totalHeight: h,
+    gapColumns: [],
+    frameRegions: validRegions,
+    frameCount: validRegions.length,
+    // 计算最常见的帧宽（众数）
+    commonFrameWidth: null,
+    // 帧宽是否一致
+    allSameWidth: true,
+    // 帧间距（如果帧之间间隔一致）
+    avgGapWidth: 0,
+  };
+
+  if (validRegions.length >= 1) {
+    const widths = validRegions.map(r => r.width);
+    const uniqueWidths = [...new Set(widths)];
+    result.allSameWidth = uniqueWidths.length === 1;
+    // 取出现次数最多的宽度
+    const freq = {};
+    widths.forEach(w => { freq[w] = (freq[w] || 0) + 1; });
+    result.commonFrameWidth = parseInt(Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0]);
+  }
+
+  // 计算帧间距
+  if (validRegions.length >= 2) {
+    const gaps = [];
+    for (let i = 1; i < validRegions.length; i++) {
+      gaps.push(validRegions[i].start - validRegions[i - 1].end - 1);
+    }
+    result.avgGapWidth = Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length);
+  }
+
+  detectCache[cacheKey] = result;
+  return result;
+}
+
+function renderDetectResult() {
+  const img = imgCache[currentAction.file];
+  if (!img) {
+    detectInfo.innerHTML = '<span class="warn">图片未加载</span>';
+    return;
+  }
+
+  const result = detectFrameBoundaries(img);
+
+  if (!result || result.frameCount === 0) {
+    detectInfo.innerHTML = '<span class="warn">⚠ 未能检测到帧边界，请手动调整</span>';
+    return;
+  }
+
+  let html = '';
+  html += `检测到 <span class="val">${result.frameCount}</span> 帧<br>`;
+  html += `帧宽: <span class="val">${result.commonFrameWidth}px</span>`;
+  if (!result.allSameWidth) {
+    html += ` <span class="warn">(不等宽!)</span>`;
+    html += `<br>各帧宽: ${result.frameRegions.map(r => r.width).join(', ')}`;
+  }
+  html += `<br>帧高: <span class="val">${result.totalHeight}px</span>`;
+  if (result.avgGapWidth > 0) {
+    html += `<br>帧间距: <span class="val">${result.avgGapWidth}px</span>`;
+  } else {
+    html += `<br>帧间距: <span class="val">0</span> (紧密排列)`;
+  }
+
+  // 对比当前手动值
+  const curFw = currentAction.fw;
+  const curFrames = currentAction.frames;
+  if (curFw !== result.commonFrameWidth || curFrames !== result.frameCount) {
+    html += `<br><span class="warn">⚠ 当前手动值与检测值不一致</span>`;
+  }
+
+  detectInfo.innerHTML = html;
+}
+
+function useDetectedValues() {
+  const img = imgCache[currentAction.file];
+  if (!img) return;
+
+  const result = detectFrameBoundaries(img);
+  if (!result || result.frameCount === 0) return;
+
+  currentAction.frames = result.frameCount;
+  currentAction.fw = result.commonFrameWidth;
+  currentAction.fh = result.totalHeight;
+  currentFrame = Math.min(currentFrame, result.frameCount - 1);
+
+  syncParamsToUI();
+  statusBar.textContent = `已使用自动检测值: ${result.frameCount}帧 × ${result.commonFrameWidth}px`;
+  setTimeout(() => { statusBar.textContent = '准备就绪'; }, 2500);
+}
+
+// ============ 整图切分预览渲染 ============
+function renderStripView() {
+  const cw = canvas.width;
+  const ch = canvas.height;
+  ctx.clearRect(0, 0, cw, ch);
+
+  const img = imgCache[currentAction.file];
+  if (!img) {
+    ctx.fillStyle = '#555';
+    ctx.font = '16px "Microsoft YaHei"';
+    ctx.textAlign = 'center';
+    ctx.fillText('加载中...', cw / 2, ch / 2);
+    return;
+  }
+
+  const result = detectFrameBoundaries(img);
+  const imgW = img.naturalWidth;
+  const imgH = img.naturalHeight;
+
+  // 缩放：让整图适应画布
+  const maxScale = Math.min(
+    (cw - 80) / imgW,
+    (ch - 80) / imgH,
+    4 // 最大 4x
+  );
+  const scale = Math.max(1, Math.floor(maxScale));
+
+  const drawW = imgW * scale;
+  const drawH = imgH * scale;
+  const dx = (cw - drawW) / 2;
+  const dy = (ch - drawH) / 2;
+
+  // 棋盘格背景
+  drawCheckerboard(dx, dy, drawW, drawH);
+
+  // 裁剪区域
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(dx, dy, drawW, drawH);
+  ctx.clip();
+
+  // 绘制完整图片
+  ctx.drawImage(img, 0, 0, imgW, imgH, dx, dy, drawW, drawH);
+
+  // 帧边界线
+  if (result && result.frameRegions.length > 0) {
+    // 半透明彩色覆盖每帧区域
+    const colors = [
+      'rgba(123, 47, 247, 0.15)',   // 紫
+      'rgba(47, 123, 247, 0.15)',   // 蓝
+      'rgba(47, 247, 123, 0.15)',   // 绿
+      'rgba(247, 123, 47, 0.15)',   // 橙
+      'rgba(247, 47, 123, 0.15)',   // 粉
+      'rgba(247, 200, 47, 0.15)',   // 黄
+    ];
+
+    result.frameRegions.forEach((region, i) => {
+      const color = colors[i % colors.length];
+      const rx = dx + region.start * scale;
+      const ry = dy;
+      const rw = region.width * scale;
+      const rh = drawH;
+
+      // 填充
+      ctx.fillStyle = color;
+      ctx.fillRect(rx, ry, rw, rh);
+
+      // 边框
+      ctx.strokeStyle = colors[i % colors.length].replace('0.15', '0.7');
+      ctx.lineWidth = 2;
+      ctx.strokeRect(rx, ry, rw, rh);
+
+      // 帧号标签
+      ctx.fillStyle = '#fff';
+      ctx.font = `${Math.max(10, 12 * scale)}px "Microsoft YaHei"`;
+      ctx.textAlign = 'center';
+      ctx.fillText(`#${i + 1}`, rx + rw / 2, ry + rh - 4 * scale);
+    });
+  }
+
+  ctx.restore();
+
+  // 图例
+  const legendX = dx;
+  const legendY = dy + drawH + 16;
+  ctx.fillStyle = '#666';
+  ctx.font = '11px "Microsoft YaHei"';
+  ctx.textAlign = 'left';
+  ctx.fillText(`原图: ${imgW}×${imgH}px | 缩放: ${scale}x`, legendX, legendY);
+
+  if (result && result.frameCount > 0) {
+    ctx.fillText(
+      `检测: ${result.frameCount}帧 × ${result.commonFrameWidth}px | 间距: ${result.avgGapWidth}px`,
+      legendX, legendY + 16
+    );
+  }
+}
+
+// ============ 初始化 ============
+function init() {
+  buildActionButtons();
+  bindEvents();
+  loadSavedParams();
+  loadCurrentImage(() => {
+    syncParamsToUI();
+    // 首次加载自动检测
+    const img = imgCache[currentAction.file];
+    if (img) {
+      const result = detectFrameBoundaries(img);
+      if (result && result.frameCount > 0) {
+        // 如果本地没有保存过参数，自动使用检测值
+        const saved = loadActionParams(currentAction.id);
+        if (!saved) {
+          currentAction.frames = result.frameCount;
+          currentAction.fw = result.commonFrameWidth;
+          currentAction.fh = result.totalHeight;
+          syncParamsToUI();
+        }
+      }
+    }
+    renderDetectResult();
+    requestAnimationFrame(loopFn);
+  });
+}
+
+function buildActionButtons() {
+  actionButtonsDiv.innerHTML = '';
+  ACTIONS.forEach((a, i) => {
+    const btn = document.createElement('button');
+    btn.textContent = a.name;
+    btn.dataset.idx = i;
+    if (i === currentActionIdx) btn.classList.add('active');
+    btn.addEventListener('click', () => switchAction(i));
+    actionButtonsDiv.appendChild(btn);
+  });
+}
+
+// ============ 动作切换 ============
+function switchAction(idx) {
+  if (idx === currentActionIdx) return;
+  saveCurrentParamsToAction();
+  currentActionIdx = idx;
+  currentAction = { ...ACTIONS[idx] };
+  currentFrame = 0;
+  animTimer = 0;
+
+  const saved = loadActionParams(currentAction.id);
+  if (saved) {
+    Object.assign(currentAction, saved);
+  }
+  currentAction.offsetY = offsetY;
+  currentAction.offsetX = offsetX;
+
+  syncParamsToUI();
+  updateActionButtonHighlight();
+  loadCurrentImage(() => {
+    renderDetectResult();
+  });
+}
+
+function saveCurrentParamsToAction() {
+  if (!currentAction) return;
+  currentAction.frames = paramFramesNum.valueAsNumber;
+  currentAction.fw = paramFwNum.valueAsNumber;
+  currentAction.fh = paramFhNum.valueAsNumber;
+  currentAction.fps = paramFpsNum.valueAsNumber;
+  currentAction.offsetY = offsetY;
+  currentAction.offsetX = offsetX;
+}
+
+function updateActionButtonHighlight() {
+  document.querySelectorAll('#action-buttons button').forEach((btn, i) => {
+    btn.classList.toggle('active', i === currentActionIdx);
+  });
+}
+
+function loadCurrentImage(callback) {
+  const key = currentAction.file;
+  if (imgCache[key]) {
+    callback();
+    return;
+  }
+  statusBar.textContent = '加载中...';
+  const img = new Image();
+  img.onload = () => {
+    imgCache[key] = img;
+    statusBar.textContent = '准备就绪';
+    callback();
+  };
+  img.onerror = () => {
+    statusBar.textContent = `加载失败: ${key}`;
+    callback();
+  };
+  img.src = currentAction.file;
+}
+
+function syncParamsToUI() {
+  paramFrames.value = currentAction.frames;
+  paramFramesNum.value = currentAction.frames;
+  paramFw.value = currentAction.fw;
+  paramFwNum.value = currentAction.fw;
+  paramFh.value = currentAction.fh;
+  paramFhNum.value = currentAction.fh;
+  paramFps.value = currentAction.fps;
+  paramFpsNum.value = currentAction.fps;
+  paramY.value = currentAction.offsetY || 0;
+  paramYNum.value = currentAction.offsetY || 0;
+  paramX.value = currentAction.offsetX || 0;
+  paramXNum.value = currentAction.offsetX || 0;
+  offsetY = currentAction.offsetY || 0;
+  offsetX = currentAction.offsetX || 0;
+
+  const img = imgCache[currentAction.file];
+  if (img) {
+    paramFw.max = Math.max(200, img.naturalWidth);
+    paramFwNum.max = Math.max(9999, img.naturalWidth);
+    paramFh.max = Math.max(200, img.naturalHeight);
+    paramFhNum.max = Math.max(9999, img.naturalHeight);
+  }
+}
+
+// ============ 事件绑定 ============
+function bindEvents() {
+  btnPlay.addEventListener('click', togglePlay);
+  document.getElementById('btn-prev').addEventListener('click', () => { playing = false; updatePlayBtn(); currentFrame = Math.max(0, currentFrame - 1); animTimer = 0; });
+  document.getElementById('btn-next').addEventListener('click', () => { playing = false; updatePlayBtn(); currentFrame = Math.min(currentAction.frames - 1, currentFrame + 1); animTimer = 0; });
+  document.getElementById('btn-to-start').addEventListener('click', () => { currentFrame = 0; animTimer = 0; });
+  document.getElementById('btn-to-end').addEventListener('click', () => { currentFrame = currentAction.frames - 1; animTimer = 0; });
+
+  bindParamPair(paramFrames, paramFramesNum, 'frames');
+  bindParamPair(paramFw, paramFwNum, 'fw');
+  bindParamPair(paramFh, paramFhNum, 'fh');
+  bindParamPair(paramFps, paramFpsNum, 'fps');
+  bindParamPair(paramY, paramYNum, 'offsetY');
+  bindParamPair(paramX, paramXNum, 'offsetX');
+
+  paramLoop.addEventListener('change', () => { loop = paramLoop.checked; });
+  paramMirror.addEventListener('change', () => { mirror = paramMirror.checked; });
+  paramGrid.addEventListener('change', () => { showGrid = paramGrid.checked; });
+  paramCross.addEventListener('change', () => { showCross = paramCross.checked; });
+  paramBoundary.addEventListener('change', () => { showBoundary = paramBoundary.checked; });
+
+  // 缩放
+  document.querySelectorAll('.zoom-row button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      zoom = parseInt(btn.dataset.zoom);
+      document.querySelectorAll('.zoom-row button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // 模式切换
+  document.querySelectorAll('#mode-tabs button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      viewMode = btn.dataset.mode;
+      document.querySelectorAll('#mode-tabs button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // 自动检测按钮
+  document.getElementById('btn-use-detect').addEventListener('click', useDetectedValues);
+  document.getElementById('btn-re-detect').addEventListener('click', () => {
+    const img = imgCache[currentAction.file];
+    if (img) {
+      delete detectCache[img.src];
+      detectFrameBoundaries(img);
+      renderDetectResult();
+      statusBar.textContent = '已重新检测 ✓';
+      setTimeout(() => { statusBar.textContent = '准备就绪'; }, 1500);
+    }
+  });
+
+  document.getElementById('btn-save').addEventListener('click', saveAllParams);
+  document.getElementById('btn-export').addEventListener('click', exportJSON);
+  document.getElementById('btn-reset').addEventListener('click', resetToDefaults);
+
+  document.addEventListener('keydown', handleKeyboard);
+  window.addEventListener('resize', resizeCanvas);
+}
+
+function bindParamPair(slider, numInput, propKey) {
+  slider.addEventListener('input', () => {
+    numInput.value = slider.value;
+    applyParam(propKey, parseInt(slider.value));
+  });
+  numInput.addEventListener('change', () => {
+    let v = parseInt(numInput.value);
+    if (isNaN(v)) v = 0;
+    v = Math.max(parseInt(slider.min), Math.min(parseInt(slider.max), v));
+    numInput.value = v;
+    slider.value = v;
+    applyParam(propKey, v);
+  });
+}
+
+function applyParam(key, value) {
+  switch (key) {
+    case 'frames': currentAction.frames = value; currentFrame = Math.min(currentFrame, value - 1); break;
+    case 'fw': currentAction.fw = value; break;
+    case 'fh': currentAction.fh = value; break;
+    case 'fps': currentAction.fps = value; break;
+    case 'offsetY': offsetY = value; break;
+    case 'offsetX': offsetX = value; break;
+  }
+  // 参数变化时更新检测结果对比
+  renderDetectResult();
+}
+
+function togglePlay() {
+  playing = !playing;
+  updatePlayBtn();
+}
+
+function updatePlayBtn() {
+  btnPlay.textContent = playing ? '⏸' : '▶';
+}
+
+function handleKeyboard(e) {
+  if (e.target.tagName === 'INPUT') return;
+  switch (e.key) {
+    case ' ':
+      e.preventDefault();
+      togglePlay();
+      break;
+    case 'ArrowLeft':
+      e.preventDefault();
+      playing = false; updatePlayBtn();
+      currentFrame = Math.max(0, currentFrame - 1); animTimer = 0;
+      break;
+    case 'ArrowRight':
+      e.preventDefault();
+      playing = false; updatePlayBtn();
+      currentFrame = Math.min(currentAction.frames - 1, currentFrame + 1); animTimer = 0;
+      break;
+    case 'Home':
+      currentFrame = 0; animTimer = 0;
+      break;
+    case 'End':
+      currentFrame = currentAction.frames - 1; animTimer = 0;
+      break;
+    default:
+      if (e.key >= '1' && e.key <= '9') {
+        const idx = parseInt(e.key) - 1;
+        if (idx < ACTIONS.length) switchAction(idx);
+      }
+      break;
+  }
+}
+
+// ============ 渲染循环 ============
+function loopFn(timestamp) {
+  if (!lastTime) lastTime = timestamp;
+  const dt = (timestamp - lastTime) / 1000;
+  lastTime = timestamp;
+
+  if (playing && currentAction.frames > 1) {
+    const frameDuration = 1 / currentAction.fps;
+    animTimer += dt;
+    while (animTimer >= frameDuration) {
+      animTimer -= frameDuration;
+      currentFrame++;
+      if (currentFrame >= currentAction.frames) {
+        if (loop) {
+          currentFrame = 0;
+        } else {
+          currentFrame = currentAction.frames - 1;
+          playing = false;
+          updatePlayBtn();
+        }
+      }
+    }
+  }
+
+  frameIndicator.textContent = `${currentFrame + 1} / ${currentAction.frames}`;
+
+  resizeCanvas();
+
+  if (viewMode === 'strip') {
+    renderStripView();
+  } else {
+    renderSingleFrame();
+  }
+
+  requestAnimationFrame(loopFn);
+}
+
+function resizeCanvas() {
+  const w = mainDiv.clientWidth;
+  const h = mainDiv.clientHeight;
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+}
+
+function renderSingleFrame() {
+  const cw = canvas.width;
+  const ch = canvas.height;
+  ctx.clearRect(0, 0, cw, ch);
+
+  const img = imgCache[currentAction.file];
+  if (!img) {
+    ctx.fillStyle = '#555';
+    ctx.font = '16px "Microsoft YaHei"';
+    ctx.textAlign = 'center';
+    ctx.fillText('加载中...', cw / 2, ch / 2);
+    return;
+  }
+
+  const { fw, fh, frames } = currentAction;
+  const sx = currentFrame * fw;
+  const sy = 0;
+  const sw = Math.min(fw, img.naturalWidth - sx);
+  const sh = Math.min(fh, img.naturalHeight);
+
+  const drawW = fw * zoom;
+  const drawH = fh * zoom;
+  const dx = (cw - drawW) / 2 + offsetX * zoom;
+  const dy = (ch - drawH) / 2 + offsetY * zoom;
+
+  ctx.save();
+  drawCheckerboard(dx, dy, drawW, drawH);
+  ctx.beginPath();
+  ctx.rect(dx, dy, drawW, drawH);
+  ctx.clip();
+
+  if (mirror) {
+    ctx.translate(dx + drawW / 2, 0);
+    ctx.scale(-1, 1);
+    ctx.translate(-(dx + drawW / 2), 0);
+  }
+
+  ctx.drawImage(img, sx, sy, sw, sh, dx, dy, drawW, drawH);
+  removeGreenScreen(dx, dy, drawW, drawH);
+  ctx.restore();
+
+  if (showGrid) drawGrid(dx, dy, drawW, drawH);
+  if (showBoundary) drawBoundary(dx, dy, drawW, drawH);
+  if (showCross) drawCross(dx + drawW / 2, dy + drawH / 2, drawW, drawH);
+}
+
+function drawCheckerboard(x, y, w, h) {
+  const size = 8 * zoom;
+  const cols = Math.ceil(w / size);
+  const rows = Math.ceil(h / size);
+  ctx.fillStyle = '#2a2a3a';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#333348';
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if ((r + c) % 2 === 0) {
+        ctx.fillRect(x + c * size, y + r * size, Math.min(size, w - c * size), Math.min(size, h - r * size));
+      }
+    }
+  }
+}
+
+function removeGreenScreen(x, y, w, h) {
+  const imageData = ctx.getImageData(x, y, w, h);
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    if (g > r + 30 && g > b + 30 && g > 80) {
+      data[i + 3] = 0;
+    }
+  }
+  ctx.putImageData(imageData, x, y);
+}
+
+function drawGrid(x, y, w, h) {
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 1;
+  const step = currentAction.fw * zoom;
+  for (let cx = x; cx <= x + w; cx += step) {
+    ctx.beginPath();
+    ctx.moveTo(cx, y);
+    ctx.lineTo(cx, y + h);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.beginPath();
+  ctx.moveTo(x, y + h / 2);
+  ctx.lineTo(x + w, y + h / 2);
+  ctx.stroke();
+}
+
+function drawBoundary(x, y, w, h) {
+  ctx.strokeStyle = '#7b2ff7';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+}
+
+function drawCross(cx, cy, w, h) {
+  ctx.strokeStyle = 'rgba(255,100,100,0.5)';
+  ctx.lineWidth = 1;
+  const len = Math.min(w, h) * 0.3;
+  ctx.beginPath();
+  ctx.moveTo(cx - len, cy);
+  ctx.lineTo(cx + len, cy);
+  ctx.moveTo(cx, cy - len);
+  ctx.lineTo(cx, cy + len);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,100,100,0.8)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3 * zoom, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ============ localStorage ============
+function loadSavedParams() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('rockman_anim_params') || '{}');
+    ACTIONS.forEach(a => {
+      if (saved[a.id]) Object.assign(a, saved[a.id]);
+    });
+  } catch (e) {}
+}
+
+function loadActionParams(id) {
+  try {
+    const saved = JSON.parse(localStorage.getItem('rockman_anim_params') || '{}');
+    return saved[id] || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveAllParams() {
+  saveCurrentParamsToAction();
+  const toSave = {};
+  ACTIONS.forEach(a => {
+    toSave[a.id] = {
+      frames: a.frames, fw: a.fw, fh: a.fh, fps: a.fps,
+      offsetY: a.offsetY || 0, offsetX: a.offsetX || 0,
+    };
+  });
+  try {
+    localStorage.setItem('rockman_anim_params', JSON.stringify(toSave));
+    statusBar.textContent = '参数已保存到本地 ✓';
+    setTimeout(() => { statusBar.textContent = '准备就绪'; }, 2000);
+  } catch (e) {
+    statusBar.textContent = '保存失败!';
+  }
+}
+
+function resetToDefaults() {
+  if (!confirm('确定要重置所有动作参数为默认值吗？')) return;
+  localStorage.removeItem('rockman_anim_params');
+  const originals = [
+    { frames: 4,  fw: 14,  fh: 19, fps: 8,  offsetY: 0, offsetX: 0 },
+    { frames: 9,  fw: 30,  fh: 28, fps: 10, offsetY: 0, offsetX: 0 },
+    { frames: 10, fw: 32,  fh: 43, fps: 10, offsetY: 0, offsetX: 0 },
+  ];
+  ACTIONS.forEach((a, i) => Object.assign(a, originals[i]));
+  currentAction = { ...ACTIONS[currentActionIdx] };
+  currentFrame = 0; animTimer = 0;
+  offsetY = 0; offsetX = 0;
+  syncParamsToUI();
+  statusBar.textContent = '已重置为默认值 ✓';
+  setTimeout(() => { statusBar.textContent = '准备就绪'; }, 2000);
+}
+
+function exportJSON() {
+  saveCurrentParamsToAction();
+  const exportData = { exportedAt: new Date().toISOString(), actions: {} };
+  ACTIONS.forEach(a => {
+    exportData.actions[a.id] = {
+      file: a.file, name: a.name,
+      frames: a.frames, frameWidth: a.fw, frameHeight: a.fh, fps: a.fps,
+      offsetY: a.offsetY || 0, offsetX: a.offsetX || 0,
+    };
+  });
+  const json = JSON.stringify(exportData, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'rockman_anim_params.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  statusBar.textContent = 'JSON 已导出 ✓';
+  setTimeout(() => { statusBar.textContent = '准备就绪'; }, 2000);
+}
+
+init();
+</script>
+</body>
+</html>
