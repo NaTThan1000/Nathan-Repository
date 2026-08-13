@@ -128,6 +128,25 @@ const P = {
 };
 const DMG = { 0: 1, 1: 3, 2: 6 };
 
+// ==================== 子弹 Sprite 资源 ====================
+// 小蓄力子弹（power=1）动画：等宽条带 5 帧 × 40px × 19px
+const BULLET_SPRITE = {
+  src: 'Assets/Assets-Clean/middle-bullet-flying_strip (1).png',
+  frames: 5,
+  frameW: 40,
+  frameH: 19,
+  fps: 10,
+  displayW: 54,   // 显示尺寸（匹配碰撞体积 54×36）
+  displayH: 36,
+  img: null,
+  loaded: false,
+};
+(function loadBulletSprite() {
+  BULLET_SPRITE.img = new Image();
+  BULLET_SPRITE.img.onload = () => { BULLET_SPRITE.loaded = true; };
+  BULLET_SPRITE.img.src = BULLET_SPRITE.src;
+})();
+
 const canvas = document.getElementById('game');
 canvas.width = VW; canvas.height = VH;
 const ctx = canvas.getContext('2d');
@@ -354,10 +373,12 @@ function spawnBullet(x, y, dir, power) {
   const baseW = 18, baseH = 12; // 普通子弹碰撞体积
   bullets.push({
     x, y: y + P.PH / 2 - 4, vx: P.BULLET * dir, vy: 0,
+    dir,                                     // 面朝方向（用于 sprite 镜像）
     w: power === 2 ? baseW * 5 : power === 1 ? baseW * 3 : baseW,
     h: power === 2 ? baseH * 5 : power === 1 ? baseH * 3 : baseH,
     power, dmg: DMG[power], life: 120,
     color: power === 2 ? '#ff4444' : power === 1 ? '#ffaa00' : '#ffff00',
+    animT: 0,                                 // sprite 动画计时器
   });
 }
 function spawnEBullet(x, y, vx, vy) {
@@ -719,7 +740,7 @@ function update() {
   // 玩家子弹 vs 怪物/墙
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
-    b.x += b.vx; b.life--;
+    b.x += b.vx; b.life--; b.animT++;
     const br = { x: b.x - b.w / 2, y: b.y - b.h / 2, w: b.w, h: b.h };
     let hit = false;
     for (let r = 0; r < LH; r++) for (let c = 0; c < LW; c++) {
@@ -890,9 +911,28 @@ function drawBullets() {
       ctx.beginPath(); ctx.arc(bx, by, 30, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(bx, by, 20, 0, Math.PI * 2); ctx.fill(); ctx.restore();
     } else if (b.power === 1) {
-      // 蓄力: 普通×3 (8×6 → 24×18)
-      ctx.fillStyle = b.color; ctx.fillRect(bx - 12, by - 9, 24, 18);
-      ctx.fillStyle = '#fff'; ctx.fillRect(bx - 6, by - 6, 12, 12);
+      // 小蓄力子弹: 用 sprite 动画渲染（5帧循环），放大到 54×36 匹配碰撞体积
+      if (BULLET_SPRITE.loaded) {
+        const S = BULLET_SPRITE;
+        const frameDur = Math.round(60 / S.fps);   // 每帧持续帧数
+        const fi = Math.floor(b.animT / frameDur) % S.frames;  // 当前帧索引
+        const sx = fi * S.frameW;
+        const dw = S.displayW, dh = S.displayH;
+        ctx.save();
+        // 按子弹面朝方向镜像（dir=1 右，dir=-1 左）
+        if (b.dir < 0) {
+          ctx.translate(bx, by);
+          ctx.scale(-1, 1);
+          ctx.drawImage(S.img, sx, 0, S.frameW, S.frameH, -dw / 2, -dh / 2, dw, dh);
+        } else {
+          ctx.drawImage(S.img, sx, 0, S.frameW, S.frameH, bx - dw / 2, by - dh / 2, dw, dh);
+        }
+        ctx.restore();
+      } else {
+        // 图片未加载完成时的 fallback
+        ctx.fillStyle = b.color; ctx.fillRect(bx - 12, by - 9, 24, 18);
+        ctx.fillStyle = '#fff'; ctx.fillRect(bx - 6, by - 6, 12, 12);
+      }
     } else {
       // 普通: 3倍 (6×4 → 18×12)
       ctx.fillStyle = '#ff0'; ctx.fillRect(bx - 9, by - 6, 18, 12);

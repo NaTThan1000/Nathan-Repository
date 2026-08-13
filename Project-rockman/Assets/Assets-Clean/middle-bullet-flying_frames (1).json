@@ -1,0 +1,45 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "middle-bullet.png",
+  "exportedAt": "2026-08-13T03:57:09.397Z",
+  "action": "middle-bullet-flying",
+  "fps": 10,
+  "frames": [
+    {
+      "x": 47,
+      "y": 10,
+      "w": 28,
+      "h": 12
+    },
+    {
+      "x": 77,
+      "y": 13,
+      "w": 32,
+      "h": 8
+    },
+    {
+      "x": 111,
+      "y": 11,
+      "w": 38,
+      "h": 12
+    },
+    {
+      "x": 151,
+      "y": 7,
+      "w": 36,
+      "h": 19
+    },
+    {
+      "x": 189,
+      "y": 7,
+      "w": 40,
+      "h": 18
+    }
+  ],
+  "meta": {
+    "imageWidth": 270,
+    "imageHeight": 28,
+    "cleanImage": "middle-bullet-flying_clean.png"
+  }
+}

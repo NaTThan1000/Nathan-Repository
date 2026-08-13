@@ -1,0 +1,1335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>精灵图切分工具 Sprite Cutter</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #1a1a2e; color: #e0e0e0; display: flex; height: 100vh; overflow: hidden; }
+  a { color: #7aa2f7; }
+
+  #sidebar { width: 330px; min-width: 330px; background: #16213e; padding: 14px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; border-right: 1px solid #0f3460; }
+  #sidebar h2 { font-size: 15px; color: #7aa2f7; text-align: center; padding-bottom: 4px; border-bottom: 1px solid #0f3460; }
+
+  .panel { background: #1a1a2e; border-radius: 6px; padding: 10px; }
+  .panel h3 { font-size: 12px; color: #7aa2f7; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+
+  .row { display: flex; align-items: center; margin-bottom: 6px; gap: 8px; flex-wrap: wrap; }
+  .row label { font-size: 12px; color: #999; flex-shrink: 0; }
+  .row input[type="range"] { flex: 1; height: 4px; accent-color: #7b2ff7; }
+  .row input[type="number"] { width: 60px; padding: 3px 4px; font-size: 12px; background: #0f3460; border: 1px solid #1a3a6e; color: #e0e0e0; border-radius: 3px; text-align: center; }
+  .row input[type="checkbox"] { accent-color: #7b2ff7; }
+  .row input[type="text"] { flex: 1; padding: 4px 6px; font-size: 12px; background: #0f3460; border: 1px solid #1a3a6e; color: #e0e0e0; border-radius: 3px; }
+  .row input[type="radio"] { accent-color: #7b2ff7; }
+  .row .rad-label { font-size: 12px; color: #ccc; }
+
+  .btn { flex: 1; padding: 7px 0; font-size: 12px; border: 1px solid #0f3460; background: #1a1a2e; color: #ccc; border-radius: 4px; cursor: pointer; white-space: nowrap; transition: 0.15s; }
+  .btn:hover { background: #0f3460; color: #fff; }
+  .btn.primary { background: #533483; border-color: #7b2ff7; color: #fff; }
+  .btn.primary:hover { background: #6b3fa0; }
+  .btn.success { background: #1a6b3c; border-color: #218a4c; color: #fff; }
+  .btn.success:hover { background: #218a4c; }
+  .btn.danger { background: #4a1a1a; border-color: #7a2b2b; color: #ff9e9e; }
+  .btn.danger:hover { background: #6b2b2b; color: #fff; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+
+  .btn-row { display: flex; gap: 6px; }
+
+  /* 文件区 */
+  #dropzone { border: 2px dashed #0f3460; border-radius: 6px; padding: 18px 10px; text-align: center; color: #777; font-size: 12px; cursor: pointer; transition: 0.15s; }
+  #dropzone:hover, #dropzone.dragover { border-color: #7b2ff7; background: #1e1e3a; color: #bbb; }
+  #dropzone .file-info { color: #5cff7e; margin-top: 6px; word-break: break-all; }
+
+  /* 信息行 */
+  .info-line { font-size: 11px; color: #aaa; line-height: 1.7; }
+  .info-line .val { color: #5cff7e; font-weight: bold; }
+  .info-line .warn { color: #ff9e64; }
+
+  /* 预览 */
+  #preview-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  #preview { background: #1e1e30; border: 1px solid #0f3460; border-radius: 6px; image-rendering: pixelated; }
+  #playback { display: flex; align-items: center; gap: 4px; width: 100%; }
+  #playback button { width: 30px; height: 26px; font-size: 12px; border: 1px solid #0f3460; background: #1a1a2e; color: #ccc; border-radius: 4px; cursor: pointer; }
+  #playback button:hover { background: #0f3460; }
+  #frame-indicator { font-size: 12px; color: #aaa; text-align: center; flex: 1; }
+
+  #status-bar { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; color: #ddd; background: rgba(0,0,0,0.7); padding: 5px 14px; border-radius: 12px; z-index: 5; white-space: nowrap; }
+  #toast { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); font-size: 13px; color: #fff; background: rgba(15,20,40,0.95); border: 1px solid #7b2ff7; padding: 8px 18px; border-radius: 8px; z-index: 100; display: none; max-width: 80vw; text-align: center; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+
+  #main { flex: 1; display: flex; align-items: center; justify-content: center; background: #1e1e30; position: relative; overflow: hidden; }
+  #canvas { image-rendering: pixelated; cursor: crosshair; }
+
+  .zoom-row { display: flex; gap: 4px; }
+  .zoom-row button { flex: 1; padding: 4px 0; font-size: 11px; border: 1px solid #0f3460; background: #1a1a2e; color: #999; border-radius: 3px; cursor: pointer; }
+  .zoom-row button:hover { background: #0f3460; color: #ccc; }
+  .zoom-row button.active { background: #533483; border-color: #7b2ff7; color: #fff; }
+
+  .hint { font-size: 11px; color: #777; line-height: 1.7; }
+  .hint kbd { background: #1a1a2e; border: 1px solid #0f3460; padding: 0 4px; border-radius: 2px; color: #bbb; }
+
+  .divider-line { border: none; border-top: 1px solid #0f3460; margin: 4px 0; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h2>✂ 精灵图切分工具</h2>
+
+  <div class="panel">
+    <h3>① 加载图片</h3>
+    <div id="dropzone">
+      点击选择 / 拖入 PNG 图片
+      <div class="file-info" id="file-info"></div>
+    </div>
+    <input type="file" id="file-input" accept="image/*" style="display:none;">
+    <div class="hint" style="margin-top:8px;">
+      建议使用原始大图（如 <b>idle-assets.png</b>），可含多行动画。<br>
+      已处理过的单行条带也可以直接载入。
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>② 绿幕去除</h3>
+    <div class="row">
+      <label style="width:34px;">容差</label>
+      <input type="range" id="green-tol" min="10" max="90" value="30" step="1">
+      <input type="number" id="green-tol-num" min="10" max="90" value="30">
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-reprocess">↻ 重新处理</button>
+      <button class="btn success" id="btn-export-clean">导出干净整图</button>
+    </div>
+    <div class="hint" style="margin-top:6px;">
+      容差越大，被判定为绿色幕布而变透明的颜色范围越广。
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>③ 框选动画行 + 分割线</h3>
+    <div class="btn-row">
+      <button class="btn primary" id="btn-detect-rows">🤖 自动找行</button>
+      <button class="btn primary" id="btn-detect-divs">🤖 检测本行</button>
+    </div>
+    <div class="btn-row" style="margin-top:6px;">
+      <button class="btn" id="btn-adopt">✓ 采纳建议分割线</button>
+      <button class="btn danger" id="btn-clear-divs">✕ 清除分割线</button>
+      <button class="btn" id="btn-undo">↶ 撤销</button>
+    </div>
+    <div class="row" style="margin-top:6px;">
+      <label style="width:34px;">阈值</label>
+      <input type="range" id="detect-th" min="1" max="20" value="5" step="1">
+      <input type="number" id="detect-th-num" min="1" max="50" value="5">
+      <label style="width:auto;">%</label>
+    </div>
+    <div class="row">
+      <label style="width:34px;">选区</label>
+      <input type="number" id="sel-x" placeholder="X" title="X">
+      <input type="number" id="sel-y" placeholder="Y" title="Y">
+      <input type="number" id="sel-w" placeholder="W" title="宽">
+      <input type="number" id="sel-h" placeholder="H" title="高">
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-full-row">⤢ 整行(全宽)</button>
+      <button class="btn" id="btn-clear-sel">清除选区</button>
+    </div>
+    <div class="info-line" id="detect-info">尚未检测</div>
+  </div>
+
+  <div class="panel">
+    <h3>④ 动画预览</h3>
+    <div id="preview-wrap">
+      <canvas id="preview" width="220" height="160"></canvas>
+      <div id="playback">
+        <button id="btn-to-start" title="首帧">|◀</button>
+        <button id="btn-prev" title="上一帧">◀</button>
+        <button id="btn-play" title="播放/暂停" style="width:38px;font-weight:bold;">⏸</button>
+        <button id="btn-next" title="下一帧">▶</button>
+        <button id="btn-to-end" title="尾帧">▶|</button>
+        <span id="frame-indicator">0 / 0</span>
+      </div>
+      <div class="row">
+        <label>FPS</label>
+        <input type="range" id="fps" min="1" max="30" value="10" step="1">
+        <input type="number" id="fps-num" min="1" max="60" value="10">
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>⑤ 导出</h3>
+    <div class="row">
+      <label>名称</label>
+      <input type="text" id="prefix" value="idle">
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-copy-params" title="把当前选区/分割线/绿幕参数打包成 JSON，供本地生成脚本使用">📋 复制切割参数</button>
+    </div>
+    <div class="hint" style="margin-bottom:8px;">
+      复制参数 → 粘贴到 CodeBuddy 对话 → 用脚本在项目文件夹内直接生成 PNG / JSON
+    </div>
+    <div class="row">
+      <label>模式</label>
+      <label class="rad-label"><input type="radio" name="export-mode" value="strip" checked> A 等宽条带</label>
+      <label class="rad-label"><input type="radio" name="export-mode" value="json"> B JSON坐标</label>
+    </div>
+
+    <div id="strip-options">
+      <div class="row">
+        <label>帧宽</label>
+        <label class="rad-label"><input type="radio" name="fw-strategy" value="max" checked> 最大</label>
+        <label class="rad-label"><input type="radio" name="fw-strategy" value="avg"> 平均</label>
+        <label class="rad-label"><input type="radio" name="fw-strategy" value="custom"> 自定</label>
+        <input type="number" id="fw-custom" min="1" max="999" value="40" style="width:50px;">
+      </div>
+      <div class="row">
+        <label>对齐</label>
+        <label class="rad-label"><input type="radio" name="valign" value="center" checked> 居中</label>
+        <label class="rad-label"><input type="radio" name="valign" value="bottom"> 底部</label>
+        <label class="rad-label"><input type="radio" name="valign" value="top"> 顶部</label>
+      </div>
+      <div class="btn-row">
+        <button class="btn success" id="btn-export-strip">📥 导出等宽 PNG</button>
+      </div>
+    </div>
+
+    <div id="json-options" style="display:none;">
+      <div class="hint" style="margin-bottom:8px;">
+        导出每帧的内容精确包围盒坐标 <b>{x, y, w, h}</b>（相对整图，已去绿幕）。
+      </div>
+      <div class="btn-row">
+        <button class="btn success" id="btn-export-json">📥 导出 JSON</button>
+        <button class="btn" id="btn-copy-json">📋 复制 JSON</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>操作说明</h3>
+    <div class="hint">
+      <b>主画布操作</b><br>
+      · 拖拽空白处 → 框选一行动画区域<br>
+      · 单击选区内 → 添加分割线<br>
+      · 拖动分割线 → 移动微调<br>
+      · 单击分割线(不拖动) → 删除<br>
+      · 拖动选区边缘/角点 → 调整选区<br>
+      · 右键 → 删除最近的左侧分割线<br>
+      · 紫色虚线 = 自动检测建议（仅供参考）<br>
+      · 橙色实线 = 正式分割线（最终生效）<br>
+      <b>流程</b><br>
+      ① 载入大图 → ② 自动找行 → ③ 点击某行<br>
+      ④ 检测本行动画 → ⑤ 手动微调分割线 → ⑥ 预览 → ⑦ 导出
+    </div>
+  </div>
+</div>
+
+<div id="main">
+  <canvas id="canvas"></canvas>
+  <div id="status-bar">就绪</div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ============================================================
+// 状态
+// ============================================================
+const state = {
+  img: null,             // 原始 Image
+  fileName: '',
+  processedCanvas: null, // 去绿幕后的 canvas（用于绘制）
+  processedData: null,   // 去绿幕后的 ImageData（用于分析/导出）
+  sel: null,             // 选区 { x0, y0, x1, y1 }（图片坐标，归一化 x0<=x1）
+  dividers: [],          // 正式分割线（图片 x 坐标，升序）
+  autoRows: [],          // 自动检测出的行建议 [{y0,y1}]
+  autoDivs: [],          // 自动检测出的垂直分割建议（紫色虚线 x 坐标）
+  undoStack: [],         // 分割线撤销栈
+  zoom: 'fit',           // 'fit' | 1 | 2 | 3 | 4
+  scale: 1, ox: 0, oy: 0,
+  green: { tolerance: 30 },
+  detect: { threshold: 5, minFrameW: 4, minRowH: 8 },
+  export: { prefix: 'idle', mode: 'strip', fwStrategy: 'max', fwCustom: 40, vAlign: 'center', fps: 10 },
+  preview: { playing: true, idx: 0, acc: 0, lastTime: 0 },
+};
+
+// 拖拽交互状态
+let drag = { mode: null, sx: 0, sy: 0, startSel: null, divIdx: -1, moved: false, corner: null };
+
+// ============================================================
+// DOM 引用
+// ============================================================
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const mainDiv = document.getElementById('main');
+const statusBar = document.getElementById('status-bar');
+const previewCanvas = document.getElementById('preview');
+const previewCtx = previewCanvas.getContext('2d');
+const fileInfo = document.getElementById('file-info');
+const frameIndicator = document.getElementById('frame-indicator');
+
+const $ = id => document.getElementById(id);
+
+// 居中 toast 提示
+let toastTimer = null;
+function showToast(msg, ms = 2600) {
+  const t = $('toast');
+  if (!t) { statusBar.textContent = msg; return; }
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.style.display = 'none'; }, ms);
+}
+
+// ============================================================
+// 图片加载
+// ============================================================
+function loadImageFromFile(file) {
+  if (!file || !/^image\//.test(file.type)) {
+    statusBar.textContent = '请选择 PNG 图片';
+    return;
+  }
+  statusBar.textContent = '加载中...';
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      state.img = img;
+      state.fileName = file.name;
+      fileInfo.textContent = `${file.name}  ${img.naturalWidth}×${img.naturalHeight}px`;
+      processGreenScreen();
+      resetView();
+      statusBar.textContent = `已加载 ${file.name}`;
+    };
+    img.onerror = () => { statusBar.textContent = '图片加载失败'; };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ============================================================
+// 绿幕去除
+// ============================================================
+function processGreenScreen() {
+  if (!state.img) return;
+  const w = state.img.naturalWidth, h = state.img.naturalHeight;
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const cx = c.getContext('2d');
+  cx.drawImage(state.img, 0, 0);
+  const imgData = cx.getImageData(0, 0, w, h);
+  const d = imgData.data;
+  const tol = state.green.tolerance;
+  removeGreenExact(d, w, h, tol);
+  cx.putImageData(imgData, 0, 0);
+  state.processedCanvas = c;
+  state.processedData = imgData;
+}
+
+// 精确去绿幕：只删除「纯绿背景 (0,255,0)」本身及其抗锯齿过渡像素，
+// 其余所有颜色（包括前景自身的绿色描边/高光）一律保留。
+// 关键：不再用「g 显著高于 r/b 就删」的宽泛阈值，避免误删前景绿色。
+function removeGreenExact(d, w, h, tol) {
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
+    if (a === 0) continue;
+    // 背景纯绿是 (0,255,0)。仅当像素「贴近纯绿」——红/蓝极低、绿极高——才删除。
+    // 前景绿色描边如 (0,168,88)、(0,200,104) 因蓝分量较高(>=88)不会命中。
+    const isBgGreen = g >= 255 - tol && r <= tol && b <= tol;
+    if (isBgGreen) d[i + 3] = 0;
+  }
+}
+
+// ============================================================
+// 自动检测
+// ============================================================
+function colContent(x, y0, y1) {
+  const w = state.processedData.width;
+  const d = state.processedData.data;
+  let cnt = 0;
+  for (let y = y0; y < y1; y++) {
+    if (d[(y * w + x) * 4 + 3] > 0) cnt++;
+  }
+  return cnt / (y1 - y0);
+}
+
+function rowContent(y) {
+  const w = state.processedData.width;
+  const h = state.processedData.height;
+  const d = state.processedData.data;
+  let cnt = 0;
+  for (let x = 0; x < w; x++) {
+    if (d[(y * w + x) * 4 + 3] > 0) cnt++;
+  }
+  return cnt / w;
+}
+
+// 自动检测水平行（多行动画大图）
+function detectHorizontalRows() {
+  if (!state.processedData) return [];
+  const h = state.processedData.height;
+  const th = state.detect.threshold / 100;
+  const rows = [];
+  let inRow = false, start = 0;
+  for (let y = 0; y < h; y++) {
+    if (rowContent(y) >= th && !inRow) { inRow = true; start = y; }
+    else if (rowContent(y) < th && inRow) { inRow = false; rows.push({ y0: start, y1: y }); }
+  }
+  if (inRow) rows.push({ y0: start, y1: h });
+  return rows.filter(r => (r.y1 - r.y0) >= state.detect.minRowH);
+}
+
+// 自动检测某行内的垂直分割（返回每帧 {sx, w}）
+function detectVerticalDividers(y0, y1) {
+  if (!state.processedData) return [];
+  const w = state.processedData.width;
+  const th = state.detect.threshold / 100;
+  const regions = [];
+  let inFrame = false, start = 0;
+  for (let x = 0; x < w; x++) {
+    if (colContent(x, y0, y1) >= th && !inFrame) { inFrame = true; start = x; }
+    else if (colContent(x, y0, y1) < th && inFrame) { inFrame = false; regions.push({ sx: start, w: x - start }); }
+  }
+  if (inFrame) regions.push({ sx: start, w: w - start });
+  return regions.filter(r => r.w >= state.detect.minFrameW);
+}
+
+function reAutoDetect() {
+  if (!state.processedData) return;
+  state.autoRows = detectHorizontalRows();
+  if (state.sel) {
+    state.autoDivs = detectVerticalDividers(Math.round(state.sel.y0), Math.round(state.sel.y1));
+  } else {
+    state.autoDivs = [];
+  }
+}
+
+// ============================================================
+// 视图重置
+// ============================================================
+function resetView() {
+  if (!state.img) return;
+  const w = state.img.naturalWidth, h = state.img.naturalHeight;
+  state.sel = null;
+  state.dividers = [];
+  state.undoStack = [];
+  reAutoDetect();
+  if (state.autoRows.length > 0) {
+    const first = state.autoRows[0];
+    state.sel = { x0: 0, y0: first.y0, x1: w, y1: first.y1 };
+    statusBar.textContent = `已自动选择第 1 行（共 ${state.autoRows.length} 行），请确认或手动调整`;
+  } else {
+    statusBar.textContent = '请框选一行动画区域，或点击「自动找行」';
+  }
+  syncSelInputs();
+  updateDetectInfo();
+}
+
+// ============================================================
+// 选区 / 分割线工具
+// ============================================================
+function getFrameRegions() {
+  if (!state.sel) return [];
+  const x0 = state.sel.x0, x1 = state.sel.x1;
+  const xs = [x0];
+  state.dividers.forEach(x => { if (x > x0 + 0.5 && x < x1 - 0.5) xs.push(x); });
+  xs.push(x1);
+  xs.sort((a, b) => a - b);
+  const regions = [];
+  for (let i = 0; i < xs.length - 1; i++) {
+    const s = xs[i], e = xs[i + 1];
+    if (e - s >= 1) regions.push({ sx: Math.round(s), w: Math.round(e - s) });
+  }
+  return regions;
+}
+
+function addDivider(x) {
+  if (!state.sel) return;
+  const x0 = state.sel.x0, x1 = state.sel.x1;
+  if (x <= x0 + 1 || x >= x1 - 1) return;
+  // 与已有分割线距离太近则忽略
+  if (state.dividers.some(d => Math.abs(d - x) < 3)) return;
+  state.undoStack.push([...state.dividers]);
+  state.dividers.push(x);
+  state.dividers.sort((a, b) => a - b);
+  updateDetectInfo();
+}
+
+function removeDividerAt(x) {
+  const idx = state.dividers.findIndex(d => Math.abs(d - x) < 6);
+  if (idx === -1) return false;
+  state.undoStack.push([...state.dividers]);
+  state.dividers.splice(idx, 1);
+  updateDetectInfo();
+  return true;
+}
+
+function removeNearestDividerLeft(x) {
+  const candidates = state.dividers.filter(d => d < x);
+  if (candidates.length === 0) return;
+  const nearest = candidates[candidates.length - 1];
+  state.undoStack.push([...state.dividers]);
+  state.dividers = state.dividers.filter(d => Math.abs(d - nearest) > 0.001);
+  updateDetectInfo();
+}
+
+function undoDividers() {
+  const prev = state.undoStack.pop();
+  if (prev) {
+    state.dividers = prev;
+    updateDetectInfo();
+  }
+}
+
+function normalizeSel() {
+  if (!state.sel) return;
+  let { x0, y0, x1, y1 } = state.sel;
+  if (x0 > x1) [x0, x1] = [x1, x0];
+  if (y0 > y1) [y0, y1] = [y1, y0];
+  // 限制在图片内
+  const w = state.img.naturalWidth, h = state.img.naturalHeight;
+  x0 = Math.max(0, Math.min(w, x0));
+  x1 = Math.max(0, Math.min(w, x1));
+  y0 = Math.max(0, Math.min(h, y0));
+  y1 = Math.max(0, Math.min(h, y1));
+  if (x1 - x0 < 4) x1 = x0 + 4;
+  if (y1 - y0 < 4) y1 = y0 + 4;
+  state.sel = { x0, y0, x1, y1 };
+}
+
+function getContentBBox(sx, y0, w, h) {
+  const imgW = state.processedData.width;
+  const d = state.processedData.data;
+  let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1;
+  for (let y = y0; y < y0 + h; y++) {
+    for (let x = sx; x < sx + w; x++) {
+      if (d[(y * imgW + x) * 4 + 3] > 0) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < 0) return null;
+  return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+}
+
+// ============================================================
+// 缩放 / 坐标换算
+// ============================================================
+function getScale() {
+  const iw = state.img.naturalWidth, ih = state.img.naturalHeight;
+  if (state.zoom === 'fit') {
+    const s = Math.min((canvas.width - 40) / iw, (canvas.height - 40) / ih);
+    return Math.max(1, Math.floor(s));
+  }
+  return state.zoom;
+}
+
+function imgToScreen(x, y) {
+  return { x: state.ox + x * state.scale, y: state.oy + y * state.scale };
+}
+
+function screenToImg(x, y) {
+  return { x: (x - state.ox) / state.scale, y: (y - state.oy) / state.scale };
+}
+
+// ============================================================
+// 渲染
+// ============================================================
+function drawChecker(x, y, w, h, size) {
+  const cols = Math.ceil(w / size), rows = Math.ceil(h / size);
+  ctx.fillStyle = '#2a2a3a';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#333348';
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if ((r + c) % 2 === 0) {
+        ctx.fillRect(x + c * size, y + r * size, Math.min(size, w - c * size), Math.min(size, h - r * size));
+      }
+    }
+  }
+}
+
+function drawMain() {
+  const cw = canvas.width, ch = canvas.height;
+  ctx.clearRect(0, 0, cw, ch);
+
+  if (!state.img) {
+    ctx.fillStyle = '#555';
+    ctx.font = '15px "Microsoft YaHei"';
+    ctx.textAlign = 'center';
+    ctx.fillText('点击左侧"加载图片"或将 PNG 拖入此窗口', cw / 2, ch / 2);
+    return;
+  }
+
+  const iw = state.img.naturalWidth, ih = state.img.naturalHeight;
+  const scale = getScale();
+  state.scale = scale;
+  const ox = (cw - iw * scale) / 2;
+  const oy = (ch - ih * scale) / 2;
+  state.ox = ox; state.oy = oy;
+
+  // 棋盘格 + 图片
+  drawChecker(ox, oy, iw * scale, ih * scale, 8 * scale);
+  ctx.drawImage(state.processedCanvas, ox, oy, iw * scale, ih * scale);
+
+  // 自动找行建议（紫色横条）
+  state.autoRows.forEach((r, i) => {
+    const py0 = oy + r.y0 * scale;
+    const ph = (r.y1 - r.y0) * scale;
+    const isActive = state.sel &&
+      Math.abs(state.sel.y0 - r.y0) < 1 && Math.abs(state.sel.y1 - r.y1) < 1;
+    ctx.fillStyle = 'rgba(123,47,247,0.10)';
+    ctx.fillRect(ox, py0, iw * scale, ph);
+    ctx.strokeStyle = isActive ? '#ff9e64' : 'rgba(123,47,247,0.6)';
+    ctx.setLineDash([5, 4]);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(ox, py0, iw * scale, ph);
+    ctx.setLineDash([]);
+    // 行号
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.font = '11px "Microsoft YaHei"';
+    ctx.textAlign = 'left';
+    ctx.fillText(`R${i + 1}`, ox + 4, py0 + 12);
+  });
+
+  // 选区
+  if (state.sel) {
+    const { x0, y0, x1, y1 } = state.sel;
+    const px = ox + x0 * scale, py = oy + y0 * scale;
+    const pw = (x1 - x0) * scale, ph = (y1 - y0) * scale;
+    ctx.fillStyle = 'rgba(122,162,247,0.08)';
+    ctx.fillRect(px, py, pw, ph);
+    ctx.strokeStyle = '#7aa2f7';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(px, py, pw, ph);
+
+    // 控制点
+    const pts = [
+      [x0, y0], [x1, y0], [x1, y1], [x0, y1],
+      [(x0 + x1) / 2, y0], [x1, (y0 + y1) / 2], [(x0 + x1) / 2, y1], [x0, (y0 + y1) / 2],
+    ];
+    ctx.fillStyle = '#fff';
+    pts.forEach(([x, y]) => {
+      const s = imgToScreen(x, y);
+      ctx.fillRect(s.x - 3, s.y - 3, 6, 6);
+      ctx.strokeStyle = '#7aa2f7';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(s.x - 3, s.y - 3, 6, 6);
+    });
+  }
+
+  // 自动检测分割线建议（紫色虚线）
+  const selY0 = state.sel ? state.sel.y0 : 0;
+  const selY1 = state.sel ? state.sel.y1 : ih;
+  state.autoDivs.forEach(x => {
+    if (!state.sel || x <= state.sel.x0 || x >= state.sel.x1) return;
+    const s = imgToScreen(x, selY0);
+    ctx.strokeStyle = 'rgba(123,47,247,0.75)';
+    ctx.setLineDash([4, 3]);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(s.x, s.y + (selY1 - selY0) * scale);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // 正式分割线（橙色实线）+ 帧号
+  const regions = getFrameRegions();
+  regions.forEach((r, i) => {
+    if (i === 0) return; // 跳过第一个（左边界）
+    const sx = r.sx;
+    const s = imgToScreen(sx, selY0);
+    ctx.strokeStyle = '#ff9e64';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(s.x, s.y + (selY1 - selY0) * scale);
+    ctx.stroke();
+  });
+
+  // 帧号标签（显示在选区顶部）
+  if (state.sel && regions.length > 0) {
+    const py = oy + state.sel.y0 * scale - 14;
+    regions.forEach((r, i) => {
+      const cx = ox + (r.sx + r.w / 2) * scale;
+      ctx.fillStyle = 'rgba(0,0,0,0.75)';
+      ctx.fillRect(cx - 13, py, 26, 15);
+      ctx.strokeStyle = 'rgba(255,158,100,0.6)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(cx - 13, py, 26, 15);
+      ctx.fillStyle = '#ff9e64';
+      ctx.font = '10px "Microsoft YaHei"';
+      ctx.textAlign = 'center';
+      ctx.fillText(`#${i + 1}`, cx, py + 11);
+    });
+  }
+}
+
+// 预览画布
+function drawCheckerPreview(x, y, w, h, size) {
+  const cols = Math.ceil(w / size), rows = Math.ceil(h / size);
+  previewCtx.fillStyle = '#2a2a3a';
+  previewCtx.fillRect(x, y, w, h);
+  previewCtx.fillStyle = '#333348';
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if ((r + c) % 2 === 0) {
+        previewCtx.fillRect(x + c * size, y + r * size, Math.min(size, w - c * size), Math.min(size, h - r * size));
+      }
+    }
+  }
+}
+
+function drawPreview() {
+  const cw = previewCanvas.width, ch = previewCanvas.height;
+  previewCtx.clearRect(0, 0, cw, ch);
+  const regions = getFrameRegions();
+  if (!state.img || regions.length === 0) {
+    previewCtx.fillStyle = '#555';
+    previewCtx.font = '13px "Microsoft YaHei"';
+    previewCtx.textAlign = 'center';
+    previewCtx.fillText('框选区域后可预览', cw / 2, ch / 2);
+    return;
+  }
+  const idx = Math.min(state.preview.idx, regions.length - 1);
+  const reg = regions[idx];
+  const bbox = getContentBBox(reg.sx, Math.round(state.sel.y0), reg.w, Math.round(state.sel.y1 - state.sel.y0));
+  if (!bbox) {
+    previewCtx.fillStyle = '#555';
+    previewCtx.fillText('此帧无内容', cw / 2, ch / 2);
+    return;
+  }
+  const scale = Math.min((cw - 16) / bbox.w, (ch - 16) / bbox.h, 8);
+  const dx = (cw - bbox.w * scale) / 2, dy = (ch - bbox.h * scale) / 2;
+  drawCheckerPreview(dx, dy, bbox.w * scale, bbox.h * scale, 6);
+  previewCtx.drawImage(state.processedCanvas, bbox.x, bbox.y, bbox.w, bbox.h, dx, dy, bbox.w * scale, bbox.h * scale);
+  previewCtx.strokeStyle = 'rgba(122,162,247,0.7)';
+  previewCtx.lineWidth = 1;
+  previewCtx.strokeRect(dx, dy, bbox.w * scale, bbox.h * scale);
+  frameIndicator.textContent = `${idx + 1} / ${regions.length}`;
+}
+
+// ============================================================
+// 渲染循环
+// ============================================================
+function renderLoop(t) {
+  // 预览动画推进
+  const regions = getFrameRegions();
+  if (state.preview.playing && regions.length > 0 && state.preview.acc !== undefined) {
+    if (!state.preview.lastTime) state.preview.lastTime = t;
+    const dt = (t - state.preview.lastTime) / 1000;
+    state.preview.lastTime = t;
+    state.preview.acc += dt;
+    const dur = 1 / state.export.fps;
+    while (state.preview.acc >= dur) {
+      state.preview.acc -= dur;
+      state.preview.idx = (state.preview.idx + 1) % regions.length;
+    }
+  }
+  resizeCanvas();
+  drawMain();
+  drawPreview();
+  requestAnimationFrame(renderLoop);
+}
+
+function resizeCanvas() {
+  const w = mainDiv.clientWidth, h = mainDiv.clientHeight;
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+}
+
+// ============================================================
+// 交互
+// ============================================================
+function hitDivider(sx) {
+  for (let i = 0; i < state.dividers.length; i++) {
+    const s = imgToScreen(state.dividers[i], 0);
+    if (Math.abs(sx - s.x) < 6) return i;
+  }
+  return -1;
+}
+
+function hitControlPoint(sx, sy) {
+  if (!state.sel) return null;
+  const { x0, y0, x1, y1 } = state.sel;
+  const pts = {
+    nw: [x0, y0], ne: [x1, y0], se: [x1, y1], sw: [x0, y1],
+    n: [(x0 + x1) / 2, y0], e: [x1, (y0 + y1) / 2], s: [(x0 + x1) / 2, y1], w: [x0, (y0 + y1) / 2],
+  };
+  for (const key in pts) {
+    const s = imgToScreen(pts[key][0], pts[key][1]);
+    if (Math.abs(sx - s.x) < 7 && Math.abs(sy - s.y) < 7) return key;
+  }
+  return null;
+}
+
+function inSelection(sx, sy) {
+  if (!state.sel) return false;
+  const s0 = imgToScreen(state.sel.x0, state.sel.y0);
+  const s1 = imgToScreen(state.sel.x1, state.sel.y1);
+  return sx >= s0.x && sx <= s1.x && sy >= s0.y && sy <= s1.y;
+}
+
+function edgeResizeMode(sx, sy) {
+  if (!state.sel) return null;
+  const s0 = imgToScreen(state.sel.x0, state.sel.y0);
+  const s1 = imgToScreen(state.sel.x1, state.sel.y1);
+  const tol = 6;
+  const nearLeft = Math.abs(sx - s0.x) < tol;
+  const nearRight = Math.abs(sx - s1.x) < tol;
+  const nearTop = Math.abs(sy - s0.y) < tol;
+  const nearBottom = Math.abs(sy - s1.y) < tol;
+  if (nearLeft && nearTop) return 'nw';
+  if (nearRight && nearTop) return 'ne';
+  if (nearLeft && nearBottom) return 'sw';
+  if (nearRight && nearBottom) return 'se';
+  if (nearTop) return 'n';
+  if (nearBottom) return 's';
+  if (nearLeft) return 'w';
+  if (nearRight) return 'e';
+  return null;
+}
+
+function onMouseDown(e) {
+  if (!state.img) return;
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+  const p = screenToImg(sx, sy);
+
+  // 1. 命中正式分割线 → 拖动/删除
+  const di = hitDivider(sx);
+  if (di !== -1) {
+    drag = { mode: 'divider', sx, sy, divIdx: di, moved: false };
+    canvas.style.cursor = 'ew-resize';
+    return;
+  }
+
+  // 2. 命中控制点 → 调整选区
+  const cp = hitControlPoint(sx, sy);
+  if (cp) {
+    drag = { mode: 'resize', sx, sy, corner: cp, startSel: { ...state.sel }, moved: false };
+    return;
+  }
+
+  // 3. 选区边缘 → 调整选区
+  const edge = edgeResizeMode(sx, sy);
+  if (edge) {
+    drag = { mode: 'resize', sx, sy, corner: edge, startSel: { ...state.sel }, moved: false };
+    return;
+  }
+
+  // 4. 在选区内 → 添加分割线
+  if (inSelection(sx, sy)) {
+    addDivider(p.x);
+    return;
+  }
+
+  // 5. 外部 → 新建选区
+  drag = { mode: 'select', sx, sy, startSel: null, moved: false };
+  state.sel = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
+  syncSelInputs();
+}
+
+function onMouseMove(e) {
+  if (!drag.mode) return;
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+  const p = screenToImg(sx, sy);
+  if (Math.abs(sx - drag.sx) > 2 || Math.abs(sy - drag.sy) > 2) drag.moved = true;
+
+  if (drag.mode === 'select') {
+    state.sel.x1 = p.x;
+    state.sel.y1 = p.y;
+    normalizeSel();
+    syncSelInputs();
+  } else if (drag.mode === 'resize' && state.sel) {
+    const c = drag.corner;
+    if (c.includes('w')) state.sel.x0 = p.x;
+    if (c.includes('e')) state.sel.x1 = p.x;
+    if (c.includes('n')) state.sel.y0 = p.y;
+    if (c.includes('s')) state.sel.y1 = p.y;
+    normalizeSel();
+    syncSelInputs();
+  } else if (drag.mode === 'divider' && drag.divIdx !== -1) {
+    // 拖动时不排序，避免索引错乱；mouseup 时统一排序
+    state.dividers[drag.divIdx] = Math.max(0, Math.min(state.img.naturalWidth, p.x));
+    updateDetectInfo();
+  }
+}
+
+function onMouseUp() {
+  if (drag.mode === 'divider' && drag.divIdx !== -1) {
+    const v = state.dividers[drag.divIdx];
+    if (!drag.moved) {
+      // 单击 = 删除该分割线（用值定位，避免索引错乱）
+      state.undoStack.push([...state.dividers]);
+      state.dividers = state.dividers.filter(d => Math.abs(d - v) > 0.001);
+      updateDetectInfo();
+    }
+    state.dividers.sort((a, b) => a - b);
+  }
+  if (drag.mode === 'select' || drag.mode === 'resize') {
+    // 选区变化后重新检测该行
+    reAutoDetect();
+    updateDetectInfo();
+  }
+  drag = { mode: null, sx: 0, sy: 0, startSel: null, divIdx: -1, moved: false, corner: null };
+  canvas.style.cursor = 'crosshair';
+}
+
+function onContextMenu(e) {
+  e.preventDefault();
+  if (!state.img || !state.sel) return;
+  const rect = canvas.getBoundingClientRect();
+  const p = screenToImg(e.clientX - rect.left, e.clientY - rect.top);
+  if (inSelection(e.clientX - rect.left, e.clientY - rect.top)) {
+    removeNearestDividerLeft(p.x);
+  }
+}
+
+function onDrop(e) {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file) loadImageFromFile(file);
+}
+
+// ============================================================
+// UI 联动
+// ============================================================
+function syncSelInputs() {
+  if (!state.sel) {
+    $('sel-x').value = ''; $('sel-y').value = ''; $('sel-w').value = ''; $('sel-h').value = '';
+    return;
+  }
+  $('sel-x').value = Math.round(state.sel.x0);
+  $('sel-y').value = Math.round(state.sel.y0);
+  $('sel-w').value = Math.round(state.sel.x1 - state.sel.x0);
+  $('sel-h').value = Math.round(state.sel.y1 - state.sel.y0);
+}
+
+function updateDetectInfo() {
+  const regions = getFrameRegions();
+  let html = '';
+  if (state.autoRows.length) {
+    html += `建议行: <span class="val">${state.autoRows.length}</span> 行（点击紫色横条选中）<br>`;
+  }
+  if (state.sel) {
+    html += `选区: ${Math.round(state.sel.x0)},${Math.round(state.sel.y0)} → ${Math.round(state.sel.x1)},${Math.round(state.sel.y1)} `;
+    html += `(${Math.round(state.sel.x1 - state.sel.x0)}×${Math.round(state.sel.y1 - state.sel.y0)})<br>`;
+  }
+  if (state.autoDivs.length) {
+    html += `自动建议: <span class="val">${state.autoDivs.length}</span> 帧（紫虚线）`;
+    if (state.dividers.length === 0) html += ` <span class="warn">→ 点"采纳"生效</span>`;
+    html += `<br>`;
+  }
+  html += `正式分割: <span class="val">${state.dividers.length}</span> 条 → <span class="val">${regions.length}</span> 帧（橙线）`;
+  $('detect-info').innerHTML = html;
+}
+
+function updatePreviewButtons() {
+  $('btn-play').textContent = state.preview.playing ? '⏸' : '▶';
+}
+
+function bindParamPair(slider, numInput, onChange) {
+  slider.addEventListener('input', () => {
+    numInput.value = slider.value;
+    onChange(parseInt(slider.value));
+  });
+  numInput.addEventListener('change', () => {
+    let v = parseInt(numInput.value);
+    if (isNaN(v)) v = parseInt(slider.value);
+    v = Math.max(parseInt(slider.min), Math.min(parseInt(slider.max), v));
+    slider.value = v; numInput.value = v;
+    onChange(v);
+  });
+}
+
+function initEvents() {
+  // 文件加载
+  const dz = $('dropzone');
+  dz.addEventListener('click', () => $('file-input').click());
+  $('file-input').addEventListener('change', e => {
+    if (e.target.files[0]) loadImageFromFile(e.target.files[0]);
+  });
+  mainDiv.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+  mainDiv.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+  mainDiv.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); onDrop(e); });
+
+  // 绿幕
+  bindParamPair($('green-tol'), $('green-tol-num'), v => {
+    state.green.tolerance = v;
+    processGreenScreen();
+    reAutoDetect();
+    updateDetectInfo();
+  });
+  $('btn-reprocess').addEventListener('click', () => {
+    processGreenScreen();
+    reAutoDetect();
+    statusBar.textContent = '已重新处理绿幕 ✓';
+  });
+  $('btn-export-clean').addEventListener('click', exportCleanImage);
+
+  // 检测
+  $('btn-detect-rows').addEventListener('click', () => {
+    reAutoDetect();
+    statusBar.textContent = `自动找行完成: ${state.autoRows.length} 行（紫色横条）`;
+  });
+  $('btn-detect-divs').addEventListener('click', () => {
+    if (!state.sel) { statusBar.textContent = '请先框选一行动画区域'; return; }
+    state.autoDivs = detectVerticalDividers(Math.round(state.sel.y0), Math.round(state.sel.y1));
+    updateDetectInfo();
+    statusBar.textContent = `本行自动检测: ${state.autoDivs.length} 帧（紫虚线参考）`;
+  });
+  $('btn-adopt').addEventListener('click', () => {
+    if (!state.sel || state.autoDivs.length === 0) { statusBar.textContent = '没有可采纳的建议'; return; }
+    state.undoStack.push([...state.dividers]);
+    // 采纳建议 = 每帧右边界
+    let x = state.sel.x0;
+    state.dividers = [];
+    state.autoDivs.forEach(r => {
+      x += r.w;
+      state.dividers.push(x);
+    });
+    updateDetectInfo();
+    statusBar.textContent = `已采纳 ${state.autoDivs.length} 帧分割线 ✓`;
+  });
+  $('btn-clear-divs').addEventListener('click', () => {
+    if (state.dividers.length === 0) return;
+    state.undoStack.push([...state.dividers]);
+    state.dividers = [];
+    updateDetectInfo();
+  });
+  $('btn-undo').addEventListener('click', undoDividers);
+
+  // 选区输入
+  ['sel-x', 'sel-y', 'sel-w', 'sel-h'].forEach(id => {
+    $(id).addEventListener('change', () => {
+      if (!state.sel) return;
+      const x0 = parseFloat($('sel-x').value) || 0;
+      const y0 = parseFloat($('sel-y').value) || 0;
+      const w = parseFloat($('sel-w').value) || 4;
+      const h = parseFloat($('sel-h').value) || 4;
+      state.sel = { x0, y0, x1: x0 + w, y1: y0 + h };
+      normalizeSel();
+      reAutoDetect();
+      updateDetectInfo();
+      syncSelInputs();
+    });
+  });
+  $('btn-full-row').addEventListener('click', () => {
+    if (!state.sel) return;
+    state.sel.x0 = 0;
+    state.sel.x1 = state.img.naturalWidth;
+    normalizeSel();
+    reAutoDetect();
+    updateDetectInfo();
+    syncSelInputs();
+  });
+  $('btn-clear-sel').addEventListener('click', () => {
+    state.sel = null;
+    state.dividers = [];
+    state.autoDivs = [];
+    syncSelInputs();
+    updateDetectInfo();
+  });
+
+  // 检测阈值
+  bindParamPair($('detect-th'), $('detect-th-num'), v => {
+    state.detect.threshold = v;
+    reAutoDetect();
+    updateDetectInfo();
+  });
+
+  // 预览播放
+  $('btn-play').addEventListener('click', () => {
+    state.preview.playing = !state.preview.playing;
+    updatePreviewButtons();
+  });
+  $('btn-to-start').addEventListener('click', () => { state.preview.idx = 0; state.preview.acc = 0; });
+  $('btn-to-end').addEventListener('click', () => {
+    const n = getFrameRegions().length;
+    state.preview.idx = n > 0 ? n - 1 : 0;
+    state.preview.acc = 0;
+  });
+  $('btn-prev').addEventListener('click', () => {
+    const n = getFrameRegions().length;
+    if (n === 0) return;
+    state.preview.playing = false;
+    updatePreviewButtons();
+    state.preview.idx = (state.preview.idx - 1 + n) % n;
+    state.preview.acc = 0;
+  });
+  $('btn-next').addEventListener('click', () => {
+    const n = getFrameRegions().length;
+    if (n === 0) return;
+    state.preview.playing = false;
+    updatePreviewButtons();
+    state.preview.idx = (state.preview.idx + 1) % n;
+    state.preview.acc = 0;
+  });
+  bindParamPair($('fps'), $('fps-num'), v => { state.export.fps = v; });
+
+  // 导出模式切换
+  document.querySelectorAll('input[name="export-mode"]').forEach(r => {
+    r.addEventListener('change', () => {
+      state.export.mode = r.value;
+      $('strip-options').style.display = r.value === 'strip' ? '' : 'none';
+      $('json-options').style.display = r.value === 'json' ? '' : 'none';
+    });
+  });
+  document.querySelectorAll('input[name="fw-strategy"]').forEach(r => {
+    r.addEventListener('change', () => { state.export.fwStrategy = r.value; });
+  });
+  document.querySelectorAll('input[name="valign"]').forEach(r => {
+    r.addEventListener('change', () => { state.export.vAlign = r.value; });
+  });
+  $('fw-custom').addEventListener('change', () => {
+    state.export.fwCustom = Math.max(1, parseInt($('fw-custom').value) || 1);
+  });
+  $('prefix').addEventListener('change', () => {
+    state.export.prefix = $('prefix').value.trim() || 'sprite';
+  });
+
+  $('btn-export-strip').addEventListener('click', exportStripPNG);
+  $('btn-export-json').addEventListener('click', exportJSONData);
+  $('btn-copy-json').addEventListener('click', copyJSONData);
+  $('btn-copy-params').addEventListener('click', copyParamsJSON);
+
+  // 缩放
+  document.querySelectorAll('.zoom-row button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.zoom = btn.dataset.zoom;
+      document.querySelectorAll('.zoom-row button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  // 画布交互
+  canvas.addEventListener('mousedown', onMouseDown);
+  canvas.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mouseup', onMouseUp);
+  canvas.addEventListener('contextmenu', onContextMenu);
+
+  // 点击紫色建议行 → 选中该行
+  canvas.addEventListener('click', e => {
+    if (!state.img) return;
+    const rect = canvas.getBoundingClientRect();
+    const p = screenToImg(e.clientX - rect.left, e.clientY - rect.top);
+    for (const r of state.autoRows) {
+      if (p.y >= r.y0 && p.y <= r.y1) {
+        // 检查点击的是否在选区内（避免与添加分割线冲突）
+        if (state.sel && p.x >= state.sel.x0 && p.x <= state.sel.x1 && p.y >= state.sel.y0 && p.y <= state.sel.y1) return;
+        state.sel = { x0: 0, y0: r.y0, x1: state.img.naturalWidth, y1: r.y1 };
+        state.dividers = [];
+        state.autoDivs = detectVerticalDividers(Math.round(r.y0), Math.round(r.y1));
+        syncSelInputs();
+        updateDetectInfo();
+        statusBar.textContent = `已选择第 ${state.autoRows.indexOf(r) + 1} 行，检测到 ${state.autoDivs.length} 帧（紫虚线）`;
+        return;
+      }
+    }
+  });
+
+  window.addEventListener('resize', resizeCanvas);
+}
+
+// ============================================================
+// 导出
+// ============================================================
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.rel = 'noopener';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 1500);
+}
+
+function exportCleanImage() {
+  if (!state.processedCanvas) { statusBar.textContent = '请先加载图片'; return; }
+  state.processedCanvas.toBlob(blob => {
+    downloadBlob(blob, `${state.export.prefix}_clean.png`);
+    statusBar.textContent = `已导出 ${state.export.prefix}_clean.png ✓`;
+  }, 'image/png');
+}
+
+function exportStripPNG() {
+  if (!state.img || !state.sel) { statusBar.textContent = '请先框选动画行'; return; }
+  const regions = getFrameRegions();
+  if (regions.length < 1) { statusBar.textContent = '请先添加分割线'; return; }
+  const selY0 = Math.round(state.sel.y0);
+  const selH = Math.round(state.sel.y1 - state.sel.y0);
+  const imgH = state.img.naturalHeight;
+  if (selH > imgH * 0.35) {
+    const ok = confirm(`选区高度 ${selH}px 超过图片高度的 35%，可能框选了多行。\n这会导致每帧混入多行内容，导出结果严重失真。\n\n建议只框选单行后重新导出。是否仍要继续？`);
+    if (!ok) { statusBar.textContent = '已取消导出，请调整选区'; return; }
+  }
+  const boxes = regions.map(r => getContentBBox(r.sx, selY0, r.w, selH));
+  if (boxes.some(b => !b)) { statusBar.textContent = '存在空帧，请调整分割线'; return; }
+
+  // 帧宽策略
+  let fw;
+  if (state.export.fwStrategy === 'max') fw = Math.max(...boxes.map(b => b.w));
+  else if (state.export.fwStrategy === 'avg') fw = Math.round(boxes.reduce((a, b) => a + b.w, 0) / boxes.length);
+  else fw = Math.max(1, state.export.fwCustom);
+  const fh = Math.max(...boxes.map(b => b.h));
+
+  const out = document.createElement('canvas');
+  out.width = fw * regions.length;
+  out.height = fh;
+  const octx = out.getContext('2d');
+  boxes.forEach((b, i) => {
+    const dx = i * fw + Math.round((fw - b.w) / 2);
+    let dy;
+    if (state.export.vAlign === 'bottom') dy = fh - b.h;
+    else if (state.export.vAlign === 'top') dy = 0;
+    else dy = Math.round((fh - b.h) / 2);
+    octx.drawImage(state.processedCanvas, b.x, b.y, b.w, b.h, dx, dy, b.w, b.h);
+  });
+
+  out.toBlob(blob => {
+    downloadBlob(blob, `${state.export.prefix}_strip.png`);
+    statusBar.textContent = `已导出 ${regions.length} 帧等宽条带 (${fw}×${fh}) ✓`;
+  }, 'image/png');
+}
+
+function buildJSONData() {
+  if (!state.img || !state.sel) return null;
+  const regions = getFrameRegions();
+  if (regions.length < 1) return null;
+  const selY0 = Math.round(state.sel.y0);
+  const selH = Math.round(state.sel.y1 - state.sel.y0);
+  const frames = regions.map(r => {
+    const b = getContentBBox(r.sx, selY0, r.w, selH);
+    return b ? { x: b.x, y: b.y, w: b.w, h: b.h } : null;
+  });
+  if (frames.some(f => !f)) return null;
+  return {
+    format: 'rockman-sprite',
+    version: 1,
+    source: state.fileName,
+    exportedAt: new Date().toISOString(),
+    action: state.export.prefix,
+    fps: state.export.fps,
+    frames,
+    meta: {
+      imageWidth: state.img.naturalWidth,
+      imageHeight: state.img.naturalHeight,
+      cleanImage: `${state.export.prefix}_clean.png`,
+    },
+  };
+}
+
+function warnMultiRow() {
+  if (!state.sel || !state.img) return true;
+  const selH = Math.round(state.sel.y1 - state.sel.y0);
+  const imgH = state.img.naturalHeight;
+  if (selH > imgH * 0.35) {
+    return confirm(`选区高度 ${selH}px 超过图片高度的 35%，可能框选了多行。\n这会导致每帧混入多行内容，导出结果严重失真。\n\n建议只框选单行后重新导出。是否仍要继续？`);
+  }
+  return true;
+}
+
+function exportJSONData() {
+  const data = buildJSONData();
+  if (!data) { showToast('请先框选动画行并添加分割线（橙色线）'); return; }
+  if (!warnMultiRow()) { statusBar.textContent = '已取消导出，请调整选区'; return; }
+  // 用 octet-stream 类型，避免 webview 拦截 json 下载
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/octet-stream' });
+  downloadBlob(blob, `${state.export.prefix}_frames.json`);
+  showToast(`已导出 ${data.frames.length} 帧 JSON 坐标 ✓`);
+}
+
+function copyJSONData() {
+  const data = buildJSONData();
+  if (!data) { showToast('请先框选动画行并添加分割线（橙色线）'); return; }
+  if (!warnMultiRow()) { statusBar.textContent = '已取消复制，请调整选区'; return; }
+  copyTextToClipboard(
+    JSON.stringify(data, null, 2),
+    `已复制 ${data.frames.length} 帧 JSON 到剪贴板 ✓`,
+    '复制失败，请改用「导出 JSON」下载'
+  );
+}
+
+// 打包当前切割参数（供本地生成脚本使用）
+function buildParamsData() {
+  return {
+    sourceImage: state.fileName,
+    greenTolerance: state.green.tolerance,
+    sel: state.sel ? {
+      x0: Math.round(state.sel.x0), y0: Math.round(state.sel.y0),
+      x1: Math.round(state.sel.x1), y1: Math.round(state.sel.y1),
+    } : null,
+    dividers: state.dividers.map(d => Math.round(d)),
+    prefix: state.export.prefix,
+    fps: state.export.fps,
+    strip: {
+      widthStrategy: state.export.fwStrategy,
+      customWidth: state.export.fwCustom,
+      valign: state.export.vAlign,
+    },
+  };
+}
+
+function copyParamsJSON() {
+  if (!state.img) { showToast('请先加载图片'); return; }
+  if (!state.sel) { showToast('请先框选动画行'); return; }
+  if (state.dividers.length < 1) { showToast('请先添加分割线（橙色线）'); return; }
+  copyTextToClipboard(
+    JSON.stringify(buildParamsData(), null, 2),
+    '切割参数已复制 ✓ 请粘贴到 CodeBuddy 对话',
+    '复制失败，请截图告知我，或手动抄录参数'
+  );
+}
+
+function copyTextToClipboard(text, okMsg, errMsg) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(
+      () => showToast(okMsg),
+      () => fallbackCopyText(text, okMsg, errMsg)
+    );
+  } else {
+    fallbackCopyText(text, okMsg, errMsg);
+  }
+}
+
+function fallbackCopyText(text, okMsg, errMsg) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showToast(okMsg);
+  } catch (e) {
+    showToast(errMsg);
+  }
+  document.body.removeChild(ta);
+}
+
+// ============================================================
+// 初始化
+// ============================================================
+function init() {
+  initEvents();
+  updatePreviewButtons();
+  requestAnimationFrame(renderLoop);
+}
+
+init();
+</script>
+</body>
+</html>

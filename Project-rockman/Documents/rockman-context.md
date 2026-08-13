@@ -1,6 +1,6 @@
 # Rockman X4 操作原型 - 策划文档 & 技术速查
 
-> 最后更新: 2026-08-12 (会话 #4)
+> 最后更新: 2026-08-13 (会话 #5)
 
 ---
 
@@ -124,6 +124,9 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 | `preview.html` | 序列帧预览工具（Spritesheet 切分验证 + 动画预览） |
 | `level.json` | 关卡配置文件（tiles 规则 + 敌人列表） |
 | `Assets/` | 素材目录（角色序列帧 PNG + 子弹素材 + 预览用 GIF） |
+| `Assets/sprite-cutter.html` | 序列帧切割工具（绿幕去除 + 框选 + 分割线 + 导出等宽条带/JSON） |
+| `Assets/sprite-build.js` | 本地序列帧生成脚本（读取参数 JSON，零依赖生成 clean/strip/frames 产物） |
+| `Assets/Assets-Clean/` | 切割产物目录（去绿幕后条带 PNG + 每帧坐标 JSON） |
 
 ### 7. 核心数据结构
 
@@ -159,6 +162,37 @@ player = {
 - `afterimages[]` — Dash 残影列表
 - `enemies[]` — 怪物列表
 - `map[]` — 关卡 tile 数据（一维数组，`let` 可动态替换）
+
+#### 子弹对象
+
+```javascript
+bullet = {
+  x, y, vx, vy,          // 位置/速度
+  dir: 1|-1,             // 面朝方向（用于 sprite 镜像）
+  w, h,                  // 碰撞体积（power 0/1/2 = 18×12 / 54×36 / 90×60）
+  power: 0|1|2,          // 子弹等级（普通/小蓄力/满蓄力）
+  dmg, life,             // 伤害 / 存活帧数
+  color,                 // 纯色 fallback 颜色
+  animT,                 // sprite 动画计时器
+}
+```
+
+#### 子弹 Sprite 资源
+
+```javascript
+BULLET_SPRITE = {
+  src: 'Assets/Assets-Clean/middle-bullet-flying_strip (1).png',
+  frames: 5,             // 帧数
+  frameW: 40, frameH: 19, // 单帧尺寸（等宽条带）
+  fps: 10,               // 动画帧率
+  displayW: 54, displayH: 36, // 显示尺寸（匹配 power=1 碰撞体积）
+  img, loaded,           // Image 对象 / 加载状态
+}
+```
+
+- 小蓄力子弹（power=1）用 sprite 动画渲染（5 帧循环），替换原纯色矩形
+- 显示尺寸 54×36 匹配碰撞体积；`dir < 0` 时水平镜像
+- 图片未加载完成时回退到原纯色矩形绘制
 
 #### 摄像机
 
@@ -255,6 +289,21 @@ MAX_HP: 28
 | `setEditMode(on)` | 切换编辑/游玩模式 |
 | `doEditAction()` | 执行编辑操作（放置/删除砖块或敌人） |
 | `drawEditorOverlay()` | 渲染编辑器高亮/预览 |
+| `spawnBullet(x, y, dir, power)` | 生成玩家子弹（含 dir/animT sprite 字段） |
+| `drawBullets()` | 渲染玩家/敌人子弹（power=1 用 sprite 动画） |
+
+**sprite-cutter.html / sprite-build.js 关键函数**：
+
+| 函数 | 说明 |
+|------|------|
+| `processGreenScreen()` | 网页端去绿幕处理（精确删纯绿） |
+| `removeGreenExact(d, w, h, tol)` | 精确去绿幕：只删纯绿(0,255,0)及抗锯齿过渡，保留前景绿色描边 |
+| `getContentBBox(sx, y0, w, h)` | 计算帧内容包围盒 |
+| `exportStripPNG()` | 导出等宽条带 PNG（含多行选区警告） |
+| `exportJSONData()` / `copyJSONData()` | 导出/复制每帧坐标 JSON |
+| `resetView()` | 重置视图（自动选第一行，不再默认整图） |
+| `decodePNG(buf)` / `encodePNG(w, h, rgba)` | sprite-build.js 内置 PNG 编解码（零依赖） |
+| `removeGreen(data, tol, w, h)` | sprite-build.js 精确去绿幕（与网页一致） |
 
 ### 12. 输入消费机制
 
@@ -268,6 +317,7 @@ MAX_HP: 28
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-08-13 | **序列帧切割工具链 + 小蓄力子弹 sprite 接入**。① 新增 `sprite-cutter.html`（绿幕去除 + 框选动画行 + 分割线 + 导出等宽条带/JSON）和 `sprite-build.js`（零依赖本地生成脚本）；② 修复去绿幕算法：从「宽泛阈值删绿」改为「精确删纯绿(0,255,0)」，避免误删前景绿色描边；③ `resetView()` 不再默认选整图，自动选第一行；④ `prototype.html` 接入小蓄力子弹 sprite 动画（`middle-bullet-flying_strip (1).png`，5帧×40×19，显示 54×36 匹配碰撞体积，支持镜像）。 |
 | 2026-08-10 | **项目初始化**。创建 Rockman X4 操作原型，实现 X 核心移动+射击机制。单文件 `prototype.html` 实现。 |
 | 2026-08-11 (上午) | **文档同步**。修正 §5 关卡尺寸，全量交叉比对。 |
 | 2026-08-11 (下午) | **关卡编辑系统**。新增 JSON 关卡配置系统（level.json + DEFAULT_LEVEL fallback）、可视化编辑模式（E 键切换）、长按放置/删除砖块和敌人、中键拖拽平移摄像机、滚轮缩放（0.2x~4.0x）、Ctrl+S 导出 JSON、动态地图扩展（边界外放置自动扩大地图+偏移敌人坐标）、摄像机居中跟随（水平+垂直）。文档全覆盖同步。 |
