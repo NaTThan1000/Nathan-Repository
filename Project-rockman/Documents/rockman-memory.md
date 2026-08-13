@@ -267,3 +267,45 @@
 ### 清理
 
 删除临时调试脚本（debug-*.js）、错误整图选区生成的 test-idle 废产物、临时 sprite-params.json。
+
+---
+
+## 2026-08-13 (会话#6) — 角色序列帧动画系统接入 + 动画细节打磨
+
+### 角色精灵动画系统 [当前方案]
+
+- 角色从 `fillRect` 占位美术正式替换为 9 个序列帧精灵动画
+- 动画 key 与资源前缀映射：`stand/shoot/running/jump/dash/climb/runShoot/jumpShoot/dashShoot` → `idle-*` 前缀
+- `loadPlayerSprites()` 启动时 fetch 各动画 `_frames.json` + `_strip.png`
+- 绘制：以 `PLAYER_TARGET_H(80px)` 等比缩放，脚底对齐碰撞盒底部、水平中心对齐；未加载回退手绘小人 `drawX()`
+- 帧数实测：stand=4、shoot=2、running=10、jump=7、dash=2、climb=3、runShoot=10、jumpShoot=7、dashShoot=2
+
+### climb 镜像基准修正
+
+- 关键发现：`climb` 资源三帧默认**面向左**（抓着墙看脸的方向），与其他动画默认**面向右**相反
+- 修复：`drawPlayerSprite` 中 `flip = (animKey === 'climb') ? (facing > 0) : (facing < 0)`，climb 单独反向
+- 用户强调「没这么复杂，直接左右镜像就对了」，即只需反向 climb 的翻转基准，无需改动 facing 数值逻辑
+
+### 同帧数动画对逐帧对应
+
+- jump↔jumpShoot（各 7 帧）、running↔runShoot（各 10 帧）切换时保留 `animF` 帧索引，不再重置为 0
+- 效果：跳跃播到第 3 帧按下射击 → jumpShoot 从第 4 帧继续，节奏不被打断
+- 实现：`KEEP_FRAME_PAIRS` 常量判断成对动画，命中则 `keepFrame=true` 跳过 `animF=0`
+
+### 射击动画缓冲
+
+- 需求：松开射击键后，射击动画保留一段时间再切回非射击动画
+- 实现：新增 `shootHold` 字段，`isChg` 由 true→false 时设为帧数；`playerAnimKey` 中 `shooting = isChg || shootHold > 0`
+- 缓冲时长经用户调整：0.5s → 0.25s（15 帧）
+
+### 跳跃三段式播放
+
+- 需求：跳跃动画分三段——起跳播前 4 帧 → 空中定格第 4 帧 → 落地播尾段（567 帧）后切站立
+- 实现：新增 `landing` 字段，落地检测时（`grounded` false→true 且当前是 jump/jumpShoot）置 true
+- `playerAnimKey` 中 `airborne = !grounded || landing`，落地收尾期间仍返回 jump/jumpShoot
+- 帧推进：空中 `animF>=3` 定格；落地 `landing=true` 后从索引 3 继续播到 nf，播完清 `landing`、`animF=0` 切回站立
+
+### 动画播放速度加速
+
+- 需求：动画播放速度加速 1.5 倍
+- 实现：`frameDur = Math.round(60 / fps / 1.5)`，所有动画统一生效

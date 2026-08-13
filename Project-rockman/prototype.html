@@ -129,23 +129,127 @@ const P = {
 const DMG = { 0: 1, 1: 3, 2: 6 };
 
 // ==================== 子弹 Sprite 资源 ====================
-// 小蓄力子弹（power=1）动画：等宽条带 5 帧 × 40px × 19px
-const BULLET_SPRITE = {
-  src: 'Assets/Assets-Clean/middle-bullet-flying_strip (1).png',
-  frames: 5,
-  frameW: 40,
-  frameH: 19,
-  fps: 10,
-  displayW: 54,   // 显示尺寸（匹配碰撞体积 54×36）
-  displayH: 36,
-  img: null,
-  loaded: false,
+// 子弹类型 → 状态 → 资源。每种子弹有 flying(循环)/hit(瞬时)/out(枪口瞬时) 三个状态。
+// 显示缩放：以资源真实尺寸为基准，映射到游戏里的显示尺寸（displayScale）。
+// 帧数据来自 {type}-{state}_frames.json 的 frames[]，加载时按 strip 排版规则重算为 strip 图里的源裁剪坐标。
+const BULLET_TYPE = {
+  small:  { power: 0, baseW: 18, baseH: 12, displayScale: 1.0 },
+  middle: { power: 1, baseW: 54, baseH: 36, displayScale: 1.6 },
+  big:    { power: 2, baseW: 90, baseH: 60, displayScale: 2.0 },
 };
-(function loadBulletSprite() {
-  BULLET_SPRITE.img = new Image();
-  BULLET_SPRITE.img.onload = () => { BULLET_SPRITE.loaded = true; };
-  BULLET_SPRITE.img.src = BULLET_SPRITE.src;
-})();
+const BULLET_SPRITES = {};  // key: `${type}-${state}` -> { img, frames, fps, loaded }
+
+// 资源配置表：子弹类型 → 状态列表
+const BULLET_STATES = {
+  small:  { states: ['flying', 'hit'],             type: 'small-bullet' },
+  middle: { states: ['flying', 'hit', 'out'],      type: 'middle-bullet' },
+  big:    { states: ['flying', 'hit', 'out'],      type: 'big-bullet' },
+};
+
+// 加载所有子弹的 strip 图 + frames.json
+function loadBulletSprites() {
+  for (const key of Object.keys(BULLET_STATES)) {
+    const { type, states } = BULLET_STATES[key];
+    for (const state of states) {
+      const base = `Assets/Assets-Clean/${type}-${state}`;
+      const entry = { img: new Image(), frames: [], fps: 10, loaded: false };
+      BULLET_SPRITES[`${key}-${state}`] = entry;
+      // 加载帧数据
+      fetch(`${base}_frames.json`)
+        .then(r => r.json())
+        .then(data => {
+          // _frames.json 里的 frames[] 坐标是相对原图(clean.png)的绝对位置，
+          // 但实际渲染用的是 strip.png（等宽条带），需要按 strip 排版规则重算每帧在 strip 里的源裁剪坐标。
+          // strip 规则(与 sprite-build.js 一致)：等宽 fw=max(w)，条带高 fh=max(h)，每帧水平/垂直居中。
+          const rawFrames = data.frames || [];
+          if (rawFrames.length > 0) {
+            const fw = Math.max(...rawFrames.map(f => f.w));
+            const fh = Math.max(...rawFrames.map(f => f.h));
+            entry.frames = rawFrames.map((f, i) => ({
+              x: i * fw + Math.round((fw - f.w) / 2),  // strip 里水平居中后的 x
+              y: Math.round((fh - f.h) / 2),           // strip 里垂直居中后的 y
+              w: f.w,
+              h: f.h,
+            }));
+          }
+          entry.fps = data.fps || 10;
+        })
+        .catch(() => { entry.frames = []; });
+      entry.img.onload = () => { entry.loaded = true; };
+      entry.img.src = `${base}_strip.png`;
+    }
+  }
+}
+loadBulletSprites();
+
+// ==================== 角色 Sprite 资源 ====================
+// 角色动画状态 → 资源文件前缀（与 idle-*.json/png 对应）
+// 缩放基准：以站立帧高度为基准，等比放大到碰撞盒高度 PH(80px)。
+const PLAYER_ANIMS = {
+  stand:     'idle-stand',
+  shoot:     'idle-shoot',
+  running:   'idle-running',
+  jump:      'idle-jump',
+  dash:      'idle-dash',
+  climb:     'idle-climb',
+  runShoot:  'idle-running&shoot',
+  jumpShoot: 'idle-jump&shoot',
+  dashShoot: 'idle-dash&shoot',
+};
+const PLAYER_SPRITES = {};  // key -> { img, frames, fps, loaded }
+const PLAYER_TARGET_H = 80; // 站立时精灵显示高度（对齐碰撞盒 PH）
+
+function loadPlayerSprites() {
+  for (const key of Object.keys(PLAYER_ANIMS)) {
+    const base = `Assets/Assets-Clean/${PLAYER_ANIMS[key]}`;
+    const entry = { img: new Image(), frames: [], fps: 10, loaded: false };
+    PLAYER_SPRITES[key] = entry;
+    fetch(`${base}_frames.json`)
+      .then(r => r.json())
+      .then(data => {
+        const rawFrames = data.frames || [];
+        if (rawFrames.length > 0) {
+          const fw = Math.max(...rawFrames.map(f => f.w));
+          const fh = Math.max(...rawFrames.map(f => f.h));
+          entry.frames = rawFrames.map((f, i) => ({
+            x: i * fw + Math.round((fw - f.w) / 2),
+            y: Math.round((fh - f.h) / 2),
+            w: f.w,
+            h: f.h,
+          }));
+        }
+        entry.fps = data.fps || 10;
+      })
+      .catch(() => { entry.frames = []; });
+    entry.img.onload = () => { entry.loaded = true; };
+    entry.img.src = `${base}_strip.png`;
+  }
+}
+loadPlayerSprites();
+
+// 根据玩家状态返回当前应播放的动画 key
+function playerAnimKey(p, mx) {
+  const shooting = p.isChg || p.shootHold > 0;  // 正在射击（按住 j 蓄力中）或射击结束后的 0.5 秒缓冲
+  const moving = mx !== 0;
+  const airborne = !p.grounded || p.landing;   // 落地收尾期间仍算空中，继续播 jump/jumpShoot 尾段
+
+  if (p.isDash || p.dashAir) {
+    return shooting ? 'dashShoot' : 'dash';
+  }
+  if (airborne) {
+    if (p.onWall !== 0) return 'climb';  // 贴墙滑落过渡
+    return shooting ? 'jumpShoot' : 'jump';
+  }
+  if (moving) return shooting ? 'runShoot' : 'running';
+  return shooting ? 'shoot' : 'stand';
+}
+
+// 根据 power 取子弹类型 key
+function bulletKeyByPower(power) {
+  if (power === 2) return 'big';
+  if (power === 1) return 'middle';
+  return 'small';
+}
 
 const canvas = document.getElementById('game');
 canvas.width = VW; canvas.height = VH;
@@ -367,10 +471,13 @@ function overlap(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y 
 
 // ==================== 全局列表 ====================
 let bullets = [], eBullets = [], particles = [], afterimages = [], enemies = [];
+let muzzleEffects = [];   // 枪口发射特效（out 动画，瞬时）
+let hitEffects = [];      // 命中特效（hit 动画，瞬时，不延迟子弹移除）
 
 function spawnBullet(x, y, dir, power) {
   // 普通子弹 3x (18×12)；蓄力 = 普通×3 (54×36)；满蓄力 = 普通×5 (90×60)
   const baseW = 18, baseH = 12; // 普通子弹碰撞体积
+  const key = bulletKeyByPower(power);
   bullets.push({
     x, y: y + P.PH / 2 - 4, vx: P.BULLET * dir, vy: 0,
     dir,                                     // 面朝方向（用于 sprite 镜像）
@@ -379,7 +486,25 @@ function spawnBullet(x, y, dir, power) {
     power, dmg: DMG[power], life: 120,
     color: power === 2 ? '#ff4444' : power === 1 ? '#ffaa00' : '#ffff00',
     animT: 0,                                 // sprite 动画计时器
+    type: key,                                // 子弹类型（用于取 flying sprite）
   });
+  // 枪口发射特效（out 动画）：锚定在发射点，播放一遍后消失，不跟随子弹
+  // small-bullet 无 out 状态，跳过
+  spawnMuzzle(x, y + P.PH / 2 - 4, dir, key);
+}
+
+// 枪口发射特效（out 动画），独立于子弹本体
+function spawnMuzzle(x, y, dir, key) {
+  const entry = BULLET_SPRITES[`${key}-out`];
+  if (!entry || entry.frames.length === 0) return;  // small 无 out
+  muzzleEffects.push({ x, y, dir, key, animT: 0 });
+}
+
+// 命中特效（hit 动画），独立的瞬时粒子，不延迟子弹移除
+function spawnHitEffect(x, y, dir, key) {
+  const entry = BULLET_SPRITES[`${key}-hit`];
+  if (!entry || entry.frames.length === 0) return;
+  hitEffects.push({ x, y, dir, key, animT: 0 });
 }
 function spawnEBullet(x, y, vx, vy) {
   eBullets.push({ x, y, vx, vy, w: 6, h: 6, life: 90 });
@@ -553,9 +678,9 @@ const player = {
   x: spawn.x, y: spawn.y, vx: 0, vy: 0, w: P.PW, h: P.PH,
   facing: 1, grounded: false, onWall: 0, wallSlide: false,
   isDash: false, dashT: 0, dashDir: 0, dashReady: false, dashAir: false,
-  chgT: 0, isChg: false, wjLock: 0,
-  kCon: false, lCon: false, invT: 0, hp: P.MAX_HP,
-  animF: 0, animT: 0,
+  chgT: 0, isChg: false, shootHold: 0, wjLock: 0,
+  kCon: false, lCon: false, invT: 0, hp: P.MAX_HP, landing: false,
+  animF: 0, animT: 0, animKey: '',
 };
 
 function reset() {
@@ -563,9 +688,10 @@ function reset() {
   Object.assign(player, {
     x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1, grounded: false, onWall: 0, wallSlide: false,
     isDash: false, dashT: 0, dashDir: 0, dashReady: false, dashAir: false,
-    chgT: 0, isChg: false, wjLock: 0, kCon: false, lCon: false, invT: 0, hp: P.MAX_HP,
+    chgT: 0, isChg: false, shootHold: 0, wjLock: 0, kCon: false, lCon: false, invT: 0, hp: P.MAX_HP, landing: false,
+    animF: 0, animT: 0, animKey: '',
   });
-  bullets = []; eBullets = []; particles = []; afterimages = [];
+  bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = [];
   camera.x = 0;
   spawnAll();
 }
@@ -592,6 +718,7 @@ function update() {
   const p = player;
   if (p.invT > 0) p.invT--;
   if (p.wjLock > 0) p.wjLock--;
+  if (p.shootHold > 0) p.shootHold--;
 
   const jD = keys['j'] || keys['J'];
   const kR = keys['k'] || keys['K'];
@@ -638,6 +765,7 @@ function update() {
         spawnBullet(p.x + p.w / 2, p.y, sd, pw);
       }
       p.isChg = false; p.chgT = 0;
+      p.shootHold = 15;  // 射击结束后保留 shoot 动画 0.25 秒（60fps × 0.25s）
     }
   }
 
@@ -728,6 +856,10 @@ function update() {
   }
   if ((p.grounded && !wasGnd) || (p.onWall !== 0 && wasWall === 0)) p.dashAir = false;
   if (p.grounded && !wasGnd && lR) p.lCon = true;
+  // 落地：若当前处于跳跃动画，标记进入落地收尾阶段（播放尾段 3 帧）
+  if (p.grounded && !wasGnd && (p.animKey === 'jump' || p.animKey === 'jumpShoot')) {
+    p.landing = true;
+  }
 
   // 世界边界（无底部边界限制，角色可自由掉落）
 
@@ -743,15 +875,32 @@ function update() {
     b.x += b.vx; b.life--; b.animT++;
     const br = { x: b.x - b.w / 2, y: b.y - b.h / 2, w: b.w, h: b.h };
     let hit = false;
+    // 记录最靠子弹发射侧的接触表面 x（兜底为子弹前边缘）
+    let hitSurfaceX = b.dir > 0 ? -Infinity : Infinity;
+    let hitY = b.y;
+    // 打瓦片：接触边 = 瓦片靠近子弹那一侧的表面
     for (let r = 0; r < LH; r++) for (let c = 0; c < LW; c++) {
       if (map[r * LW + c] === 0) continue;
-      if (overlap(br, { x: c * TILE, y: r * TILE, w: TILE, h: TILE })) { hit = true; spawnPart(b.x, b.y, b.power === 2 ? 8 : 3, b.color); }
-    }
-    for (let j = enemies.length - 1; j >= 0; j--) {
-      if (overlap(br, { x: enemies[j].x, y: enemies[j].y, w: enemies[j].w, h: enemies[j].h })) {
-        hit = true; if (dmgEnemy(enemies[j], b.dmg)) enemies.splice(j, 1);
+      const tl = { x: c * TILE, y: r * TILE, w: TILE, h: TILE };
+      if (overlap(br, tl)) {
+        hit = true; spawnPart(b.x, b.y, b.power === 2 ? 8 : 3, b.color);
+        const sx = b.dir > 0 ? tl.x : tl.x + tl.w;
+        if (b.dir > 0) { if (sx > hitSurfaceX) hitSurfaceX = sx; }
+        else           { if (sx < hitSurfaceX) hitSurfaceX = sx; }
       }
     }
+    // 打敌人：接触边 = 敌人靠近子弹那一侧的表面
+    for (let j = enemies.length - 1; j >= 0; j--) {
+      const en = enemies[j];
+      if (overlap(br, { x: en.x, y: en.y, w: en.w, h: en.h })) {
+        hit = true; if (dmgEnemy(en, b.dmg)) enemies.splice(j, 1);
+        const sx = b.dir > 0 ? en.x : en.x + en.w;
+        if (b.dir > 0) { if (sx > hitSurfaceX) hitSurfaceX = sx; }
+        else           { if (sx < hitSurfaceX) hitSurfaceX = sx; }
+      }
+    }
+    // 命中特效：以接触表面为中线（一半在目标内、一半在目标外）
+    if (hit) spawnHitEffect(hitSurfaceX, hitY, b.dir, b.type);  // 命中特效（不延迟移除）
     if (hit || b.life <= 0 || b.x < camera.x - 50 || b.x > camera.x + VW + 50) bullets.splice(i, 1);
   }
 
@@ -783,12 +932,71 @@ function update() {
     const pt = particles[i]; pt.x += pt.vx; pt.y += pt.vy; pt.vy += 0.1; pt.life--;
     if (pt.life <= 0) particles.splice(i, 1);
   }
+  // 枪口发射特效（out）：播放一遍后移除
+  for (let i = muzzleEffects.length - 1; i >= 0; i--) {
+    const m = muzzleEffects[i];
+    const entry = BULLET_SPRITES[`${m.key}-out`];
+    const totalFrames = entry ? entry.frames.length : 0;
+    const frameDur = entry ? Math.round(60 / entry.fps) : 6;
+    m.animT++;
+    if (totalFrames === 0 || m.animT >= totalFrames * frameDur) muzzleEffects.splice(i, 1);
+  }
+  // 命中特效（hit）：播放一遍后移除
+  for (let i = hitEffects.length - 1; i >= 0; i--) {
+    const h = hitEffects[i];
+    const entry = BULLET_SPRITES[`${h.key}-hit`];
+    const totalFrames = entry ? entry.frames.length : 0;
+    const frameDur = entry ? Math.round(60 / entry.fps) : 6;
+    h.animT++;
+    if (totalFrames === 0 || h.animT >= totalFrames * frameDur) hitEffects.splice(i, 1);
+  }
   // 残影
   for (let i = afterimages.length - 1; i >= 0; i--) { afterimages[i].life--; if (afterimages[i].life <= 0) afterimages.splice(i, 1); }
   if ((p.isDash || p.dashAir) && p.animT % 3 === 0) afterimages.push({ x: Math.floor(p.x + p.w / 2), y: Math.floor(p.y + p.h / 2), facing: p.facing, life: 12 });
 
   if (keys[' ']) { reset(); keys[' '] = false; }
-  p.animT++; if (p.animT >= 8) { p.animT = 0; p.animF = (p.animF + 1) % 4; }
+
+  // 角色动画状态机
+  const animKey = playerAnimKey(p, mx);
+  if (animKey !== p.animKey) {
+    // 同帧数动画对（jump/jumpShoot、running/runShoot）切换时保留当前帧索引，保证逐帧对应
+    const KEEP_FRAME_PAIRS = [['jump', 'jumpShoot'], ['running', 'runShoot']];
+    let keepFrame = false;
+    for (const [a, b] of KEEP_FRAME_PAIRS) {
+      if ((p.animKey === a && animKey === b) || (p.animKey === b && animKey === a)) {
+        keepFrame = true;
+        break;
+      }
+    }
+    p.animKey = animKey;
+    p.animT = 0;
+    if (!keepFrame) p.animF = 0;
+  }
+  const animEntry = PLAYER_SPRITES[p.animKey];
+  const nf = animEntry ? animEntry.frames.length : 0;
+  const frameDur = animEntry ? Math.round(60 / animEntry.fps / 1.5) : 4;
+  if (nf > 0) {
+    p.animT++;
+    // 冲刺/冲刺射击：播放到第二帧后定格；攀爬：播放到最后一帧后定格
+    const holdLast = (animKey === 'dash' || animKey === 'dashShoot' || animKey === 'climb');
+    // 跳跃/跳跃射击：三段式——先播前4帧(索引0~3)→空中定格在第4帧(索引3)→落地播尾段(索引4~6)后切回
+    const isJump = (animKey === 'jump' || animKey === 'jumpShoot');
+    if (holdLast && p.animF >= nf - 1) {
+      // 定格在最后一帧
+    } else if (isJump && !p.landing && p.animF >= 3) {
+      // 空中定格在第4帧
+    } else if (p.animT >= frameDur) {
+      p.animT = 0;
+      p.animF++;
+      if (isJump && p.landing && p.animF >= nf) {
+        // 落地尾段播完，切回站立
+        p.animF = 0;
+        p.landing = false;
+      } else if (!isJump) {
+        p.animF = p.animF % nf;
+      }
+    }
+  }
 }
 
 // ==================== 渲染 (所有世界坐标 - camera.x) ====================
@@ -820,6 +1028,34 @@ function drawX(cx, cy, f) {
   ctx.fillStyle = '#c33'; ctx.fillRect(cx - 9, cy + 28 + lo, 8, 4); ctx.fillRect(cx + 1, cy + 28 - lo, 8, 4);
 }
 
+// 用精灵绘制角色。脚底对齐碰撞盒底部，水平中心对齐碰撞盒中心。
+// 高度等比缩放对齐 PLAYER_TARGET_H(80px)。
+function drawPlayerSprite(p, cx, cy) {
+  const entry = PLAYER_SPRITES[p.animKey];
+  if (!entry || !entry.loaded || entry.frames.length === 0) {
+    drawX(cx, cy, p.facing);  // 回退到手绘小人
+    return;
+  }
+  const fi = Math.min(p.animF, entry.frames.length - 1);
+  const f = entry.frames[fi];
+  const scale = PLAYER_TARGET_H / f.h;
+  const dw = f.w * scale, dh = f.h * scale;
+  const bottomY = p.y + p.h;
+  const drawXPos = cx - dw / 2;
+  const drawY = bottomY - dh;
+  // 其他动画资源默认面向右（facing>0 不翻）；climb 资源默认面向左（facing>0 翻）
+  const flip = (p.animKey === 'climb') ? (p.facing > 0) : (p.facing < 0);
+  ctx.save();
+  if (flip) {
+    ctx.translate(cx, bottomY);
+    ctx.scale(-1, 1);
+    ctx.drawImage(entry.img, f.x, f.y, f.w, f.h, -dw / 2, -dh, dw, dh);
+  } else {
+    ctx.drawImage(entry.img, f.x, f.y, f.w, f.h, drawXPos, drawY, dw, dh);
+  }
+  ctx.restore();
+}
+
 function drawPlayer() {
   const p = player;
   if (p.invT > 0 && Math.floor(p.invT / 3) % 2 === 0) return;
@@ -827,7 +1063,7 @@ function drawPlayer() {
   const cy = Math.floor(p.y + p.h / 2);
   ctx.save();
   for (const a of afterimages) { ctx.globalAlpha = (a.life / 12) * 0.35; drawX(a.x, a.y, a.facing); }
-  ctx.globalAlpha = 1; drawX(cx, cy, p.facing);
+  ctx.globalAlpha = 1; drawPlayerSprite(p, cx, cy);
   ctx.restore();
   if (p.isChg && p.chgT > P.CHG1) {
     const r = 22 + (p.chgT >= P.CHG2 ? 8 : 0);
@@ -900,43 +1136,37 @@ function drawEnemy(en) {
   }
 }
 
+// 绘制一个基于 strip+frames.json 的动画实体（子弹 flying / 特效 out / 特效 hit 共用）
+// entry: BULLET_SPRITES 里的条目 { img, frames, fps }
+// 按每帧真实宽高绘制，不统一缩放，避免高度不一致导致忽大忽小
+function drawAnimEntry(entry, animT, dir, cx, cy, scale) {
+  if (!entry || !entry.loaded || entry.frames.length === 0) return false;
+  const frameDur = Math.round(60 / entry.fps);
+  const fi = Math.floor(animT / frameDur) % entry.frames.length;
+  const f = entry.frames[fi];
+  const dw = f.w * scale, dh = f.h * scale;
+  ctx.save();
+  if (dir < 0) {
+    ctx.translate(cx, cy);
+    ctx.scale(-1, 1);
+    ctx.drawImage(entry.img, f.x, f.y, f.w, f.h, -dw / 2, -dh / 2, dw, dh);
+  } else {
+    ctx.drawImage(entry.img, f.x, f.y, f.w, f.h, cx - dw / 2, cy - dh / 2, dw, dh);
+  }
+  ctx.restore();
+  return true;
+}
+
 function drawBullets() {
   for (const b of bullets) {
     const bx = b.x, by = b.y;
-    if (b.power === 2) {
-      // 满蓄力: 普通子弹×5 (原始圆半径 r=10/6/4 → 50/30/20)
-      ctx.save(); ctx.globalAlpha = 0.4; ctx.fillStyle = b.color;
-      ctx.beginPath(); ctx.arc(bx, by, 50, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 1; ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(bx, by, 30, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(bx, by, 20, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-    } else if (b.power === 1) {
-      // 小蓄力子弹: 用 sprite 动画渲染（5帧循环），放大到 54×36 匹配碰撞体积
-      if (BULLET_SPRITE.loaded) {
-        const S = BULLET_SPRITE;
-        const frameDur = Math.round(60 / S.fps);   // 每帧持续帧数
-        const fi = Math.floor(b.animT / frameDur) % S.frames;  // 当前帧索引
-        const sx = fi * S.frameW;
-        const dw = S.displayW, dh = S.displayH;
-        ctx.save();
-        // 按子弹面朝方向镜像（dir=1 右，dir=-1 左）
-        if (b.dir < 0) {
-          ctx.translate(bx, by);
-          ctx.scale(-1, 1);
-          ctx.drawImage(S.img, sx, 0, S.frameW, S.frameH, -dw / 2, -dh / 2, dw, dh);
-        } else {
-          ctx.drawImage(S.img, sx, 0, S.frameW, S.frameH, bx - dw / 2, by - dh / 2, dw, dh);
-        }
-        ctx.restore();
-      } else {
-        // 图片未加载完成时的 fallback
-        ctx.fillStyle = b.color; ctx.fillRect(bx - 12, by - 9, 24, 18);
-        ctx.fillStyle = '#fff'; ctx.fillRect(bx - 6, by - 6, 12, 12);
-      }
-    } else {
-      // 普通: 3倍 (6×4 → 18×12)
-      ctx.fillStyle = '#ff0'; ctx.fillRect(bx - 9, by - 6, 18, 12);
-      ctx.fillStyle = '#fff'; ctx.fillRect(bx - 3, by - 3, 9, 6);
+    const entry = BULLET_SPRITES[`${b.type}-flying`];
+    const scale = BULLET_TYPE[b.type] ? BULLET_TYPE[b.type].displayScale : 1.0;
+    // 用真实帧宽高绘制 flying 循环动画；未加载时回退到纯色矩形
+    if (!drawAnimEntry(entry, b.animT, b.dir, bx, by, scale)) {
+      ctx.fillStyle = b.color;
+      ctx.fillRect(bx - b.w / 2, by - b.h / 2, b.w, b.h);
+      if (b.power > 0) { ctx.fillStyle = '#fff'; ctx.fillRect(bx - b.w / 4, by - b.h / 4, b.w / 2, b.h / 2); }
     }
   }
   for (const b of eBullets) {
@@ -944,6 +1174,18 @@ function drawBullets() {
     ctx.strokeStyle = '#f4f'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(bx, by, 4 + Math.sin(Date.now() / 60) * 0.5, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = 'rgba(255,68,255,0.5)'; ctx.beginPath(); ctx.arc(bx, by, 2, 0, Math.PI * 2); ctx.fill();
+  }
+  // 枪口发射特效（out）
+  for (const m of muzzleEffects) {
+    const entry = BULLET_SPRITES[`${m.key}-out`];
+    const scale = BULLET_TYPE[m.key] ? BULLET_TYPE[m.key].displayScale : 1.0;
+    drawAnimEntry(entry, m.animT, m.dir, m.x, m.y, scale);
+  }
+  // 命中特效（hit）
+  for (const h of hitEffects) {
+    const entry = BULLET_SPRITES[`${h.key}-hit`];
+    const scale = BULLET_TYPE[h.key] ? BULLET_TYPE[h.key].displayScale : 1.0;
+    drawAnimEntry(entry, h.animT, h.dir, h.x, h.y, scale);
   }
 }
 
@@ -1065,7 +1307,7 @@ function setEditMode(on) {
     editorToolbar.classList.add('active');
     updateToolUI();
     // 进入编辑模式时清空子弹和粒子残留，重置所有怪物到初始状态
-    bullets = []; eBullets = []; particles = []; afterimages = [];
+    bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = [];
     const data = levelData || DEFAULT_LEVEL;
     enemies = spawnEnemiesFromData(data);
   } else {

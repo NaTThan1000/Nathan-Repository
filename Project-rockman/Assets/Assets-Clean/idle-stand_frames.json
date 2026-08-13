@@ -1,0 +1,39 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "idle.png",
+  "exportedAt": "2026-08-13T08:29:38.657Z",
+  "action": "idle-stand",
+  "fps": 10,
+  "frames": [
+    {
+      "x": 2,
+      "y": 5,
+      "w": 30,
+      "h": 35
+    },
+    {
+      "x": 35,
+      "y": 6,
+      "w": 30,
+      "h": 34
+    },
+    {
+      "x": 69,
+      "y": 6,
+      "w": 30,
+      "h": 34
+    },
+    {
+      "x": 103,
+      "y": 6,
+      "w": 30,
+      "h": 34
+    }
+  ],
+  "meta": {
+    "imageWidth": 168,
+    "imageHeight": 47,
+    "cleanImage": "idle-stand_clean.png"
+  }
+}

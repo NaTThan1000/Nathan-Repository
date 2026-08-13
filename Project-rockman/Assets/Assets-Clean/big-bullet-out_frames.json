@@ -1,0 +1,27 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "big-bullet.png",
+  "exportedAt": "2026-08-13T08:14:01.023Z",
+  "action": "big-bullet-out",
+  "fps": 10,
+  "frames": [
+    {
+      "x": 2,
+      "y": 14,
+      "w": 14,
+      "h": 20
+    },
+    {
+      "x": 18,
+      "y": 16,
+      "w": 23,
+      "h": 16
+    }
+  ],
+  "meta": {
+    "imageWidth": 320,
+    "imageHeight": 43,
+    "cleanImage": "big-bullet-out_clean.png"
+  }
+}

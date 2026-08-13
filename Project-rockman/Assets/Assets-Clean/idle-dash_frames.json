@@ -1,0 +1,27 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "dash.png",
+  "exportedAt": "2026-08-13T08:38:28.949Z",
+  "action": "idle-dash",
+  "fps": 10,
+  "frames": [
+    {
+      "x": 1,
+      "y": 9,
+      "w": 28,
+      "h": 31
+    },
+    {
+      "x": 32,
+      "y": 14,
+      "w": 38,
+      "h": 26
+    }
+  ],
+  "meta": {
+    "imageWidth": 72,
+    "imageHeight": 50,
+    "cleanImage": "idle-dash_clean.png"
+  }
+}

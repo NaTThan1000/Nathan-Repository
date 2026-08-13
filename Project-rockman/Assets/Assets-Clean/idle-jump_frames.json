@@ -1,0 +1,57 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "jump.png",
+  "exportedAt": "2026-08-13T08:37:16.754Z",
+  "action": "idle-jump",
+  "fps": 10,
+  "frames": [
+    {
+      "x": 4,
+      "y": 11,
+      "w": 24,
+      "h": 37
+    },
+    {
+      "x": 33,
+      "y": 7,
+      "w": 15,
+      "h": 41
+    },
+    {
+      "x": 52,
+      "y": 2,
+      "w": 19,
+      "h": 46
+    },
+    {
+      "x": 76,
+      "y": 7,
+      "w": 23,
+      "h": 41
+    },
+    {
+      "x": 105,
+      "y": 6,
+      "w": 27,
+      "h": 42
+    },
+    {
+      "x": 139,
+      "y": 10,
+      "w": 24,
+      "h": 38
+    },
+    {
+      "x": 168,
+      "y": 16,
+      "w": 30,
+      "h": 32
+    }
+  ],
+  "meta": {
+    "imageWidth": 201,
+    "imageHeight": 51,
+    "cleanImage": "idle-jump_clean.png"
+  }
+}

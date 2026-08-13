@@ -1,6 +1,6 @@
 # Rockman X4 操作原型 - 策划文档 & 技术速查
 
-> 最后更新: 2026-08-13 (会话 #5)
+> 最后更新: 2026-08-13 (会话 #6)
 
 ---
 
@@ -86,6 +86,38 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 - 正常状态：朝面朝方向射击
 - 贴墙滑落时：朝远离墙的方向射击（例：左墙贴滑 → 向右射击）
 
+#### 3.6 角色动画系统
+
+角色已从 `fillRect` 占位美术替换为序列帧精灵动画（9 个动画状态）：
+
+| 动画 key | 资源前缀 | 帧数 |
+|---------|---------|------|
+| `stand` | idle-stand | 4 |
+| `shoot` | idle-shoot | 2 |
+| `running` | idle-running | 10 |
+| `jump` | idle-jump | 7 |
+| `dash` | idle-dash | 2 |
+| `climb` | idle-climb | 3 |
+| `runShoot` | idle-running&shoot | 10 |
+| `jumpShoot` | idle-jump&shoot | 7 |
+| `dashShoot` | idle-dash&shoot | 2 |
+
+**动画选择规则**（`playerAnimKey`）：
+- 冲刺阶段 → `dash`/`dashShoot`
+- 空中（含落地收尾期间）→ 贴墙为 `climb`，否则 `jump`/`jumpShoot`
+- 地面移动 → `running`/`runShoot`
+- 站立 → `stand`/`shoot`
+
+**帧对应机制**：同帧数的成对动画（`jump`↔`jumpShoot` 各 7 帧、`running`↔`runShoot` 各 10 帧）切换时保留当前帧索引，保证逐帧一一对应（如跳跃播到第 3 帧按下射击键，jumpShoot 从第 4 帧继续）。
+
+**跳跃三段式播放**：跳跃动画分三段——起跳先播前 4 帧（索引 0~3）→ 空中定格在第 4 帧（索引 3）→ 落地瞬间播尾段（索引 4~6）后切回站立。跳跃射击同理。
+
+**射击缓冲**：松开射击键后，射击类动画（`shoot`/`runShoot`/`jumpShoot`/`dashShoot`）保留 0.25 秒再切回对应非射击动画。
+
+**镜像规则**：普通动画资源默认面向右（`facing>0` 不翻，`facing<0` 翻）；`climb` 资源默认面向左（`facing>0` 翻，`facing<0` 不翻）。
+
+**播放速度**：所有动画帧时长除以 1.5，即播放速度 1.5 倍。
+
 ### 4. 玩家属性
 
 | 属性 | 值 | 说明 |
@@ -127,6 +159,9 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 | `Assets/sprite-cutter.html` | 序列帧切割工具（绿幕去除 + 框选 + 分割线 + 导出等宽条带/JSON） |
 | `Assets/sprite-build.js` | 本地序列帧生成脚本（读取参数 JSON，零依赖生成 clean/strip/frames 产物） |
 | `Assets/Assets-Clean/` | 切割产物目录（去绿幕后条带 PNG + 每帧坐标 JSON） |
+| `Assets/Assets-Clean/idle-*.json` | 角色 9 个动画的每帧坐标元数据（stand/shoot/running/jump/dash/climb/runShoot/jumpShoot/dashShoot） |
+| `Assets/Assets-Clean/idle-*_strip.png` | 角色 9 个动画的等宽条带 PNG |
+| `Assets/Assets-Clean/*-bullet-*.json/png` | 子弹（small/middle/big）的 flying/hit/out 三态序列帧 |
 
 ### 7. 核心数据结构
 
@@ -138,19 +173,24 @@ player = {
   facing: 1|-1,                 // 面朝方向
   grounded: bool,               // 是否在地面
   onWall: 0|-1|1,              // 贴墙状态
-  wallSliding: bool,            // 是否贴墙滑落中
-  isDashing: bool,              // Dash 阶段1
-  dashTimer: int,               // 冲刺剩余帧数
+  wallSlide: bool,              // 是否贴墙滑落中
+  isDash: bool,                 // Dash 阶段1
+  dashT: int,                   // 冲刺剩余帧数
   dashDir: 1|-1,                // 冲刺方向
   dashReady: bool,              // Dash 阶段2 就绪状态
-  dashAirborne: bool,           // 空中 Dash 资格
-  chargeTimer: int,             // 蓄力帧数
-  isCharging: bool,             // 是否蓄力中
-  wallJumpLockTimer: int,       // 墙跳方向锁定剩余帧
-  kConsumed: bool,              // K 键消费标记
-  lConsumed: bool,              // L 键消费标记
-  invincibleTimer: int,         // 受伤无敌帧
+  dashAir: bool,                // 空中 Dash 资格
+  chgT: int,                    // 蓄力帧数
+  isChg: bool,                  // 是否蓄力中
+  shootHold: int,               // 射击结束后保留射击动画的剩余帧数（0.25s = 15 帧）
+  wjLock: int,                  // 墙跳方向锁定剩余帧
+  kCon: bool,                   // K 键消费标记
+  lCon: bool,                   // L 键消费标记
+  invT: int,                    // 受伤无敌帧
   hp: int,                      // 血量
+  landing: bool,                // 落地收尾阶段标记（跳跃动画播尾段）
+  animF: int,                   // 当前动画帧索引
+  animT: int,                   // 当前帧内计时器
+  animKey: string,              // 当前动画 key（见 PLAYER_ANIMS）
 }
 ```
 
@@ -194,6 +234,25 @@ BULLET_SPRITE = {
 - 显示尺寸 54×36 匹配碰撞体积；`dir < 0` 时水平镜像
 - 图片未加载完成时回退到原纯色矩形绘制
 
+#### 角色 Sprite 资源
+
+```javascript
+PLAYER_ANIMS = {           // 动画 key → 资源文件前缀
+  stand: 'idle-stand', shoot: 'idle-shoot',
+  running: 'idle-running', jump: 'idle-jump',
+  dash: 'idle-dash', climb: 'idle-climb',
+  runShoot: 'idle-running&shoot', jumpShoot: 'idle-jump&shoot',
+  dashShoot: 'idle-dash&shoot',
+}
+PLAYER_SPRITES = {}        // key -> { img, frames: [{x,y,w,h}], fps, loaded }
+PLAYER_TARGET_H = 80       // 站立时精灵显示高度（对齐碰撞盒 PH）
+```
+
+- `loadPlayerSprites()` 在启动时 fetch 各动画的 `_frames.json` 与 `_strip.png`
+- 帧坐标由 JSON 的 `frames` 数组提供，统一以最大宽高对齐（每帧水平居中、底部对齐）
+- 绘制时按 `PLAYER_TARGET_H / 帧高` 等比缩放，脚底对齐碰撞盒底部、水平中心对齐
+- 精灵未加载完成时回退到手绘小人 `drawX()`
+
 #### 摄像机
 
 ```javascript
@@ -231,6 +290,9 @@ DASH_MULT: 1.5
 BULLET: 14.0
 INV: 30 (无敌帧)
 MAX_HP: 28
+PLAYER_TARGET_H: 80         // 角色精灵显示高度
+ANIM_SPEED: 1.5             // 动画播放加速倍率（frameDur = 60/fps/1.5）
+SHOOT_HOLD: 15 (0.25s)      // 射击结束后保留射击动画帧数
 ```
 
 ### 9. 更新流程（每帧）
@@ -255,7 +317,8 @@ MAX_HP: 28
 17. 敌人子弹 vs 玩家碰撞
 18. 玩家碰怪物伤害
 19. 更新粒子/残影
-20. 重置检测 + 动画计时
+20. 重置检测
+21. 角色动画状态机（`playerAnimKey` 选 key → 帧对应保留 → 跳跃三段式 → 帧推进）
 
 **编辑模式**：跳过所有游戏逻辑（`update()` 直接 return），仅响应鼠标操作。
 
@@ -268,7 +331,7 @@ MAX_HP: 28
 5. 粒子
 6. 子弹
 7. 怪物（仅渲染可见范围）
-8. 玩家（含残影、蓄力光环，编辑模式不渲染）
+8. 玩家（序列帧精灵 + 残影 + 蓄力光环，编辑模式不渲染；精灵未加载时回退手绘小人）
 9. 编辑器 overlay（编辑模式下高亮当前 tile / 敌人预览）
 10. **恢复变换**：`ctx.restore()`
 11. UI（HP 条、蓄力条、调试面板）
@@ -291,6 +354,11 @@ MAX_HP: 28
 | `drawEditorOverlay()` | 渲染编辑器高亮/预览 |
 | `spawnBullet(x, y, dir, power)` | 生成玩家子弹（含 dir/animT sprite 字段） |
 | `drawBullets()` | 渲染玩家/敌人子弹（power=1 用 sprite 动画） |
+| `loadPlayerSprites()` | 加载角色各动画的 `_frames.json` 与 `_strip.png` |
+| `playerAnimKey(p, mx)` | 根据玩家状态返回当前应播放的动画 key |
+| `drawPlayerSprite(p, cx, cy)` | 用精灵绘制角色（等比缩放 + 镜像） |
+| `drawPlayer()` | 渲染玩家（含残影、蓄力光环） |
+| `drawX(cx, cy, f)` | 手绘小人 fallback 绘制 |
 
 **sprite-cutter.html / sprite-build.js 关键函数**：
 
@@ -317,6 +385,7 @@ MAX_HP: 28
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-08-13 (会话#6) | **角色序列帧动画系统接入 + 动画细节打磨**。① 角色从 `fillRect` 占位美术替换为 9 个序列帧精灵动画（`PLAYER_ANIMS`/`loadPlayerSprites`/`drawPlayerSprite`，等比缩放对齐碰撞盒高度 80px，未加载回退手绘小人）；② 修正 `climb` 动画镜像基准（该资源默认面向左，与其他动画相反）；③ 同帧数成对动画（jump↔jumpShoot、running↔runShoot）切换时保留帧索引，逐帧对应；④ 射击动画缓冲：松开射击键后保留 0.25s 再切回；⑤ 跳跃三段式播放（起跳前4帧→空中定格第4帧→落地播尾段3帧）；⑥ 动画播放速度加速 1.5 倍（frameDur = 60/fps/1.5）。 |
 | 2026-08-13 | **序列帧切割工具链 + 小蓄力子弹 sprite 接入**。① 新增 `sprite-cutter.html`（绿幕去除 + 框选动画行 + 分割线 + 导出等宽条带/JSON）和 `sprite-build.js`（零依赖本地生成脚本）；② 修复去绿幕算法：从「宽泛阈值删绿」改为「精确删纯绿(0,255,0)」，避免误删前景绿色描边；③ `resetView()` 不再默认选整图，自动选第一行；④ `prototype.html` 接入小蓄力子弹 sprite 动画（`middle-bullet-flying_strip (1).png`，5帧×40×19，显示 54×36 匹配碰撞体积，支持镜像）。 |
 | 2026-08-10 | **项目初始化**。创建 Rockman X4 操作原型，实现 X 核心移动+射击机制。单文件 `prototype.html` 实现。 |
 | 2026-08-11 (上午) | **文档同步**。修正 §5 关卡尺寸，全量交叉比对。 |

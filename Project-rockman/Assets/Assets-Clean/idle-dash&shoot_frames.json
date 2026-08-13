@@ -1,0 +1,27 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "jump&shoot.png",
+  "exportedAt": "2026-08-13T08:41:47.081Z",
+  "action": "idle-dash&shoot",
+  "fps": 10,
+  "frames": [
+    {
+      "x": 306,
+      "y": 18,
+      "w": 38,
+      "h": 31
+    },
+    {
+      "x": 345,
+      "y": 23,
+      "w": 49,
+      "h": 26
+    }
+  ],
+  "meta": {
+    "imageWidth": 404,
+    "imageHeight": 54,
+    "cleanImage": "idle-dash&shoot_clean.png"
+  }
+}

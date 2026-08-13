@@ -1,0 +1,33 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "climb.png",
+  "exportedAt": "2026-08-13T08:39:30.066Z",
+  "action": "idle-climb",
+  "fps": 10,
+  "frames": [
+    {
+      "x": 3,
+      "y": 4,
+      "w": 25,
+      "h": 42
+    },
+    {
+      "x": 32,
+      "y": 3,
+      "w": 27,
+      "h": 43
+    },
+    {
+      "x": 63,
+      "y": 4,
+      "w": 28,
+      "h": 42
+    }
+  ],
+  "meta": {
+    "imageWidth": 93,
+    "imageHeight": 50,
+    "cleanImage": "idle-climb_clean.png"
+  }
+}

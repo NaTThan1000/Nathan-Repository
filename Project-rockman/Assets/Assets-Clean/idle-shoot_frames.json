@@ -1,0 +1,27 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "shoot.png",
+  "exportedAt": "2026-08-13T08:31:14.804Z",
+  "action": "idle-shoot",
+  "fps": 10,
+  "frames": [
+    {
+      "x": 1,
+      "y": 2,
+      "w": 31,
+      "h": 34
+    },
+    {
+      "x": 35,
+      "y": 2,
+      "w": 30,
+      "h": 34
+    }
+  ],
+  "meta": {
+    "imageWidth": 68,
+    "imageHeight": 40,
+    "cleanImage": "idle-shoot_clean.png"
+  }
+}

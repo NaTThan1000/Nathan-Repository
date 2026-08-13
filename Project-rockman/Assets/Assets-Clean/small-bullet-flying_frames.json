@@ -1,0 +1,21 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "small-bullet.png",
+  "exportedAt": "2026-08-13T08:24:36.482Z",
+  "action": "small-bullet-flying",
+  "fps": 10,
+  "frames": [
+    {
+      "x": 3,
+      "y": 7,
+      "w": 8,
+      "h": 6
+    }
+  ],
+  "meta": {
+    "imageWidth": 58,
+    "imageHeight": 19,
+    "cleanImage": "small-bullet-flying_clean.png"
+  }
+}

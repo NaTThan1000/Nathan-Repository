@@ -1,0 +1,51 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "big-bullet.png",
+  "exportedAt": "2026-08-13T04:44:31.901Z",
+  "action": "big-bullet-hit",
+  "fps": 10,
+  "frames": [
+    {
+      "x": 124,
+      "y": 8,
+      "w": 28,
+      "h": 28
+    },
+    {
+      "x": 156,
+      "y": 8,
+      "w": 26,
+      "h": 26
+    },
+    {
+      "x": 185,
+      "y": 6,
+      "w": 30,
+      "h": 30
+    },
+    {
+      "x": 218,
+      "y": 6,
+      "w": 30,
+      "h": 30
+    },
+    {
+      "x": 250,
+      "y": 5,
+      "w": 32,
+      "h": 32
+    },
+    {
+      "x": 285,
+      "y": 5,
+      "w": 32,
+      "h": 32
+    }
+  ],
+  "meta": {
+    "imageWidth": 320,
+    "imageHeight": 43,
+    "cleanImage": "big-bullet-hit_clean.png"
+  }
+}

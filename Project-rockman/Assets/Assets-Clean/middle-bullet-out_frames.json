@@ -1,0 +1,27 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "middle-bullet.png",
+  "exportedAt": "2026-08-13T08:17:01.839Z",
+  "action": "middle-bullet-out",
+  "fps": 10,
+  "frames": [
+    {
+      "x": 3,
+      "y": 9,
+      "w": 16,
+      "h": 14
+    },
+    {
+      "x": 21,
+      "y": 4,
+      "w": 24,
+      "h": 24
+    }
+  ],
+  "meta": {
+    "imageWidth": 270,
+    "imageHeight": 28,
+    "cleanImage": "middle-bullet-out_clean.png"
+  }
+}
