@@ -1,0 +1,21 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "idle-assets.png",
+  "exportedAt": "2026-08-14T01:38:58.754Z",
+  "action": "idle-crouch",
+  "fps": 10,
+  "frames": [
+    {
+      "x": 323,
+      "y": 115,
+      "w": 29,
+      "h": 27
+    }
+  ],
+  "meta": {
+    "imageWidth": 404,
+    "imageHeight": 612,
+    "cleanImage": "idle-crouch_clean.png"
+  }
+}

@@ -1,6 +1,6 @@
 # Rockman X4 操作原型 - 策划文档 & 技术速查
 
-> 最后更新: 2026-08-13 (会话 #6)
+> 最后更新: 2026-08-14 (会话 #7)
 
 ---
 
@@ -18,6 +18,8 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 | `K` | 跳跃 / 墙跳 |
 | `J` | 射击 + 蓄力（合并） |
 | `L` | Dash（冲刺） |
+| `S` | 下蹲（按住） |
+| `P` | 切换碰撞盒可视化 |
 | `空格` | 重置角色 |
 | `E` | 切换编辑模式（游玩 ↔ 编辑） |
 | `Ctrl+S` | 编辑模式下导出关卡 JSON |
@@ -72,7 +74,7 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 - K 键按住只触发一次跳跃（消费机制）
 - 地面跳跃：普通速度起跳
 - 贴墙 + K = 墙跳，弹向反方向
-- 墙跳后 0.1s（6 帧）方向锁定：强制向反方向移动，忽略玩家输入
+- 墙跳后 0.1s（6 帧）方向锁定：强制向反方向移动，忽略玩家输入（方向由蹬墙瞬间保存的 `wjDir` 决定，不依赖逐帧重算的 `onWall`）
 - 按住 L 时墙跳 → 获得空中 Dash 资格 + 加速墙跳速度
 
 #### 3.4 贴墙滑落
@@ -88,7 +90,7 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 
 #### 3.6 角色动画系统
 
-角色已从 `fillRect` 占位美术替换为序列帧精灵动画（9 个动画状态）：
+角色已从 `fillRect` 占位美术替换为序列帧精灵动画（10 个动画状态）：
 
 | 动画 key | 资源前缀 | 帧数 |
 |---------|---------|------|
@@ -98,12 +100,14 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 | `jump` | idle-jump | 7 |
 | `dash` | idle-dash | 2 |
 | `climb` | idle-climb | 3 |
+| `crouch` | idle-crouch | 1 |
 | `runShoot` | idle-running&shoot | 10 |
 | `jumpShoot` | idle-jump&shoot | 7 |
 | `dashShoot` | idle-dash&shoot | 2 |
 
 **动画选择规则**（`playerAnimKey`）：
-- 冲刺阶段 → `dash`/`dashShoot`
+- 冲刺阶段（`isDash`）→ `dash`/`dashShoot`（优先级最高）
+- 下蹲（`crouch`，非冲刺时）→ `crouch`
 - 空中（含落地收尾期间）→ 贴墙为 `climb`，否则 `jump`/`jumpShoot`
 - 地面移动 → `running`/`runShoot`
 - 站立 → `stand`/`shoot`
@@ -118,11 +122,21 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 
 **播放速度**：所有动画帧时长除以 1.5，即播放速度 1.5 倍。
 
+#### 3.7 下蹲机制
+
+- **触发**：按住 `S` 下蹲，松开站起（地面且非冲刺/空中 Dash 期间才处理）
+- **碰撞盒切换**：下蹲切换到碰撞盒 B（87×62），站起切回碰撞盒 A（69×80）
+- **强制下蹲**（`forcedCrouch`）：冲刺结束或站立空间不足时自动蹲下，锁死位移（`vx=0`，仅允许 Dash 逃出），每帧检测头顶空间，能站起则自动恢复
+- **冲突检测**：`boxFitsTerrain()` 在切换碰撞盒前检测新碰撞盒是否与地形重叠，重叠则拒绝切换（下蹲拒绝 / 站起拒绝 / Dash 禁止）
+- **跳跃交互**：下蹲时起跳会先恢复站立碰撞盒再起跳（跳跃碰撞盒 = 碰撞盒 A）
+- **动画**：下蹲时播放 `crouch` 动画（1 帧，非冲刺时）
+
 ### 4. 玩家属性
 
 | 属性 | 值 | 说明 |
 |------|-----|------|
-| 尺寸 | 28×80 | 宽×高（高度为原始 40px 的 2 倍） |
+| 碰撞盒 A（站立/跳跃） | 69×80 | 站立素材最大宽高 × `SPRITE_SCALE` |
+| 碰撞盒 B（下蹲/冲刺） | 87×62 | 宽=dash 素材最大宽、高=crouch 素材最大高 |
 | 移速 | 4.0 px/帧 | 普通移动速度 |
 | 跳跃力 | -12.0 | 初始向上速度 |
 | 重力 | 0.55 | 每帧加速度 |
@@ -134,12 +148,14 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 | 墙跳 X | 5.5 | |
 | 墙跳 Y | -10.0 | |
 
+> 注：碰撞盒不再硬编码固定值，而是由素材加载后通过 `updateHitboxTable()` 根据各动画素材实际 `maxW`/`maxH` × `SPRITE_SCALE`(≈2.286，以站立素材高 35px 对齐 80px 为锚) 动态计算。`SPRITE_SCALE = PLAYER_TARGET_H / 35`。
+
 ### 5. 关卡配置
 
 - Tile 大小：32×32
-- 关卡尺寸：100×16 Tile（3200×512），支持动态扩展（编辑模式下在边界外放置砖块自动扩大地图）
+- 关卡尺寸：100×30 Tile（3200×960），支持动态扩展（编辑模式下在边界外放置砖块自动扩大地图）
 - 数据格式：一维数组，1=砖块 0=空
-- 关卡分 4 个区域：起始峡谷(col 1~24) → 瀑布攀爬(col 25~49) → 中层丛林(col 50~74) → Boss巢穴(col 75~99)
+- 关卡分 4 个区域：起始峡谷 → 瀑布攀爬 → 中层丛林 → Boss巢穴
 - 外部配置文件：`level.json`（含 `playerSpawn`、tiles 规则描述 + enemies 列表），支持 fetch 加载；内联 `DEFAULT_LEVEL` 作为 fallback
 - 玩家出生点：`playerSpawn: { x, y }` 可配置，编辑器支持自由拖动设置（像素级，不受 tile 网格约束），退出编辑模式时自动验证不与地形/敌人重合
 - 摄像机：支持水平+垂直居中跟随，边界限制（走到地图边缘时镜头停止）
@@ -159,8 +175,8 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 | `Assets/sprite-cutter.html` | 序列帧切割工具（绿幕去除 + 框选 + 分割线 + 导出等宽条带/JSON） |
 | `Assets/sprite-build.js` | 本地序列帧生成脚本（读取参数 JSON，零依赖生成 clean/strip/frames 产物） |
 | `Assets/Assets-Clean/` | 切割产物目录（去绿幕后条带 PNG + 每帧坐标 JSON） |
-| `Assets/Assets-Clean/idle-*.json` | 角色 9 个动画的每帧坐标元数据（stand/shoot/running/jump/dash/climb/runShoot/jumpShoot/dashShoot） |
-| `Assets/Assets-Clean/idle-*_strip.png` | 角色 9 个动画的等宽条带 PNG |
+| `Assets/Assets-Clean/idle-*.json` | 角色 10 个动画的每帧坐标元数据（stand/shoot/running/jump/dash/climb/crouch/runShoot/jumpShoot/dashShoot） |
+| `Assets/Assets-Clean/idle-*_strip.png` | 角色 10 个动画的等宽条带 PNG |
 | `Assets/Assets-Clean/*-bullet-*.json/png` | 子弹（small/middle/big）的 flying/hit/out 三态序列帧 |
 
 ### 7. 核心数据结构
@@ -169,7 +185,7 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 
 ```javascript
 player = {
-  x, y, vx, vy, w, h,          // 位置/速度/尺寸
+  x, y, vx, vy, w, h,          // 位置/速度/尺寸（w/h 随碰撞盒切换动态变化）
   facing: 1|-1,                 // 面朝方向
   grounded: bool,               // 是否在地面
   onWall: 0|-1|1,              // 贴墙状态
@@ -179,10 +195,14 @@ player = {
   dashDir: 1|-1,                // 冲刺方向
   dashReady: bool,              // Dash 阶段2 就绪状态
   dashAir: bool,                // 空中 Dash 资格
+  dashEndLock: int,             // 冲刺结束锁（2 帧，避免碰撞盒切换临界帧误入 airborne 闪 jump）
+  crouch: bool,                 // 是否下蹲
+  forcedCrouch: bool,           // 是否强制下蹲（锁位移）
   chgT: int,                    // 蓄力帧数
   isChg: bool,                  // 是否蓄力中
   shootHold: int,               // 射击结束后保留射击动画的剩余帧数（0.25s = 15 帧）
   wjLock: int,                  // 墙跳方向锁定剩余帧
+  wjDir: 1|-1,                  // 墙跳方向（蹬墙瞬间保存，wjLock 期间据此强制位移）
   kCon: bool,                   // K 键消费标记
   lCon: bool,                   // L 键消费标记
   invT: int,                    // 受伤无敌帧
@@ -241,17 +261,35 @@ PLAYER_ANIMS = {           // 动画 key → 资源文件前缀
   stand: 'idle-stand', shoot: 'idle-shoot',
   running: 'idle-running', jump: 'idle-jump',
   dash: 'idle-dash', climb: 'idle-climb',
+  crouch: 'idle-crouch',
   runShoot: 'idle-running&shoot', jumpShoot: 'idle-jump&shoot',
   dashShoot: 'idle-dash&shoot',
 }
-PLAYER_SPRITES = {}        // key -> { img, frames: [{x,y,w,h}], fps, loaded }
+PLAYER_SPRITES = {}        // key -> { img, frames: [{x,y,w,h}], fps, loaded, maxW, maxH }
 PLAYER_TARGET_H = 80       // 站立时精灵显示高度（对齐碰撞盒 PH）
+SPRITE_SCALE = PLAYER_TARGET_H / 35  // 素材→世界缩放系数 K ≈ 2.286
 ```
 
 - `loadPlayerSprites()` 在启动时 fetch 各动画的 `_frames.json` 与 `_strip.png`
 - 帧坐标由 JSON 的 `frames` 数组提供，统一以最大宽高对齐（每帧水平居中、底部对齐）
-- 绘制时按 `PLAYER_TARGET_H / 帧高` 等比缩放，脚底对齐碰撞盒底部、水平中心对齐
+- 绘制时按 `SPRITE_SCALE` 等比缩放（不跟随碰撞盒缩放），脚底对齐碰撞盒底部、水平中心对齐
 - 精灵未加载完成时回退到手绘小人 `drawX()`
+
+#### 碰撞盒系统
+
+```javascript
+HITBOX = {
+  stand:  { w, h },   // 碰撞盒 A（站立/跳跃）= stand 素材 maxW/maxH × SPRITE_SCALE
+  jump:   { w, h },   // 跳跃：与站立相同（碰撞盒 A）
+  dash:   { w, h },   // 碰撞盒 B（定制）= 宽取 dash 素材 maxW、高取 crouch 素材 maxH
+  crouch: { w, h },   // 下蹲：碰撞盒 B（与 dash 同宽高）
+}
+```
+
+- `updateHitboxTable()` 在素材加载完成后根据各动画实际 `maxW`/`maxH` × `SPRITE_SCALE` 计算各状态碰撞盒，并同步 `P.PW`/`P.PH`/`P.PC`
+- `setPlayerBox(w, h)` 切换碰撞盒时保持脚底 `y+h` 与水平中心 `cx` 不变
+- `boxFitsTerrain(w, h)` 检测目标碰撞盒是否与地形重叠，重叠则拒绝切换
+- 碰撞盒可视化开关（`P` 键），调试面板 `showHitboxes` 控制 `drawHitboxes()` 绘制
 
 #### 摄像机
 
@@ -280,7 +318,7 @@ dragPlayerOffX/Y: number   // 拖拽时鼠标相对出生点偏移
 ```javascript
 VW: 800, VH: 500
 TILE: 32
-let LW: 100, LH: 16  (动态可扩展)
+let LW: 100, LH: 30  (动态可扩展)
 let MAP_W = LW * TILE  (3200px，扩展后同步更新)
 GRAVITY: 0.55, MAX_FALL: 12
 CHG1: 6 (0.1s), CHG2: 60 (1s)
@@ -290,9 +328,11 @@ DASH_MULT: 1.5
 BULLET: 14.0
 INV: 30 (无敌帧)
 MAX_HP: 28
-PLAYER_TARGET_H: 80         // 角色精灵显示高度
+PLAYER_TARGET_H: 80         // 角色精灵显示高度（站立锚点）
+SPRITE_SCALE: 2.286         // 素材→世界缩放系数 K = PLAYER_TARGET_H / 35
 ANIM_SPEED: 1.5             // 动画播放加速倍率（frameDur = 60/fps/1.5）
 SHOOT_HOLD: 15 (0.25s)      // 射击结束后保留射击动画帧数
+DASH_END_LOCK: 2            // 冲刺结束锁帧数（避免碰撞盒切换临界帧误入 airborne）
 ```
 
 ### 9. 更新流程（每帧）
@@ -312,13 +352,14 @@ SHOOT_HOLD: 15 (0.25s)      // 射击结束后保留射击动画帧数
 12. X/Y 轴碰撞
 13. 落地/贴墙清除 Dash 资格 + L 消费
 14. 更新摄像机（居中跟随 + 边界限制）
-15. 更新怪物 AI + 物理
-16. 玩家子弹 vs 怪物/墙碰撞
-17. 敌人子弹 vs 玩家碰撞
-18. 玩家碰怪物伤害
-19. 更新粒子/残影
-20. 重置检测
-21. 角色动画状态机（`playerAnimKey` 选 key → 帧对应保留 → 跳跃三段式 → 帧推进）
+15. 下蹲处理（S 键下蹲/站起 + 强制下蹲每帧检测能否站起）
+16. 更新怪物 AI + 物理
+17. 玩家子弹 vs 怪物/墙碰撞
+18. 敌人子弹 vs 玩家碰撞
+19. 玩家碰怪物伤害
+20. 更新粒子/残影
+21. 重置检测
+22. 角色动画状态机（`playerAnimKey` 选 key → 帧对应保留 → 跳跃三段式 → 帧推进）
 
 **编辑模式**：跳过所有游戏逻辑（`update()` 直接 return），仅响应鼠标操作。
 
@@ -355,6 +396,14 @@ SHOOT_HOLD: 15 (0.25s)      // 射击结束后保留射击动画帧数
 | `spawnBullet(x, y, dir, power)` | 生成玩家子弹（含 dir/animT sprite 字段） |
 | `drawBullets()` | 渲染玩家/敌人子弹（power=1 用 sprite 动画） |
 | `loadPlayerSprites()` | 加载角色各动画的 `_frames.json` 与 `_strip.png` |
+| `updateHitboxTable()` | 根据素材 maxW/maxH 计算各状态碰撞盒并同步 P 常量 |
+| `setPlayerBox(w, h)` | 切换碰撞盒（保持脚底与水平中心不变） |
+| `boxFitsTerrain(w, h)` | 检测目标碰撞盒是否与地形重叠 |
+| `hasGroundBelow()` | 检测脚下是否有地面 |
+| `canStandUp()` | 检测能否站起（头顶是否有空间） |
+| `setCrouch(on, forced)` | 统一下蹲/站起状态切换（含冲突检测） |
+| `endDash()` | Dash 结束：恢复高度或转为强制下蹲 |
+| `drawHitboxes()` | 碰撞盒可视化绘制（P 键开关） |
 | `playerAnimKey(p, mx)` | 根据玩家状态返回当前应播放的动画 key |
 | `drawPlayerSprite(p, cx, cy)` | 用精灵绘制角色（等比缩放 + 镜像） |
 | `drawPlayer()` | 渲染玩家（含残影、蓄力光环） |
@@ -385,6 +434,7 @@ SHOOT_HOLD: 15 (0.25s)      // 射击结束后保留射击动画帧数
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-08-14 (会话#7) | **下蹲系统 + 碰撞盒重构 + 蹬墙方向修复**。① 新增 `S` 键下蹲系统（`idle-crouch` 动画 1 帧、`setCrouch`/`forcedCrouch`/`canStandUp`/`boxFitsTerrain`/`endDash`/`drawHitboxes` 等函数，P 键碰撞盒可视化）；② 碰撞盒从固定 28×80 重构为动态双碰撞盒 A（站立 69×80）/B（下蹲冲刺 87×62），由 `updateHitboxTable()` 依据素材 `maxW`/`maxH` × `SPRITE_SCALE`(≈2.286) 计算；③ **修复蹬墙强制位移 bug**：新增 `wjDir` 字段在蹬墙瞬间保存方向，`wjLock` 期间据此强制位移，不再依赖逐帧重算的 `onWall`（原 bug：普通蹬墙后 `onWall` 归零导致强制位移立即失效）；④ 墙跳锁定时长 `WALL_LOCK` 由 12 帧(0.2s) 调整为 6 帧(0.1s)；⑤ `level.json` 地图扩展至 100×30、出生点移至 (55,333)、新增 col 66 墙列、删除 soldier 敌人。 |
 | 2026-08-13 (会话#6) | **角色序列帧动画系统接入 + 动画细节打磨**。① 角色从 `fillRect` 占位美术替换为 9 个序列帧精灵动画（`PLAYER_ANIMS`/`loadPlayerSprites`/`drawPlayerSprite`，等比缩放对齐碰撞盒高度 80px，未加载回退手绘小人）；② 修正 `climb` 动画镜像基准（该资源默认面向左，与其他动画相反）；③ 同帧数成对动画（jump↔jumpShoot、running↔runShoot）切换时保留帧索引，逐帧对应；④ 射击动画缓冲：松开射击键后保留 0.25s 再切回；⑤ 跳跃三段式播放（起跳前4帧→空中定格第4帧→落地播尾段3帧）；⑥ 动画播放速度加速 1.5 倍（frameDur = 60/fps/1.5）。 |
 | 2026-08-13 | **序列帧切割工具链 + 小蓄力子弹 sprite 接入**。① 新增 `sprite-cutter.html`（绿幕去除 + 框选动画行 + 分割线 + 导出等宽条带/JSON）和 `sprite-build.js`（零依赖本地生成脚本）；② 修复去绿幕算法：从「宽泛阈值删绿」改为「精确删纯绿(0,255,0)」，避免误删前景绿色描边；③ `resetView()` 不再默认选整图，自动选第一行；④ `prototype.html` 接入小蓄力子弹 sprite 动画（`middle-bullet-flying_strip (1).png`，5帧×40×19，显示 54×36 匹配碰撞体积，支持镜像）。 |
 | 2026-08-10 | **项目初始化**。创建 Rockman X4 操作原型，实现 X 核心移动+射击机制。单文件 `prototype.html` 实现。 |

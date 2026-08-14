@@ -95,6 +95,7 @@
       <span class="key">K</span> 跳跃<br>
       <span class="key">J</span> 射击/蓄力 &nbsp;
       <span class="key">L</span> 冲刺<br>
+      <span class="key">S</span> 下蹲<br>
       <span class="key">空格</span> 重置<br>
       <span class="key">E</span> 编辑模式 &nbsp;
       <span class="key">Ctrl+S</span> 导出<br><br>
@@ -118,6 +119,7 @@ const GRAVITY = 0.55, MAX_FALL = 12, TILE = 32;
 
 const P = {
   PW: 28, PH: 80,
+  PC: 40,           // 下蹲/冲刺碰撞盒高度
   SPEED: 4.0, JUMP: -12.0,
   WALL_SLIDE: 1.5, WALL_JUMP_X: 5.5, WALL_JUMP_Y: -10.0,
   DASH_MULT: 1.5, DASH_DIST: 128,
@@ -133,7 +135,7 @@ const DMG = { 0: 1, 1: 3, 2: 6 };
 // 显示缩放：以资源真实尺寸为基准，映射到游戏里的显示尺寸（displayScale）。
 // 帧数据来自 {type}-{state}_frames.json 的 frames[]，加载时按 strip 排版规则重算为 strip 图里的源裁剪坐标。
 const BULLET_TYPE = {
-  small:  { power: 0, baseW: 18, baseH: 12, displayScale: 1.0 },
+  small:  { power: 0, baseW: 36, baseH: 24, displayScale: 2.0 },
   middle: { power: 1, baseW: 54, baseH: 36, displayScale: 1.6 },
   big:    { power: 2, baseW: 90, baseH: 60, displayScale: 2.0 },
 };
@@ -192,17 +194,69 @@ const PLAYER_ANIMS = {
   jump:      'idle-jump',
   dash:      'idle-dash',
   climb:     'idle-climb',
+  crouch:    'idle-crouch',
   runShoot:  'idle-running&shoot',
   jumpShoot: 'idle-jump&shoot',
   dashShoot: 'idle-dash&shoot',
 };
-const PLAYER_SPRITES = {};  // key -> { img, frames, fps, loaded }
+const PLAYER_SPRITES = {};  // key -> { img, frames, fps, loaded, maxW, maxH }
 const PLAYER_TARGET_H = 80; // 站立时精灵显示高度（对齐碰撞盒 PH）
+const SPRITE_SCALE = PLAYER_TARGET_H / 35; // 素材→世界缩放系数 K = 80/35 ≈ 2.286（以站立素材最大高 35px 对齐 80px 为锚）
+
+// 各状态碰撞盒规格（世界像素）。
+// 碰撞盒 A（站立）= 站立素材最大宽高 × K；碰撞盒 B（定制）= 宽取 dash 素材最大宽 × K，高取 crouch 素材最大高 × K。
+// 具体宽高在素材加载完成后由 updateHitboxTable() 根据实际 maxW/maxH 计算。
+const HITBOX = {
+  stand:   { w: 0, h: 0 },  // 碰撞盒 A（站立）：69×80
+  jump:    { w: 0, h: 0 },  // 跳跃：与站立相同（碰撞盒 A）
+  dash:    { w: 0, h: 0 },  // 碰撞盒 B（定制）：87×62（宽=dash，高=crouch）
+  crouch:  { w: 0, h: 0 },  // 下蹲：碰撞盒 B
+};
+
+// 根据已加载的素材 maxW/maxH 计算各状态碰撞盒
+function updateHitboxTable() {
+  const stand = PLAYER_SPRITES.stand;
+  const dash = PLAYER_SPRITES.dash;
+  const crouch = PLAYER_SPRITES.crouch;
+  // 碰撞盒 A：站立素材最大宽高 × K
+  const standW = (stand && stand.maxW ? stand.maxW : 30) * SPRITE_SCALE;
+  const standH = (stand && stand.maxH ? stand.maxH : 35) * SPRITE_SCALE;
+  // 碰撞盒 B：宽 = dash 素材最大宽 × K，高 = crouch 素材最大高 × K
+  const dashW = (dash && dash.maxW ? dash.maxW : 38) * SPRITE_SCALE;
+  const crouchH = (crouch && crouch.maxH ? crouch.maxH : 27) * SPRITE_SCALE;
+
+  HITBOX.stand.w = standW;
+  HITBOX.stand.h = standH;
+  HITBOX.jump.w = standW;          // 跳跃碰撞盒 = 站立（碰撞盒 A）
+  HITBOX.jump.h = standH;
+  HITBOX.dash.w = dashW;           // 碰撞盒 B 宽 = dash 素材最大宽
+  HITBOX.dash.h = crouchH;         // 碰撞盒 B 高 = crouch 素材最大高
+  HITBOX.crouch.w = dashW;         // 下蹲用碰撞盒 B（与 dash 同宽）
+  HITBOX.crouch.h = crouchH;
+
+  // 同步 P 常量（站立宽/高），供编辑器出生点/子弹口等引用
+  P.PW = Math.round(standW);
+  P.PH = Math.round(standH);
+  P.PC = Math.round(standH / 2);
+
+  // 若玩家已创建且当前处于站立状态（非下蹲/非冲刺），同步其碰撞盒到新站立值
+  if (typeof player !== 'undefined' && !player.crouch && !player.isDash) {
+    const cx = player.x + player.w / 2;
+    const bottom = player.y + player.h;
+    player.w = HITBOX.stand.w;
+    player.h = HITBOX.stand.h;
+    player.x = cx - HITBOX.stand.w / 2;
+    player.y = bottom - HITBOX.stand.h;
+  }
+}
+
+// 玩家默认站立碰撞盒宽高（素材加载完成前用默认值，加载后由 updateHitboxTable 覆盖）
+P.PW = 69; P.PH = 80; P.PC = 40;
 
 function loadPlayerSprites() {
   for (const key of Object.keys(PLAYER_ANIMS)) {
     const base = `Assets/Assets-Clean/${PLAYER_ANIMS[key]}`;
-    const entry = { img: new Image(), frames: [], fps: 10, loaded: false };
+    const entry = { img: new Image(), frames: [], fps: 10, loaded: false, maxW: 0, maxH: 0 };
     PLAYER_SPRITES[key] = entry;
     fetch(`${base}_frames.json`)
       .then(r => r.json())
@@ -211,6 +265,7 @@ function loadPlayerSprites() {
         if (rawFrames.length > 0) {
           const fw = Math.max(...rawFrames.map(f => f.w));
           const fh = Math.max(...rawFrames.map(f => f.h));
+          entry.maxW = fw; entry.maxH = fh;
           entry.frames = rawFrames.map((f, i) => ({
             x: i * fw + Math.round((fw - f.w) / 2),
             y: Math.round((fh - f.h) / 2),
@@ -219,6 +274,7 @@ function loadPlayerSprites() {
           }));
         }
         entry.fps = data.fps || 10;
+        updateHitboxTable();  // 素材加载完成后重算碰撞盒
       })
       .catch(() => { entry.frames = []; });
     entry.img.onload = () => { entry.loaded = true; };
@@ -229,12 +285,19 @@ loadPlayerSprites();
 
 // 根据玩家状态返回当前应播放的动画 key
 function playerAnimKey(p, mx) {
-  const shooting = p.isChg || p.shootHold > 0;  // 正在射击（按住 j 蓄力中）或射击结束后的 0.5 秒缓冲
+  const shooting = p.shootHold > 0;  // 蓄力发射后进入射击状态；蓄力中(isChg)视为非射击状态
   const moving = mx !== 0;
   const airborne = !p.grounded || p.landing;   // 落地收尾期间仍算空中，继续播 jump/jumpShoot 尾段
 
-  if (p.isDash || p.dashAir) {
+  // 地面冲刺优先（高于下蹲）：仅 isDash（地面冲刺）播 dash；dashAir（空中冲刺跳）走 jump 分支
+  if (p.isDash) {
     return shooting ? 'dashShoot' : 'dash';
+  }
+  if (p.crouch) return 'crouch';   // 下蹲（非冲刺时）
+  // 冲刺结束锁：2 帧内强制地面动画，忽略 airborne 判定，避免碰撞盒切换临界帧闪 jump
+  if (p.dashEndLock > 0) {
+    if (moving) return shooting ? 'runShoot' : 'running';
+    return shooting ? 'shoot' : 'stand';
   }
   if (airborne) {
     if (p.onWall !== 0) return 'climb';  // 贴墙滑落过渡
@@ -256,8 +319,17 @@ canvas.width = VW; canvas.height = VH;
 const ctx = canvas.getContext('2d');
 
 const keys = {};
+let showHitboxes = false;  // 碰撞盒可视化开关（P 键切换）
 window.addEventListener('keydown', e => { keys[e.key] = true; if (e.key === ' ') e.preventDefault(); });
 window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// P 键切换碰撞盒可视化（仅在非编辑模式、无输入框聚焦时生效）
+window.addEventListener('keydown', e => {
+  if ((e.key === 'p' || e.key === 'P') && !editMode &&
+      (document.activeElement === document.body || document.activeElement === canvas)) {
+    showHitboxes = !showHitboxes;
+  }
+});
 
 // ==================== 摄像机 ====================
 const camera = { x: 0, y: 0, targetX: 0, zoom: 1.0 };
@@ -475,14 +547,14 @@ let muzzleEffects = [];   // 枪口发射特效（out 动画，瞬时）
 let hitEffects = [];      // 命中特效（hit 动画，瞬时，不延迟子弹移除）
 
 function spawnBullet(x, y, dir, power) {
-  // 普通子弹 3x (18×12)；蓄力 = 普通×3 (54×36)；满蓄力 = 普通×5 (90×60)
-  const baseW = 18, baseH = 12; // 普通子弹碰撞体积
+  // 普通子弹 2x (36×24)；小蓄力 = 普通×1.5 (54×36)；满蓄力 = 普通×2.5 (90×60)
+  const baseW = 36, baseH = 24; // 普通子弹碰撞体积（放大1倍：18×12 → 36×24）
   const key = bulletKeyByPower(power);
   bullets.push({
-    x, y: y + P.PH / 2 - 4, vx: P.BULLET * dir, vy: 0,
+    x, y: y + player.h / 2 - 4, vx: P.BULLET * dir, vy: 0,
     dir,                                     // 面朝方向（用于 sprite 镜像）
-    w: power === 2 ? baseW * 5 : power === 1 ? baseW * 3 : baseW,
-    h: power === 2 ? baseH * 5 : power === 1 ? baseH * 3 : baseH,
+    w: power === 2 ? baseW * 2.5 : power === 1 ? baseW * 1.5 : baseW,
+    h: power === 2 ? baseH * 2.5 : power === 1 ? baseH * 1.5 : baseH,
     power, dmg: DMG[power], life: 120,
     color: power === 2 ? '#ff4444' : power === 1 ? '#ffaa00' : '#ffff00',
     animT: 0,                                 // sprite 动画计时器
@@ -490,7 +562,7 @@ function spawnBullet(x, y, dir, power) {
   });
   // 枪口发射特效（out 动画）：锚定在发射点，播放一遍后消失，不跟随子弹
   // small-bullet 无 out 状态，跳过
-  spawnMuzzle(x, y + P.PH / 2 - 4, dir, key);
+  spawnMuzzle(x, y + player.h / 2 - 4, dir, key);
 }
 
 // 枪口发射特效（out 动画），独立于子弹本体
@@ -675,20 +747,24 @@ function getPlayerSpawn() {
 
 const spawn = getPlayerSpawn();
 const player = {
-  x: spawn.x, y: spawn.y, vx: 0, vy: 0, w: P.PW, h: P.PH,
+  x: spawn.x, y: spawn.y, vx: 0, vy: 0, w: HITBOX.stand.w, h: HITBOX.stand.h,
   facing: 1, grounded: false, onWall: 0, wallSlide: false,
   isDash: false, dashT: 0, dashDir: 0, dashReady: false, dashAir: false,
-  chgT: 0, isChg: false, shootHold: 0, wjLock: 0,
+  dashEndLock: 0,
+  chgT: 0, isChg: false, shootHold: 0, wjLock: 0, wjDir: 0,
   kCon: false, lCon: false, invT: 0, hp: P.MAX_HP, landing: false,
+  crouch: false, forcedCrouch: false,
   animF: 0, animT: 0, animKey: '',
 };
 
 function reset() {
   const spawn = getPlayerSpawn();
   Object.assign(player, {
-    x: spawn.x, y: spawn.y, vx: 0, vy: 0, facing: 1, grounded: false, onWall: 0, wallSlide: false,
+    x: spawn.x, y: spawn.y, vx: 0, vy: 0, w: HITBOX.stand.w, h: HITBOX.stand.h, facing: 1, grounded: false, onWall: 0, wallSlide: false,
     isDash: false, dashT: 0, dashDir: 0, dashReady: false, dashAir: false,
-    chgT: 0, isChg: false, shootHold: 0, wjLock: 0, kCon: false, lCon: false, invT: 0, hp: P.MAX_HP, landing: false,
+    dashEndLock: 0,
+    chgT: 0, isChg: false, shootHold: 0, wjLock: 0, wjDir: 0, kCon: false, lCon: false, invT: 0, hp: P.MAX_HP, landing: false,
+    crouch: false, forcedCrouch: false,
     animF: 0, animT: 0, animKey: '',
   });
   bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = [];
@@ -710,6 +786,80 @@ function wallCheck(rect) {
   return { l, r };
 }
 
+// ==================== 下蹲 / 冲刺碰撞盒 ====================
+// 把玩家碰撞盒宽度/高度切换到指定值，保持脚底(y+h)不变、水平中心(cx)不变
+function setPlayerBox(w, h) {
+  const cx = player.x + player.w / 2;
+  const bottom = player.y + player.h;
+  player.w = w;
+  player.h = h;
+  player.x = cx - w / 2;
+  player.y = bottom - h;
+}
+
+// 检测将碰撞盒切换到指定宽高（保持脚底 bottom 与水平中心 cx，与 setPlayerBox 一致）后，
+// 新碰撞盒是否与地形重叠。返回 true 表示无冲突（可切换），false 表示冲突（禁止切换）。
+function boxFitsTerrain(w, h) {
+  const cx = player.x + player.w / 2;
+  const bottom = player.y + player.h;
+  const rect = { x: cx - w / 2, y: bottom - h, w, h };
+  for (let r = 0; r < LH; r++) for (let c = 0; c < LW; c++) {
+    if (map[r * LW + c] === 0) continue;
+    if (overlap(rect, { x: c * TILE, y: r * TILE, w: TILE, h: TILE })) return false;
+  }
+  return true;
+}
+
+// 检测角色碰撞盒正下方是否有实体地形支撑（true 表示脚下有地面）
+function hasGroundBelow() {
+  const probe = { x: player.x, y: player.y + player.h, w: player.w, h: 1 };
+  for (let r = 0; r < LH; r++) for (let c = 0; c < LW; c++) {
+    if (map[r * LW + c] === 0) continue;
+    if (overlap(probe, { x: c * TILE, y: r * TILE, w: TILE, h: TILE })) return true;
+  }
+  return false;
+}
+
+// 检测当前位置站起(站立碰撞盒)是否会被头顶实体卡住，true 表示能站起
+function canStandUp() {
+  const bottom = player.y + player.h;
+  const standRect = { x: player.x, y: bottom - HITBOX.stand.h, w: HITBOX.stand.w, h: HITBOX.stand.h };
+  for (let r = 0; r < LH; r++) for (let c = 0; c < LW; c++) {
+    if (map[r * LW + c] === 0) continue;
+    if (overlap(standRect, { x: c * TILE, y: r * TILE, w: TILE, h: TILE })) return false;
+  }
+  return true;
+}
+
+// 统一的下蹲/站起状态切换。forced=true 表示强制蹲下(锁移动)
+function setCrouch(on, forced) {
+  if (on) {
+    if (!player.crouch) {
+      // 站起→下蹲切换碰撞盒 B 前检测冲突，冲突则拒绝下蹲
+      if (!boxFitsTerrain(HITBOX.crouch.w, HITBOX.crouch.h)) return;
+      setPlayerBox(HITBOX.crouch.w, HITBOX.crouch.h);
+    }
+    player.crouch = true;
+    player.forcedCrouch = forced;
+  } else {
+    if (player.forcedCrouch) return;  // 强制蹲下时不能手动站起
+    if (!canStandUp()) return;        // 顶头则继续蹲着
+    if (player.crouch) setPlayerBox(HITBOX.stand.w, HITBOX.stand.h);
+    player.crouch = false;
+  }
+}
+
+// dash 结束：恢复高度或转为强制蹲下
+function endDash() {
+  player.isDash = false;
+  player.vx = 0;
+  player.dashEndLock = 2;   // 冲刺结束锁：2 帧内强制地面动画，避免碰撞盒切换临界帧误入 airborne 闪 jump
+  if (!player.crouch && !player.forcedCrouch) {
+    if (canStandUp()) setPlayerBox(HITBOX.stand.w, HITBOX.stand.h);
+    else setCrouch(true, true);
+  }
+}
+
 // ==================== 主循环 ====================
 function update() {
   // 编辑模式下暂停游戏逻辑
@@ -718,11 +868,12 @@ function update() {
   const p = player;
   if (p.invT > 0) p.invT--;
   if (p.wjLock > 0) p.wjLock--;
-  if (p.shootHold > 0) p.shootHold--;
+  if (p.dashEndLock > 0) p.dashEndLock--;
 
   const jD = keys['j'] || keys['J'];
   const kR = keys['k'] || keys['K'];
   const lR = keys['l'] || keys['L'];
+  const sR = keys['s'] || keys['S'];
   if (!kR) p.kCon = false;
   const kD = kR && !p.kCon;
   if (!lR) p.lCon = false;
@@ -751,6 +902,7 @@ function update() {
       p.isChg = true; p.chgT = 0;
       let sd = p.facing; if (p.wallSlide) sd = -p.onWall;
       spawnBullet(p.x + p.w / 2, p.y, sd, 0);
+      p.shootHold = 15;  // 普通射击：发射子弹瞬间进入射击动画（保留 0.25s）
     } else {
       p.chgT++;
       if (p.chgT >= P.CHG2 && p.chgT === P.CHG2) spawnPart(p.x + p.w / 2, p.y + p.h / 2, 3, '#f44');
@@ -763,9 +915,9 @@ function update() {
       if (pw > 0) {
         let sd = p.facing; if (p.wallSlide) sd = -p.onWall;
         spawnBullet(p.x + p.w / 2, p.y, sd, pw);
+        p.shootHold = 15;  // 蓄力发射：松手发射蓄力弹时进入射击动画（保留 0.25s）
       }
       p.isChg = false; p.chgT = 0;
-      p.shootHold = 15;  // 射击结束后保留 shoot 动画 0.25 秒（60fps × 0.25s）
     }
   }
 
@@ -778,7 +930,9 @@ function update() {
     const hFwd = (p.dashDir === 1 && mx === 1) || (p.dashDir === -1 && mx === -1);
     if (!lR && !hFwd) cancel = true;
     if (mx !== 0 && mx !== p.dashDir) cancel = true;
-    if (cancel) { p.isDash = false; p.vx = 0; p.dashReady = !!lR; }
+    // 冲刺过程中脚下无地面支撑则立即结束冲刺（掉落），避免悬空冲
+    if (!hasGroundBelow()) cancel = true;
+    if (cancel) { endDash(); p.dashReady = !!lR; }
     if (kD) {
       p.vy = P.JUMP; p.grounded = false;
       p.vx = mx !== 0 ? mx * P.SPEED * P.DASH_MULT : 0;
@@ -798,27 +952,42 @@ function update() {
   }
   // 移动
   if (!p.isDash && !p.dashAir) {
-    if (p.wjLock > 0) { p.vx = -p.onWall * P.WALL_JUMP_X; }
-    else { if (mx !== 0) { p.facing = mx; p.vx = mx * P.SPEED; } else p.vx = 0; }
+    if (p.wjLock > 0) { p.vx = p.wjDir * P.WALL_JUMP_X; }
+    else {
+      if (mx !== 0) p.facing = mx;   // 面向始终跟随方向键
+      if (p.forcedCrouch) { p.vx = 0; }   // 强制蹲下时锁死位移，只允许 dash
+      else if (mx !== 0) { p.vx = mx * P.SPEED; }
+      else p.vx = 0;
+    }
   }
   // Dash
   if (lD && p.grounded && !p.isDash && !p.dashReady) {
-    p.isDash = true; p.dashDir = p.facing; p.lCon = true;
-    const ds = P.SPEED * P.DASH_MULT;
-    p.dashT = Math.floor(P.DASH_DIST / ds);
-    p.vx = p.dashDir * ds;
-    spawnPart(p.x + p.w / 2, p.y + p.h / 2, 8, '#aaf');
+    // 站立→dash 切换碰撞盒 B 前检测冲突：若新碰撞盒与地形重叠则禁止本次 dash
+    const dashBlocked = !p.crouch && !boxFitsTerrain(HITBOX.dash.w, HITBOX.dash.h);
+    if (!dashBlocked) {
+      p.isDash = true; p.dashDir = p.facing; p.lCon = true;
+      const ds = P.SPEED * P.DASH_MULT;
+      p.dashT = Math.floor(P.DASH_DIST / ds);
+      p.vx = p.dashDir * ds;
+      if (!p.crouch) setPlayerBox(HITBOX.dash.w, HITBOX.dash.h);   // dash 期间压低碰撞盒（宽=dash，高=crouch）
+      spawnPart(p.x + p.w / 2, p.y + p.h / 2, 8, '#aaf');
+    }
   }
   // 跳跃
   if (kD) {
     if (p.grounded && !p.isDash && !p.dashReady) {
+      // 起跳前若处于下蹲，先恢复站立碰撞盒（跳跃碰撞盒=站立）
+      if (p.crouch && !p.forcedCrouch && canStandUp()) {
+        setPlayerBox(HITBOX.stand.w, HITBOX.stand.h);
+        p.crouch = false;
+      }
       p.vy = P.JUMP; p.grounded = false; p.kCon = true;
       if (lR) { if (mx !== 0) p.vx = mx * P.SPEED * P.DASH_MULT; p.dashReady = false; p.dashAir = true; spawnPart(p.x + p.w / 2, p.y + p.h, 5, '#aaf'); }
       else spawnPart(p.x + p.w / 2, p.y + p.h, 5, '#fff');
     }
     if (p.onWall !== 0 && !p.grounded) {
       p.vy = P.WALL_JUMP_Y; p.facing = -p.onWall;
-      p.wjLock = P.WALL_LOCK; p.kCon = true;
+      p.wjLock = P.WALL_LOCK; p.wjDir = -p.onWall; p.kCon = true;
       if (lR) { p.vx = -p.onWall * P.WALL_JUMP_X * P.DASH_MULT; p.dashAir = true; spawnPart(p.x + p.w / 2, p.y + p.h / 2, 6, '#aaf'); }
       else { p.vx = -p.onWall * P.WALL_JUMP_X; spawnPart(p.x + p.w / 2, p.y + p.h / 2, 6, '#8cf'); }
     }
@@ -838,7 +1007,7 @@ function update() {
     const t = { x: c * TILE, y: r * TILE, w: TILE, h: TILE };
     if (overlap(xr, t)) {
       if (p.vx > 0) p.x = t.x - p.w; else if (p.vx < 0) p.x = t.x + t.w;
-      if (p.isDash) { p.isDash = false; p.dashReady = lR; spawnPart(p.x + p.w / 2, p.y + p.h / 2, 6, '#888'); }
+      if (p.isDash) { endDash(); p.dashReady = lR; spawnPart(p.x + p.w / 2, p.y + p.h / 2, 6, '#888'); }
       p.vx = 0;
     }
   }
@@ -860,11 +1029,32 @@ function update() {
   if (p.grounded && !wasGnd && (p.animKey === 'jump' || p.animKey === 'jumpShoot')) {
     p.landing = true;
   }
+  // 兜底清理：落地收尾期间若角色又离地（如高速冲刺跳擦过地面后立即腾空），
+  // 强制清除 landing，避免空中误播落地尾段（半空闪落地动画）
+  if (!p.grounded && p.landing) {
+    p.landing = false;
+  }
 
   // 世界边界（无底部边界限制，角色可自由掉落）
 
   // 摄像机
   updateCamera();
+
+  // 下蹲：按住 S 蹲下，松开站起（dash/跳跃期间不处理）
+  if (sR && p.grounded && !p.isDash && !p.dashAir) {
+    setCrouch(true, false);
+  } else if (!sR && !p.forcedCrouch) {
+    setCrouch(false, false);
+  }
+
+  // 强制蹲下：每帧检测能否站起，能则恢复
+  if (p.forcedCrouch) {
+    if (canStandUp()) {
+      setPlayerBox(HITBOX.stand.w, HITBOX.stand.h);
+      p.crouch = false;
+      p.forcedCrouch = false;
+    }
+  }
 
   // 怪物
   for (const en of enemies) { ai(en); enPhys(en); }
@@ -950,17 +1140,25 @@ function update() {
     h.animT++;
     if (totalFrames === 0 || h.animT >= totalFrames * frameDur) hitEffects.splice(i, 1);
   }
-  // 残影
+  // 残影寿命递减（新残影的生成在下方动画状态机更新之后）
   for (let i = afterimages.length - 1; i >= 0; i--) { afterimages[i].life--; if (afterimages[i].life <= 0) afterimages.splice(i, 1); }
-  if ((p.isDash || p.dashAir) && p.animT % 3 === 0) afterimages.push({ x: Math.floor(p.x + p.w / 2), y: Math.floor(p.y + p.h / 2), facing: p.facing, life: 12 });
 
   if (keys[' ']) { reset(); keys[' '] = false; }
 
   // 角色动画状态机
   const animKey = playerAnimKey(p, mx);
+  // 兜底清理：一旦动画脱离跳跃/跳跃射击（如下蹲、站立等），残留的 landing 标志立即失效，
+  // 避免「落地后立即下蹲→松开站起」时 landing 残留导致误入 airborne 分支闪 jump
+  if (animKey !== 'jump' && animKey !== 'jumpShoot' && p.landing) {
+    p.landing = false;
+  }
   if (animKey !== p.animKey) {
-    // 同帧数动画对（jump/jumpShoot、running/runShoot）切换时保留当前帧索引，保证逐帧对应
-    const KEEP_FRAME_PAIRS = [['jump', 'jumpShoot'], ['running', 'runShoot']];
+    // 同帧数动画对切换时保留当前帧索引，保证逐帧对应，避免切换瞬间帧索引重置造成错帧闪现
+    const KEEP_FRAME_PAIRS = [
+      ['jump', 'jumpShoot'],
+      ['running', 'runShoot'],
+      ['dash', 'dashShoot'],
+    ];
     let keepFrame = false;
     for (const [a, b] of KEEP_FRAME_PAIRS) {
       if ((p.animKey === a && animKey === b) || (p.animKey === b && animKey === a)) {
@@ -970,33 +1168,53 @@ function update() {
     }
     p.animKey = animKey;
     p.animT = 0;
-    if (!keepFrame) p.animF = 0;
+    if (!keepFrame) {
+      // shoot 动画从第二帧(索引1)开始倒放；其余动画从第一帧(索引0)开始
+      p.animF = (animKey === 'shoot') ? 1 : 0;
+    }
   }
   const animEntry = PLAYER_SPRITES[p.animKey];
   const nf = animEntry ? animEntry.frames.length : 0;
   const frameDur = animEntry ? Math.round(60 / animEntry.fps / 1.5) : 4;
   if (nf > 0) {
     p.animT++;
-    // 冲刺/冲刺射击：播放到第二帧后定格；攀爬：播放到最后一帧后定格
+    // 冲刺/冲刺射击：播放到第二帧后定格；攀爬：播放到最后一帧后定格（滑行姿态）
     const holdLast = (animKey === 'dash' || animKey === 'dashShoot' || animKey === 'climb');
     // 跳跃/跳跃射击：三段式——先播前4帧(索引0~3)→空中定格在第4帧(索引3)→落地播尾段(索引4~6)后切回
     const isJump = (animKey === 'jump' || animKey === 'jumpShoot');
+    // 站立射击：从第二帧(索引1)倒放到第一帧(索引0)后定格，不循环
+    const isShoot = (animKey === 'shoot');
     if (holdLast && p.animF >= nf - 1) {
       // 定格在最后一帧
+    } else if (isShoot && p.animF <= 0) {
+      // 倒放到第一帧后定格
     } else if (isJump && !p.landing && p.animF >= 3) {
       // 空中定格在第4帧
     } else if (p.animT >= frameDur) {
       p.animT = 0;
-      p.animF++;
+      if (isShoot) {
+        p.animF--;
+      } else {
+        p.animF++;
+      }
       if (isJump && p.landing && p.animF >= nf) {
         // 落地尾段播完，切回站立
         p.animF = 0;
         p.landing = false;
-      } else if (!isJump) {
+      } else if (!isJump && !isShoot) {
         p.animF = p.animF % nf;
       }
     }
   }
+
+  // 残影生成：冲刺/空中冲刺跳期间，每隔 3 帧记录一次当前精灵快照（用新模型资源）
+  if ((p.isDash || p.dashAir) && p.animT % 3 === 0) {
+    afterimages.push({ animKey: p.animKey, animF: p.animF, x: p.x, y: p.y, w: p.w, h: p.h, facing: p.facing, life: 12 });
+  }
+
+  // 射击动画持续计时：放在动画状态机之后递减，确保「本帧射击→本帧动画立即是射击形态」，
+  // 避免 shootHold 在动画判定前归零造成 jump/jumpShoot、dash/dashShoot 间的一帧错位闪切
+  if (p.shootHold > 0) p.shootHold--;
 }
 
 // ==================== 渲染 (所有世界坐标 - camera.x) ====================
@@ -1006,6 +1224,53 @@ function drawTile(x, y) {
   ctx.fillStyle = '#4a6a3a'; ctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 2);
   ctx.fillStyle = '#5a8a3a'; ctx.fillRect(x + 2, y + 2, TILE - 4, 3);
   ctx.strokeStyle = '#1a3a1a'; ctx.lineWidth = 1; ctx.strokeRect(x, y, TILE, TILE);
+}
+
+// 碰撞盒可视化：半透明显示所有实体物体的碰撞盒
+function drawHitboxes() {
+  // 地砖/地形碰撞盒（白色，只绘制可见范围）
+  const invZ = 1 / camera.zoom;
+  const startCol = Math.max(0, Math.floor(camera.x / TILE) - 1);
+  const endCol = Math.min(LW, Math.ceil((camera.x + VW * invZ) / TILE) + 1);
+  const startRow = Math.max(0, Math.floor(camera.y / TILE) - 1);
+  const endRow = Math.min(LH, Math.ceil((camera.y + VH * invZ) / TILE) + 1);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+  ctx.lineWidth = 1;
+  for (let r = startRow; r < endRow; r++) {
+    for (let c = startCol; c < endCol; c++) {
+      if (map[r * LW + c] === 0) continue;
+      ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
+      ctx.strokeRect(c * TILE, r * TILE, TILE, TILE);
+    }
+  }
+
+  // 玩家碰撞盒（青绿色）
+  const p = player;
+  ctx.fillStyle = 'rgba(0, 255, 200, 0.25)';
+  ctx.strokeStyle = 'rgba(0, 255, 200, 0.8)';
+  ctx.fillRect(p.x, p.y, p.w, p.h);
+  ctx.strokeRect(p.x, p.y, p.w, p.h);
+
+  // 敌人碰撞盒（红色）
+  ctx.fillStyle = 'rgba(255, 60, 60, 0.25)';
+  ctx.strokeStyle = 'rgba(255, 60, 60, 0.8)';
+  for (const en of enemies) {
+    ctx.fillRect(en.x, en.y, en.w, en.h);
+    ctx.strokeRect(en.x, en.y, en.w, en.h);
+  }
+
+  // 子弹碰撞盒（黄色）
+  ctx.fillStyle = 'rgba(255, 255, 0, 0.25)';
+  ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)';
+  for (const b of bullets) {
+    ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+    ctx.strokeRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+  }
+  for (const b of eBullets) {
+    ctx.fillRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+    ctx.strokeRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h);
+  }
 }
 
 function drawX(cx, cy, f) {
@@ -1028,8 +1293,14 @@ function drawX(cx, cy, f) {
   ctx.fillStyle = '#c33'; ctx.fillRect(cx - 9, cy + 28 + lo, 8, 4); ctx.fillRect(cx + 1, cy + 28 - lo, 8, 4);
 }
 
-// 用精灵绘制角色。脚底对齐碰撞盒底部，水平中心对齐碰撞盒中心。
-// 高度等比缩放对齐 PLAYER_TARGET_H(80px)。
+// 用精灵绘制角色。所有动画统一按素材原尺寸 × SPRITE_SCALE 显示（不跟随碰撞盒缩放）。
+// 水平对齐规则（均以「面朝右」为基准，面朝左时镜像）：
+//  - 左对齐类：jump / jumpShoot / climb / dashShoot → 模型贴碰撞盒左侧，多余部分向面朝方向伸出
+//  - runShoot「身体居中」：身体部分（=running 最大宽）居中于碰撞盒，枪向面朝方向伸出
+//  - 其余（stand/shoot/running/dash/crouch）：模型整体水平居中
+// 垂直对齐规则：
+//  - 上下居中类：jump / jumpShoot / climb
+//  - 其余：下对齐（脚底对齐碰撞盒底部）
 function drawPlayerSprite(p, cx, cy) {
   const entry = PLAYER_SPRITES[p.animKey];
   if (!entry || !entry.loaded || entry.frames.length === 0) {
@@ -1038,20 +1309,50 @@ function drawPlayerSprite(p, cx, cy) {
   }
   const fi = Math.min(p.animF, entry.frames.length - 1);
   const f = entry.frames[fi];
-  const scale = PLAYER_TARGET_H / f.h;
-  const dw = f.w * scale, dh = f.h * scale;
-  const bottomY = p.y + p.h;
-  const drawXPos = cx - dw / 2;
-  const drawY = bottomY - dh;
-  // 其他动画资源默认面向右（facing>0 不翻）；climb 资源默认面向左（facing>0 翻）
-  const flip = (p.animKey === 'climb') ? (p.facing > 0) : (p.facing < 0);
+
+  const scale = SPRITE_SCALE;
+  const dw = f.w * scale;
+  const dh = f.h * scale;
+
+  // ---- 水平对齐：计算「面朝右基准下」模型左边缘相对碰撞盒左(p.x)的偏移 offsetL ----
+  const leftAlignAnims = { jump: 1, jumpShoot: 1, climb: 1, dashShoot: 1 };
+  let offsetL;
+  if (leftAlignAnims[p.animKey]) {
+    offsetL = 0;  // 左对齐：模型左边缘贴碰撞盒左
+  } else if (p.animKey === 'runShoot') {
+    // 身体居中：身体部分（running 最大宽）居中，枪向面朝方向伸出
+    const run = PLAYER_SPRITES.running;
+    const bodyW = (run && run.maxW ? run.maxW : 34) * SPRITE_SCALE;
+    offsetL = (p.w - bodyW) / 2;
+  } else {
+    offsetL = (p.w - dw) / 2;  // 居中
+  }
+
+  // ---- 垂直对齐 ----
+  const vCenterAnims = { jump: 1, jumpShoot: 1, climb: 1 };
+  let drawY;
+  if (vCenterAnims[p.animKey]) {
+    drawY = p.y + p.h / 2 - dh / 2;  // 上下居中
+  } else {
+    drawY = p.y + p.h - dh;          // 下对齐（脚底对齐）
+  }
+
+  // ---- 渲染朝向 rdir：climb 贴墙时面朝「朝外」方向（背对墙），其余用 facing ----
+  // climb 素材默认面朝右、手在左（背对墙）；贴左墙(onWall=-1)时面朝右、手贴左墙
+  const rdir = (p.animKey === 'climb') ? (-p.onWall) : p.facing;
+
+  // ---- 模型水平位置：面朝右→左边缘=p.x+offsetL；面朝左→镜像到右侧 ----
+  const modelLeft = (rdir > 0) ? (p.x + offsetL) : (p.x + p.w - offsetL - dw);
+
+  // 素材默认面向右（rdir<0 才翻）
+  const flip = rdir < 0;
   ctx.save();
   if (flip) {
-    ctx.translate(cx, bottomY);
+    ctx.translate(modelLeft + dw / 2, drawY + dh / 2);
     ctx.scale(-1, 1);
-    ctx.drawImage(entry.img, f.x, f.y, f.w, f.h, -dw / 2, -dh, dw, dh);
+    ctx.drawImage(entry.img, f.x, f.y, f.w, f.h, -dw / 2, -dh / 2, dw, dh);
   } else {
-    ctx.drawImage(entry.img, f.x, f.y, f.w, f.h, drawXPos, drawY, dw, dh);
+    ctx.drawImage(entry.img, f.x, f.y, f.w, f.h, modelLeft, drawY, dw, dh);
   }
   ctx.restore();
 }
@@ -1062,7 +1363,12 @@ function drawPlayer() {
   const cx = Math.floor(p.x + p.w / 2);
   const cy = Math.floor(p.y + p.h / 2);
   ctx.save();
-  for (const a of afterimages) { ctx.globalAlpha = (a.life / 12) * 0.35; drawX(a.x, a.y, a.facing); }
+  for (const a of afterimages) {
+    ctx.globalAlpha = (a.life / 12) * 0.35;
+    const acx = Math.floor(a.x + a.w / 2);
+    const acy = Math.floor(a.y + a.h / 2);
+    drawPlayerSprite(a, acx, acy);  // 用新模型资源绘制残影快照
+  }
   ctx.globalAlpha = 1; drawPlayerSprite(p, cx, cy);
   ctx.restore();
   if (p.isChg && p.chgT > P.CHG1) {
@@ -1278,6 +1584,9 @@ function render() {
     }
   }
   if (!editMode) drawPlayer();
+
+  // 碰撞盒可视化（P 键开关）
+  if (showHitboxes) drawHitboxes();
 
   // 编辑器 overlay 也在世界变换下
   if (editMode) drawEditorOverlay();
