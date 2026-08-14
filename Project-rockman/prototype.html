@@ -300,7 +300,7 @@ function playerAnimKey(p, mx) {
     return shooting ? 'shoot' : 'stand';
   }
   if (airborne) {
-    if (p.onWall !== 0) return 'climb';  // 贴墙滑落过渡
+    if (p.wallSlide) return 'climb';  // 只有正在贴墙滑行（按住方向键）才播 climb，松开方向键自由下落走 jump
     return shooting ? 'jumpShoot' : 'jump';
   }
   if (moving) return shooting ? 'runShoot' : 'running';
@@ -901,8 +901,11 @@ function update() {
     if (!p.isChg) {
       p.isChg = true; p.chgT = 0;
       let sd = p.facing; if (p.wallSlide) sd = -p.onWall;
-      spawnBullet(p.x + p.w / 2, p.y, sd, 0);
+      spawnBullet(p.x + (sd > 0 ? p.w : 0), p.y, sd, 0);
       p.shootHold = 15;  // 普通射击：发射子弹瞬间进入射击动画（保留 0.25s）
+      // 仅站立不动射击(shoot)重置帧到第二帧；空中(jumpShoot)/移动射击(runShoot/dashShoot)不重置，
+      // 保持与移动动画的帧同步（由 KEEP_FRAME_PAIRS 保证切换时保留当前帧索引）
+      if (p.grounded && !p.landing && mx === 0) { p.animF = 1; p.animT = 0; }
     } else {
       p.chgT++;
       if (p.chgT >= P.CHG2 && p.chgT === P.CHG2) spawnPart(p.x + p.w / 2, p.y + p.h / 2, 3, '#f44');
@@ -914,8 +917,11 @@ function update() {
       else if (p.chgT > P.CHG1) pw = 1;
       if (pw > 0) {
         let sd = p.facing; if (p.wallSlide) sd = -p.onWall;
-        spawnBullet(p.x + p.w / 2, p.y, sd, pw);
+        spawnBullet(p.x + (sd > 0 ? p.w : 0), p.y, sd, pw);
         p.shootHold = 15;  // 蓄力发射：松手发射蓄力弹时进入射击动画（保留 0.25s）
+        // 仅站立不动射击(shoot)重置帧到第二帧；空中(jumpShoot)/移动射击(runShoot/dashShoot)不重置，
+        // 保持与移动动画的帧同步（由 KEEP_FRAME_PAIRS 保证切换时保留当前帧索引）
+        if (p.grounded && !p.landing && mx === 0) { p.animF = 1; p.animT = 0; }
       }
       p.isChg = false; p.chgT = 0;
     }
@@ -937,6 +943,9 @@ function update() {
       p.vy = P.JUMP; p.grounded = false;
       p.vx = mx !== 0 ? mx * P.SPEED * P.DASH_MULT : 0;
       p.isDash = false; p.dashReady = false; p.dashAir = true; p.kCon = true;
+      // 空中冲刺跳恢复跳跃碰撞盒（=站立盒 A）：dashAir 动画走 jump 分支，碰撞盒须同步，不能停留在 dash 的低矮 B 盒
+      // （含下蹲冲刺跳场景：只要不是强制蹲下，跳起后都站直为站立盒）
+      if (!p.forcedCrouch) { setPlayerBox(HITBOX.stand.w, HITBOX.stand.h); p.crouch = false; }
       spawnPart(p.x + p.w / 2, p.y + p.h, 5, '#aaf');
     }
   }
@@ -982,6 +991,11 @@ function update() {
         p.crouch = false;
       }
       p.vy = P.JUMP; p.grounded = false; p.kCon = true;
+      // 若仍在落地尾段播放中（landing=true）就再次起跳，舍弃剩余尾段，重新从起跳段(索引0)播放跳跃动画
+      if (p.landing || p.animKey === 'jump' || p.animKey === 'jumpShoot') {
+        p.landing = false;
+        p.animF = 0; p.animT = 0;
+      }
       if (lR) { if (mx !== 0) p.vx = mx * P.SPEED * P.DASH_MULT; p.dashReady = false; p.dashAir = true; spawnPart(p.x + p.w / 2, p.y + p.h, 5, '#aaf'); }
       else spawnPart(p.x + p.w / 2, p.y + p.h, 5, '#fff');
     }
@@ -995,6 +1009,7 @@ function update() {
   // Dash air
   if (p.dashAir && !p.grounded && !p.onWall && !p.isDash && p.wjLock <= 0) {
     p.vx = mx !== 0 ? mx * P.SPEED * P.DASH_MULT : 0;
+    if (mx !== 0) p.facing = mx;   // 面朝方向跟随方向键（与普通跳跃一致）
   }
   // 重力
   if (!p.isDash) { p.vy += GRAVITY; if (p.vy > MAX_FALL) p.vy = MAX_FALL; }
@@ -1137,7 +1152,7 @@ function update() {
     const entry = BULLET_SPRITES[`${h.key}-hit`];
     const totalFrames = entry ? entry.frames.length : 0;
     const frameDur = entry ? Math.round(60 / entry.fps) : 6;
-    h.animT++;
+    h.animT += 2;  // 播放速度翻倍（帧切换速度 ×2）
     if (totalFrames === 0 || h.animT >= totalFrames * frameDur) hitEffects.splice(i, 1);
   }
   // 残影寿命递减（新残影的生成在下方动画状态机更新之后）
@@ -1166,11 +1181,16 @@ function update() {
         break;
       }
     }
+    const prevKey = p.animKey;
     p.animKey = animKey;
     p.animT = 0;
     if (!keepFrame) {
       // shoot 动画从第二帧(索引1)开始倒放；其余动画从第一帧(索引0)开始
       p.animF = (animKey === 'shoot') ? 1 : 0;
+      // 从贴墙滑行(climb)松开方向键自由下落时，直接定格在跳跃的空中帧(索引3)，不从头播起跳段
+      if (prevKey === 'climb' && (animKey === 'jump' || animKey === 'jumpShoot')) {
+        p.animF = 3;
+      }
     }
   }
   const animEntry = PLAYER_SPRITES[p.animKey];
