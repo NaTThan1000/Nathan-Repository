@@ -74,6 +74,10 @@
     <option value="floater">浮游炮</option>
     <option value="boss">Boss</option>
   </select>
+  <select id="tile-size" style="display:none">
+    <option value="small">小砖块 28×28</option>
+    <option value="big">大砖块 56×56</option>
+  </select>
   <span style="color:#888;font-size:10px">左键=放置 右键=删除 中键拖动=平移 滚轮=缩放 Ctrl+S=导出</span>
   <button style="margin-left:8px;color:#f44;border-color:#f44" id="btn-exit-edit">退出编辑</button>
 </div>
@@ -114,17 +118,24 @@
 
 <script>
 // ==================== 常量 ====================
-const VW = 800, VH = 500;  // 视口大小
-const GRAVITY = 0.55, MAX_FALL = 12, TILE = 32;
+const VW = 800, VH = 500;  // 视口大小（屏幕像素，不参与世界缩放）
+
+// 世界缩放系数：素材原始像素 → 屏幕像素 的固定放大倍数（唯一的世界尺寸缩放口径）。
+// 所有游戏世界坐标/尺寸/物理量一律以「素材原始像素」为单位，渲染时在最外层乘回 VIEW_SCALE 放大到屏幕。
+// 取 2.3 作为干净近似值（原精确值为 80/35≈2.286，允许极小误差，见 README 约定）。
+const VIEW_SCALE = 2.3;
+
+const GRAVITY = 0.24, MAX_FALL = 5.2, TILE = 28;   // 小砖块尺寸（素材像素）
+const TILE_BIG = 56;                                  // 大砖块尺寸 = TILE * 2
 
 const P = {
-  PW: 28, PH: 80,
-  PC: 40,           // 下蹲/冲刺碰撞盒高度
-  SPEED: 4.0, JUMP: -12.0,
-  WALL_SLIDE: 1.5, WALL_JUMP_X: 5.5, WALL_JUMP_Y: -10.0,
-  DASH_MULT: 1.5, DASH_DIST: 128,
+  PW: 30, PH: 35,
+  PC: 17,           // 下蹲/冲刺碰撞盒高度
+  SPEED: 1.75, JUMP: -5.2,
+  WALL_SLIDE: 0.65, WALL_JUMP_X: 2.4, WALL_JUMP_Y: -4.4,
+  DASH_MULT: 1.5, DASH_DIST: 56,
   CHG1: 6, CHG2: 60,
-  BULLET: 14.0,
+  BULLET: 6.1,
   INV: 30, WALL_LOCK: 6,
   MAX_HP: 28,
 };
@@ -135,9 +146,9 @@ const DMG = { 0: 1, 1: 3, 2: 6 };
 // 显示缩放：以资源真实尺寸为基准，映射到游戏里的显示尺寸（displayScale）。
 // 帧数据来自 {type}-{state}_frames.json 的 frames[]，加载时按 strip 排版规则重算为 strip 图里的源裁剪坐标。
 const BULLET_TYPE = {
-  small:  { power: 0, baseW: 36, baseH: 24, displayScale: 2.0 },
-  middle: { power: 1, baseW: 54, baseH: 36, displayScale: 1.6 },
-  big:    { power: 2, baseW: 90, baseH: 60, displayScale: 2.0 },
+  small:  { power: 0, baseW: 16, baseH: 11, displayScale: 1.0 },
+  middle: { power: 1, baseW: 24, baseH: 16, displayScale: 1.0 },
+  big:    { power: 2, baseW: 39, baseH: 26, displayScale: 1.0 },
 };
 const BULLET_SPRITES = {};  // key: `${type}-${state}` -> { img, frames, fps, loaded }
 
@@ -200,16 +211,16 @@ const PLAYER_ANIMS = {
   dashShoot: 'idle-dash&shoot',
 };
 const PLAYER_SPRITES = {};  // key -> { img, frames, fps, loaded, maxW, maxH }
-const PLAYER_TARGET_H = 80; // 站立时精灵显示高度（对齐碰撞盒 PH）
-const SPRITE_SCALE = PLAYER_TARGET_H / 35; // 素材→世界缩放系数 K = 80/35 ≈ 2.286（以站立素材最大高 35px 对齐 80px 为锚）
+// 玩家素材直接以「原始像素」作为世界坐标，不再额外放大（缩放统一由渲染层 VIEW_SCALE 负责）
+const SPRITE_SCALE = 1.0;
 
-// 各状态碰撞盒规格（世界像素）。
-// 碰撞盒 A（站立）= 站立素材最大宽高 × K；碰撞盒 B（定制）= 宽取 dash 素材最大宽 × K，高取 crouch 素材最大高 × K。
+// 各状态碰撞盒规格（素材原始像素，即世界坐标）。
+// 碰撞盒 A（站立）= 站立素材最大宽高；碰撞盒 B（定制）= 宽取 dash 素材最大宽，高取 crouch 素材最大高。
 // 具体宽高在素材加载完成后由 updateHitboxTable() 根据实际 maxW/maxH 计算。
 const HITBOX = {
-  stand:   { w: 0, h: 0 },  // 碰撞盒 A（站立）：69×80
+  stand:   { w: 0, h: 0 },  // 碰撞盒 A（站立）：30×35
   jump:    { w: 0, h: 0 },  // 跳跃：与站立相同（碰撞盒 A）
-  dash:    { w: 0, h: 0 },  // 碰撞盒 B（定制）：87×62（宽=dash，高=crouch）
+  dash:    { w: 0, h: 0 },  // 碰撞盒 B（定制）：38×27（宽=dash，高=crouch）
   crouch:  { w: 0, h: 0 },  // 下蹲：碰撞盒 B
 };
 
@@ -218,10 +229,10 @@ function updateHitboxTable() {
   const stand = PLAYER_SPRITES.stand;
   const dash = PLAYER_SPRITES.dash;
   const crouch = PLAYER_SPRITES.crouch;
-  // 碰撞盒 A：站立素材最大宽高 × K
+  // 碰撞盒 A：站立素材最大宽高
   const standW = (stand && stand.maxW ? stand.maxW : 30) * SPRITE_SCALE;
   const standH = (stand && stand.maxH ? stand.maxH : 35) * SPRITE_SCALE;
-  // 碰撞盒 B：宽 = dash 素材最大宽 × K，高 = crouch 素材最大高 × K
+  // 碰撞盒 B：宽 = dash 素材最大宽，高 = crouch 素材最大高
   const dashW = (dash && dash.maxW ? dash.maxW : 38) * SPRITE_SCALE;
   const crouchH = (crouch && crouch.maxH ? crouch.maxH : 27) * SPRITE_SCALE;
 
@@ -251,7 +262,7 @@ function updateHitboxTable() {
 }
 
 // 玩家默认站立碰撞盒宽高（素材加载完成前用默认值，加载后由 updateHitboxTable 覆盖）
-P.PW = 69; P.PH = 80; P.PC = 40;
+P.PW = 30; P.PH = 35; P.PC = 17;
 
 function loadPlayerSprites() {
   for (const key of Object.keys(PLAYER_ANIMS)) {
@@ -335,21 +346,23 @@ window.addEventListener('keydown', e => {
 const camera = { x: 0, y: 0, targetX: 0, zoom: 1.0 };
 
 function updateCamera() {
-  // 玩家在画面中央
+  // 玩家在画面中央（摄像机坐标也是素材像素，视口范围需换算成素材像素尺度）
   const targetCX = player.x + player.w / 2;
   const targetCY = player.y + player.h / 2;
-  let idealX = targetCX - VW / 2;
-  let idealY = targetCY - VH / 2;
+  const viewW = VW / VIEW_SCALE;   // 视口宽度换算为素材像素
+  const viewH = VH / VIEW_SCALE;   // 视口高度换算为素材像素
+  let idealX = targetCX - viewW / 2;
+  let idealY = targetCY - viewH / 2;
   // 边界限制：玩家走到地图边缘时镜头停止
   const mapH = LH * TILE;
-  idealX = Math.max(0, Math.min(MAP_W - VW, idealX));
-  idealY = Math.max(0, Math.min(mapH - VH, idealY));
+  idealX = Math.max(0, Math.min(MAP_W - viewW, idealX));
+  idealY = Math.max(0, Math.min(mapH - viewH, idealY));
   // 平滑跟随
   camera.x += (idealX - camera.x) * 0.12;
   camera.y += (idealY - camera.y) * 0.12;
 }
 
-// ==================== 大关卡 (100×16 Tile = 3200×512) ====================
+// ==================== 大关卡 (100×16 Tile = 1400×224 素材像素) ====================
 let LW = 100, LH = 16;
 let MAP_W = LW * TILE; // 3200px
 
@@ -456,68 +469,14 @@ function loadLevel(jsonData) {
 }
 
 // 默认内联关卡数据 (与 level.json 同步)
+// 新规格：50×8 格（每格 28px = 1400×224 素材像素），旧地图仅作参考，请在编辑器中重新设计
 const DEFAULT_LEVEL = {
-  "width": 100, "height": 16, "tileSize": 32,
+  "width": 50, "height": 8, "tileSize": 28,
   "tiles": [
-    {"col":[0,99],"row":0,"value":1},
-    {"col":[0,99],"row":15,"value":1},
-    {"col":0,"row":[1,14],"value":1},
-    {"col":99,"row":[1,14],"value":1},
-    {"col":[1,16],"row":[13,14],"value":1},
-    {"col":[8,12],"row":11,"value":1},
-    {"col":[14,18],"row":9,"value":1},
-    {"col":[17,21],"row":7,"value":1},
-    {"col":[20,24],"row":5,"value":1},
-    {"col":30,"row":[5,14],"value":1},
-    {"col":40,"row":[5,14],"value":1},
-    {"col":[25,29],"row":13,"value":1},
-    {"col":[31,39],"row":11,"value":1},
-    {"col":[41,49],"row":9,"value":1},
-    {"col":[25,29],"row":7,"value":1},
-    {"col":[31,39],"row":5,"value":1},
-    {"col":[41,49],"row":3,"value":1},
-    {"col":[39,41],"row":10,"value":1},
-    {"col":[29,31],"row":8,"value":1},
-    {"col":[39,41],"row":6,"value":1},
-    {"col":[29,31],"row":4,"value":1},
-    {"col":[50,56],"row":13,"value":1},
-    {"col":[54,60],"row":11,"value":1},
-    {"col":[58,64],"row":9,"value":1},
-    {"col":[60,66],"row":13,"value":1},
-    {"col":[62,68],"row":7,"value":1},
-    {"col":[66,72],"row":5,"value":1},
-    {"col":[68,74],"row":13,"value":1},
-    {"col":[52,53],"row":9,"value":1},
-    {"col":[56,57],"row":7,"value":1},
-    {"col":[60,61],"row":5,"value":1},
-    {"col":[75,98],"row":1,"value":1},
-    {"col":75,"row":[2,14],"value":1},
-    {"col":[76,97],"row":[13,14],"value":1},
-    {"col":[78,82],"row":8,"value":1},
-    {"col":[90,94],"row":8,"value":1},
-    {"col":[84,88],"row":5,"value":1}
+    {"col":[0,49],"row":7,"value":1}
   ],
-  "playerSpawn": { "x": 60, "y": 200 },
-  "enemies": [
-    {"type":"soldier","x":350,"y":336,"patrolMin":280,"patrolMax":420},
-    {"type":"bee","x":450,"y":260},
-    {"type":"soldier","x":550,"y":208,"patrolMin":480,"patrolMax":620},
-    {"type":"floater","x":900,"y":200},
-    {"type":"soldier","x":1050,"y":272,"patrolMin":1000,"patrolMax":1150},
-    {"type":"bee","x":1150,"y":180},
-    {"type":"soldier","x":1300,"y":144,"patrolMin":1250,"patrolMax":1400},
-    {"type":"floater","x":1400,"y":110},
-    {"type":"bee","x":1500,"y":80},
-    {"type":"soldier","x":1700,"y":336,"patrolMin":1650,"patrolMax":1780},
-    {"type":"bee","x":1800,"y":260},
-    {"type":"soldier","x":1900,"y":208,"patrolMin":1850,"patrolMax":1980},
-    {"type":"floater","x":2000,"y":160},
-    {"type":"soldier","x":2100,"y":144,"patrolMin":2050,"patrolMax":2180},
-    {"type":"bee","x":2200,"y":100},
-    {"type":"floater","x":2600,"y":150},
-    {"type":"soldier","x":2550,"y":336,"patrolMin":2500,"patrolMax":2620},
-    {"type":"boss","x":2850,"y":336}
-  ]
+  "playerSpawn": { "x": 24, "y": 160 },
+  "enemies": []
 };
 
 let map = buildMapFromData(DEFAULT_LEVEL);
@@ -547,11 +506,11 @@ let muzzleEffects = [];   // 枪口发射特效（out 动画，瞬时）
 let hitEffects = [];      // 命中特效（hit 动画，瞬时，不延迟子弹移除）
 
 function spawnBullet(x, y, dir, power) {
-  // 普通子弹 2x (36×24)；小蓄力 = 普通×1.5 (54×36)；满蓄力 = 普通×2.5 (90×60)
-  const baseW = 36, baseH = 24; // 普通子弹碰撞体积（放大1倍：18×12 → 36×24）
+  // 普通子弹 16×11（素材像素）；小蓄力 = 普通×1.5；满蓄力 = 普通×2.5
+  const baseW = 16, baseH = 11; // 普通子弹碰撞体积（素材原始像素）
   const key = bulletKeyByPower(power);
   bullets.push({
-    x, y: y + player.h / 2 - 4, vx: P.BULLET * dir, vy: 0,
+    x, y: y + player.h / 2 - 2, vx: P.BULLET * dir, vy: 0,
     dir,                                     // 面朝方向（用于 sprite 镜像）
     w: power === 2 ? baseW * 2.5 : power === 1 ? baseW * 1.5 : baseW,
     h: power === 2 ? baseH * 2.5 : power === 1 ? baseH * 1.5 : baseH,
@@ -562,7 +521,7 @@ function spawnBullet(x, y, dir, power) {
   });
   // 枪口发射特效（out 动画）：锚定在发射点，播放一遍后消失，不跟随子弹
   // small-bullet 无 out 状态，跳过
-  spawnMuzzle(x, y + player.h / 2 - 4, dir, key);
+  spawnMuzzle(x, y + player.h / 2 - 2, dir, key);
 }
 
 // 枪口发射特效（out 动画），独立于子弹本体
@@ -579,23 +538,23 @@ function spawnHitEffect(x, y, dir, key) {
   hitEffects.push({ x, y, dir, key, animT: 0 });
 }
 function spawnEBullet(x, y, vx, vy) {
-  eBullets.push({ x, y, vx, vy, w: 6, h: 6, life: 90 });
+  eBullets.push({ x, y, vx, vy, w: 3, h: 3, life: 90 });
 }
 function spawnPart(x, y, n, col) {
   for (let i = 0; i < n; i++) {
     particles.push({
-      x, y, vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4 - 2,
-      life: 15 + Math.random() * 15, color: col, size: 1 + Math.random() * 3,
+      x, y, vx: (Math.random() - 0.5) * 1.75, vy: (Math.random() - 0.5) * 1.75 - 0.9,
+      life: 15 + Math.random() * 15, color: col, size: 0.5 + Math.random() * 1.3,
     });
   }
 }
 
 // ==================== 怪物 ====================
 const ET = {
-  soldier: { name: '丛林兵', w: 28, h: 40, hp: 10, spd: 1.5, col: '#44aa44', eye: '#ffcc00', boss: false },
-  bee:     { name: '机械蜂', w: 22, h: 22, hp: 6,  spd: 1.8, col: '#ffaa00', eye: '#ff4444', boss: false, amp: 24, fspd: 0.04 },
-  floater: { name: '浮游炮', w: 24, h: 24, hp: 8,  spd: 2.0, col: '#aa44ff', eye: '#ff4444', boss: false, amp: 30, fspd: 0.03 },
-  boss:    { name: 'Web Spider', w: 56, h: 56, hp: 80, spd: 2.5, col: '#8844cc', eye: '#ff00ff', boss: true },
+  soldier: { name: '丛林兵', w: 12, h: 18, hp: 10, spd: 0.65, col: '#44aa44', eye: '#ffcc00', boss: false },
+  bee:     { name: '机械蜂', w: 10, h: 10, hp: 6,  spd: 0.8,  col: '#ffaa00', eye: '#ff4444', boss: false, amp: 10, fspd: 0.04 },
+  floater: { name: '浮游炮', w: 11, h: 11, hp: 8,  spd: 0.9,  col: '#aa44ff', eye: '#ff4444', boss: false, amp: 13, fspd: 0.03 },
+  boss:    { name: 'Web Spider', w: 25, h: 25, hp: 80, spd: 1.1, col: '#8844cc', eye: '#ff00ff', boss: true },
 };
 
 function mkEnemy(type, x, y, pMin, pMax) {
@@ -603,7 +562,7 @@ function mkEnemy(type, x, y, pMin, pMax) {
   return {
     type, x, y, w: t.w, h: t.h, vx: 0, vy: 0, hp: t.hp, maxHp: t.hp,
     facing: 1, grounded: false,
-    pMin: pMin ?? x - 80, pMax: pMax ?? x + 80,
+    pMin: pMin ?? x - 35, pMax: pMax ?? x + 35,
     hurtT: 0, baseY: y, fp: Math.random() * Math.PI * 2,
     bossAtk: 0, bossJump: false, bossWeb: 0,
   };
@@ -624,16 +583,16 @@ function ai(en) {
   if (en.hurtT > 0) en.hurtT--;
 
   if (!t.boss) {
-    const inRange = dist < 250;
+    const inRange = dist < 110;
     if (en.type === 'bee' || t.amp) {
       en.fp += (t.fspd || 0.04);
-      en.y = en.baseY + Math.sin(en.fp) * (t.amp || 24);
+      en.y = en.baseY + Math.sin(en.fp) * (t.amp || 10);
       if (inRange) {
         en.x += (dx > 0 ? 1 : -1) * t.spd;
         en.facing = dx > 0 ? 1 : -1;
       }
     } else {
-      if (inRange && dist < 160) {
+      if (inRange && dist < 70) {
         en.facing = dx > 0 ? 1 : -1;
         en.vx = en.facing * t.spd * 1.3;
       } else {
@@ -660,7 +619,7 @@ function ai(en) {
           spawnPart(en.x + en.w / 2, en.y + en.h, 12, '#cc44ff');
         }
       }
-      if (en.y > VH + 200) { en.y = 120; en.vy = 0; en.bossJump = false; }
+      if (en.y > VH / VIEW_SCALE + 40) { en.y = 50; en.vy = 0; en.bossJump = false; }
     } else {
       en.facing = dx > 0 ? 1 : -1;
       const spd = phase2 ? t.spd * 1.4 : t.spd;
@@ -671,7 +630,7 @@ function ai(en) {
       if (en.bossAtk >= interval && en.grounded) {
         en.bossAtk = 0;
         en.bossJump = true;
-        en.vy = phase2 ? -15 : -12;
+        en.vy = phase2 ? -6.5 : -5.2;
         en.grounded = false;
         en.vx = en.facing * spd * 2;
         en.x += en.vx;
@@ -685,7 +644,7 @@ function ai(en) {
       const ex = en.x + en.w / 2, ey = en.y + en.h / 2;
       const adx = player.x + player.w / 2 - ex, ady = player.y + player.h / 2 - ey;
       const ad = Math.sqrt(adx * adx + ady * ady) || 1;
-      spawnEBullet(ex, ey, (adx / ad) * 3.5, (ady / ad) * 3.5);
+      spawnEBullet(ex, ey, (adx / ad) * 1.5, (ady / ad) * 1.5);
     }
   }
 
@@ -742,7 +701,7 @@ function dmgPlayer(d) {
 function getPlayerSpawn() {
   const data = levelData || DEFAULT_LEVEL;
   if (data.playerSpawn) return { x: data.playerSpawn.x, y: data.playerSpawn.y };
-  return { x: 60, y: 200 };
+  return { x: 26, y: 87 };
 }
 
 const spawn = getPlayerSpawn();
@@ -774,7 +733,7 @@ function reset() {
 
 function wallCheck(rect) {
   let l = false, r = false;
-  const m = 8;
+  const m = 3;
   const cl = { x: rect.x - 1, y: rect.y + m, w: 2, h: rect.h - m * 2 };
   const cr = { x: rect.x + rect.w - 1, y: rect.y + m, w: 2, h: rect.h - m * 2 };
   for (let rr = 0; rr < LH; rr++) for (let cc = 0; cc < LW; cc++) {
@@ -963,8 +922,8 @@ function update() {
   if (!p.isDash && !p.dashAir) {
     if (p.wjLock > 0) { p.vx = p.wjDir * P.WALL_JUMP_X; }
     else {
-      if (mx !== 0) p.facing = mx;   // 面向始终跟随方向键
-      if (p.forcedCrouch) { p.vx = 0; }   // 强制蹲下时锁死位移，只允许 dash
+      if (mx !== 0) p.facing = mx;   // 面向始终跟随方向键（下蹲时也允许左右选择朝向）
+      if (p.crouch || p.forcedCrouch) { p.vx = 0; }   // 下蹲时锁死位移，只允许 dash
       else if (mx !== 0) { p.vx = mx * P.SPEED; }
       else p.vx = 0;
     }
@@ -1106,7 +1065,7 @@ function update() {
     }
     // 命中特效：以接触表面为中线（一半在目标内、一半在目标外）
     if (hit) spawnHitEffect(hitSurfaceX, hitY, b.dir, b.type);  // 命中特效（不延迟移除）
-    if (hit || b.life <= 0 || b.x < camera.x - 50 || b.x > camera.x + VW + 50) bullets.splice(i, 1);
+    if (hit || b.life <= 0 || b.x < camera.x - 22 || b.x > camera.x + VW / VIEW_SCALE + 22) bullets.splice(i, 1);
   }
 
   // 敌人子弹 vs 玩家
@@ -1120,7 +1079,7 @@ function update() {
       if (map[r * LW + c] === 0) continue;
       if (overlap(br, { x: c * TILE, y: r * TILE, w: TILE, h: TILE })) hw = true;
     }
-    if (hw || b.life <= 0 || b.x < camera.x - 50 || b.x > camera.x + VW + 50 || b.y < -50 || b.y > VH + 50) eBullets.splice(i, 1);
+    if (hw || b.life <= 0 || b.x < camera.x - 22 || b.x > camera.x + VW / VIEW_SCALE + 22 || b.y < -22 || b.y > VH / VIEW_SCALE + 22) eBullets.splice(i, 1);
   }
 
   // 玩家碰怪物
@@ -1134,7 +1093,7 @@ function update() {
 
   // 粒子
   for (let i = particles.length - 1; i >= 0; i--) {
-    const pt = particles[i]; pt.x += pt.vx; pt.y += pt.vy; pt.vy += 0.1; pt.life--;
+    const pt = particles[i]; pt.x += pt.vx; pt.y += pt.vy; pt.vy += 0.04; pt.life--;
     if (pt.life <= 0) particles.splice(i, 1);
   }
   // 枪口发射特效（out）：播放一遍后移除
@@ -1239,10 +1198,12 @@ function update() {
 
 // ==================== 渲染 (所有世界坐标 - camera.x) ====================
 function drawTile(x, y) {
+  // 砖块内描边按 TILE 相对比例绘制，适配素材像素尺度（TILE=14）
+  const b = Math.max(1, Math.round(TILE / 32));          // 基础描边宽度（素材像素下≈0.5→1）
   ctx.fillStyle = '#2a4a2a'; ctx.fillRect(x, y, TILE, TILE);
-  ctx.fillStyle = '#3a5a3a'; ctx.fillRect(x + 1, y + 1, TILE - 2, TILE - 2);
-  ctx.fillStyle = '#4a6a3a'; ctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 2);
-  ctx.fillStyle = '#5a8a3a'; ctx.fillRect(x + 2, y + 2, TILE - 4, 3);
+  ctx.fillStyle = '#3a5a3a'; ctx.fillRect(x + b, y + b, TILE - b * 2, TILE - b * 2);
+  ctx.fillStyle = '#4a6a3a'; ctx.fillRect(x + b, y + b, TILE - b * 2, TILE - b * 2 - b);
+  ctx.fillStyle = '#5a8a3a'; ctx.fillRect(x + b, y + b, TILE - b * 2, Math.max(1, Math.round(3 * TILE / 32)));
   ctx.strokeStyle = '#1a3a1a'; ctx.lineWidth = 1; ctx.strokeRect(x, y, TILE, TILE);
 }
 
@@ -1251,9 +1212,9 @@ function drawHitboxes() {
   // 地砖/地形碰撞盒（白色，只绘制可见范围）
   const invZ = 1 / camera.zoom;
   const startCol = Math.max(0, Math.floor(camera.x / TILE) - 1);
-  const endCol = Math.min(LW, Math.ceil((camera.x + VW * invZ) / TILE) + 1);
+  const endCol = Math.min(LW, Math.ceil((camera.x + VW * invZ / VIEW_SCALE) / TILE) + 1);
   const startRow = Math.max(0, Math.floor(camera.y / TILE) - 1);
-  const endRow = Math.min(LH, Math.ceil((camera.y + VH * invZ) / TILE) + 1);
+  const endRow = Math.min(LH, Math.ceil((camera.y + VH * invZ / VIEW_SCALE) / TILE) + 1);
   ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
   ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
   ctx.lineWidth = 1;
@@ -1294,23 +1255,24 @@ function drawHitboxes() {
 }
 
 function drawX(cx, cy, f) {
+  // 手绘小人（素材像素尺度）：原世界坐标 ÷2.286 后按素材像素重画
   const p = player;
-  const lo = p.grounded && Math.abs(p.vx) > 0.5 ? Math.sin(p.animT * 0.8) * 2 : 0;
-  ctx.fillStyle = '#24a'; ctx.fillRect(cx - 12, cy - 34, 24, 48);
-  ctx.fillStyle = '#36c'; ctx.fillRect(cx - 10, cy - 32, 20, 20);
-  ctx.fillStyle = '#24a'; ctx.fillRect(cx - 11, cy - 38, 22, 8);
-  ctx.fillStyle = '#35b'; ctx.fillRect(cx - 9, cy - 36, 18, 4);
-  ctx.fillStyle = '#c33'; ctx.fillRect(cx - 3, cy - 42, 6, 6);
-  ctx.fillStyle = '#f55'; ctx.fillRect(cx - 2, cy - 41, 4, 4);
+  const lo = p.grounded && Math.abs(p.vx) > 0.2 ? Math.sin(p.animT * 0.8) * 1 : 0;
+  ctx.fillStyle = '#24a'; ctx.fillRect(cx - 5, cy - 15, 11, 21);
+  ctx.fillStyle = '#36c'; ctx.fillRect(cx - 4, cy - 14, 9, 9);
+  ctx.fillStyle = '#24a'; ctx.fillRect(cx - 5, cy - 17, 10, 4);
+  ctx.fillStyle = '#35b'; ctx.fillRect(cx - 4, cy - 16, 8, 2);
+  ctx.fillStyle = '#c33'; ctx.fillRect(cx - 1, cy - 18, 3, 3);
+  ctx.fillStyle = '#f55'; ctx.fillRect(cx - 1, cy - 18, 2, 2);
   ctx.fillStyle = '#fff';
-  const ex = cx + f * 5; ctx.fillRect(ex - 3, cy - 31, 6, 5);
-  ctx.fillStyle = '#111'; ctx.fillRect(ex + f * 1, cy - 29, 3, 3);
-  ctx.fillStyle = '#35b'; const ax = cx + f * 13;
-  ctx.fillRect(ax - 3, cy - 16, 8, 6);
-  ctx.fillStyle = '#45c'; ctx.fillRect(ax + (f > 0 ? 5 : -4), cy - 14, 4, 3);
-  ctx.fillStyle = '#ca3'; ctx.fillRect(cx - 12, cy + 10, 24, 4);
-  ctx.fillStyle = '#138'; ctx.fillRect(cx - 8, cy + 14 + lo, 6, 16); ctx.fillRect(cx + 2, cy + 14 - lo, 6, 16);
-  ctx.fillStyle = '#c33'; ctx.fillRect(cx - 9, cy + 28 + lo, 8, 4); ctx.fillRect(cx + 1, cy + 28 - lo, 8, 4);
+  const ex = cx + f * 2; ctx.fillRect(ex - 1, cy - 14, 3, 2);
+  ctx.fillStyle = '#111'; ctx.fillRect(ex + f * 1, cy - 13, 1, 1);
+  ctx.fillStyle = '#35b'; const ax = cx + f * 6;
+  ctx.fillRect(ax - 1, cy - 7, 4, 3);
+  ctx.fillStyle = '#45c'; ctx.fillRect(ax + (f > 0 ? 2 : -2), cy - 6, 2, 1);
+  ctx.fillStyle = '#ca3'; ctx.fillRect(cx - 5, cy + 4, 11, 2);
+  ctx.fillStyle = '#138'; ctx.fillRect(cx - 4, cy + 6 + lo, 3, 7); ctx.fillRect(cx + 1, cy + 6 - lo, 3, 7);
+  ctx.fillStyle = '#c33'; ctx.fillRect(cx - 4, cy + 12 + lo, 4, 2); ctx.fillRect(cx + 1, cy + 12 - lo, 4, 2);
 }
 
 // 用精灵绘制角色。所有动画统一按素材原尺寸 × SPRITE_SCALE 显示（不跟随碰撞盒缩放）。
@@ -1392,10 +1354,10 @@ function drawPlayer() {
   ctx.globalAlpha = 1; drawPlayerSprite(p, cx, cy);
   ctx.restore();
   if (p.isChg && p.chgT > P.CHG1) {
-    const r = 22 + (p.chgT >= P.CHG2 ? 8 : 0);
+    const r = 10 + (p.chgT >= P.CHG2 ? 4 : 0);
     const al = 0.4 + Math.sin(Date.now() / 100) * 0.2;
     ctx.strokeStyle = p.chgT >= P.CHG2 ? `rgba(255,60,60,${al})` : `rgba(255,180,60,${al})`;
-    ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy - 4, r, 0, Math.PI * 2); ctx.stroke(); ctx.lineWidth = 1;
+    ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy - 2, r, 0, Math.PI * 2); ctx.stroke(); ctx.lineWidth = 1;
   }
 }
 
@@ -1406,58 +1368,58 @@ function drawEnemy(en) {
   if (en.hurtT > 0 && en.hurtT % 2 === 0) ctx.globalAlpha = 0.5;
 
   if (t.boss) {
-    ctx.fillStyle = '#63a'; ctx.lineWidth = 3;
+    ctx.fillStyle = '#63a'; ctx.lineWidth = 2;
     for (let i = 0; i < 6; i++) {
       const a = [-0.7, -0.4, -0.15, 0.15, 0.4, 0.7][i];
-      const lx = cx + (i < 3 ? -14 : 14), ly = cy - 6 + i * 5;
+      const lx = cx + (i < 3 ? -6 : 6), ly = cy - 3 + i * 2;
       ctx.beginPath(); ctx.moveTo(lx, ly);
-      ctx.lineTo(lx + Math.cos(a) * 22 * (i < 3 ? -1 : 1), ly + Math.abs(Math.sin(a)) * 24);
+      ctx.lineTo(lx + Math.cos(a) * 10 * (i < 3 ? -1 : 1), ly + Math.abs(Math.sin(a)) * 10);
       ctx.stroke();
       ctx.fillStyle = '#84c'; ctx.beginPath();
-      ctx.arc(lx + Math.cos(a) * 22 * (i < 3 ? -1 : 1), ly + Math.abs(Math.sin(a)) * 24, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.arc(lx + Math.cos(a) * 10 * (i < 3 ? -1 : 1), ly + Math.abs(Math.sin(a)) * 10, 1, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#63a';
     }
-    ctx.fillStyle = '#84c'; ctx.beginPath(); ctx.ellipse(cx, cy, 22, 14, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#95d'; ctx.beginPath(); ctx.ellipse(cx, cy - 2, 16, 9, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#73b'; ctx.beginPath(); ctx.arc(cx + en.facing * 14, cy - 6, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#84c'; ctx.beginPath(); ctx.ellipse(cx, cy, 10, 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#95d'; ctx.beginPath(); ctx.ellipse(cx, cy - 1, 7, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#73b'; ctx.beginPath(); ctx.arc(cx + en.facing * 6, cy - 3, 5, 0, Math.PI * 2); ctx.fill();
     const g = 0.6 + Math.sin(Date.now() / 120) * 0.4;
-    ctx.fillStyle = t.eye; ctx.beginPath(); ctx.arc(cx + en.facing * 18, cy - 8, 5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = `rgba(255,0,255,${g})`; ctx.beginPath(); ctx.arc(cx + en.facing * 18, cy - 8, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = t.eye; ctx.beginPath(); ctx.arc(cx + en.facing * 14, cy - 14, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = t.eye; ctx.beginPath(); ctx.arc(cx + en.facing * 8, cy - 4, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(255,0,255,${g})`; ctx.beginPath(); ctx.arc(cx + en.facing * 8, cy - 4, 1, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = t.eye; ctx.beginPath(); ctx.arc(cx + en.facing * 6, cy - 6, 1, 0, Math.PI * 2); ctx.fill();
   } else if (en.type === 'bee') {
-    ctx.fillStyle = '#fa0'; ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#333'; ctx.fillRect(cx - 4, cy - 7, 8, 3); ctx.fillRect(cx - 4, cy + 2, 8, 3);
-    const wf = Math.sin(Date.now() / 30) * 4;
+    ctx.fillStyle = '#fa0'; ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#333'; ctx.fillRect(cx - 2, cy - 3, 4, 1); ctx.fillRect(cx - 2, cy + 1, 4, 1);
+    const wf = Math.sin(Date.now() / 30) * 2;
     ctx.fillStyle = 'rgba(200,220,255,0.5)';
-    ctx.beginPath(); ctx.ellipse(cx - 6, cy - 8 + wf, 8, 4, -0.3, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(cx + 6, cy - 8 - wf, 8, 4, 0.3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#f44'; ctx.fillRect(cx - 4, cy - 4, 3, 3); ctx.fillRect(cx + 1, cy - 4, 3, 3);
-    ctx.fillStyle = '#f60'; ctx.beginPath(); ctx.moveTo(cx, cy + 10); ctx.lineTo(cx - 3, cy + 16); ctx.lineTo(cx + 3, cy + 16); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx - 3, cy - 4 + wf, 4, 2, -0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx + 3, cy - 4 - wf, 4, 2, 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f44'; ctx.fillRect(cx - 2, cy - 2, 1, 1); ctx.fillRect(cx + 1, cy - 2, 1, 1);
+    ctx.fillStyle = '#f60'; ctx.beginPath(); ctx.moveTo(cx, cy + 4); ctx.lineTo(cx - 1, cy + 7); ctx.lineTo(cx + 1, cy + 7); ctx.fill();
   } else if (t.amp) {
     ctx.fillStyle = t.col; ctx.beginPath(); ctx.arc(cx, cy, en.w / 2, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = t.eye; ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx - 1, cy - 1, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = t.eye; ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx - 1, cy - 1, 1, 0, Math.PI * 2); ctx.fill();
   } else {
     const f = en.facing;
-    ctx.fillStyle = t.col; ctx.fillRect(cx - 10, cy - 14, 20, 28);
-    ctx.fillStyle = '#373'; ctx.fillRect(cx - 8, cy - 18, 16, 8);
-    ctx.fillStyle = t.eye; ctx.fillRect(cx + f * 3 - 3, cy - 15, 6, 4);
-    ctx.fillStyle = '#262'; ctx.fillRect(cx - 8, cy + 14, 6, 8); ctx.fillRect(cx + 2, cy + 14, 6, 8);
-    ctx.fillStyle = '#888'; ctx.fillRect(cx + f * 11 - 2, cy - 6, 6, 10);
+    ctx.fillStyle = t.col; ctx.fillRect(cx - 4, cy - 6, 9, 12);
+    ctx.fillStyle = '#373'; ctx.fillRect(cx - 3, cy - 8, 7, 4);
+    ctx.fillStyle = t.eye; ctx.fillRect(cx + f * 1 - 1, cy - 7, 3, 2);
+    ctx.fillStyle = '#262'; ctx.fillRect(cx - 3, cy + 6, 3, 4); ctx.fillRect(cx + 1, cy + 6, 3, 4);
+    ctx.fillStyle = '#888'; ctx.fillRect(cx + f * 5 - 1, cy - 3, 3, 4);
   }
   ctx.globalAlpha = 1;
 
   // 血条
   if (en.hp < en.maxHp) {
-    const bw = t.boss ? 90 : 28, bh = t.boss ? 6 : 3;
-    const bx = sx + en.w / 2 - bw / 2, by = sy - (t.boss ? 12 : 6);
+    const bw = t.boss ? 40 : 12, bh = t.boss ? 3 : 2;
+    const bx = sx + en.w / 2 - bw / 2, by = sy - (t.boss ? 5 : 3);
     ctx.fillStyle = '#222'; ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
     const rt = Math.max(0, en.hp / en.maxHp);
     ctx.fillStyle = rt > 0.5 ? '#4c4' : rt > 0.25 ? '#cc4' : '#c44';
     ctx.fillRect(bx, by, bw * rt, bh);
     if (t.boss) {
-      ctx.fillStyle = '#fff'; ctx.font = '8px "Courier New"'; ctx.textAlign = 'center';
-      ctx.fillText(`${t.name} ${en.hp}/${en.maxHp}`, sx + en.w / 2, by - 2);
+      ctx.fillStyle = '#fff'; ctx.font = '4px "Courier New"'; ctx.textAlign = 'center';
+      ctx.fillText(`${t.name} ${en.hp}/${en.maxHp}`, sx + en.w / 2, by - 1);
     }
   }
 }
@@ -1497,9 +1459,9 @@ function drawBullets() {
   }
   for (const b of eBullets) {
     const bx = b.x, by = b.y;
-    ctx.strokeStyle = '#f4f'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(bx, by, 4 + Math.sin(Date.now() / 60) * 0.5, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,68,255,0.5)'; ctx.beginPath(); ctx.arc(bx, by, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#f4f'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(bx, by, 2 + Math.sin(Date.now() / 60) * 0.2, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,68,255,0.5)'; ctx.beginPath(); ctx.arc(bx, by, 1, 0, Math.PI * 2); ctx.fill();
   }
   // 枪口发射特效（out）
   for (const m of muzzleEffects) {
@@ -1547,12 +1509,6 @@ function drawUI() {
     ctx.fillText('GAME OVER', VW / 2, VH / 2 - 10);
     ctx.fillStyle = '#fff'; ctx.font = '16px "Courier New"';
     ctx.fillText('按空格键重新开始', VW / 2, VH / 2 + 30);
-  } else if (enemies.length === 0) {
-    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, VW, VH);
-    ctx.fillStyle = '#4f4'; ctx.font = 'bold 36px "Courier New"'; ctx.textAlign = 'center';
-    ctx.fillText('STAGE CLEAR!', VW / 2, VH / 2 - 10);
-    ctx.fillStyle = '#fff'; ctx.font = '16px "Courier New"';
-    ctx.fillText('按空格键重新开始', VW / 2, VH / 2 + 30);
   }
 
   document.getElementById('db-hp').textContent = `${player.hp}/${P.MAX_HP}`;
@@ -1568,9 +1524,11 @@ function render() {
   ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
 
   // 瀑布背景线（跟随摄像机，在世界变换之前绘制避免缩放影响）
+  // 使用屏幕像素的 tile 尺寸（TILE * VIEW_SCALE），保持与改造前一致的视觉间距
+  const screenTile = TILE * VIEW_SCALE;
   ctx.strokeStyle = 'rgba(100,180,255,0.04)'; ctx.lineWidth = 2;
-  for (let x = 0; x < VW + TILE; x += TILE) {
-    const wx = x + Math.floor(camera.x / TILE) * TILE;
+  for (let x = 0; x < VW + screenTile; x += screenTile) {
+    const wx = x + Math.floor(camera.x * VIEW_SCALE / screenTile) * screenTile;
     for (let y = 0; y < VH; y += 16) {
       const o = (Date.now() / 50 + wx * 3) % 16;
       ctx.beginPath(); ctx.moveTo(x, y + o); ctx.lineTo(x, y + o + 6); ctx.stroke();
@@ -1578,18 +1536,19 @@ function render() {
   }
 
   // === 统一世界变换: 所有世界坐标渲染都在此变换下 ===
-  // 注意: 先 translate 再 scale，避免 translate 量被 scale 放大
+  // 世界坐标为「素材原始像素」，通过 VIEW_SCALE 放大到屏幕像素（视觉与改造前一致）。
+  // 注意: 先 translate 再 scale，避免 translate 量被 scale 放大。
   const z = camera.zoom;
   const invZ = 1 / z;
   ctx.save();
-  ctx.translate(-camera.x * z, -camera.y * z);
-  ctx.scale(z, z);
+  ctx.translate(-camera.x * z * VIEW_SCALE, -camera.y * z * VIEW_SCALE);
+  ctx.scale(z * VIEW_SCALE, z * VIEW_SCALE);
 
   // 只渲染屏幕可见范围的砖块
   const startCol = Math.max(0, Math.floor(camera.x / TILE) - 1);
-  const endCol = Math.min(LW, Math.ceil((camera.x + VW * invZ) / TILE) + 1);
+  const endCol = Math.min(LW, Math.ceil((camera.x + VW * invZ / VIEW_SCALE) / TILE) + 1);
   const startRow = Math.max(0, Math.floor(camera.y / TILE) - 1);
-  const endRow = Math.min(LH, Math.ceil((camera.y + VH * invZ) / TILE) + 1);
+  const endRow = Math.min(LH, Math.ceil((camera.y + VH * invZ / VIEW_SCALE) / TILE) + 1);
   for (let r = startRow; r < endRow; r++) {
     for (let c = startCol; c < endCol; c++) {
       if (map[r * LW + c] === 1) drawTile(c * TILE, r * TILE);
@@ -1599,7 +1558,7 @@ function render() {
   drawParticles();
   drawBullets();
   for (const en of enemies) {
-    if (en.x + en.w > camera.x - 50 * invZ && en.x < camera.x + VW * invZ + 50 * invZ) {
+    if (en.x + en.w > camera.x - 22 * invZ && en.x < camera.x + VW * invZ / VIEW_SCALE + 22 * invZ) {
       drawEnemy(en);
     }
   }
@@ -1628,6 +1587,7 @@ const btnTile = document.getElementById('btn-tile');
 const btnEnemy = document.getElementById('btn-enemy');
 const btnPlayer = document.getElementById('btn-player');
 const enemyTypeSelect = document.getElementById('enemy-type');
+const tileSizeSelect = document.getElementById('tile-size');
 const jsonOutput = document.getElementById('json-output');
 
 function setEditMode(on) {
@@ -1652,8 +1612,8 @@ function setEditMode(on) {
     // 退出编辑模式时重置摄像机，定位到玩家居中位置
     camera.zoom = 1.0;
     const mapH = LH * TILE;
-    camera.x = Math.max(0, Math.min(MAP_W - VW, player.x + player.w / 2 - VW / 2));
-    camera.y = Math.max(0, Math.min(mapH - VH, player.y + player.h / 2 - VH / 2));
+    camera.x = Math.max(0, Math.min(MAP_W - VW / VIEW_SCALE, player.x + player.w / 2 - VW / VIEW_SCALE / 2));
+    camera.y = Math.max(0, Math.min(mapH - VH / VIEW_SCALE, player.y + player.h / 2 - VH / VIEW_SCALE / 2));
     isPanning = false;
     isDraggingPlayer = false;
     canvas.style.cursor = '';
@@ -1665,6 +1625,7 @@ function updateToolUI() {
   btnEnemy.classList.toggle('sel', editTool === 'enemy');
   btnPlayer.classList.toggle('sel', editTool === 'player');
   enemyTypeSelect.style.display = editTool === 'enemy' ? 'inline' : 'none';
+  tileSizeSelect.style.display = editTool === 'tile' ? 'inline' : 'none';
   // player 模式显示 grab 光标
   if (editMode) {
     canvas.style.cursor = (editTool === 'player') ? 'grab' : '';
@@ -1706,8 +1667,18 @@ function doEditAction() {
 
   if (editTool === 'tile') {
     if (mouseDown === 1) {
-      if (col < 0 || col >= LW || row < 0 || row >= LH) expandMap(col, row);
-      map[row * LW + col] = 1;
+      // 大砖：以鼠标格为中心，向左上偏移 1 格放置 2×2；小砖：单格
+      const big = (tileSizeSelect.value === 'big');
+      const baseCol = big ? col - 1 : col;
+      const baseRow = big ? row - 1 : row;
+      const span = big ? 2 : 1;
+      for (let dr = 0; dr < span; dr++) {
+        for (let dc = 0; dc < span; dc++) {
+          const cc = baseCol + dc, rr = baseRow + dr;
+          if (cc < 0 || cc >= LW || rr < 0 || rr >= LH) expandMap(cc, rr);
+          map[rr * LW + cc] = 1;
+        }
+      }
     } else if (mouseDown === 2) {
       if (col >= 0 && col < LW && row >= 0 && row < LH) map[row * LW + col] = 0;
     }
@@ -1718,7 +1689,7 @@ function doEditAction() {
       const ey = row * TILE;
       // 避免在同一位置反复放置：检查是否已有敌人在附近
       const nearby = enemies.some(en =>
-        Math.abs(en.x - ex) < 8 && Math.abs(en.y - ey) < 8
+        Math.abs(en.x - ex) < 3 && Math.abs(en.y - ey) < 3
       );
       if (!nearby) {
         enemies.push(mkEnemy(etype, ex, ey));
@@ -1730,7 +1701,7 @@ function doEditAction() {
         const en = enemies[i];
         const cx = en.x + en.w / 2, cy = en.y + en.h / 2;
         const d = Math.sqrt((wx - cx) ** 2 + (wy - cy) ** 2);
-        if (d < 40 && d < closestDist) { closest = i; closestDist = d; }
+        if (d < 18 && d < closestDist) { closest = i; closestDist = d; }
       }
       if (closest !== null) enemies.splice(closest, 1);
     }
@@ -1781,8 +1752,8 @@ canvas.addEventListener('mousemove', e => {
   const rect = canvas.getBoundingClientRect();
   const sx = e.clientX - rect.left;
   const sy = e.clientY - rect.top;
-  mouseWorldX = sx / camera.zoom + camera.x;
-  mouseWorldY = sy / camera.zoom + camera.y;
+  mouseWorldX = sx / (camera.zoom * VIEW_SCALE) + camera.x;
+  mouseWorldY = sy / (camera.zoom * VIEW_SCALE) + camera.y;
   if (isDraggingPlayer) {
     // 拖拽出生点：自由像素级位置
     const data = levelData || DEFAULT_LEVEL;
@@ -1814,8 +1785,8 @@ canvas.addEventListener('mousedown', e => {
 
 window.addEventListener('mousemove', e => {
   if (!isPanning) return;
-  const dx = (panStartX - e.clientX) / camera.zoom;
-  const dy = (panStartY - e.clientY) / camera.zoom;
+  const dx = (panStartX - e.clientX) / (camera.zoom * VIEW_SCALE);
+  const dy = (panStartY - e.clientY) / (camera.zoom * VIEW_SCALE);
   camera.x = panCamStartX + dx;
   camera.y = panCamStartY + dy;
   // 不再限制范围，允许自由平移查看地图外区域
@@ -1837,8 +1808,8 @@ canvas.addEventListener('wheel', e => {
   e.preventDefault();
   const zoomSpeed = 0.1;
   const rect = canvas.getBoundingClientRect();
-  const mx = (e.clientX - rect.left) / camera.zoom + camera.x;
-  const my = (e.clientY - rect.top) / camera.zoom + camera.y;
+  const mx = (e.clientX - rect.left) / (camera.zoom * VIEW_SCALE) + camera.x;
+  const my = (e.clientY - rect.top) / (camera.zoom * VIEW_SCALE) + camera.y;
   const oldZoom = camera.zoom;
   if (e.deltaY < 0) {
     camera.zoom = Math.min(4.0, camera.zoom + zoomSpeed);
@@ -1846,8 +1817,8 @@ canvas.addEventListener('wheel', e => {
     camera.zoom = Math.max(0.2, camera.zoom - zoomSpeed);
   }
   // 以鼠标位置为中心缩放
-  camera.x = mx - (e.clientX - rect.left) / camera.zoom;
-  camera.y = my - (e.clientY - rect.top) / camera.zoom;
+  camera.x = mx - (e.clientX - rect.left) / (camera.zoom * VIEW_SCALE);
+  camera.y = my - (e.clientY - rect.top) / (camera.zoom * VIEW_SCALE);
 }, { passive: false });
 
 // 导出 JSON
@@ -1950,13 +1921,23 @@ function drawEditorOverlay() {
   const sx = col * TILE;
   const sy = row * TILE;
 
+  // 编辑器视觉常量（线宽/字体/虚线）画在世界变换下会被 VIEW_SCALE 放大，
+  // 这里统一除以 VIEW_SCALE 保持与改造前一致的屏幕观感。
+  const LW1 = 1 / VIEW_SCALE, LW2 = 2 / VIEW_SCALE, LW3 = 3 / VIEW_SCALE;
+  const FONT = `${Math.round(10 / VIEW_SCALE)}px "Courier New"`;
+
   if (editTool === 'tile') {
+    const big = (tileSizeSelect.value === 'big');
+    const px = big ? (col - 1) * TILE : col * TILE;
+    const py = big ? (row - 1) * TILE : row * TILE;
+    const pw = big ? TILE_BIG : TILE;
+    const ph = big ? TILE_BIG : TILE;
     ctx.strokeStyle = 'rgba(255,255,0,0.7)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(sx, sy, TILE, TILE);
+    ctx.lineWidth = LW2;
+    ctx.strokeRect(px, py, pw, ph);
     ctx.fillStyle = 'rgba(255,255,0,0.15)';
-    ctx.fillRect(sx, sy, TILE, TILE);
-    ctx.lineWidth = 1;
+    ctx.fillRect(px, py, pw, ph);
+    ctx.lineWidth = LW1;
   } else if (editTool === 'enemy') {
     const etype = enemyTypeSelect.value;
     const t = ET[etype];
@@ -1965,26 +1946,26 @@ function drawEditorOverlay() {
     const cx = ex + t.w / 2;
     const cy = ey + t.h / 2;
     ctx.strokeStyle = 'rgba(255,100,100,0.7)';
-    ctx.lineWidth = 2;
+    ctx.lineWidth = LW2;
     ctx.strokeRect(ex, ey, t.w, t.h);
     ctx.fillStyle = 'rgba(255,100,100,0.15)';
     ctx.fillRect(ex, ey, t.w, t.h);
     ctx.fillStyle = '#fff';
-    ctx.font = '10px "Courier New"';
+    ctx.font = FONT;
     ctx.textAlign = 'center';
-    ctx.fillText(t.name, cx, cy - t.h / 2 - 4);
-    ctx.lineWidth = 1;
+    ctx.fillText(t.name, cx, cy - t.h / 2 - 2);
+    ctx.lineWidth = LW1;
   } else if (editTool === 'player') {
     // 鼠标悬停显示玩家实际大小预览（非拖拽中）
     if (!isDraggingPlayer) {
       const px = mouseWorldX - P.PW / 2;
       const py = mouseWorldY - P.PH / 2;
       ctx.strokeStyle = 'rgba(100,255,255,0.5)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = LW2;
+      ctx.setLineDash([4 / VIEW_SCALE, 4 / VIEW_SCALE]);
       ctx.strokeRect(px, py, P.PW, P.PH);
       ctx.setLineDash([]);
-      ctx.lineWidth = 1;
+      ctx.lineWidth = LW1;
     }
   }
 
@@ -2002,16 +1983,16 @@ function drawEditorOverlay() {
     ctx.strokeStyle = `rgba(255,60,60,${0.7 + psa * 0.3})`;
     ctx.fillStyle = `rgba(255,60,60,0.25)`;
   }
-  ctx.lineWidth = 3;
+  ctx.lineWidth = LW3;
   ctx.strokeRect(ps.x, ps.y, P.PW, P.PH);
   ctx.fillRect(ps.x, ps.y, P.PW, P.PH);
 
   // 标签
   ctx.fillStyle = valid ? '#0ff' : '#f44';
-  ctx.font = '10px "Courier New"';
+  ctx.font = FONT;
   ctx.textAlign = 'center';
-  ctx.fillText(valid ? 'SPAWN' : 'INVALID!', ps.x + P.PW / 2, ps.y - 6);
-  ctx.lineWidth = 1;
+  ctx.fillText(valid ? 'SPAWN' : 'INVALID!', ps.x + P.PW / 2, ps.y - 3);
+  ctx.lineWidth = LW1;
 }
 
 function loop() { update(); render(); requestAnimationFrame(loop); }

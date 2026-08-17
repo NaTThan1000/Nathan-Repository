@@ -1,601 +1,291 @@
 {
-  "width": 100,
-  "height": 30,
-  "tileSize": 32,
+  "width": 63,
+  "height": 18,
+  "tileSize": 28,
   "playerSpawn": {
-    "x": 55,
-    "y": 333
+    "x": 407,
+    "y": 232
   },
   "tiles": [
     {
       "col": [
-        0,
-        99
+        9,
+        33
       ],
       "row": 0,
       "value": 1
     },
     {
-      "col": 0,
+      "col": 9,
       "row": 1,
       "value": 1
     },
     {
       "col": [
-        75,
-        99
+        33,
+        57
       ],
       "row": 1,
       "value": 1
     },
     {
-      "col": 0,
+      "col": 9,
       "row": 2,
       "value": 1
     },
     {
-      "col": 75,
+      "col": [
+        40,
+        41
+      ],
       "row": 2,
       "value": 1
     },
     {
-      "col": 99,
-      "row": 2,
-      "value": 1
-    },
-    {
-      "col": 0,
+      "col": 9,
       "row": 3,
       "value": 1
     },
     {
-      "col": 75,
+      "col": [
+        40,
+        41
+      ],
       "row": 3,
       "value": 1
     },
     {
-      "col": 99,
-      "row": 3,
-      "value": 1
-    },
-    {
-      "col": 0,
+      "col": 9,
       "row": 4,
       "value": 1
     },
     {
       "col": [
-        29,
-        31
+        40,
+        41
       ],
       "row": 4,
       "value": 1
     },
     {
-      "col": 75,
-      "row": 4,
-      "value": 1
-    },
-    {
-      "col": 99,
-      "row": 4,
-      "value": 1
-    },
-    {
-      "col": 0,
+      "col": 9,
       "row": 5,
       "value": 1
     },
     {
       "col": [
-        20,
-        24
+        40,
+        41
       ],
       "row": 5,
       "value": 1
     },
     {
       "col": [
-        30,
-        40
+        45,
+        60
       ],
       "row": 5,
       "value": 1
     },
     {
-      "col": [
-        60,
-        61
-      ],
-      "row": 5,
-      "value": 1
-    },
-    {
-      "col": [
-        66,
-        68
-      ],
-      "row": 5,
-      "value": 1
-    },
-    {
-      "col": 75,
-      "row": 5,
-      "value": 1
-    },
-    {
-      "col": [
-        84,
-        88
-      ],
-      "row": 5,
-      "value": 1
-    },
-    {
-      "col": 99,
-      "row": 5,
-      "value": 1
-    },
-    {
-      "col": 0,
-      "row": 6,
-      "value": 1
-    },
-    {
-      "col": 30,
+      "col": 9,
       "row": 6,
       "value": 1
     },
     {
       "col": [
-        39,
+        40,
         41
       ],
       "row": 6,
       "value": 1
     },
     {
-      "col": 75,
+      "col": [
+        45,
+        60
+      ],
       "row": 6,
       "value": 1
     },
     {
-      "col": 99,
-      "row": 6,
-      "value": 1
-    },
-    {
-      "col": 0,
+      "col": 9,
       "row": 7,
       "value": 1
     },
     {
       "col": [
-        17,
-        21
+        34,
+        35
       ],
       "row": 7,
       "value": 1
     },
     {
       "col": [
-        25,
-        30
-      ],
-      "row": 7,
-      "value": 1
-    },
-    {
-      "col": 40,
-      "row": 7,
-      "value": 1
-    },
-    {
-      "col": [
-        56,
-        57
+        40,
+        41
       ],
       "row": 7,
       "value": 1
     },
     {
       "col": [
-        62,
-        68
+        45,
+        60
       ],
       "row": 7,
       "value": 1
     },
     {
-      "col": 75,
-      "row": 7,
-      "value": 1
-    },
-    {
-      "col": 99,
-      "row": 7,
-      "value": 1
-    },
-    {
-      "col": 0,
+      "col": 9,
       "row": 8,
       "value": 1
     },
     {
       "col": [
-        6,
-        7
+        34,
+        35
       ],
       "row": 8,
       "value": 1
     },
     {
       "col": [
-        29,
-        31
-      ],
-      "row": 8,
-      "value": 1
-    },
-    {
-      "col": 40,
-      "row": 8,
-      "value": 1
-    },
-    {
-      "col": [
-        80,
-        82
+        40,
+        41
       ],
       "row": 8,
       "value": 1
     },
     {
       "col": [
-        90,
-        94
+        45,
+        60
       ],
       "row": 8,
       "value": 1
     },
     {
-      "col": 99,
-      "row": 8,
-      "value": 1
-    },
-    {
-      "col": 0,
+      "col": 9,
       "row": 9,
       "value": 1
     },
     {
       "col": [
-        14,
-        18
+        34,
+        35
       ],
-      "row": 9,
-      "value": 1
-    },
-    {
-      "col": 30,
       "row": 9,
       "value": 1
     },
     {
       "col": [
         40,
-        49
+        41
       ],
       "row": 9,
       "value": 1
     },
     {
       "col": [
-        52,
-        53
+        45,
+        60
       ],
       "row": 9,
       "value": 1
     },
     {
-      "col": [
-        58,
-        64
-      ],
-      "row": 9,
-      "value": 1
-    },
-    {
-      "col": 99,
-      "row": 9,
-      "value": 1
-    },
-    {
-      "col": 0,
-      "row": 10,
-      "value": 1
-    },
-    {
-      "col": 30,
+      "col": 9,
       "row": 10,
       "value": 1
     },
     {
       "col": [
-        39,
+        34,
+        35
+      ],
+      "row": 10,
+      "value": 1
+    },
+    {
+      "col": [
+        40,
         41
       ],
       "row": 10,
       "value": 1
     },
     {
-      "col": 99,
+      "col": [
+        45,
+        60
+      ],
       "row": 10,
       "value": 1
     },
     {
-      "col": 0,
+      "col": 9,
       "row": 11,
       "value": 1
     },
     {
       "col": [
-        8,
-        12
+        34,
+        35
       ],
       "row": 11,
       "value": 1
     },
     {
       "col": [
-        30,
-        40
+        40,
+        41
       ],
       "row": 11,
       "value": 1
     },
     {
       "col": [
-        54,
+        45,
         60
       ],
       "row": 11,
       "value": 1
     },
     {
-      "col": 99,
-      "row": 11,
-      "value": 1
-    },
-    {
-      "col": 0,
-      "row": 12,
-      "value": 1
-    },
-    {
-      "col": 30,
-      "row": 12,
-      "value": 1
-    },
-    {
-      "col": 40,
-      "row": 12,
-      "value": 1
-    },
-    {
-      "col": 99,
+      "col": 9,
       "row": 12,
       "value": 1
     },
     {
       "col": [
-        0,
-        4
+        24,
+        25
       ],
+      "row": 12,
+      "value": 1
+    },
+    {
+      "col": [
+        34,
+        35
+      ],
+      "row": 12,
+      "value": 1
+    },
+    {
+      "col": [
+        45,
+        60
+      ],
+      "row": 12,
+      "value": 1
+    },
+    {
+      "col": 9,
       "row": 13,
-      "value": 1
-    },
-    {
-      "col": [
-        13,
-        16
-      ],
-      "row": 13,
-      "value": 1
-    },
-    {
-      "col": [
-        25,
-        30
-      ],
-      "row": 13,
-      "value": 1
-    },
-    {
-      "col": 40,
-      "row": 13,
-      "value": 1
-    },
-    {
-      "col": [
-        50,
-        56
-      ],
-      "row": 13,
-      "value": 1
-    },
-    {
-      "col": [
-        60,
-        66
-      ],
-      "row": 13,
-      "value": 1
-    },
-    {
-      "col": [
-        68,
-        97
-      ],
-      "row": 13,
-      "value": 1
-    },
-    {
-      "col": 99,
-      "row": 13,
-      "value": 1
-    },
-    {
-      "col": [
-        0,
-        6
-      ],
-      "row": 14,
-      "value": 1
-    },
-    {
-      "col": [
-        15,
-        16
-      ],
-      "row": 14,
-      "value": 1
-    },
-    {
-      "col": 30,
-      "row": 14,
-      "value": 1
-    },
-    {
-      "col": 40,
-      "row": 14,
-      "value": 1
-    },
-    {
-      "col": [
-        75,
-        97
-      ],
-      "row": 14,
-      "value": 1
-    },
-    {
-      "col": 99,
-      "row": 14,
-      "value": 1
-    },
-    {
-      "col": [
-        0,
-        7
-      ],
-      "row": 15,
-      "value": 1
-    },
-    {
-      "col": [
-        15,
-        99
-      ],
-      "row": 15,
-      "value": 1
-    },
-    {
-      "col": 8,
-      "row": 16,
-      "value": 1
-    },
-    {
-      "col": 66,
-      "row": 16,
-      "value": 1
-    },
-    {
-      "col": [
-        9,
-        10
-      ],
-      "row": 17,
-      "value": 1
-    },
-    {
-      "col": 66,
-      "row": 17,
-      "value": 1
-    },
-    {
-      "col": [
-        10,
-        11
-      ],
-      "row": 18,
-      "value": 1
-    },
-    {
-      "col": 66,
-      "row": 18,
-      "value": 1
-    },
-    {
-      "col": [
-        11,
-        12
-      ],
-      "row": 19,
-      "value": 1
-    },
-    {
-      "col": 66,
-      "row": 19,
-      "value": 1
-    },
-    {
-      "col": [
-        12,
-        13
-      ],
-      "row": 20,
-      "value": 1
-    },
-    {
-      "col": 66,
-      "row": 20,
-      "value": 1
-    },
-    {
-      "col": 14,
-      "row": 21,
-      "value": 1
-    },
-    {
-      "col": 66,
-      "row": 21,
-      "value": 1
-    },
-    {
-      "col": [
-        15,
-        16
-      ],
-      "row": 22,
-      "value": 1
-    },
-    {
-      "col": 66,
-      "row": 22,
-      "value": 1
-    },
-    {
-      "col": [
-        16,
-        17
-      ],
-      "row": 23,
-      "value": 1
-    },
-    {
-      "col": 66,
-      "row": 23,
       "value": 1
     },
     {
@@ -603,206 +293,41 @@
         18,
         19
       ],
-      "row": 24,
-      "value": 1
-    },
-    {
-      "col": 66,
-      "row": 24,
+      "row": 13,
       "value": 1
     },
     {
       "col": [
-        20,
-        21
-      ],
-      "row": 25,
-      "value": 1
-    },
-    {
-      "col": 66,
-      "row": 25,
-      "value": 1
-    },
-    {
-      "col": [
-        22,
+        24,
         25
       ],
-      "row": 26,
-      "value": 1
-    },
-    {
-      "col": 66,
-      "row": 26,
-      "value": 1
-    },
-    {
-      "col": [
-        25,
-        29
-      ],
-      "row": 27,
-      "value": 1
-    },
-    {
-      "col": 66,
-      "row": 27,
-      "value": 1
-    },
-    {
-      "col": [
-        30,
-        34
-      ],
-      "row": 28,
-      "value": 1
-    },
-    {
-      "col": [
-        36,
-        46
-      ],
-      "row": 28,
-      "value": 1
-    },
-    {
-      "col": [
-        49,
-        75
-      ],
-      "row": 28,
-      "value": 1
-    },
-    {
-      "col": 78,
-      "row": 28,
+      "row": 13,
       "value": 1
     },
     {
       "col": [
         34,
-        36
+        35
       ],
-      "row": 29,
+      "row": 13,
       "value": 1
     },
     {
       "col": [
-        42,
-        49
+        45,
+        60
       ],
-      "row": 29,
+      "row": 13,
       "value": 1
     },
     {
       "col": [
-        76,
-        85
+        9,
+        62
       ],
-      "row": 29,
+      "row": 14,
       "value": 1
     }
   ],
-  "enemies": [
-    {
-      "type": "bee",
-      "x": 450,
-      "y": 279
-    },
-    {
-      "type": "soldier",
-      "x": 516,
-      "y": 248,
-      "patrolMin": 480,
-      "patrolMax": 620
-    },
-    {
-      "type": "floater",
-      "x": 900,
-      "y": 174
-    },
-    {
-      "type": "soldier",
-      "x": 1017,
-      "y": 312,
-      "patrolMin": 1000,
-      "patrolMax": 1150
-    },
-    {
-      "type": "bee",
-      "x": 1150,
-      "y": 167
-    },
-    {
-      "type": "soldier",
-      "x": 1284,
-      "y": 120,
-      "patrolMin": 1250,
-      "patrolMax": 1400
-    },
-    {
-      "type": "floater",
-      "x": 1400,
-      "y": 83
-    },
-    {
-      "type": "bee",
-      "x": 1500,
-      "y": 72
-    },
-    {
-      "type": "soldier",
-      "x": 1700,
-      "y": 376,
-      "patrolMin": 1650,
-      "patrolMax": 1780
-    },
-    {
-      "type": "bee",
-      "x": 1800,
-      "y": 279
-    },
-    {
-      "type": "soldier",
-      "x": 1956,
-      "y": 248,
-      "patrolMin": 1850,
-      "patrolMax": 1980
-    },
-    {
-      "type": "floater",
-      "x": 2000,
-      "y": 156
-    },
-    {
-      "type": "soldier",
-      "x": 2084,
-      "y": 184,
-      "patrolMin": 2050,
-      "patrolMax": 2180
-    },
-    {
-      "type": "bee",
-      "x": 2200,
-      "y": 79
-    },
-    {
-      "type": "floater",
-      "x": 2600,
-      "y": 140
-    },
-    {
-      "type": "soldier",
-      "x": 2541,
-      "y": 376,
-      "patrolMin": 2500,
-      "patrolMax": 2620
-    },
-    {
-      "type": "boss",
-      "x": 2432,
-      "y": 360
-    }
-  ]
+  "enemies": []
 }
