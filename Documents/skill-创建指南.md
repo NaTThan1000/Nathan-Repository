@@ -2,6 +2,8 @@
 
 本文档用于在另一台电脑上重建 `daily-start` 和 `daily-end` 两个 skill。
 
+> **维护规则**：每次更新 skill 的任何逻辑，都必须同步更新本文档中对应的 Skill 完整内容，保证本文档始终与实际 skill 一致，可在任何电脑上重建出最新形式的相同 skill。
+
 ## 创建步骤
 
 1. 进入 skill 存放目录：
@@ -53,19 +55,22 @@ Trigger when the user says any of:
 
 ## Workflow
 
-### Step 1: Identify the Active Project
+### Step 1: Ask the User to Select the Active Project
 
-Determine which project the user is working on by checking the current workspace
-contents or asking the user. The projects are:
+Do NOT attempt to auto-detect the active project. Instead, always ask the user
+directly using an interactive selection (the `ask_followup_question` tool) with
+clickable options. The options are the four project directory names:
 
 | Project | Directory | Feature Branch |
 |---------|-----------|----------------|
-| match3-rpg | `match3-rpg-project/` | `dev/match3` |
-| tarot-battle | `tarot-battle-project/` | `dev/tarot` |
-| isaac-turnbase | `Project-Issac-turnbase/` | `dev/issac` |
-| rockman | `Project-rockman/` | `dev/rockman` |
+| match3-rpg-project | `match3-rpg-project/` | `dev/match3` |
+| tarot-battle-project | `tarot-battle-project/` | `dev/tarot` |
+| Project-Issac-turnbase | `Project-Issac-turnbase/` | `dev/issac` |
+| Project-rockman | `Project-rockman/` | `dev/rockman` |
 
-If the active project cannot be determined from context, ask the user to specify.
+The option labels shown to the user must be the actual project directory names
+exactly as listed above. Wait for the user to click a selection before
+proceeding. Do not guess or default to any project.
 
 ### Step 2: Read the Three Documentation Layers
 
@@ -116,6 +121,22 @@ Provide a brief summary to the user covering:
 
 Conclude with a ready signal so the user knows the session is initialized and
 ready for work.
+
+## Output Language Rule
+
+This skill's own instructions are written in English for the AI's readability,
+but that does NOT mean the AI should produce English output elsewhere. Whenever
+executing this skill, all outputs directed at the user-facing artifacts — commit
+messages, documentation updates (memory.md / context.md / global-rules.md /
+guides), and any written text — MUST be written in Chinese (中文). The English in
+this skill is for internal instruction only and must not leak into commit
+messages or documents.
+
+## Maintenance Rule
+
+Whenever ANY logic of this skill is updated, you MUST also sync the change to
+`Documents/skill-创建指南.md` (in the workspace root), so that the guide always
+matches the latest skill and can be used to rebuild the skill on another machine.
 ```
 
 ---
@@ -189,12 +210,14 @@ code. Verify every section:
 - Core attributes / player attributes
 - Render constants (verify values are current)
 - Architecture overview (add any new system modules)
-- Core system descriptions (TILE system, floor system, etc.)
+- Core system descriptions (the project's own systems, e.g. TILE/floor for
+  isaac, level/weapon for rockman, etc. — adapt to the active project)
 - Section numbering (no duplicates, no gaps)
 - Function index (add all new functions)
-- Data flow (supplement startup/exploration/floor flows)
-- Game flow (supplement exploration + battle mode flows)
-- UI panels (add new UI like floor info bar)
+- Data flow (supplement the project's startup/exploration/level flows)
+- Game flow (supplement the project's actual modes, e.g. exploration + battle
+  for isaac, run-and-gun levels for rockman)
+- UI panels (add new UI panels specific to the project)
 - File inventory (add new config files)
 - Next steps (remove completed items)
 - Expired content cleanup (deprecated features)
@@ -233,10 +256,11 @@ Stage all changes (code + documentation) and create a single commit:
 
 ```
 git add -A
-git commit -m "daily: sync documentation and wrap up [YYYY-MM-DD]"
+git commit -m "收尾：同步文档并提交 [YYYY-MM-DD]"
 ```
 
-The commit date should be the current date.
+The commit date should be the current date. Commit messages MUST be written in
+Chinese (中文).
 
 Push the current feature branch:
 
@@ -290,4 +314,20 @@ Provide a summary report to the user:
 - If merge conflicts occur in Phase 5, pause and ask the user for resolution guidance
 - Never force-push or skip hooks
 - Never amend commits
+
+## Output Language Rule
+
+This skill's own instructions are written in English for the AI's readability,
+but that does NOT mean the AI should produce English output elsewhere. Whenever
+executing this skill, all outputs directed at the user-facing artifacts — commit
+messages, documentation updates (memory.md / context.md / global-rules.md /
+guides), and any written text — MUST be written in Chinese (中文). The English in
+this skill is for internal instruction only and must not leak into commit
+messages or documents.
+
+## Maintenance Rule
+
+Whenever ANY logic of this skill is updated, you MUST also sync the change to
+`Documents/skill-创建指南.md` (in the workspace root), so that the guide always
+matches the latest skill and can be used to rebuild the skill on another machine.
 ```
