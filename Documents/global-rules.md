@@ -68,6 +68,22 @@
 - **Commit message 用中文**：所有 `git commit` 的提交信息一律使用中文书写，不得使用英文。
 - 此规范适用于所有项目的所有文档与所有提交记录。
 
+### 1.6 中文 Commit 的编码安全提交方式 [2026-08-17]
+
+**问题根因**：AI 通过 `execute_command` 在命令里**直接写中文字符**时，中文会在传输层被错误按 GBK 解码，导致 commit message 变成乱码（如「鏀跺熬锛...」）或彻底丢失（变成 `?`）。此问题在 2026-08-13 之后的环境升级后出现，此前中文 commit 正常。历史中已存在多条乱码 commit（如 `26551d7`、`8dc11b7`、`1d3d8d9`）。
+
+**可靠修复方案（已验证有效）**：**绝不在命令里直接写中文字符，改用 Unicode 转义序列 `[char]0xXXXX` 构造中文字符串**，再写入 UTF-8 文件后用 `git commit -F` 提交。
+
+具体步骤：
+1. 用 `[char]0xXXXX` 逐字拼接中文 message，例如「测试」= `[char]0x6D4B + [char]0x8BD5`
+2. 用 `[System.Text.UTF8Encoding]($false)` + `[System.IO.File]::WriteAllText()` 写入临时文件（UTF-8 无 BOM）
+3. 用 `git commit -F <临时文件>` 提交（必要时加 `--allow-empty`）
+4. 提交后清理临时文件
+
+**验证方法（避免误判）**：不要用 `Format-Hex` 或 PowerShell 的 `>` 重定向验证中文（它们本身对 UTF-8 处理有 bug，会把正确中文显示成 `?` 假象）。正确做法是用 .NET `ProcessStartInfo` 重定向 stdout + `BaseStream.CopyTo` 直接读原始字节，确认是 UTF-8 中文字节（如「测试」= `E6 B5 8B E8 AF 95`）。
+
+**中文 Unicode 码点速查**：可通过在线工具或 `[char]` 转换获取任意汉字的码点。常见中文标点如「：」=`0xFF1A`、「，」=`0xFF0C`、「（」=`0xFF08`、「）」=`0xFF09`。
+
 ---
 
 ## 2. 文档体系规范
