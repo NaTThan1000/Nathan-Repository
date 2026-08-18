@@ -90,18 +90,23 @@
   </div>
 
   <div class="panel">
-    <h3>② 绿幕去除</h3>
+    <h3>② 背景去除（色键）</h3>
+    <div class="row">
+      <label style="width:34px;">幕色</label>
+      <input type="color" id="bg-color" value="#00ff00" style="width:46px;height:26px;padding:1px;border:1px solid #0f3460;background:#0f3460;border-radius:3px;cursor:pointer;">
+      <span class="rad-label" id="bg-color-label">绿 (0,255,0)</span>
+    </div>
     <div class="row">
       <label style="width:34px;">容差</label>
-      <input type="range" id="green-tol" min="10" max="90" value="30" step="1">
-      <input type="number" id="green-tol-num" min="10" max="90" value="30">
+      <input type="range" id="bg-tol" min="10" max="90" value="30" step="1">
+      <input type="number" id="bg-tol-num" min="10" max="90" value="30">
     </div>
     <div class="btn-row">
       <button class="btn" id="btn-reprocess">↻ 重新处理</button>
       <button class="btn success" id="btn-export-clean">导出干净整图</button>
     </div>
     <div class="hint" style="margin-top:6px;">
-      容差越大，被判定为绿色幕布而变透明的颜色范围越广。
+      点色块选幕布颜色（绿 / 蓝 / 品红等任意单色背景均可）。容差越大，被判定为幕布而变透明的颜色范围越广。
     </div>
   </div>
 
@@ -246,7 +251,7 @@ const state = {
   undoStack: [],         // 分割线撤销栈
   zoom: 'fit',           // 'fit' | 1 | 2 | 3 | 4
   scale: 1, ox: 0, oy: 0,
-  green: { tolerance: 30 },
+  bg: { color: { r: 0, g: 255, b: 0 }, tolerance: 30 },
   detect: { threshold: 5, minFrameW: 4, minRowH: 8 },
   export: { prefix: 'idle', mode: 'strip', fwStrategy: 'max', fwCustom: 40, vAlign: 'center', fps: 10 },
   preview: { playing: true, idx: 0, acc: 0, lastTime: 0 },
@@ -296,7 +301,7 @@ function loadImageFromFile(file) {
       state.img = img;
       state.fileName = file.name;
       fileInfo.textContent = `${file.name}  ${img.naturalWidth}×${img.naturalHeight}px`;
-      processGreenScreen();
+      processChromaKey();
       resetView();
       statusBar.textContent = `已加载 ${file.name}`;
     };
@@ -307,9 +312,9 @@ function loadImageFromFile(file) {
 }
 
 // ============================================================
-// 绿幕去除
+// 背景去除（色键）
 // ============================================================
-function processGreenScreen() {
+function processChromaKey() {
   if (!state.img) return;
   const w = state.img.naturalWidth, h = state.img.naturalHeight;
   const c = document.createElement('canvas');
@@ -318,24 +323,24 @@ function processGreenScreen() {
   cx.drawImage(state.img, 0, 0);
   const imgData = cx.getImageData(0, 0, w, h);
   const d = imgData.data;
-  const tol = state.green.tolerance;
-  removeGreenExact(d, w, h, tol);
+  removeChromaKey(d, w, h, state.bg.color, state.bg.tolerance);
   cx.putImageData(imgData, 0, 0);
   state.processedCanvas = c;
   state.processedData = imgData;
 }
 
-// 精确去绿幕：只删除「纯绿背景 (0,255,0)」本身及其抗锯齿过渡像素，
-// 其余所有颜色（包括前景自身的绿色描边/高光）一律保留。
-// 关键：不再用「g 显著高于 r/b 就删」的宽泛阈值，避免误删前景绿色。
-function removeGreenExact(d, w, h, tol) {
+// 通用色键抠图：只删除「接近所选幕布颜色」的像素（R/G/B 三通道与幕色差值均 ≤ 容差），
+// 其余所有颜色（包括前景自身接近幕色的描边/高光，只要差得够远）一律保留。
+// 对绿幕 (0,255,0) 等价于旧算法「绿极高 + 红/蓝极低」的精确判断，避免误删前景绿色。
+function removeChromaKey(d, w, h, key, tol) {
+  const kr = key.r, kg = key.g, kb = key.b;
   for (let i = 0; i < d.length; i += 4) {
     const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
     if (a === 0) continue;
-    // 背景纯绿是 (0,255,0)。仅当像素「贴近纯绿」——红/蓝极低、绿极高——才删除。
-    // 前景绿色描边如 (0,168,88)、(0,200,104) 因蓝分量较高(>=88)不会命中。
-    const isBgGreen = g >= 255 - tol && r <= tol && b <= tol;
-    if (isBgGreen) d[i + 3] = 0;
+    const dr = r - kr, dg = g - kg, db = b - kb;
+    if (dr >= -tol && dr <= tol && dg >= -tol && dg <= tol && db >= -tol && db <= tol) {
+      d[i + 3] = 0;
+    }
   }
 }
 
@@ -960,17 +965,29 @@ function initEvents() {
   mainDiv.addEventListener('dragleave', () => dz.classList.remove('dragover'));
   mainDiv.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); onDrop(e); });
 
-  // 绿幕
-  bindParamPair($('green-tol'), $('green-tol-num'), v => {
-    state.green.tolerance = v;
-    processGreenScreen();
+  // 背景去除（色键）：幕色选择 + 容差
+  function hexToRgb(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  }
+  $('bg-color').addEventListener('input', () => {
+    state.bg.color = hexToRgb($('bg-color').value);
+    const { r, g, b } = state.bg.color;
+    $('bg-color-label').textContent = `RGB(${r},${g},${b})`;
+    processChromaKey();
+    reAutoDetect();
+    updateDetectInfo();
+  });
+  bindParamPair($('bg-tol'), $('bg-tol-num'), v => {
+    state.bg.tolerance = v;
+    processChromaKey();
     reAutoDetect();
     updateDetectInfo();
   });
   $('btn-reprocess').addEventListener('click', () => {
-    processGreenScreen();
+    processChromaKey();
     reAutoDetect();
-    statusBar.textContent = '已重新处理绿幕 ✓';
+    statusBar.textContent = '已重新处理背景 ✓';
   });
   $('btn-export-clean').addEventListener('click', exportCleanImage);
 
@@ -1266,7 +1283,8 @@ function copyJSONData() {
 function buildParamsData() {
   return {
     sourceImage: state.fileName,
-    greenTolerance: state.green.tolerance,
+    bgColor: '#' + ((state.bg.color.r << 16) | (state.bg.color.g << 8) | state.bg.color.b).toString(16).padStart(6, '0'),
+    bgTolerance: state.bg.tolerance,
     sel: state.sel ? {
       x0: Math.round(state.sel.x0), y0: Math.round(state.sel.y0),
       x1: Math.round(state.sel.x1), y1: Math.round(state.sel.y1),

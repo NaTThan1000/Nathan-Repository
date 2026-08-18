@@ -197,6 +197,31 @@ function loadBulletSprites() {
       entry.img.src = `${base}_strip.png`;
     }
   }
+  // 通用受击特效（Zero 近战命中专用）：Assets/Assets-Clean/hit_strip.png + hit_frames.json
+  {
+    const base = 'Assets/Assets-Clean/hit';
+    const entry = { img: new Image(), frames: [], fps: 10, loaded: false };
+    BULLET_SPRITES['melee-hit'] = entry;
+    fetch(`${base}_frames.json`)
+      .then(r => r.json())
+      .then(data => {
+        const rawFrames = data.frames || [];
+        if (rawFrames.length > 0) {
+          const fw = Math.max(...rawFrames.map(f => f.w));
+          const fh = Math.max(...rawFrames.map(f => f.h));
+          entry.frames = rawFrames.map((f, i) => ({
+            x: i * fw + Math.round((fw - f.w) / 2),  // strip 里水平居中后的 x
+            y: Math.round((fh - f.h) / 2),           // strip 里垂直居中后的 y
+            w: f.w,
+            h: f.h,
+          }));
+        }
+        entry.fps = data.fps || 10;
+      })
+      .catch(() => { entry.frames = []; });
+    entry.img.onload = () => { entry.loaded = true; };
+    entry.img.src = `${base}_strip.png`;
+  }
 }
 loadBulletSprites();
 
@@ -340,8 +365,13 @@ canvas.width = VW; canvas.height = VH;
 const ctx = canvas.getContext('2d');
 
 const keys = {};
+let jPressed = false;  // J 键按下沿标志：仅 Zero 挥砍消费（长按不会持续触发）
 let showHitboxes = false;  // 碰撞盒可视化开关（P 键切换）
-window.addEventListener('keydown', e => { keys[e.key] = true; if (e.key === ' ') e.preventDefault(); });
+window.addEventListener('keydown', e => {
+  if ((e.key === 'j' || e.key === 'J') && !keys[e.key]) jPressed = true;
+  keys[e.key] = true;
+  if (e.key === ' ') e.preventDefault();
+});
 window.addEventListener('keyup', e => { keys[e.key] = false; });
 
 // P 键切换碰撞盒可视化（仅在非编辑模式、无输入框聚焦时生效）
@@ -363,10 +393,20 @@ function updateCamera() {
   const viewH = VH / VIEW_SCALE;   // 视口高度换算为素材像素
   let idealX = targetCX - viewW / 2;
   let idealY = targetCY - viewH / 2;
-  // 边界限制：玩家走到地图边缘时镜头停止
-  const mapH = LH * TILE;
-  idealX = Math.max(0, Math.min(MAP_W - viewW, idealX));
-  idealY = Math.max(0, Math.min(mapH - viewH, idealY));
+  // 边界限制：以已放置砖块的包围盒为准（而非网格声明尺寸），
+  // 镜头永不平移到砖块范围之外，避免露出无砖块的空白背景
+  const bw = MAP_BOUNDS.maxX - MAP_BOUNDS.minX;
+  const bh = MAP_BOUNDS.maxY - MAP_BOUNDS.minY;
+  if (bw <= viewW) {
+    idealX = MAP_BOUNDS.minX + (bw - viewW) / 2;  // 地图比视口窄：居中
+  } else {
+    idealX = Math.max(MAP_BOUNDS.minX, Math.min(MAP_BOUNDS.maxX - viewW, idealX));
+  }
+  if (bh <= viewH) {
+    idealY = MAP_BOUNDS.minY + (bh - viewH) / 2;  // 地图比视口矮：居中
+  } else {
+    idealY = Math.max(MAP_BOUNDS.minY, Math.min(MAP_BOUNDS.maxY - viewH, idealY));
+  }
   // 平滑跟随
   camera.x += (idealX - camera.x) * 0.12;
   camera.y += (idealY - camera.y) * 0.12;
@@ -375,6 +415,36 @@ function updateCamera() {
 // ==================== 大关卡 (100×16 Tile = 1400×224 素材像素) ====================
 let LW = 100, LH = 16;
 let MAP_W = LW * TILE; // 3200px
+
+// 地图实际砖块边界（素材像素）：以已放置的砖块包围盒为准，而非网格声明尺寸。
+// 因为关卡数据里网格常有留白（如左侧/底部空行），镜头边界必须跟着真实砖块走。
+let MAP_BOUNDS = { minX: 0, maxX: MAP_W, minY: 0, maxY: LH * TILE };
+
+// 扫描地图重算砖块包围盒。在地图初始化/加载/扩展/编辑放置删除砖块后调用。
+function updateMapBounds() {
+  let minCol = LW, maxCol = -1, minRow = LH, maxRow = -1;
+  for (let r = 0; r < LH; r++) {
+    for (let c = 0; c < LW; c++) {
+      if (map[r * LW + c] !== 0) {
+        if (c < minCol) minCol = c;
+        if (c > maxCol) maxCol = c;
+        if (r < minRow) minRow = r;
+        if (r > maxRow) maxRow = r;
+      }
+    }
+  }
+  if (maxCol < 0) {
+    // 地图上没有任何砖块：退化为网格边界
+    MAP_BOUNDS = { minX: 0, maxX: LW * TILE, minY: 0, maxY: LH * TILE };
+  } else {
+    MAP_BOUNDS = {
+      minX: minCol * TILE,
+      maxX: (maxCol + 1) * TILE,
+      minY: minRow * TILE,
+      maxY: (maxRow + 1) * TILE,
+    };
+  }
+}
 
 // 动态扩展地图：当在边界外放置砖块时自动扩大
 function expandMap(newCol, newRow) {
@@ -399,6 +469,7 @@ function expandMap(newCol, newRow) {
   LW = newLW;
   LH = newLH;
   MAP_W = LW * TILE;
+  updateMapBounds();
 
   // 同步偏移所有敌人的坐标
   const px = colOffset * TILE;
@@ -469,6 +540,7 @@ function loadLevel(jsonData) {
   LH = jsonData.height;
   map = buildMapFromData(jsonData);
   MAP_W = LW * TILE;
+  updateMapBounds();
   // 重建敌人
   enemies = spawnEnemiesFromData(jsonData);
   // 读取玩家出生点
@@ -490,6 +562,12 @@ const DEFAULT_LEVEL = {
 };
 
 let map = buildMapFromData(DEFAULT_LEVEL);
+// 同步关卡尺寸：初始 LW=100/LH=16 只是占位值，必须以 DEFAULT_LEVEL 实际尺寸为准，
+// 否则 updateCamera 的边界 clamp 会按 2800px 限制，镜头越过真实地图(1400px)显示地图外区域
+LW = DEFAULT_LEVEL.width;
+LH = DEFAULT_LEVEL.height;
+MAP_W = LW * TILE;
+updateMapBounds();
 
 // 尝试从外部 JSON 加载 (需要本地服务器)
 fetch('level.json')
@@ -514,6 +592,13 @@ function overlap(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y 
 let bullets = [], eBullets = [], particles = [], afterimages = [], enemies = [];
 let muzzleEffects = [];   // 枪口发射特效（out 动画，瞬时）
 let hitEffects = [];      // 命中特效（hit 动画，瞬时，不延迟子弹移除）
+let hitstop = 0;          // hitstop 全冻结剩余帧数（挥砍命中怪物时世界定格，仅 Zero）
+let meleeHitEffects = []; // Zero 近战受击特效（通用 hit 动画，画在怪物上层，区别于 X 射击的 bullet-hit）
+// 受击白色剪影用的离屏画布（source-in 涂白，只覆盖怪物形状本身）
+const HIT_CANVAS_SIZE = 64, HIT_CANVAS_HALF = HIT_CANVAS_SIZE / 2;
+const hitCanvas = document.createElement('canvas');
+hitCanvas.width = hitCanvas.height = HIT_CANVAS_SIZE;
+const hitCtx = hitCanvas.getContext('2d');
 
 function spawnBullet(x, y, dir, power) {
   // 普通子弹 16×11（素材像素）；小蓄力 = 普通×1.5；满蓄力 = 普通×2.5
@@ -547,6 +632,13 @@ function spawnHitEffect(x, y, dir, key) {
   if (!entry || entry.frames.length === 0) return;
   hitEffects.push({ x, y, dir, key, animT: 0 });
 }
+
+// Zero 近战受击特效：通用 hit 动画，画在怪物上层（区别于 X 射击的 bullet-hit 特效）
+function spawnMeleeHitEffect(x, y, dir) {
+  const entry = BULLET_SPRITES['melee-hit'];
+  if (!entry || entry.frames.length === 0) return;
+  meleeHitEffects.push({ x, y, dir, animT: 0 });
+}
 function spawnEBullet(x, y, vx, vy) {
   eBullets.push({ x, y, vx, vy, w: 3, h: 3, life: 90 });
 }
@@ -561,10 +653,10 @@ function spawnPart(x, y, n, col) {
 
 // ==================== 怪物 ====================
 const ET = {
-  soldier: { name: '丛林兵', w: 16, h: 35, hp: 10, spd: 0.65, col: '#44aa44', eye: '#ffcc00', boss: false },
-  bee:     { name: '机械蜂', w: 22, h: 35, hp: 6,  spd: 0.8,  col: '#ffaa00', eye: '#ff4444', boss: false, amp: 10, fspd: 0.04 },
-  floater: { name: '浮游炮', w: 20, h: 35, hp: 8,  spd: 0.9,  col: '#aa44ff', eye: '#ff4444', boss: false, amp: 13, fspd: 0.03 },
-  boss:    { name: 'Web Spider', w: 50, h: 50, hp: 80, spd: 1.1, col: '#8844cc', eye: '#ff00ff', boss: true },
+  soldier: { name: '丛林兵', w: 16, h: 35, hp: 40, spd: 0.65, col: '#44aa44', eye: '#ffcc00', boss: false },
+  bee:     { name: '机械蜂', w: 22, h: 35, hp: 24, spd: 0.8,  col: '#ffaa00', eye: '#ff4444', boss: false, amp: 10, fspd: 0.04 },
+  floater: { name: '浮游炮', w: 20, h: 35, hp: 32, spd: 0.9,  col: '#aa44ff', eye: '#ff4444', boss: false, amp: 13, fspd: 0.03 },
+  boss:    { name: 'Web Spider', w: 50, h: 50, hp: 320, spd: 1.1, col: '#8844cc', eye: '#ff00ff', boss: true },
 };
 
 function mkEnemy(type, x, y, pMin, pMax) {
@@ -575,6 +667,7 @@ function mkEnemy(type, x, y, pMin, pMax) {
     pMin: pMin ?? x - 35, pMax: pMax ?? x + 35,
     hurtT: 0, baseY: y, fp: Math.random() * Math.PI * 2,
     bossAtk: 0, bossJump: false, bossWeb: 0,
+    meleeLock: 0,  // 挥砍命中冷却：命中帧 + 5 帧无伤害（6 帧后可再命中，仅 Zero 近战使用）
   };
 }
 
@@ -591,6 +684,7 @@ function ai(en) {
   const dx = player.x - en.x, dy = player.y - en.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
   if (en.hurtT > 0) en.hurtT--;
+  if (en.meleeLock > 0) en.meleeLock--;
 
   if (!t.boss) {
     const inRange = dist < 110;
@@ -692,8 +786,9 @@ function enPhys(en) {
 
 // ==================== 伤害 ====================
 function dmgEnemy(en, d) {
-  en.hp -= d; en.hurtT = 8;
-  spawnPart(en.x + en.w / 2, en.y + en.h / 2, d * 2, '#fff');
+  const hx = en.x + en.w / 2, hy = en.y + en.h / 2;
+  en.hp -= d; en.hurtT = 2; // 受击闪白 2 帧（约 33ms），快速一闪后恢复原色
+  spawnPart(hx, hy, d * 2, '#fff');
   if (en.hp <= 0) {
     spawnPart(en.x + en.w / 2, en.y + en.h / 2, ET[en.type].boss ? 40 : 20, ET[en.type].col);
     return true;
@@ -789,7 +884,7 @@ function switchCharacter(name) {
   }
   curChar = name;
   // 切换时清空全局子弹/特效残留
-  bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = [];
+  bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = []; meleeHitEffects = []; hitstop = 0;
   updateCharUI();
 }
 
@@ -800,9 +895,11 @@ const MELEE_STAGES = [
   { range: 44, arc: Math.PI * 2 / 3, dmg: 5 },  // 第 3 段
 ];
 const MELEE_ACTIVE = 12;     // 挥砍动画/判定持续帧（渐隐消失）
-const MELEE_CD = 12;         // 段间攻击冷却（0.2s = 12 帧，攻击频率上限）
+const MELEE_CD = 9;          // 段间攻击冷却（0.15s = 9 帧，攻击频率上限）
+const MELEE_AIR_CD = 30;     // 空中挥砍间隔（0.5s = 30 帧，跳跃挥砍后需等待，独立于地面段间冷却）
 const MELEE_RESET = 18;      // 连击重置窗口（0.3s = 18 帧，超过未攻击则重置回第 1 段）
-const MELEE_FINAL_LOCK = 18; // 第三段后的硬直（0.3s = 18 帧，期间不能攻击）
+const MELEE_FINAL_LOCK = 24; // 第三段后的硬直（0.4s = 24 帧，期间不能攻击）
+const HITSTOP = 3;        // 挥砍命中全冻结 0.05s（60fps = 3 帧，仅 Zero 近战触发）
 
 function reset() {
   const spawn = getPlayerSpawn();
@@ -818,7 +915,7 @@ function reset() {
   // 重置两个角色的独立状态快照
   charStates.X = null; charStates.Zero = null;
   charStates[curChar] = snapshotPlayer();
-  bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = [];
+  bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = []; meleeHitEffects = []; hitstop = 0;
   camera.x = 0;
   spawnAll();
 }
@@ -945,31 +1042,43 @@ function meleeRect(stage) {
   return { x: rx, y: ry, w: dispW, h: dispH };
 }
 
+// 挥砍触发帧：仅播放特效（伤害判定交给动画期间每帧的 doMeleeHit）
 function doMelee(stage) {
+  const p = player;
+  const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
+  spawnPart(cx + p.facing * 10, cy - 4, 6, '#8cf');
+}
+
+// 挥砍动画期间逐帧判定（仅 Zero）。命中冷却 meleeLock>0 的怪物跳过；
+// 命中帧 + 5 帧无伤害 = 6 帧一次，12 帧动画内最多命中 2 次（第 1/7 帧）。
+// 命中触发 hitstop 全冻结；同帧多目标合并为一次停顿。
+function doMeleeHit(stage) {
   const p = player;
   const idx = stage - 1;
   if (idx < 0 || idx >= MELEE_STAGES.length) return;
   const { dmg } = MELEE_STAGES[idx];
   const rect = meleeRect(stage);
-  const cx = p.x + p.w / 2;
-  const cy = p.y + p.h / 2;
-
-  // 挥砍特效粒子
-  spawnPart(cx + p.facing * 10, cy - 4, 6, '#8cf');
-
-  // 矩形重叠判定：blade 攻击矩形与敌人矩形重叠则命中
+  let hitAny = false;
   for (let j = enemies.length - 1; j >= 0; j--) {
     const en = enemies[j];
     if (overlap(rect, { x: en.x, y: en.y, w: en.w, h: en.h })) {
+      if (en.meleeLock > 0) continue;   // 命中冷却中，本次不生效
       if (dmgEnemy(en, dmg)) enemies.splice(j, 1);
+      en.meleeLock = 6;
+      // Zero 专属受击特效（通用 hit 动画，画在怪物上层）
+      spawnMeleeHitEffect(en.x + en.w / 2, en.y + en.h / 2, p.facing);
+      hitAny = true;
     }
   }
+  if (hitAny) hitstop = HITSTOP;
 }
 
 // ==================== 主循环 ====================
 function update() {
   // 编辑模式下暂停游戏逻辑
   if (editMode) return;
+  // hitstop 全冻结：怪物/玩家/子弹/挥砍动画全部定格（仅 Zero 近战命中触发）
+  if (hitstop > 0) { hitstop--; return; }
 
   const p = player;
   if (p.invT > 0) p.invT--;
@@ -1012,22 +1121,24 @@ function update() {
     // 挥砍渐隐
     if (p.melee > 0) p.melee--;
 
-    if (jD && p.meleeCd === 0 && p.meleeFinalLock === 0) {
+    if (jPressed && jD && p.meleeCd === 0 && p.meleeFinalLock === 0) {
+      jPressed = false;  // 消费按下沿：长按不连挥，每次挥砍都需要重新按攻击键
       let stage;
       if (!p.grounded) {
-        // 空中攻击：固定第 2 段，不推进连击段数
+        // 空中攻击：固定第 2 段，不推进连击段数；使用独立 0.5s 间隔 CD
         stage = 2;
+        p.meleeCd = MELEE_AIR_CD;
       } else {
         // 地面攻击：连击推进（重置窗口内继续下一段，否则第 1 段；3 段后回到第 1 段）
         stage = (p.meleeCombo >= 3) ? 1 : p.meleeCombo + 1;
         p.meleeCombo = stage;
         p.meleeReset = MELEE_RESET;
+        p.meleeCd = MELEE_CD;
         // 第三段后硬直
         if (stage === 3) p.meleeFinalLock = MELEE_FINAL_LOCK;
       }
       p.meleeCurStage = stage;  // 记录本次挥砍段数，供绘制/范围显示
       p.melee = MELEE_ACTIVE;
-      p.meleeCd = MELEE_CD;
       p.shootHold = 8;  // 挥砍进入短暂攻击动画
       // 执行挥砍判定
       doMelee(stage);
@@ -1035,6 +1146,7 @@ function update() {
     }
   } else {
     // === X 射击蓄力 ===
+    jPressed = false;  // X 不消费按下沿，清零避免切回 Zero 时残留误触发
     if (jD) {
       if (!p.isChg) {
         p.isChg = true; p.chgT = 0;
@@ -1211,6 +1323,8 @@ function update() {
   }
 
   // 怪物
+  // 挥砍逐帧命中判定（仅 Zero）：动画期间每帧判定，命中冷却 6 帧，同帧多目标合并一次停顿
+  if (CHARS[curChar].melee && p.melee > 0) doMeleeHit(p.meleeCurStage);
   for (const en of enemies) { ai(en); enPhys(en); }
 
   // 玩家子弹 vs 怪物/墙
@@ -1293,6 +1407,15 @@ function update() {
     const frameDur = entry ? Math.round(60 / entry.fps) : 6;
     h.animT += 2;  // 播放速度翻倍（帧切换速度 ×2）
     if (totalFrames === 0 || h.animT >= totalFrames * frameDur) hitEffects.splice(i, 1);
+  }
+  // Zero 近战受击特效：播放一遍后移除
+  for (let i = meleeHitEffects.length - 1; i >= 0; i--) {
+    const h = meleeHitEffects[i];
+    const entry = BULLET_SPRITES['melee-hit'];
+    const totalFrames = entry ? entry.frames.length : 0;
+    const frameDur = entry ? Math.round(60 / entry.fps) : 6;
+    h.animT += 2;  // 播放速度翻倍（帧切换速度 ×2）
+    if (totalFrames === 0 || h.animT >= totalFrames * frameDur) meleeHitEffects.splice(i, 1);
   }
   // 残影寿命递减（新残影的生成在下方动画状态机更新之后）
   for (let i = afterimages.length - 1; i >= 0; i--) { afterimages[i].life--; if (afterimages[i].life <= 0) afterimages.splice(i, 1); }
@@ -1609,53 +1732,70 @@ function drawMeleeEffectFallback(p, cx, cy) {
   ctx.lineWidth = 1;
 }
 
+// 绘制怪物身体（以 cx,cy 为视觉中心，不含血条）。c 为绘制上下文：
+// 正常绘制传主画布 ctx；受击白色剪影时传离屏画布 hitCtx，复用本函数后整体涂白贴回。
+function paintEnemyBody(en, t, cx, cy, c) {
+  if (t.boss) {
+    c.fillStyle = '#63a'; c.lineWidth = 2;
+    for (let i = 0; i < 6; i++) {
+      const a = [-0.7, -0.4, -0.15, 0.15, 0.4, 0.7][i];
+      const lx = cx + (i < 3 ? -6 : 6), ly = cy - 3 + i * 2;
+      c.beginPath(); c.moveTo(lx, ly);
+      c.lineTo(lx + Math.cos(a) * 10 * (i < 3 ? -1 : 1), ly + Math.abs(Math.sin(a)) * 10);
+      c.stroke();
+      c.fillStyle = '#84c'; c.beginPath();
+      c.arc(lx + Math.cos(a) * 10 * (i < 3 ? -1 : 1), ly + Math.abs(Math.sin(a)) * 10, 1, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#63a';
+    }
+    c.fillStyle = '#84c'; c.beginPath(); c.ellipse(cx, cy, 10, 6, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#95d'; c.beginPath(); c.ellipse(cx, cy - 1, 7, 4, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#73b'; c.beginPath(); c.arc(cx + en.facing * 6, cy - 3, 5, 0, Math.PI * 2); c.fill();
+    const gl = 0.6 + Math.sin(Date.now() / 120) * 0.4;
+    c.fillStyle = t.eye; c.beginPath(); c.arc(cx + en.facing * 8, cy - 4, 2, 0, Math.PI * 2); c.fill();
+    c.fillStyle = `rgba(255,0,255,${gl})`; c.beginPath(); c.arc(cx + en.facing * 8, cy - 4, 1, 0, Math.PI * 2); c.fill();
+    c.fillStyle = t.eye; c.beginPath(); c.arc(cx + en.facing * 6, cy - 6, 1, 0, Math.PI * 2); c.fill();
+  } else if (en.type === 'bee') {
+    c.fillStyle = '#fa0'; c.beginPath(); c.arc(cx, cy, 4, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#333'; c.fillRect(cx - 2, cy - 3, 4, 1); c.fillRect(cx - 2, cy + 1, 4, 1);
+    const wf = Math.sin(Date.now() / 30) * 2;
+    c.fillStyle = 'rgba(200,220,255,0.5)';
+    c.beginPath(); c.ellipse(cx - 3, cy - 4 + wf, 4, 2, -0.3, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(cx + 3, cy - 4 - wf, 4, 2, 0.3, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#f44'; c.fillRect(cx - 2, cy - 2, 1, 1); c.fillRect(cx + 1, cy - 2, 1, 1);
+    c.fillStyle = '#f60'; c.beginPath(); c.moveTo(cx, cy + 4); c.lineTo(cx - 1, cy + 7); c.lineTo(cx + 1, cy + 7); c.fill();
+  } else if (t.amp) {
+    c.fillStyle = t.col; c.beginPath(); c.arc(cx, cy, en.w / 2, 0, Math.PI * 2); c.fill();
+    c.fillStyle = t.eye; c.beginPath(); c.arc(cx, cy, 3, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#fff'; c.beginPath(); c.arc(cx - 1, cy - 1, 1, 0, Math.PI * 2); c.fill();
+  } else {
+    const f = en.facing;
+    c.fillStyle = t.col; c.fillRect(cx - 4, cy - 6, 9, 12);
+    c.fillStyle = '#373'; c.fillRect(cx - 3, cy - 8, 7, 4);
+    c.fillStyle = t.eye; c.fillRect(cx + f * 1 - 1, cy - 7, 3, 2);
+    c.fillStyle = '#262'; c.fillRect(cx - 3, cy + 6, 3, 4); c.fillRect(cx + 1, cy + 6, 3, 4);
+    c.fillStyle = '#888'; c.fillRect(cx + f * 5 - 1, cy - 3, 3, 4);
+  }
+  c.lineWidth = 1;
+}
+
 function drawEnemy(en) {
   const t = ET[en.type];
   const cx = Math.floor(en.x + en.w / 2), cy = Math.floor(en.y + en.h / 2);
   const sx = en.x, sy = en.y;
-  if (en.hurtT > 0 && en.hurtT % 2 === 0) ctx.globalAlpha = 0.5;
 
-  if (t.boss) {
-    ctx.fillStyle = '#63a'; ctx.lineWidth = 2;
-    for (let i = 0; i < 6; i++) {
-      const a = [-0.7, -0.4, -0.15, 0.15, 0.4, 0.7][i];
-      const lx = cx + (i < 3 ? -6 : 6), ly = cy - 3 + i * 2;
-      ctx.beginPath(); ctx.moveTo(lx, ly);
-      ctx.lineTo(lx + Math.cos(a) * 10 * (i < 3 ? -1 : 1), ly + Math.abs(Math.sin(a)) * 10);
-      ctx.stroke();
-      ctx.fillStyle = '#84c'; ctx.beginPath();
-      ctx.arc(lx + Math.cos(a) * 10 * (i < 3 ? -1 : 1), ly + Math.abs(Math.sin(a)) * 10, 1, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#63a';
-    }
-    ctx.fillStyle = '#84c'; ctx.beginPath(); ctx.ellipse(cx, cy, 10, 6, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#95d'; ctx.beginPath(); ctx.ellipse(cx, cy - 1, 7, 4, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#73b'; ctx.beginPath(); ctx.arc(cx + en.facing * 6, cy - 3, 5, 0, Math.PI * 2); ctx.fill();
-    const g = 0.6 + Math.sin(Date.now() / 120) * 0.4;
-    ctx.fillStyle = t.eye; ctx.beginPath(); ctx.arc(cx + en.facing * 8, cy - 4, 2, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = `rgba(255,0,255,${g})`; ctx.beginPath(); ctx.arc(cx + en.facing * 8, cy - 4, 1, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = t.eye; ctx.beginPath(); ctx.arc(cx + en.facing * 6, cy - 6, 1, 0, Math.PI * 2); ctx.fill();
-  } else if (en.type === 'bee') {
-    ctx.fillStyle = '#fa0'; ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#333'; ctx.fillRect(cx - 2, cy - 3, 4, 1); ctx.fillRect(cx - 2, cy + 1, 4, 1);
-    const wf = Math.sin(Date.now() / 30) * 2;
-    ctx.fillStyle = 'rgba(200,220,255,0.5)';
-    ctx.beginPath(); ctx.ellipse(cx - 3, cy - 4 + wf, 4, 2, -0.3, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(cx + 3, cy - 4 - wf, 4, 2, 0.3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#f44'; ctx.fillRect(cx - 2, cy - 2, 1, 1); ctx.fillRect(cx + 1, cy - 2, 1, 1);
-    ctx.fillStyle = '#f60'; ctx.beginPath(); ctx.moveTo(cx, cy + 4); ctx.lineTo(cx - 1, cy + 7); ctx.lineTo(cx + 1, cy + 7); ctx.fill();
-  } else if (t.amp) {
-    ctx.fillStyle = t.col; ctx.beginPath(); ctx.arc(cx, cy, en.w / 2, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = t.eye; ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx - 1, cy - 1, 1, 0, Math.PI * 2); ctx.fill();
+  if (en.hurtT > 0) {
+    // 受击白色剪影：离屏绘制怪物形状 → source-in 整体涂白 → 贴回原位（闪一瞬）
+    hitCtx.clearRect(0, 0, HIT_CANVAS_SIZE, HIT_CANVAS_SIZE);
+    paintEnemyBody(en, t, HIT_CANVAS_HALF, HIT_CANVAS_HALF, hitCtx);
+    hitCtx.save();
+    hitCtx.globalCompositeOperation = 'source-in';
+    hitCtx.fillStyle = '#fff';
+    hitCtx.fillRect(0, 0, HIT_CANVAS_SIZE, HIT_CANVAS_SIZE);
+    hitCtx.restore();
+    ctx.drawImage(hitCanvas, cx - HIT_CANVAS_HALF, cy - HIT_CANVAS_HALF);
   } else {
-    const f = en.facing;
-    ctx.fillStyle = t.col; ctx.fillRect(cx - 4, cy - 6, 9, 12);
-    ctx.fillStyle = '#373'; ctx.fillRect(cx - 3, cy - 8, 7, 4);
-    ctx.fillStyle = t.eye; ctx.fillRect(cx + f * 1 - 1, cy - 7, 3, 2);
-    ctx.fillStyle = '#262'; ctx.fillRect(cx - 3, cy + 6, 3, 4); ctx.fillRect(cx + 1, cy + 6, 3, 4);
-    ctx.fillStyle = '#888'; ctx.fillRect(cx + f * 5 - 1, cy - 3, 3, 4);
+    paintEnemyBody(en, t, cx, cy, ctx);
   }
-  ctx.globalAlpha = 1;
 
   // 血条
   if (en.hp < en.maxHp) {
@@ -1822,6 +1962,10 @@ function render() {
       drawEnemy(en);
     }
   }
+  // Zero 近战受击特效（画在怪物上层，避免被遮挡）
+  for (const h of meleeHitEffects) {
+    drawAnimEntry(BULLET_SPRITES['melee-hit'], h.animT, h.dir, h.x, h.y, 0.75);
+  }
   if (!editMode) drawPlayer();
 
   // 碰撞盒可视化（P 键开关）
@@ -1856,7 +2000,7 @@ function setEditMode(on) {
     editorToolbar.classList.add('active');
     updateToolUI();
     // 进入编辑模式时清空子弹和粒子残留，重置所有怪物到初始状态
-    bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = [];
+    bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = []; meleeHitEffects = []; hitstop = 0;
     const data = levelData || DEFAULT_LEVEL;
     enemies = spawnEnemiesFromData(data);
   } else {
@@ -1939,8 +2083,12 @@ function doEditAction() {
           map[rr * LW + cc] = 1;
         }
       }
+      updateMapBounds(); // 放置后重算砖块包围盒
     } else if (mouseDown === 2) {
-      if (col >= 0 && col < LW && row >= 0 && row < LH) map[row * LW + col] = 0;
+      if (col >= 0 && col < LW && row >= 0 && row < LH) {
+        map[row * LW + col] = 0;
+        updateMapBounds(); // 删除后重算砖块包围盒
+      }
     }
   } else if (editTool === 'enemy') {
     if (mouseDown === 1) {

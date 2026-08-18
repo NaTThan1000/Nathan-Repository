@@ -171,6 +171,27 @@
     </div>
   </div>
   
+  <div class="param-group">
+    <h3>背景去除（色键）</h3>
+    <div class="param-row">
+      <input type="checkbox" id="bg-enable" checked>
+      <label for="bg-enable">启用去幕</label>
+    </div>
+    <div class="param-row">
+      <label>幕色</label>
+      <input type="color" id="bg-color" value="#00ff00" style="width:44px;height:22px;padding:1px;border:1px solid #0f3460;background:#0f3460;border-radius:3px;cursor:pointer;">
+      <span id="bg-color-label" style="font-size:11px;color:#999;">#00ff00</span>
+    </div>
+    <div class="param-row">
+      <label>容差</label>
+      <input type="range" id="bg-tol" min="10" max="90" value="30" step="1">
+      <input type="number" id="bg-tol-num" min="10" max="90" value="30">
+    </div>
+    <div class="hint" style="margin-top:6px;">
+      点色块选幕布颜色，预览与帧检测都按该颜色去幕。
+    </div>
+  </div>
+  
   <div class="action-row">
     <button class="btn-primary" id="btn-save">💾 保存参数</button>
     <button class="btn-export" id="btn-export">📥 导出 JSON</button>
@@ -212,6 +233,10 @@ let offsetX = 0;
 let animTimer = 0;
 let lastTime = 0;
 let viewMode = 'single'; // 'single' | 'strip'
+// 背景去除（色键）：幕色 + 容差 + 开关（全局共享，影响预览与帧检测）
+let bgEnable = true;
+let bgKey = { r: 0, g: 255, b: 0 };
+let bgTol = 30;
 
 const imgCache = {};
 
@@ -245,6 +270,11 @@ const paramMirror = document.getElementById('param-mirror');
 const paramGrid = document.getElementById('param-grid');
 const paramCross = document.getElementById('param-cross');
 const paramBoundary = document.getElementById('param-boundary');
+const bgEnableInput = document.getElementById('bg-enable');
+const bgColorInput = document.getElementById('bg-color');
+const bgColorLabel = document.getElementById('bg-color-label');
+const bgTolInput = document.getElementById('bg-tol');
+const bgTolNum = document.getElementById('bg-tol-num');
 
 // ============ 自动帧边界检测 ============
 function detectFrameBoundaries(img) {
@@ -279,8 +309,8 @@ function detectFrameBoundaries(img) {
 
       if (a > 30) {
         opaqueCount++;
-        // 非绿色幕布判定（绿色幕布特征：G > R+30 && G > B+30 && G > 80）
-        if (!(g > r + 30 && g > b + 30 && g > 80)) {
+        // 非幕布判定：接近所选幕色（三通道差 ≤ 容差）的像素不算内容
+        if (!(bgEnable && isChromaBgPixel(r, g, b, bgKey, bgTol))) {
           contentCount++;
         }
       }
@@ -448,6 +478,8 @@ function renderStripView() {
 
   // 绘制完整图片
   ctx.drawImage(img, 0, 0, imgW, imgH, dx, dy, drawW, drawH);
+  // 去幕（色键，跟随所选幕色）
+  removeChromaKeyBg(dx, dy, drawW, drawH);
 
   // 帧边界线
   if (result && result.frameRegions.length > 0) {
@@ -647,6 +679,31 @@ function bindEvents() {
   paramCross.addEventListener('change', () => { showCross = paramCross.checked; });
   paramBoundary.addEventListener('change', () => { showBoundary = paramBoundary.checked; });
 
+  // 背景去除（色键）：幕色 / 容差 / 开关，改动后刷新检测与预览
+  bgEnableInput.addEventListener('change', () => {
+    bgEnable = bgEnableInput.checked;
+    reDetectForBg();
+  });
+  bgColorInput.addEventListener('input', () => {
+    bgKey = hexToRgb(bgColorInput.value);
+    bgColorLabel.textContent = bgColorInput.value;
+    reDetectForBg();
+  });
+  bgTolInput.addEventListener('input', () => {
+    bgTolNum.value = bgTolInput.value;
+    bgTol = parseInt(bgTolInput.value);
+    reDetectForBg();
+  });
+  bgTolNum.addEventListener('change', () => {
+    let v = parseInt(bgTolNum.value);
+    if (isNaN(v)) v = 30;
+    v = Math.max(10, Math.min(90, v));
+    bgTolNum.value = v;
+    bgTolInput.value = v;
+    bgTol = v;
+    reDetectForBg();
+  });
+
   // 缩放
   document.querySelectorAll('.zoom-row button').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -684,6 +741,29 @@ function bindEvents() {
 
   document.addEventListener('keydown', handleKeyboard);
   window.addEventListener('resize', resizeCanvas);
+}
+
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+// 幕色/容差/开关变化后：清检测缓存重检（检测结果依赖幕色），预览随渲染循环自动刷新
+function reDetectForBg() {
+  const img = imgCache[currentAction.file];
+  if (img) {
+    delete detectCache[img.src];
+    detectFrameBoundaries(img);
+    renderDetectResult();
+  }
+}
+
+function syncBgToUI() {
+  bgEnableInput.checked = bgEnable;
+  bgColorInput.value = '#' + ((bgKey.r << 16) | (bgKey.g << 8) | bgKey.b).toString(16).padStart(6, '0');
+  bgColorLabel.textContent = bgColorInput.value;
+  bgTolInput.value = bgTol;
+  bgTolNum.value = bgTol;
 }
 
 function bindParamPair(slider, numInput, propKey) {
@@ -839,7 +919,7 @@ function renderSingleFrame() {
   }
 
   ctx.drawImage(img, sx, sy, sw, sh, dx, dy, drawW, drawH);
-  removeGreenScreen(dx, dy, drawW, drawH);
+  removeChromaKeyBg(dx, dy, drawW, drawH);
   ctx.restore();
 
   if (showGrid) drawGrid(dx, dy, drawW, drawH);
@@ -863,14 +943,21 @@ function drawCheckerboard(x, y, w, h) {
   }
 }
 
-function removeGreenScreen(x, y, w, h) {
+// 像素是否命中幕色：R/G/B 三通道与幕色差值均 ≤ 容差
+function isChromaBgPixel(r, g, b, key, tol) {
+  const dr = r - key.r, dg = g - key.g, db = b - key.b;
+  return dr >= -tol && dr <= tol && dg >= -tol && dg <= tol && db >= -tol && db <= tol;
+}
+
+// 去幕（色键）：仅当启用时，把接近幕色的像素变透明
+function removeChromaKeyBg(x, y, w, h) {
+  if (!bgEnable) return;
   const imageData = ctx.getImageData(x, y, w, h);
   const data = imageData.data;
   for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    if (g > r + 30 && g > b + 30 && g > 80) {
+    const a = data[i + 3];
+    if (a === 0) continue;
+    if (isChromaBgPixel(data[i], data[i + 1], data[i + 2], bgKey, bgTol)) {
       data[i + 3] = 0;
     }
   }
@@ -923,6 +1010,13 @@ function loadSavedParams() {
     ACTIONS.forEach(a => {
       if (saved[a.id]) Object.assign(a, saved[a.id]);
     });
+    // 背景去除全局设置
+    if (saved.bg) {
+      if (saved.bg.color) bgKey = hexToRgb(saved.bg.color);
+      if (saved.bg.tolerance != null) bgTol = saved.bg.tolerance;
+      if (saved.bg.enabled != null) bgEnable = saved.bg.enabled;
+    }
+    syncBgToUI();
   } catch (e) {}
 }
 
@@ -944,6 +1038,7 @@ function saveAllParams() {
       offsetY: a.offsetY || 0, offsetX: a.offsetX || 0,
     };
   });
+  toSave.bg = { color: bgColorInput.value, tolerance: bgTol, enabled: bgEnable };
   try {
     localStorage.setItem('rockman_anim_params', JSON.stringify(toSave));
     statusBar.textContent = '参数已保存到本地 ✓';
@@ -962,6 +1057,16 @@ function resetToDefaults() {
     { frames: 10, fw: 32,  fh: 43, fps: 10, offsetY: 0, offsetX: 0 },
   ];
   ACTIONS.forEach((a, i) => Object.assign(a, originals[i]));
+  bgEnable = true;
+  bgKey = { r: 0, g: 255, b: 0 };
+  bgTol = 30;
+  syncBgToUI();
+  const img = imgCache[currentAction.file];
+  if (img) {
+    delete detectCache[img.src];
+    detectFrameBoundaries(img);
+    renderDetectResult();
+  }
   currentAction = { ...ACTIONS[currentActionIdx] };
   currentFrame = 0; animTimer = 0;
   offsetY = 0; offsetX = 0;
@@ -972,7 +1077,11 @@ function resetToDefaults() {
 
 function exportJSON() {
   saveCurrentParamsToAction();
-  const exportData = { exportedAt: new Date().toISOString(), actions: {} };
+  const exportData = {
+    exportedAt: new Date().toISOString(),
+    bg: { color: bgColorInput.value, tolerance: bgTol, enabled: bgEnable },
+    actions: {}
+  };
   ACTIONS.forEach(a => {
     exportData.actions[a.id] = {
       file: a.file, name: a.name,

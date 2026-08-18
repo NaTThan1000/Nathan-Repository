@@ -150,16 +150,19 @@ function decodePNG(buf) {
   return { width, height, data: rgba };
 }
 
-// ---------------- 绿幕去除（与网页算法一致：精确去纯绿） ----------------
-// 只删除「纯绿背景 (0,255,0)」本身及其抗锯齿过渡像素，
-// 其余所有颜色（包括前景自身的绿色描边/高光）一律保留。
-function removeGreen(data, tol, width, height) {
+// ---------------- 背景去除（色键，与网页算法一致：精确去幕色） ----------------
+// 只删除「接近所选幕布颜色」的像素（R/G/B 三通道与幕色差值均 ≤ 容差），
+// 其余所有颜色（包括前景自身接近幕色的描边/高光，只要差得够远）一律保留。
+function removeChromaKey(data, key, tol) {
   const d = data;
+  const kr = key.r, kg = key.g, kb = key.b;
   for (let i = 0; i < d.length; i += 4) {
     const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
     if (a === 0) continue;
-    const isBgGreen = g >= 255 - tol && r <= tol && b <= tol;
-    if (isBgGreen) d[i + 3] = 0;
+    const dr = r - kr, dg = g - kg, db = b - kb;
+    if (dr >= -tol && dr <= tol && dg >= -tol && dg <= tol && db >= -tol && db <= tol) {
+      d[i + 3] = 0;
+    }
   }
 }
 
@@ -187,7 +190,14 @@ function main() {
   const { width: imgW, height: imgH, data: px } = decodePNG(fs.readFileSync(srcPath));
   console.log(`→ 尺寸: ${imgW}×${imgH}`);
 
-  removeGreen(px, p.greenTolerance != null ? p.greenTolerance : 30, imgW, imgH);
+  // 解析幕布色（bgColor hex；兼容旧参数 greenTolerance 兜底）
+  let bgKey = { r: 0, g: 255, b: 0 };
+  if (p.bgColor && typeof p.bgColor === 'string') {
+    const n = parseInt(p.bgColor.replace('#', ''), 16);
+    if (!isNaN(n)) bgKey = { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  }
+  const bgTol = p.bgTolerance != null ? p.bgTolerance : (p.greenTolerance != null ? p.greenTolerance : 30);
+  removeChromaKey(px, bgKey, bgTol);
 
   // 帧区域（与网页 getFrameRegions 一致）
   const { x0, y0, x1, y1 } = p.sel;
