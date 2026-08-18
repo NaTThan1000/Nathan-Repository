@@ -3,8 +3,8 @@
   "height": 18,
   "tileSize": 28,
   "playerSpawn": {
-    "x": 407,
-    "y": 232
+    "x": 335,
+    "y": 351
   },
   "tiles": [
     {
@@ -329,5 +329,78 @@
       "value": 1
     }
   ],
-  "enemies": []
+  "enemies": [
+    {
+      "type": "soldier",
+      "x": 650,
+      "y": 336,
+      "patrolMin": 615,
+      "patrolMax": 685
+    },
+    {
+      "type": "bee",
+      "x": 759,
+      "y": 252
+    },
+    {
+      "type": "bee",
+      "x": 787,
+      "y": 252
+    },
+    {
+      "type": "bee",
+      "x": 815,
+      "y": 252
+    },
+    {
+      "type": "soldier",
+      "x": 1210,
+      "y": 364,
+      "patrolMin": 1175,
+      "patrolMax": 1245
+    },
+    {
+      "type": "soldier",
+      "x": 1238,
+      "y": 364,
+      "patrolMin": 1203,
+      "patrolMax": 1273
+    },
+    {
+      "type": "soldier",
+      "x": 1406,
+      "y": 112,
+      "patrolMin": 1371,
+      "patrolMax": 1441
+    },
+    {
+      "type": "soldier",
+      "x": 1462,
+      "y": 112,
+      "patrolMin": 1427,
+      "patrolMax": 1497
+    },
+    {
+      "type": "soldier",
+      "x": 1518,
+      "y": 112,
+      "patrolMin": 1483,
+      "patrolMax": 1553
+    },
+    {
+      "type": "floater",
+      "x": 1656,
+      "y": 56
+    },
+    {
+      "type": "floater",
+      "x": 1656,
+      "y": 112
+    },
+    {
+      "type": "floater",
+      "x": 1656,
+      "y": 84
+    }
+  ]
 }

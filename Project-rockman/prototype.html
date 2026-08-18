@@ -109,6 +109,11 @@
   </div>
   <div id="debug-panel">
     <h2>状态</h2>
+    <div style="margin-bottom:4px">
+      <button id="btn-char-x" class="char-btn" style="background:#24a;color:#fff;border:1px solid #888;padding:2px 8px;cursor:pointer">X</button>
+      <button id="btn-char-zero" class="char-btn" style="background:#c22;color:#fff;border:1px solid #888;padding:2px 8px;cursor:pointer">Zero</button>
+    </div>
+    <div><span class="label">角色:</span> <span class="value" id="db-char">X</span></div>
     <div><span class="label">HP:</span> <span class="value" id="db-hp">28/28</span></div>
     <div><span class="label">蓄力:</span> <span class="value" id="db-charge">0%</span></div>
     <div><span class="label">怪物:</span> <span class="value" id="db-enemies">-</span></div>
@@ -293,6 +298,11 @@ function loadPlayerSprites() {
   }
 }
 loadPlayerSprites();
+
+// ==================== 近战挥砍刀光资源（Zero） ====================
+const BLADE = { img: new Image(), loaded: false };
+BLADE.img.onload = () => { BLADE.loaded = true; };
+BLADE.img.src = 'Assets/blade.png';
 
 // 根据玩家状态返回当前应播放的动画 key
 function playerAnimKey(p, mx) {
@@ -551,10 +561,10 @@ function spawnPart(x, y, n, col) {
 
 // ==================== 怪物 ====================
 const ET = {
-  soldier: { name: '丛林兵', w: 12, h: 18, hp: 10, spd: 0.65, col: '#44aa44', eye: '#ffcc00', boss: false },
-  bee:     { name: '机械蜂', w: 10, h: 10, hp: 6,  spd: 0.8,  col: '#ffaa00', eye: '#ff4444', boss: false, amp: 10, fspd: 0.04 },
-  floater: { name: '浮游炮', w: 11, h: 11, hp: 8,  spd: 0.9,  col: '#aa44ff', eye: '#ff4444', boss: false, amp: 13, fspd: 0.03 },
-  boss:    { name: 'Web Spider', w: 25, h: 25, hp: 80, spd: 1.1, col: '#8844cc', eye: '#ff00ff', boss: true },
+  soldier: { name: '丛林兵', w: 16, h: 35, hp: 10, spd: 0.65, col: '#44aa44', eye: '#ffcc00', boss: false },
+  bee:     { name: '机械蜂', w: 22, h: 35, hp: 6,  spd: 0.8,  col: '#ffaa00', eye: '#ff4444', boss: false, amp: 10, fspd: 0.04 },
+  floater: { name: '浮游炮', w: 20, h: 35, hp: 8,  spd: 0.9,  col: '#aa44ff', eye: '#ff4444', boss: false, amp: 13, fspd: 0.03 },
+  boss:    { name: 'Web Spider', w: 50, h: 50, hp: 80, spd: 1.1, col: '#8844cc', eye: '#ff00ff', boss: true },
 };
 
 function mkEnemy(type, x, y, pMin, pMax) {
@@ -714,7 +724,85 @@ const player = {
   kCon: false, lCon: false, invT: 0, hp: P.MAX_HP, landing: false,
   crouch: false, forcedCrouch: false,
   animF: 0, animT: 0, animKey: '',
+  // 近战（Zero 专用）
+  melee: 0,       // 近战挥砍剩余帧（>0 表示正在挥砍，渐隐消失）
+  meleeCd: 0,     // 段间攻击冷却剩余帧（0.2s）
+  meleeCombo: 0,  // 当前连击段数（0=无, 1/2/3，地面连击用）
+  meleeReset: 0,  // 连击重置倒计时（0.3s 未攻击则归零，重置连击）
+  meleeFinalLock: 0, // 第三段后的硬直倒计时（0.3s，期间不能攻击）
+  meleeCurStage: 1,  // 当前这次挥砍的段数（供绘制/范围显示，空中固定第 2 段）
 };
+
+// ==================== 角色切换（X / Zero） ====================
+const CHARS = {
+  X:    { name: 'X',    melee: false },
+  Zero: { name: 'Zero', melee: true },
+};
+let curChar = 'X';   // 当前角色
+
+// 各角色独立状态快照（含 HP、位置、蓄力等；切换时保存/恢复）
+const charStates = {
+  X:    null,
+  Zero: null,
+};
+
+function snapshotPlayer() {
+  const p = player;
+  return {
+    x: p.x, y: p.y, vx: p.vx, vy: p.vy, w: p.w, h: p.h,
+    facing: p.facing, grounded: p.grounded, onWall: p.onWall, wallSlide: p.wallSlide,
+    isDash: p.isDash, dashT: p.dashT, dashDir: p.dashDir, dashReady: p.dashReady, dashAir: p.dashAir,
+    dashEndLock: p.dashEndLock,
+    chgT: p.chgT, isChg: p.isChg, shootHold: p.shootHold, wjLock: p.wjLock, wjDir: p.wjDir,
+    kCon: p.kCon, lCon: p.lCon, invT: p.invT, hp: p.hp, landing: p.landing,
+    crouch: p.crouch, forcedCrouch: p.forcedCrouch,
+    animF: p.animF, animT: p.animT, animKey: p.animKey,
+    melee: p.melee, meleeCd: p.meleeCd, meleeCombo: p.meleeCombo, meleeReset: p.meleeReset, meleeFinalLock: p.meleeFinalLock, meleeCurStage: p.meleeCurStage,
+  };
+}
+
+function restorePlayer(s) {
+  Object.assign(player, s);
+}
+
+function switchCharacter(name) {
+  if (name === curChar) return;
+  // 保存当前角色状态
+  charStates[curChar] = snapshotPlayer();
+  // 恢复目标角色状态（无快照则初始化为出生点）
+  if (charStates[name]) {
+    restorePlayer(charStates[name]);
+  } else {
+    const sp = getPlayerSpawn();
+    restorePlayer({
+      x: sp.x, y: sp.y, vx: 0, vy: 0, w: HITBOX.stand.w, h: HITBOX.stand.h,
+      facing: 1, grounded: false, onWall: 0, wallSlide: false,
+      isDash: false, dashT: 0, dashDir: 0, dashReady: false, dashAir: false,
+      dashEndLock: 0,
+      chgT: 0, isChg: false, shootHold: 0, wjLock: 0, wjDir: 0,
+      kCon: false, lCon: false, invT: 0, hp: P.MAX_HP, landing: false,
+      crouch: false, forcedCrouch: false,
+      animF: 0, animT: 0, animKey: '',
+      melee: 0, meleeCd: 0, meleeCombo: 0, meleeReset: 0, meleeFinalLock: 0, meleeCurStage: 1,
+    });
+    charStates[name] = snapshotPlayer();
+  }
+  curChar = name;
+  // 切换时清空全局子弹/特效残留
+  bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = [];
+  updateCharUI();
+}
+
+// 近战挥砍三段参数（range 仅用于三段范围放大倍率，dmg 为各段伤害）
+const MELEE_STAGES = [
+  { range: 24, arc: Math.PI * 2 / 3, dmg: 2 },  // 第 1 段
+  { range: 32, arc: Math.PI * 2 / 3, dmg: 3 },  // 第 2 段
+  { range: 44, arc: Math.PI * 2 / 3, dmg: 5 },  // 第 3 段
+];
+const MELEE_ACTIVE = 12;     // 挥砍动画/判定持续帧（渐隐消失）
+const MELEE_CD = 12;         // 段间攻击冷却（0.2s = 12 帧，攻击频率上限）
+const MELEE_RESET = 18;      // 连击重置窗口（0.3s = 18 帧，超过未攻击则重置回第 1 段）
+const MELEE_FINAL_LOCK = 18; // 第三段后的硬直（0.3s = 18 帧，期间不能攻击）
 
 function reset() {
   const spawn = getPlayerSpawn();
@@ -725,7 +813,11 @@ function reset() {
     chgT: 0, isChg: false, shootHold: 0, wjLock: 0, wjDir: 0, kCon: false, lCon: false, invT: 0, hp: P.MAX_HP, landing: false,
     crouch: false, forcedCrouch: false,
     animF: 0, animT: 0, animKey: '',
+    melee: 0, meleeCd: 0, meleeCombo: 0, meleeReset: 0, meleeFinalLock: 0, meleeCurStage: 1,
   });
+  // 重置两个角色的独立状态快照
+  charStates.X = null; charStates.Zero = null;
+  charStates[curChar] = snapshotPlayer();
   bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = [];
   camera.x = 0;
   spawnAll();
@@ -819,6 +911,61 @@ function endDash() {
   }
 }
 
+// ==================== 近战挥砍（Zero） ====================
+// 攻击范围 = blade.png 逆时针旋转 90° 后的矩形（见 meleeRect）。
+// blade 缩放规则：旋转 90° 后高度 = 角色高度（P.PH）。
+// stageMult：三段连击的范围放大倍率（第 1 段为基准 1.0）。
+function meleeStageMult(stage) {
+  const idx = Math.max(0, Math.min(stage - 1, MELEE_STAGES.length - 1));
+  return MELEE_STAGES[idx].range / MELEE_STAGES[0].range;
+}
+
+function meleeRect(stage) {
+  const p = player;
+  // blade 原始宽高（未加载时用近似正方形 1:1 兜底）
+  const bw = (BLADE.loaded && BLADE.img.naturalWidth) ? BLADE.img.naturalWidth : 1;
+  const bh = (BLADE.loaded && BLADE.img.naturalHeight) ? BLADE.img.naturalHeight : 1;
+  // 逆时针旋转 90° 后：渲染宽 = 原高(bh)，渲染高 = 原宽(bw)
+  // 缩放：旋转后高度（=bw）→ P.PH，再乘段数放大倍率
+  const targetH = P.PH;
+  const s = targetH / bw * meleeStageMult(stage);
+  const dispW = bh * s;         // 旋转后宽度（含段数放大，刀光长度方向）
+  const dispH = targetH * meleeStageMult(stage);  // 旋转后高度（含段数放大）
+  const cx = p.x + p.w / 2;
+  const cy = p.y + p.h / 2;
+  // 矩形：从角色前方开始（刀光中心向前偏移 dispW/2，与视觉一致），垂直方向居中 dispH
+  let rx, ry;
+  if (p.facing > 0) {
+    rx = cx;
+    ry = cy - dispH / 2;
+  } else {
+    rx = cx - dispW;
+    ry = cy - dispH / 2;
+  }
+  return { x: rx, y: ry, w: dispW, h: dispH };
+}
+
+function doMelee(stage) {
+  const p = player;
+  const idx = stage - 1;
+  if (idx < 0 || idx >= MELEE_STAGES.length) return;
+  const { dmg } = MELEE_STAGES[idx];
+  const rect = meleeRect(stage);
+  const cx = p.x + p.w / 2;
+  const cy = p.y + p.h / 2;
+
+  // 挥砍特效粒子
+  spawnPart(cx + p.facing * 10, cy - 4, 6, '#8cf');
+
+  // 矩形重叠判定：blade 攻击矩形与敌人矩形重叠则命中
+  for (let j = enemies.length - 1; j >= 0; j--) {
+    const en = enemies[j];
+    if (overlap(rect, { x: en.x, y: en.y, w: en.w, h: en.h })) {
+      if (dmgEnemy(en, dmg)) enemies.splice(j, 1);
+    }
+  }
+}
+
 // ==================== 主循环 ====================
 function update() {
   // 编辑模式下暂停游戏逻辑
@@ -855,34 +1002,67 @@ function update() {
     }
   }
 
-  // 射击蓄力
-  if (jD) {
-    if (!p.isChg) {
-      p.isChg = true; p.chgT = 0;
-      let sd = p.facing; if (p.wallSlide) sd = -p.onWall;
-      spawnBullet(p.x + (sd > 0 ? p.w : 0), p.y, sd, 0);
-      p.shootHold = 15;  // 普通射击：发射子弹瞬间进入射击动画（保留 0.25s）
-      // 仅站立不动射击(shoot)重置帧到第二帧；空中(jumpShoot)/移动射击(runShoot/dashShoot)不重置，
-      // 保持与移动动画的帧同步（由 KEEP_FRAME_PAIRS 保证切换时保留当前帧索引）
+  // 攻击：X = 射击蓄力；Zero = 近战挥砍三段连击
+  if (CHARS[curChar].melee) {
+    // === Zero 近战 ===
+    // 冷却 / 连击重置 / 第三段硬直倒计时
+    if (p.meleeCd > 0) p.meleeCd--;
+    if (p.meleeReset > 0) { p.meleeReset--; if (p.meleeReset === 0) p.meleeCombo = 0; }
+    if (p.meleeFinalLock > 0) p.meleeFinalLock--;
+    // 挥砍渐隐
+    if (p.melee > 0) p.melee--;
+
+    if (jD && p.meleeCd === 0 && p.meleeFinalLock === 0) {
+      let stage;
+      if (!p.grounded) {
+        // 空中攻击：固定第 2 段，不推进连击段数
+        stage = 2;
+      } else {
+        // 地面攻击：连击推进（重置窗口内继续下一段，否则第 1 段；3 段后回到第 1 段）
+        stage = (p.meleeCombo >= 3) ? 1 : p.meleeCombo + 1;
+        p.meleeCombo = stage;
+        p.meleeReset = MELEE_RESET;
+        // 第三段后硬直
+        if (stage === 3) p.meleeFinalLock = MELEE_FINAL_LOCK;
+      }
+      p.meleeCurStage = stage;  // 记录本次挥砍段数，供绘制/范围显示
+      p.melee = MELEE_ACTIVE;
+      p.meleeCd = MELEE_CD;
+      p.shootHold = 8;  // 挥砍进入短暂攻击动画
+      // 执行挥砍判定
+      doMelee(stage);
       if (p.grounded && !p.landing && mx === 0) { p.animF = 1; p.animT = 0; }
-    } else {
-      p.chgT++;
-      if (p.chgT >= P.CHG2 && p.chgT === P.CHG2) spawnPart(p.x + p.w / 2, p.y + p.h / 2, 3, '#f44');
     }
   } else {
-    if (p.isChg) {
-      let pw = 0;
-      if (p.chgT >= P.CHG2) pw = 2;
-      else if (p.chgT > P.CHG1) pw = 1;
-      if (pw > 0) {
+    // === X 射击蓄力 ===
+    if (jD) {
+      if (!p.isChg) {
+        p.isChg = true; p.chgT = 0;
         let sd = p.facing; if (p.wallSlide) sd = -p.onWall;
-        spawnBullet(p.x + (sd > 0 ? p.w : 0), p.y, sd, pw);
-        p.shootHold = 15;  // 蓄力发射：松手发射蓄力弹时进入射击动画（保留 0.25s）
+        spawnBullet(p.x + (sd > 0 ? p.w : 0), p.y, sd, 0);
+        p.shootHold = 15;  // 普通射击：发射子弹瞬间进入射击动画（保留 0.25s）
         // 仅站立不动射击(shoot)重置帧到第二帧；空中(jumpShoot)/移动射击(runShoot/dashShoot)不重置，
         // 保持与移动动画的帧同步（由 KEEP_FRAME_PAIRS 保证切换时保留当前帧索引）
         if (p.grounded && !p.landing && mx === 0) { p.animF = 1; p.animT = 0; }
+      } else {
+        p.chgT++;
+        if (p.chgT >= P.CHG2 && p.chgT === P.CHG2) spawnPart(p.x + p.w / 2, p.y + p.h / 2, 3, '#f44');
       }
-      p.isChg = false; p.chgT = 0;
+    } else {
+      if (p.isChg) {
+        let pw = 0;
+        if (p.chgT >= P.CHG2) pw = 2;
+        else if (p.chgT > P.CHG1) pw = 1;
+        if (pw > 0) {
+          let sd = p.facing; if (p.wallSlide) sd = -p.onWall;
+          spawnBullet(p.x + (sd > 0 ? p.w : 0), p.y, sd, pw);
+          p.shootHold = 15;  // 蓄力发射：松手发射蓄力弹时进入射击动画（保留 0.25s）
+          // 仅站立不动射击(shoot)重置帧到第二帧；空中(jumpShoot)/移动射击(runShoot/dashShoot)不重置，
+          // 保持与移动动画的帧同步（由 KEEP_FRAME_PAIRS 保证切换时保留当前帧索引）
+          if (p.grounded && !p.landing && mx === 0) { p.animF = 1; p.animT = 0; }
+        }
+        p.isChg = false; p.chgT = 0;
+      }
     }
   }
 
@@ -1359,6 +1539,74 @@ function drawPlayer() {
     ctx.strokeStyle = p.chgT >= P.CHG2 ? `rgba(255,60,60,${al})` : `rgba(255,180,60,${al})`;
     ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy - 2, r, 0, Math.PI * 2); ctx.stroke(); ctx.lineWidth = 1;
   }
+  // 近战挥砍可视化（Zero）
+  if (p.melee > 0) {
+    drawMeleeEffect(p, cx, cy);
+  }
+}
+
+// 绘制近战挥砍刀光（用 blade.png，三段连击共用同一刀光，范围随段数放大）
+// 不做挥砍转动，blade 资源本身已表现挥砍，仅随挥砍进度渐隐消失
+function drawMeleeEffect(p, cx, cy) {
+  if (!BLADE.loaded) {
+    // 未加载时回退到扇形
+    drawMeleeEffectFallback(p, cx, cy);
+    return;
+  }
+  const stage = p.meleeCurStage > 0 ? p.meleeCurStage : 1;
+  const idx = Math.min(stage - 1, MELEE_STAGES.length - 1);
+  // 三段范围放大倍率（第 1/2/3 段）
+  const stageMult = MELEE_STAGES[idx].range / MELEE_STAGES[0].range;
+  // 挥砍进度：1 → 0（渐隐）
+  const progress = p.melee / MELEE_ACTIVE;
+  const alpha = progress;  // 线性渐隐
+
+  const bw = BLADE.img.naturalWidth;
+  const bh = BLADE.img.naturalHeight;
+  // 逆时针旋转 90° 后：渲染宽 = 原高(bh)，渲染高 = 原宽(bw)
+  const targetH = P.PH;            // 旋转后高度 = 角色高度
+  const s = targetH / bw * stageMult; // 缩放系数（含段数放大）
+  const dispW = bh * s;            // 旋转后宽度（刀光长度方向）
+
+  // 刀光锚点：从角色中心向前方偏移 dispW/2，使刀光整体位于角色前方，不压住身体
+  const anchorX = cx + p.facing * (dispW / 2);
+  const anchorY = cy;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(anchorX, anchorY);
+  if (p.facing > 0) {
+    // 面朝右：刀光尖端指向右。blade 原「下方」指向怪物 → 逆时针旋转 90°
+    ctx.rotate(-Math.PI / 2);
+  } else {
+    // 面朝左：刀光尖端指向左 = 面朝右的镜像
+    ctx.rotate(Math.PI / 2);
+  }
+  // blade 绘制：原图中心对齐锚点，下方（尖端）在旋转后指向怪物方向
+  ctx.drawImage(BLADE.img, -bw * s / 2, -bh * s / 2, bw * s, bh * s);
+  ctx.restore();
+  ctx.lineWidth = 1;
+}
+
+// blade 未加载时的回退扇形
+function drawMeleeEffectFallback(p, cx, cy) {
+  const stage = p.meleeCurStage > 0 ? p.meleeCurStage : 1;
+  const idx = Math.min(stage - 1, MELEE_STAGES.length - 1);
+  const range = MELEE_STAGES[idx].range;
+  const arc = MELEE_STAGES[idx].arc;
+  const progress = p.melee / MELEE_ACTIVE;
+  const alpha = progress;
+  const baseAng = p.facing > 0 ? 0 : Math.PI;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(120,220,255,0.25)';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.arc(cx, cy, range, baseAng - arc / 2, baseAng + arc / 2, p.facing > 0 ? false : true);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  ctx.lineWidth = 1;
 }
 
 function drawEnemy(en) {
@@ -1511,10 +1759,22 @@ function drawUI() {
     ctx.fillText('按空格键重新开始', VW / 2, VH / 2 + 30);
   }
 
+  document.getElementById('db-char').textContent = curChar;
   document.getElementById('db-hp').textContent = `${player.hp}/${P.MAX_HP}`;
   document.getElementById('db-charge').textContent = player.isChg ? `${Math.round(player.chgT / P.CHG2 * 100)}%` : '0%';
   document.getElementById('db-enemies').textContent = `${enemies.length}`;
   document.getElementById('db-pos').textContent = `${Math.round(player.x / MAP_W * 100)}%`;
+  updateCharUI();
+}
+
+// 更新角色切换按钮高亮（当前角色高亮显示）
+function updateCharUI() {
+  const bx = document.getElementById('btn-char-x');
+  const bz = document.getElementById('btn-char-zero');
+  if (bx && bz) {
+    bx.style.outline = curChar === 'X' ? '2px solid #ffcc00' : 'none';
+    bz.style.outline = curChar === 'Zero' ? '2px solid #ffcc00' : 'none';
+  }
 }
 
 function render() {
@@ -1685,13 +1945,19 @@ function doEditAction() {
   } else if (editTool === 'enemy') {
     if (mouseDown === 1) {
       const etype = enemyTypeSelect.value;
-      const ex = col * TILE + TILE / 2 - (ET[etype].w / 2);
-      const ey = row * TILE;
-      // 避免在同一位置反复放置：检查是否已有敌人在附近
-      const nearby = enemies.some(en =>
-        Math.abs(en.x - ex) < 3 && Math.abs(en.y - ey) < 3
-      );
-      if (!nearby) {
+      const tw = ET[etype].w, th = ET[etype].h;
+      // 自由放置：怪物中心对齐鼠标位置，不再按格子对齐
+      const ex = mouseWorldX - tw / 2;
+      const ey = mouseWorldY - th / 2;
+      const nr = { x: ex, y: ey, w: tw, h: th };
+      // 冲突检测：不与已有怪物重叠，不与地形重叠
+      const clashEnemy = enemies.some(en => overlap(nr, { x: en.x, y: en.y, w: en.w, h: en.h }));
+      let clashTile = false;
+      for (let r = 0; r < LH; r++) for (let c = 0; c < LW; c++) {
+        if (map[r * LW + c] === 0) continue;
+        if (overlap(nr, { x: c * TILE, y: r * TILE, w: TILE, h: TILE })) { clashTile = true; break; }
+      }
+      if (!clashEnemy && !clashTile) {
         enemies.push(mkEnemy(etype, ex, ey));
       }
     } else if (mouseDown === 2) {
@@ -1941,8 +2207,9 @@ function drawEditorOverlay() {
   } else if (editTool === 'enemy') {
     const etype = enemyTypeSelect.value;
     const t = ET[etype];
-    const ex = col * TILE + TILE / 2 - t.w / 2;
-    const ey = row * TILE;
+    // 自由放置预览：怪物中心对齐鼠标，不再按格子对齐
+    const ex = mouseWorldX - t.w / 2;
+    const ey = mouseWorldY - t.h / 2;
     const cx = ex + t.w / 2;
     const cy = ey + t.h / 2;
     ctx.strokeStyle = 'rgba(255,100,100,0.7)';
@@ -1994,6 +2261,10 @@ function drawEditorOverlay() {
   ctx.fillText(valid ? 'SPAWN' : 'INVALID!', ps.x + P.PW / 2, ps.y - 3);
   ctx.lineWidth = LW1;
 }
+
+// ==================== 角色切换按钮 ====================
+document.getElementById('btn-char-x').addEventListener('click', () => switchCharacter('X'));
+document.getElementById('btn-char-zero').addEventListener('click', () => switchCharacter('Zero'));
 
 function loop() { update(); render(); requestAnimationFrame(loop); }
 
