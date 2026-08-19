@@ -138,7 +138,7 @@ const P = {
   PC: 17,           // 下蹲/冲刺碰撞盒高度
   SPEED: 1.75, JUMP: -5.2,
   WALL_SLIDE: 0.65, WALL_JUMP_X: 2.4, WALL_JUMP_Y: -4.4,
-  DASH_MULT: 1.5, DASH_DIST: 56,
+  DASH_MULT: 1.75, DASH_TIME: 21,  // dash 移速倍率；最大时长 21 帧(0.35s) = 原 1.5 倍速跑完 56px 距离所需时间
   CHG1: 6, CHG2: 60,
   BULLET: 6.1,
   INV: 30, WALL_LOCK: 6,
@@ -383,14 +383,14 @@ window.addEventListener('keydown', e => {
 });
 
 // ==================== 摄像机 ====================
-const camera = { x: 0, y: 0, targetX: 0, zoom: 1.0 };
+const camera = { x: 0, y: 0, targetX: 0, zoom: 0.7 };   // 默认镜头缩放 70%（视野更大）
 
 function updateCamera() {
   // 玩家在画面中央（摄像机坐标也是素材像素，视口范围需换算成素材像素尺度）
   const targetCX = player.x + player.w / 2;
   const targetCY = player.y + player.h / 2;
-  const viewW = VW / VIEW_SCALE;   // 视口宽度换算为素材像素
-  const viewH = VH / VIEW_SCALE;   // 视口高度换算为素材像素
+  const viewW = VW / (camera.zoom * VIEW_SCALE);   // 视口宽度换算为素材像素（随 zoom 变化）
+  const viewH = VH / (camera.zoom * VIEW_SCALE);   // 视口高度换算为素材像素（随 zoom 变化）
   let idealX = targetCX - viewW / 2;
   let idealY = targetCY - viewH / 2;
   // 边界限制：以已放置砖块的包围盒为准（而非网格声明尺寸），
@@ -541,8 +541,8 @@ function loadLevel(jsonData) {
   map = buildMapFromData(jsonData);
   MAP_W = LW * TILE;
   updateMapBounds();
-  // 重建敌人
-  enemies = spawnEnemiesFromData(jsonData);
+  // 敌人改为自动生成，不再从关卡数据读取
+  enemies = [];
   // 读取玩家出生点
   if (jsonData.playerSpawn) {
     player.x = jsonData.playerSpawn.x;
@@ -587,6 +587,27 @@ function tile(x, y) {
 }
 
 function overlap(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
+
+// 通用碰撞：支持矩形 {x,y,w,h} 与圆形 {cx,cy,r} 任意组合
+function collide(a, b) {
+  const A = a.r !== undefined, B = b.r !== undefined;
+  if (A && B) { const dx = a.cx - b.cx, dy = a.cy - b.cy, rr = a.r + b.r; return dx * dx + dy * dy <= rr * rr; }
+  if (A) return circleRect(a, b);
+  if (B) return circleRect(b, a);
+  return overlap(a, b);
+}
+// 圆形 vs 矩形：取圆到矩形最近点的距离平方比较
+function circleRect(c, r) {
+  const nx = Math.max(r.x, Math.min(c.cx, r.x + r.w));
+  const ny = Math.max(r.y, Math.min(c.cy, r.y + r.h));
+  const dx = c.cx - nx, dy = c.cy - ny;
+  return dx * dx + dy * dy <= c.r * c.r;
+}
+// 怪物命中形状：带 r 的（浮游眼）为圆形 {cx,cy,r}，其余为矩形 {x,y,w,h}
+function enShape(en) {
+  const t = ET[en.type];
+  return t && t.r ? { cx: en.x + en.w / 2, cy: en.y + en.h / 2, r: t.r } : { x: en.x, y: en.y, w: en.w, h: en.h };
+}
 
 // ==================== 全局列表 ====================
 let bullets = [], eBullets = [], particles = [], afterimages = [], enemies = [];
@@ -652,11 +673,17 @@ function spawnPart(x, y, n, col) {
 }
 
 // ==================== 怪物 ====================
+// 自动生成怪物配置：怪物不再手动放入关卡，改由游戏内自动生成
+const ENEMY_SPAWN_CD = 60;                       // 生成间隔（帧）：60 = 每秒 1 个
+const ENEMY_MAX = 100;                           // 全图最大怪物数
+const ENEMY_SPAWN_TYPES = ['floater'];  // 自动生成类型：当前只生成浮游眼
+let spawnTimer = 0;                              // 自动生成计时器
+
 const ET = {
-  soldier: { name: '丛林兵', w: 16, h: 35, hp: 40, spd: 0.65, col: '#44aa44', eye: '#ffcc00', boss: false },
-  bee:     { name: '机械蜂', w: 22, h: 35, hp: 24, spd: 0.8,  col: '#ffaa00', eye: '#ff4444', boss: false, amp: 10, fspd: 0.04 },
-  floater: { name: '浮游炮', w: 20, h: 35, hp: 32, spd: 0.9,  col: '#aa44ff', eye: '#ff4444', boss: false, amp: 13, fspd: 0.03 },
-  boss:    { name: 'Web Spider', w: 50, h: 50, hp: 320, spd: 1.1, col: '#8844cc', eye: '#ff00ff', boss: true },
+  soldier: { name: '丛林兵', w: 16, h: 35, hp: 13, spd: 0.65, col: '#44aa44', eye: '#ffcc00', boss: false },
+  bee:     { name: '机械蜂', w: 22, h: 35, hp: 8, spd: 0.8,  col: '#ffaa00', eye: '#ff4444', boss: false, amp: 10, fspd: 0.04 },
+  floater: { name: '浮游炮', w: 20, h: 20, r: 10, hp: 11, spd: 0.45, col: '#aa44ff', eye: '#ff4444', boss: false, amp: 13, fspd: 0.03 },  // r=圆形碰撞半径（贴合圆形视觉）
+  boss:    { name: 'Web Spider', w: 50, h: 50, hp: 107, spd: 1.1, col: '#8844cc', eye: '#ff00ff', boss: true },
 };
 
 function mkEnemy(type, x, y, pMin, pMax) {
@@ -668,33 +695,89 @@ function mkEnemy(type, x, y, pMin, pMax) {
     hurtT: 0, baseY: y, fp: Math.random() * Math.PI * 2,
     bossAtk: 0, bossJump: false, bossWeb: 0,
     meleeLock: 0,  // 挥砍命中冷却：命中帧 + 5 帧无伤害（6 帧后可再命中，仅 Zero 近战使用）
+    knockT: 0, knockVx: 0, knockVy: 0,  // 受击击退：剩余帧 + 速度（命中后短暂弹开，逐渐衰减）
   };
 }
 
 function spawnAll() {
   enemies = [];
-  // 优先用 levelData (如果已加载外部 JSON)，否则用 DEFAULT_LEVEL
-  const data = levelData || DEFAULT_LEVEL;
-  enemies = spawnEnemiesFromData(data);
+  spawnTimer = 0;  // 重置自动生成计时
+}
+
+// 在地图范围内随机找一个可生成位置（不重叠砖块/玩家/已有敌人）
+function findSpawnPos(w, h) {
+  const x0 = MAP_BOUNDS.minX, x1 = MAP_BOUNDS.maxX - w;
+  const y0 = MAP_BOUNDS.minY, y1 = MAP_BOUNDS.maxY - h;
+  if (x1 <= x0 || y1 <= y0) return null;
+  for (let tries = 0; tries < 40; tries++) {
+    const x = x0 + Math.random() * (x1 - x0);
+    const y = y0 + Math.random() * (y1 - y0);
+    const rect = { x, y, w, h };
+    // 不与砖块重叠
+    let clash = false;
+    for (let r = 0; r < LH; r++) for (let c = 0; c < LW; c++) {
+      if (map[r * LW + c] === 0) continue;
+      if (overlap(rect, { x: c * TILE, y: r * TILE, w: TILE, h: TILE })) { clash = true; break; }
+    }
+    if (clash) continue;
+    // 不与玩家重叠
+    if (overlap(rect, { x: player.x, y: player.y, w: player.w, h: player.h })) continue;
+    // 不与已有敌人重叠
+    let enClash = false;
+    for (const en of enemies) {
+      if (collide(rect, enShape(en))) { enClash = true; break; }
+    }
+    if (enClash) continue;
+    return { x, y };
+  }
+  return null;
 }
 
 // ==================== 怪物 AI ====================
+// 受击击退：给怪物施加方向性弹开速度，持续 knockT 帧并逐渐衰减。
+// 击退期间怪物 AI 暂停、物理跳过（由 ai/enPhys 开头的 knockT>0 分支接管位移）。
+// 参数：dirX/dirY 为方向（可取 ±1 或 0），power 为初始速度（素材像素/帧）。
+// 约定强度：X 子弹 1.5（水平）、Zero 水平挥砍 2.0、Zero 上攻击 2.5（向上）。
+function knockEnemy(en, dirX, dirY, power) {
+  en.knockT = 8;
+  en.knockVx = dirX * power;
+  en.knockVy = dirY * power;
+}
+
 function ai(en) {
   const t = ET[en.type];
   const dx = player.x - en.x, dy = player.y - en.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
   if (en.hurtT > 0) en.hurtT--;
   if (en.meleeLock > 0) en.meleeLock--;
+  // 受击击退期间：AI 完全暂停，由击退速度接管位移并逐渐衰减（8 帧内弹开一段距离）
+  if (en.knockT > 0) {
+    en.knockT--;
+    en.x += en.knockVx;
+    en.y += en.knockVy;
+    en.knockVx *= 0.85;
+    en.knockVy *= 0.85;
+    if (en.knockT <= 0) { en.knockVx = 0; en.knockVy = 0; }
+    en.x = Math.max(0, Math.min(MAP_W - en.w, en.x));
+    return;
+  }
 
   if (!t.boss) {
     const inRange = dist < 110;
-    if (en.type === 'bee' || t.amp) {
+    if (en.type === 'bee') {
+      // 机械蜂：水平追击 + 垂直正弦浮动（锁定 baseY）
       en.fp += (t.fspd || 0.04);
       en.y = en.baseY + Math.sin(en.fp) * (t.amp || 10);
       if (inRange) {
         en.x += (dx > 0 ? 1 : -1) * t.spd;
         en.facing = dx > 0 ? 1 : -1;
       }
+    } else if (t.amp) {
+      // 浮游眼：始终朝玩家直线方向缓慢移动（水平+垂直都追，不锁定上下）
+      const d = dist || 1;
+      en.x += (dx / d) * t.spd;
+      en.y += (dy / d) * t.spd;
+      en.facing = dx > 0 ? 1 : -1;
     } else {
       if (inRange && dist < 70) {
         en.facing = dx > 0 ? 1 : -1;
@@ -723,7 +806,7 @@ function ai(en) {
           spawnPart(en.x + en.w / 2, en.y + en.h, 12, '#cc44ff');
         }
       }
-      if (en.y > VH / VIEW_SCALE + 40) { en.y = 50; en.vy = 0; en.bossJump = false; }
+      if (en.y > VH / (camera.zoom * VIEW_SCALE) + 40) { en.y = 50; en.vy = 0; en.bossJump = false; }
     } else {
       en.facing = dx > 0 ? 1 : -1;
       const spd = phase2 ? t.spd * 1.4 : t.spd;
@@ -758,6 +841,7 @@ function ai(en) {
 // ==================== 怪物物理 ====================
 function enPhys(en) {
   const t = ET[en.type];
+  if (en.knockT > 0) return;  // 受击击退期间跳过物理（位移由 ai 的击退分支接管）
   if (en.type === 'bee' || t.amp) return;
   if (!t.boss || !en.bossJump) { en.vy += GRAVITY; if (en.vy > MAX_FALL) en.vy = MAX_FALL; }
 
@@ -821,11 +905,14 @@ const player = {
   animF: 0, animT: 0, animKey: '',
   // 近战（Zero 专用）
   melee: 0,       // 近战挥砍剩余帧（>0 表示正在挥砍，渐隐消失）
+  meleeDir: 1,    // 本次挥砍锁定朝向（贴墙滑行 = -onWall 朝外，否则 = facing）
   meleeCd: 0,     // 段间攻击冷却剩余帧（0.2s）
   meleeCombo: 0,  // 当前连击段数（0=无, 1/2/3，地面连击用）
   meleeReset: 0,  // 连击重置倒计时（0.3s 未攻击则归零，重置连击）
   meleeFinalLock: 0, // 第三段后的硬直倒计时（0.3s，期间不能攻击）
   meleeCurStage: 1,  // 当前这次挥砍的段数（供绘制/范围显示，空中固定第 2 段）
+  upAtk: false,      // 本次挥砍是否为上方向攻击（地面按住 W + 攻击触发）
+  jumpCount: 0,      // 已跳次数（0=未跳 1=已跳一次 2=二段跳已用，落地重置）
 };
 
 // ==================== 角色切换（X / Zero） ====================
@@ -852,7 +939,8 @@ function snapshotPlayer() {
     kCon: p.kCon, lCon: p.lCon, invT: p.invT, hp: p.hp, landing: p.landing,
     crouch: p.crouch, forcedCrouch: p.forcedCrouch,
     animF: p.animF, animT: p.animT, animKey: p.animKey,
-    melee: p.melee, meleeCd: p.meleeCd, meleeCombo: p.meleeCombo, meleeReset: p.meleeReset, meleeFinalLock: p.meleeFinalLock, meleeCurStage: p.meleeCurStage,
+    melee: p.melee, meleeCd: p.meleeCd, meleeCombo: p.meleeCombo, meleeReset: p.meleeReset, meleeFinalLock: p.meleeFinalLock, meleeCurStage: p.meleeCurStage, meleeDir: p.meleeDir,
+    upAtk: p.upAtk, jumpCount: p.jumpCount,
   };
 }
 
@@ -878,7 +966,8 @@ function switchCharacter(name) {
       kCon: false, lCon: false, invT: 0, hp: P.MAX_HP, landing: false,
       crouch: false, forcedCrouch: false,
       animF: 0, animT: 0, animKey: '',
-      melee: 0, meleeCd: 0, meleeCombo: 0, meleeReset: 0, meleeFinalLock: 0, meleeCurStage: 1,
+      melee: 0, meleeCd: 0, meleeCombo: 0, meleeReset: 0, meleeFinalLock: 0, meleeCurStage: 1, meleeDir: 1,
+      upAtk: false, jumpCount: 0,
     });
     charStates[name] = snapshotPlayer();
   }
@@ -896,7 +985,7 @@ const MELEE_STAGES = [
 ];
 const MELEE_ACTIVE = 12;     // 挥砍动画/判定持续帧（渐隐消失）
 const MELEE_CD = 9;          // 段间攻击冷却（0.15s = 9 帧，攻击频率上限）
-const MELEE_AIR_CD = 30;     // 空中挥砍间隔（0.5s = 30 帧，跳跃挥砍后需等待，独立于地面段间冷却）
+const MELEE_AIR_CD = 20;     // 空中挥砍间隔（0.33s = 20 帧，跳跃挥砍后需等待，独立于地面段间冷却）
 const MELEE_RESET = 18;      // 连击重置窗口（0.3s = 18 帧，超过未攻击则重置回第 1 段）
 const MELEE_FINAL_LOCK = 24; // 第三段后的硬直（0.4s = 24 帧，期间不能攻击）
 const HITSTOP = 3;        // 挥砍命中全冻结 0.05s（60fps = 3 帧，仅 Zero 近战触发）
@@ -910,7 +999,8 @@ function reset() {
     chgT: 0, isChg: false, shootHold: 0, wjLock: 0, wjDir: 0, kCon: false, lCon: false, invT: 0, hp: P.MAX_HP, landing: false,
     crouch: false, forcedCrouch: false,
     animF: 0, animT: 0, animKey: '',
-    melee: 0, meleeCd: 0, meleeCombo: 0, meleeReset: 0, meleeFinalLock: 0, meleeCurStage: 1,
+    melee: 0, meleeCd: 0, meleeCombo: 0, meleeReset: 0, meleeFinalLock: 0, meleeCurStage: 1, meleeDir: 1,
+    upAtk: false, jumpCount: 0,
   });
   // 重置两个角色的独立状态快照
   charStates.X = null; charStates.Zero = null;
@@ -1031,8 +1121,15 @@ function meleeRect(stage) {
   const cx = p.x + p.w / 2;
   const cy = p.y + p.h / 2;
   // 矩形：从角色前方开始（刀光中心向前偏移 dispW/2，与视觉一致），垂直方向居中 dispH
+  // 上攻击：刀光以头顶上方为锚点、尖端朝上。长度方向（dispW）近似竖直、厚度方向（dispH）近似水平，
+  // 判定矩形覆盖刀光两端：垂直 [anchorY-dispW/2, anchorY+dispW/2]，水平居中厚度 dispH
   let rx, ry;
-  if (p.facing > 0) {
+  if (p.upAtk) {
+    const anchorY = cy - P.PH * 0.6;
+    rx = cx - dispH / 2;
+    ry = anchorY - dispW / 2;
+    return { x: rx, y: ry, w: dispH, h: dispW };
+  } else if (p.meleeDir > 0) {
     rx = cx;
     ry = cy - dispH / 2;
   } else {
@@ -1046,7 +1143,7 @@ function meleeRect(stage) {
 function doMelee(stage) {
   const p = player;
   const cx = p.x + p.w / 2, cy = p.y + p.h / 2;
-  spawnPart(cx + p.facing * 10, cy - 4, 6, '#8cf');
+  spawnPart(cx + p.meleeDir * 10, cy - 4, 6, '#8cf');
 }
 
 // 挥砍动画期间逐帧判定（仅 Zero）。命中冷却 meleeLock>0 的怪物跳过；
@@ -1061,12 +1158,17 @@ function doMeleeHit(stage) {
   let hitAny = false;
   for (let j = enemies.length - 1; j >= 0; j--) {
     const en = enemies[j];
-    if (overlap(rect, { x: en.x, y: en.y, w: en.w, h: en.h })) {
+    if (collide(rect, enShape(en))) {
       if (en.meleeLock > 0) continue;   // 命中冷却中，本次不生效
       if (dmgEnemy(en, dmg)) enemies.splice(j, 1);
+      else {
+        // 击退：上攻击向上弹开（2.5），水平挥砍沿挥砍方向弹开（2.0）
+        if (p.upAtk) knockEnemy(en, 0, -1, 2.5);
+        else knockEnemy(en, p.meleeDir, 0, 2.0);
+      }
       en.meleeLock = 6;
       // Zero 专属受击特效（通用 hit 动画，画在怪物上层）
-      spawnMeleeHitEffect(en.x + en.w / 2, en.y + en.h / 2, p.facing);
+      spawnMeleeHitEffect(en.x + en.w / 2, en.y + en.h / 2, p.meleeDir);
       hitAny = true;
     }
   }
@@ -1089,6 +1191,7 @@ function update() {
   const kR = keys['k'] || keys['K'];
   const lR = keys['l'] || keys['L'];
   const sR = keys['s'] || keys['S'];
+  const wR = keys['w'] || keys['W'];   // 上方向攻击键（地面按住 W + 攻击 = 上攻击）
   if (!kR) p.kCon = false;
   const kD = kR && !p.kCon;
   if (!lR) p.lCon = false;
@@ -1124,6 +1227,8 @@ function update() {
     if (jPressed && jD && p.meleeCd === 0 && p.meleeFinalLock === 0) {
       jPressed = false;  // 消费按下沿：长按不连挥，每次挥砍都需要重新按攻击键
       let stage;
+      // 上攻击判定：仅地面按住 W 时触发（空中 W 无效，按普通攻击处理）
+      p.upAtk = p.grounded && wR;
       if (!p.grounded) {
         // 空中攻击：固定第 2 段，不推进连击段数；使用独立 0.5s 间隔 CD
         stage = 2;
@@ -1136,8 +1241,19 @@ function update() {
         p.meleeCd = MELEE_CD;
         // 第三段后硬直
         if (stage === 3) p.meleeFinalLock = MELEE_FINAL_LOCK;
+        // 第三段上攻击：角色向上跃起（0.8 倍跳跃高度），斩击随角色一起上升。
+        // 跃起计为一次跳跃（jumpCount=1），空中仍可再接二段跳。
+        if (p.upAtk && stage === 3) {
+          p.vy = P.JUMP * 0.8;
+          p.grounded = false;
+          p.jumpCount = 1;
+          p.landing = false;
+          p.animF = 0; p.animT = 0;
+        }
       }
       p.meleeCurStage = stage;  // 记录本次挥砍段数，供绘制/范围显示
+      // 挥砍朝向锁定：贴墙滑行时朝墙反方向（与 X 贴墙射击一致），否则跟随 facing
+      p.meleeDir = (p.wallSlide && p.onWall !== 0) ? -p.onWall : p.facing;
       p.melee = MELEE_ACTIVE;
       p.shootHold = 8;  // 挥砍进入短暂攻击动画
       // 执行挥砍判定
@@ -1191,7 +1307,7 @@ function update() {
     if (!hasGroundBelow()) cancel = true;
     if (cancel) { endDash(); p.dashReady = !!lR; }
     if (kD) {
-      p.vy = P.JUMP; p.grounded = false;
+      p.vy = P.JUMP; p.grounded = false; p.jumpCount = 1;
       p.vx = mx !== 0 ? mx * P.SPEED * P.DASH_MULT : 0;
       p.isDash = false; p.dashReady = false; p.dashAir = true; p.kCon = true;
       // 空中冲刺跳恢复跳跃碰撞盒（=站立盒 A）：dashAir 动画走 jump 分支，碰撞盒须同步，不能停留在 dash 的低矮 B 盒
@@ -1204,7 +1320,7 @@ function update() {
   if (p.dashReady) {
     if (!lR) p.dashReady = false;
     if (kR && p.grounded && !p.kCon) {
-      p.vy = P.JUMP; p.grounded = false;
+      p.vy = P.JUMP; p.grounded = false; p.jumpCount = 1;
       if (mx !== 0) p.vx = mx * P.SPEED * P.DASH_MULT;
       p.dashReady = false; p.dashAir = true; p.kCon = true;
       spawnPart(p.x + p.w / 2, p.y + p.h, 5, '#aaf');
@@ -1227,13 +1343,13 @@ function update() {
     if (!dashBlocked) {
       p.isDash = true; p.dashDir = p.facing; p.lCon = true;
       const ds = P.SPEED * P.DASH_MULT;
-      p.dashT = Math.floor(P.DASH_DIST / ds);
+      p.dashT = P.DASH_TIME;   // 时间限制（帧数固定），不再按距离换算
       p.vx = p.dashDir * ds;
       if (!p.crouch) setPlayerBox(HITBOX.dash.w, HITBOX.dash.h);   // dash 期间压低碰撞盒（宽=dash，高=crouch）
       spawnPart(p.x + p.w / 2, p.y + p.h / 2, 8, '#aaf');
     }
   }
-  // 跳跃
+  // 跳跃（含二段跳）：地面起跳 jumpCount=1；空中再跳 jumpCount=2；墙跳不消耗二段跳次数
   if (kD) {
     if (p.grounded && !p.isDash && !p.dashReady) {
       // 起跳前若处于下蹲，先恢复站立碰撞盒（跳跃碰撞盒=站立）
@@ -1241,7 +1357,7 @@ function update() {
         setPlayerBox(HITBOX.stand.w, HITBOX.stand.h);
         p.crouch = false;
       }
-      p.vy = P.JUMP; p.grounded = false; p.kCon = true;
+      p.vy = P.JUMP; p.grounded = false; p.kCon = true; p.jumpCount = 1;
       // 若仍在落地尾段播放中（landing=true）就再次起跳，舍弃剩余尾段，重新从起跳段(索引0)播放跳跃动画
       if (p.landing || p.animKey === 'jump' || p.animKey === 'jumpShoot') {
         p.landing = false;
@@ -1249,12 +1365,22 @@ function update() {
       }
       if (lR) { if (mx !== 0) p.vx = mx * P.SPEED * P.DASH_MULT; p.dashReady = false; p.dashAir = true; spawnPart(p.x + p.w / 2, p.y + p.h, 5, '#aaf'); }
       else spawnPart(p.x + p.w / 2, p.y + p.h, 5, '#fff');
-    }
-    if (p.onWall !== 0 && !p.grounded) {
+    } else if (p.onWall !== 0) {
+      // 墙跳：不消耗二段跳次数（jumpCount 保持不变，墙跳后空中仍可二段跳）
       p.vy = P.WALL_JUMP_Y; p.facing = -p.onWall;
       p.wjLock = P.WALL_LOCK; p.wjDir = -p.onWall; p.kCon = true;
       if (lR) { p.vx = -p.onWall * P.WALL_JUMP_X * P.DASH_MULT; p.dashAir = true; spawnPart(p.x + p.w / 2, p.y + p.h / 2, 6, '#aaf'); }
       else { p.vx = -p.onWall * P.WALL_JUMP_X; spawnPart(p.x + p.w / 2, p.y + p.h / 2, 6, '#8cf'); }
+    } else if (p.jumpCount < 2) {
+      // 二段跳：空中再次起跳，高度为原跳高的 0.8
+      p.vy = P.JUMP * 0.8; p.kCon = true; p.jumpCount = 2;
+      // 重新从起跳段播放跳跃动画
+      if (p.landing || p.animKey === 'jump' || p.animKey === 'jumpShoot') {
+        p.landing = false;
+        p.animF = 0; p.animT = 0;
+      }
+      if (lR) { if (mx !== 0) p.vx = mx * P.SPEED * P.DASH_MULT; p.dashReady = false; p.dashAir = true; spawnPart(p.x + p.w / 2, p.y + p.h, 5, '#aaf'); }
+      else spawnPart(p.x + p.w / 2, p.y + p.h, 5, '#fff');
     }
   }
   // Dash air
@@ -1290,7 +1416,8 @@ function update() {
     }
   }
   if ((p.grounded && !wasGnd) || (p.onWall !== 0 && wasWall === 0)) p.dashAir = false;
-  if (p.grounded && !wasGnd && lR) p.lCon = true;
+  // 落地重置二段跳次数
+  if (p.grounded && !wasGnd) { p.jumpCount = 0; if (lR) p.lCon = true; }
   // 落地：若当前处于跳跃动画，标记进入落地收尾阶段（播放尾段 3 帧）
   if (p.grounded && !wasGnd && (p.animKey === 'jump' || p.animKey === 'jumpShoot')) {
     p.landing = true;
@@ -1325,6 +1452,18 @@ function update() {
   // 怪物
   // 挥砍逐帧命中判定（仅 Zero）：动画期间每帧判定，命中冷却 6 帧，同帧多目标合并一次停顿
   if (CHARS[curChar].melee && p.melee > 0) doMeleeHit(p.meleeCurStage);
+
+  // 自动生成怪物：每秒 1 个，地图范围内随机可生成位置，全图上限 ENEMY_MAX
+  spawnTimer++;
+  if (spawnTimer >= ENEMY_SPAWN_CD) {
+    spawnTimer = 0;
+    if (enemies.length < ENEMY_MAX) {
+      const type = ENEMY_SPAWN_TYPES[(Math.random() * ENEMY_SPAWN_TYPES.length) | 0];
+      const pos = findSpawnPos(ET[type].w, ET[type].h);
+      if (pos) enemies.push(mkEnemy(type, pos.x, pos.y));
+    }
+  }
+
   for (const en of enemies) { ai(en); enPhys(en); }
 
   // 玩家子弹 vs 怪物/墙
@@ -1350,8 +1489,10 @@ function update() {
     // 打敌人：接触边 = 敌人靠近子弹那一侧的表面
     for (let j = enemies.length - 1; j >= 0; j--) {
       const en = enemies[j];
-      if (overlap(br, { x: en.x, y: en.y, w: en.w, h: en.h })) {
-        hit = true; if (dmgEnemy(en, b.dmg)) enemies.splice(j, 1);
+      if (collide(br, enShape(en))) {
+        hit = true;
+        if (dmgEnemy(en, b.dmg)) enemies.splice(j, 1);
+        else knockEnemy(en, b.dir, 0, 1.5);  // X 子弹命中：沿子弹方向水平轻微击退
         const sx = b.dir > 0 ? en.x : en.x + en.w;
         if (b.dir > 0) { if (sx > hitSurfaceX) hitSurfaceX = sx; }
         else           { if (sx < hitSurfaceX) hitSurfaceX = sx; }
@@ -1359,7 +1500,7 @@ function update() {
     }
     // 命中特效：以接触表面为中线（一半在目标内、一半在目标外）
     if (hit) spawnHitEffect(hitSurfaceX, hitY, b.dir, b.type);  // 命中特效（不延迟移除）
-    if (hit || b.life <= 0 || b.x < camera.x - 22 || b.x > camera.x + VW / VIEW_SCALE + 22) bullets.splice(i, 1);
+    if (hit || b.life <= 0 || b.x < camera.x - 22 || b.x > camera.x + VW / (camera.zoom * VIEW_SCALE) + 22) bullets.splice(i, 1);
   }
 
   // 敌人子弹 vs 玩家
@@ -1373,13 +1514,13 @@ function update() {
       if (map[r * LW + c] === 0) continue;
       if (overlap(br, { x: c * TILE, y: r * TILE, w: TILE, h: TILE })) hw = true;
     }
-    if (hw || b.life <= 0 || b.x < camera.x - 22 || b.x > camera.x + VW / VIEW_SCALE + 22 || b.y < -22 || b.y > VH / VIEW_SCALE + 22) eBullets.splice(i, 1);
+    if (hw || b.life <= 0 || b.x < camera.x - 22 || b.x > camera.x + VW / (camera.zoom * VIEW_SCALE) + 22 || b.y < -22 || b.y > VH / (camera.zoom * VIEW_SCALE) + 22) eBullets.splice(i, 1);
   }
 
   // 玩家碰怪物
   if (p.invT <= 0) {
     for (const en of enemies) {
-      if (overlap(pr, { x: en.x, y: en.y, w: en.w, h: en.h })) {
+      if (collide(pr, enShape(en))) {
         dmgPlayer(ET[en.type].boss ? 3 : 1);
       }
     }
@@ -1536,12 +1677,20 @@ function drawHitboxes() {
   ctx.fillRect(p.x, p.y, p.w, p.h);
   ctx.strokeRect(p.x, p.y, p.w, p.h);
 
-  // 敌人碰撞盒（红色）
+  // 敌人碰撞盒（红色）：圆形怪物（浮游眼）画圆，其余画矩形
   ctx.fillStyle = 'rgba(255, 60, 60, 0.25)';
   ctx.strokeStyle = 'rgba(255, 60, 60, 0.8)';
   for (const en of enemies) {
-    ctx.fillRect(en.x, en.y, en.w, en.h);
-    ctx.strokeRect(en.x, en.y, en.w, en.h);
+    const s = enShape(en);
+    if (s.r !== undefined) {
+      ctx.beginPath();
+      ctx.arc(s.cx, s.cy, s.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      ctx.fillRect(s.x, s.y, s.w, s.h);
+      ctx.strokeRect(s.x, s.y, s.w, s.h);
+    }
   }
 
   // 子弹碰撞盒（黄色）
@@ -1691,20 +1840,24 @@ function drawMeleeEffect(p, cx, cy) {
   const s = targetH / bw * stageMult; // 缩放系数（含段数放大）
   const dispW = bh * s;            // 旋转后宽度（刀光长度方向）
 
-  // 刀光锚点：从角色中心向前方偏移 dispW/2，使刀光整体位于角色前方，不压住身体
-  const anchorX = cx + p.facing * (dispW / 2);
-  const anchorY = cy;
+  // 刀光锚点：水平挥砍从角色中心向前方偏移 dispW/2，使刀光整体位于角色前方，不压住身体；
+  // 上攻击锚点固定在头顶上方，斩击随角色上升一起移动
+  let anchorX, anchorY, rot;
+  if (p.upAtk) {
+    anchorX = cx;
+    anchorY = cy - P.PH * 0.6;
+    // 面朝右：逆时针旋转 175°（尖端朝右上、接近垂直）；面朝左：镜像顺时针 175°
+    rot = p.facing > 0 ? -175 * Math.PI / 180 : 175 * Math.PI / 180;
+  } else {
+    anchorX = cx + p.meleeDir * (dispW / 2);
+    anchorY = cy;
+    rot = p.meleeDir > 0 ? -Math.PI / 2 : Math.PI / 2;
+  }
 
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.translate(anchorX, anchorY);
-  if (p.facing > 0) {
-    // 面朝右：刀光尖端指向右。blade 原「下方」指向怪物 → 逆时针旋转 90°
-    ctx.rotate(-Math.PI / 2);
-  } else {
-    // 面朝左：刀光尖端指向左 = 面朝右的镜像
-    ctx.rotate(Math.PI / 2);
-  }
+  ctx.rotate(rot);
   // blade 绘制：原图中心对齐锚点，下方（尖端）在旋转后指向怪物方向
   ctx.drawImage(BLADE.img, -bw * s / 2, -bh * s / 2, bw * s, bh * s);
   ctx.restore();
@@ -1719,13 +1872,15 @@ function drawMeleeEffectFallback(p, cx, cy) {
   const arc = MELEE_STAGES[idx].arc;
   const progress = p.melee / MELEE_ACTIVE;
   const alpha = progress;
-  const baseAng = p.facing > 0 ? 0 : Math.PI;
+  // 上攻击：扇形朝上；水平攻击：扇形朝面朝方向
+  const baseAng = p.upAtk ? -Math.PI / 2 : (p.meleeDir > 0 ? 0 : Math.PI);
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.fillStyle = 'rgba(120,220,255,0.25)';
   ctx.beginPath();
   ctx.moveTo(cx, cy);
-  ctx.arc(cx, cy, range, baseAng - arc / 2, baseAng + arc / 2, p.facing > 0 ? false : true);
+  // 上攻击扇形始终朝上（角度递增覆盖正上方）；水平攻击朝面朝方向
+  ctx.arc(cx, cy, range, baseAng - arc / 2, baseAng + arc / 2, p.upAtk ? false : p.meleeDir < 0);
   ctx.closePath();
   ctx.fill();
   ctx.restore();
@@ -1891,6 +2046,9 @@ function drawUI() {
     ctx.fillRect(hx, cy, hw * cr, 6);
   }
 
+  // 屏幕外怪物方向指示箭头（位于屏幕边缘，尖端指向怪物实际方向）
+  drawOffscreenIndicators();
+
   if (player.hp <= 0) {
     ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, VW, VH);
     ctx.fillStyle = '#f33'; ctx.font = 'bold 36px "Courier New"'; ctx.textAlign = 'center';
@@ -1905,6 +2063,51 @@ function drawUI() {
   document.getElementById('db-enemies').textContent = `${enemies.length}`;
   document.getElementById('db-pos').textContent = `${Math.round(player.x / MAP_W * 100)}%`;
   updateCharUI();
+}
+
+// 屏幕外怪物方向指示：怪物不在视野内时，在屏幕边缘对应方向画三角箭头提示。
+// 箭头位置 = 屏幕中心到怪物位置的射线与屏幕边界（内缩 margin）的交点，随怪物移动实时更新。
+function drawOffscreenIndicators() {
+  const margin = 14, ccx = VW / 2, ccy = VH / 2;
+  const placed = [];
+  for (const en of enemies) {
+    // 世界坐标 → 屏幕坐标（与 render 的世界变换同口径）
+    const sx = (en.x + en.w / 2 - camera.x) * camera.zoom * VIEW_SCALE;
+    const sy = (en.y + en.h / 2 - camera.y) * camera.zoom * VIEW_SCALE;
+    if (sx > 0 && sx < VW && sy > 0 && sy < VH) continue;   // 在视野内，不显示
+    const dx = sx - ccx, dy = sy - ccy;
+    if (dx === 0 && dy === 0) continue;
+    // 射线 (中心 → 怪物) 与内缩边界矩形求最近交点
+    let t = Infinity;
+    if (dx > 0) t = Math.min(t, (VW - margin - ccx) / dx);
+    else if (dx < 0) t = Math.min(t, (margin - ccx) / dx);
+    if (dy > 0) t = Math.min(t, (VH - margin - ccy) / dy);
+    else if (dy < 0) t = Math.min(t, (margin - ccy) / dy);
+    if (!isFinite(t)) continue;
+    const px = ccx + dx * t, py = ccy + dy * t;
+    // 同方向去重：与已画箭头距离过近则合并（避免大量怪物箭头叠成一团）
+    let dup = false;
+    for (const q of placed) {
+      if ((q.x - px) * (q.x - px) + (q.y - py) * (q.y - py) < 100) { dup = true; break; }
+    }
+    if (dup) continue;
+    placed.push({ x: px, y: py });
+    // 三角箭头：尖端指向怪物所在方向，用怪物类型颜色
+    const ang = Math.atan2(sy - py, sx - px);
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(ang);
+    ctx.globalAlpha = 0.95;
+    ctx.fillStyle = (ET[en.type] && ET[en.type].col) || '#f66';
+    ctx.beginPath();
+    ctx.moveTo(9, 0); ctx.lineTo(-5, -6); ctx.lineTo(-5, 6); ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 0.35;   // 尾部小三角，指示更明显
+    ctx.beginPath();
+    ctx.moveTo(-5, -4); ctx.lineTo(-13, 0); ctx.lineTo(-5, 4); ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 // 更新角色切换按钮高亮（当前角色高亮显示）
@@ -2001,8 +2204,8 @@ function setEditMode(on) {
     updateToolUI();
     // 进入编辑模式时清空子弹和粒子残留，重置所有怪物到初始状态
     bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = []; meleeHitEffects = []; hitstop = 0;
-    const data = levelData || DEFAULT_LEVEL;
-    enemies = spawnEnemiesFromData(data);
+    // 敌人改为自动生成，进入编辑模式不加载关卡敌人
+    enemies = [];
   } else {
     // 退出编辑模式前验证出生点合法性
     const ps = getPlayerSpawn();
@@ -2014,10 +2217,10 @@ function setEditMode(on) {
     editorToolbar.classList.remove('active');
     editorPanel.classList.remove('active');
     // 退出编辑模式时重置摄像机，定位到玩家居中位置
-    camera.zoom = 1.0;
+    camera.zoom = 0.7;
     const mapH = LH * TILE;
-    camera.x = Math.max(0, Math.min(MAP_W - VW / VIEW_SCALE, player.x + player.w / 2 - VW / VIEW_SCALE / 2));
-    camera.y = Math.max(0, Math.min(mapH - VH / VIEW_SCALE, player.y + player.h / 2 - VH / VIEW_SCALE / 2));
+    camera.x = Math.max(0, Math.min(MAP_W - VW / (camera.zoom * VIEW_SCALE), player.x + player.w / 2 - VW / (camera.zoom * VIEW_SCALE) / 2));
+    camera.y = Math.max(0, Math.min(mapH - VH / (camera.zoom * VIEW_SCALE), player.y + player.h / 2 - VH / (camera.zoom * VIEW_SCALE) / 2));
     isPanning = false;
     isDraggingPlayer = false;
     canvas.style.cursor = '';
@@ -2058,7 +2261,7 @@ function isSpawnValid(sx, sy) {
   }
   // 检查是否与任何敌人碰撞
   for (const en of enemies) {
-    if (overlap(rect, { x: en.x, y: en.y, w: en.w, h: en.h })) return false;
+    if (collide(rect, enShape(en))) return false;
   }
   // 检查是否超出地图边界
   if (sx < 0 || sy < 0 || sx + P.PW > MAP_W) return false;
@@ -2099,7 +2302,7 @@ function doEditAction() {
       const ey = mouseWorldY - th / 2;
       const nr = { x: ex, y: ey, w: tw, h: th };
       // 冲突检测：不与已有怪物重叠，不与地形重叠
-      const clashEnemy = enemies.some(en => overlap(nr, { x: en.x, y: en.y, w: en.w, h: en.h }));
+      const clashEnemy = enemies.some(en => collide(nr, enShape(en)));
       let clashTile = false;
       for (let r = 0; r < LH; r++) for (let c = 0; c < LW; c++) {
         if (map[r * LW + c] === 0) continue;
@@ -2249,14 +2452,8 @@ function exportLevelJSON() {
   }
   // 压缩: 合并连续的行列
   const compressed = compressTiles(tiles);
-  const enemyData = enemies.map(en => {
-    const e = { type: en.type, x: Math.round(en.x), y: Math.round(en.y) };
-    if (en.type === 'soldier') {
-      e.patrolMin = en.pMin;
-      e.patrolMax = en.pMax;
-    }
-    return e;
-  });
+  // 敌人改为自动生成，不再写入关卡数据（导出空数组）
+  const enemyData = [];
   const ps = getPlayerSpawn();
   return JSON.stringify({
     width: LW, height: LH, tileSize: TILE,
