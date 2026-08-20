@@ -361,6 +361,40 @@ function loadBladeStrip(key) {
 const BLADE1 = [loadBladeStrip('blade1-1'), loadBladeStrip('blade1-2'), loadBladeStrip('blade1-3')];
 // 上劈刀光资源：up-blade（7 帧斜上挥砍，右对齐绘制）
 const UP_BLADE = loadBladeStrip('up-blade');
+// 升龙斩刀光资源：up-shoryu（6 帧升龙弧光，素材为角色面朝左侧的动画，左对齐绘制）
+const UP_SHORYU = loadBladeStrip('up-shoryu');
+// 圆月斩刀光资源：air-blade（8 帧空中圆月斩，素材为角色面朝右侧，左侧镜像对称）
+const AIR_BLADE = loadBladeStrip('air-blade');
+// 滞空斩刀光资源：blast-blade（5 帧第一部分）+ blast-blade2（3 帧第二部分）
+const BLAST_BLADE = loadBladeStrip('blast-blade');
+const BLAST_BLADE2 = loadBladeStrip('blast-blade2');
+// 下劈斩刀光资源：down-blade（7 帧循环，向下前方斜劈）
+const DOWN_BLADE = loadBladeStrip('down-blade');
+// 冲刺斩刀光资源：dash-blade2（8 帧序列帧，向右冲刺斩，向左镜像）
+const DASH_BLADE = loadBladeStrip('dash-blade2');
+// 旋风斩刀光资源：storm-blade（4 帧环绕旋风刀光，中心对齐角色）
+const STORM_BLADE = loadBladeStrip('storm-blade');
+// 斩击波资源：storm-blade2（单帧 360° 斩击波，去白底透明整图，无 strip）
+function loadStormBlade2() {
+  const entry = { img: new Image(), frames: [], fw: 1, fh: 1, fps: 10, loaded: false };
+  entry.img.onload = () => { entry.loaded = true; };
+  fetch('Assets/Assets-Clean/storm-blade2_frames.json')
+    .then(r => r.json())
+    .then(data => {
+      const rawFrames = data.frames || [];
+      entry.fps = data.fps || 10;
+      if (rawFrames.length > 0) {
+        entry.fw = rawFrames[0].w;
+        entry.fh = rawFrames[0].h;
+        // 单帧整图：坐标直接用 frames.json 里的（x=0,y=0,w,h）
+        entry.frames = rawFrames.map(f => ({ x: f.x, y: f.y, w: f.w, h: f.h }));
+      }
+    })
+    .catch(() => { entry.frames = []; });
+  entry.img.src = 'Assets/Assets-Clean/storm-blade2_clean.png';
+  return entry;
+}
+const STORM_BLADE2 = loadStormBlade2();
 // 根据玩家当前挥砍段数取对应刀光资源（meleeCurStage 1/2/3，空中固定 2 → blade1-2）
 function bladeEntryFor(p) {
   const idx = Math.max(0, Math.min(p.meleeCurStage - 1, BLADE1.length - 1));
@@ -373,6 +407,10 @@ function playerAnimKey(p, mx) {
   const moving = mx !== 0;
   const airborne = !p.grounded || p.landing;   // 落地收尾期间仍算空中，继续播 jump/jumpShoot 尾段
 
+  // 冲刺斩 / 下劈斩：持续读取 dash 动画（第二帧定格，见动画状态机）
+  if (p.dashAtkT > 0 || p.downT > 0) {
+    return 'dash';
+  }
   // 地面冲刺优先（高于下蹲）：仅 isDash（地面冲刺）播 dash；dashAir（空中冲刺跳）走 jump 分支
   if (p.isDash) {
     return shooting ? 'dashShoot' : 'dash';
@@ -654,6 +692,7 @@ let hitEffects = [];      // 命中特效（hit 动画，瞬时，不延迟子�
 let hitstop = 0;          // hitstop 剩余帧数（Zero 挥砍命中时仅角色与被攻击敌人定格）
 let hitstopTargets = [];  // 本次 hitstop 冻结的敌人列表（其余单位/物体不受影响）
 let meleeHitEffects = []; // Zero 近战受击特效（通用 hit 动画，画在怪物上层，区别于 X 射击的 bullet-hit）
+let stormWaves = [];      // 旋风斩斩击波（storm-blade2，左右水平飞行，撞怪/墙消失）
 // 受击白色剪影用的离屏画布（source-in 涂白，只覆盖怪物形状本身）
 const HIT_CANVAS_SIZE = 64, HIT_CANVAS_HALF = HIT_CANVAS_SIZE / 2;
 const hitCanvas = document.createElement('canvas');
@@ -701,6 +740,29 @@ function spawnMeleeHitEffect(x, y, dir) {
 }
 function spawnEBullet(x, y, vx, vy) {
   eBullets.push({ x, y, vx, vy, w: 3, h: 3, life: 90 });
+}
+// 旋风斩斩击波：从角色两侧水平发射。dir 为飞行方向（1 右 / -1 左），
+// mirror 为绘制镜像（右侧资源原样 1，左侧镜像 -1）。
+// storm-blade2 素材为「朝右发射的斩击波」（内容包围盒 327×189，主体偏右、波前朝右）。
+// 碰撞体积用内容尺寸（非整图），高度约 1 个角色高，从角色中心水平射出，避免底部穿地面墙。
+function spawnStormWave(dir, mirror) {
+  const p = player;
+  const entry = STORM_BLADE2;
+  if (!entry || !entry.loaded || entry.frames.length === 0) return;
+  // 显示尺寸：斩击波内容高 ≈ 角色高度的一半
+  const scale = P.PH / entry.fh * 0.5;
+  const dispW = entry.fw * scale;
+  const dispH = entry.fh * scale;
+  const cx = p.x + p.w / 2;
+  const cy = p.y + p.h / 2;
+  stormWaves.push({
+    x: cx, y: cy,
+    vx: STORM_WAVE_SPEED * dir,
+    dir, mirror,
+    w: dispW, h: dispH,
+    life: 60,
+    animT: 0,
+  });
 }
 function spawnPart(x, y, n, col) {
   for (let i = 0; i < n; i++) {
@@ -952,6 +1014,15 @@ const player = {
   meleeCurStage: 1,  // 当前这次挥砍的段数（供绘制/范围显示，空中固定第 2 段）
   upAtk: false,      // 本次挥砍是否为上方向攻击（地面按住 W + 攻击触发）
   jumpCount: 0,      // 已跳次数（0=未跳 1=已跳一次 2=二段跳已用，落地重置）
+  stormT: 0,         // 旋风斩剩余帧（>0 表示正在旋风斩；动画播完瞬间发射斩击波）
+  shoryuT: 0,        // 升龙斩剩余帧（>0 表示升龙斩击进行中）
+  jHoldT: 0,         // 按住 J 的累计帧数（升龙派生判定）
+  airAtk: false,     // 本次挥砍是否为空中圆月斩（空中按 J 触发，用 air-blade 资源）
+  floatT: 0,         // 滞空斩剩余帧（>0 表示滞空斩进行中；全程角色悬浮不下降）
+  downT: 0,          // 下劈斩剩余帧（>0 表示下劈斩进行中；冲刺直到撞障碍物）
+  downDir: 1,        // 下劈斩冲刺方向（锁定触发时 facing，1 右 -1 左）
+  dashAtkT: 0,       // 冲刺斩剩余帧（>0 表示冲刺斩进行中；地面冲刺中按 J 触发）
+  dashAtkDir: 1,     // 冲刺斩方向（锁定触发时 dashDir，1 右 -1 左）
 };
 
 // ==================== 角色切换（X / Zero） ====================
@@ -979,7 +1050,7 @@ function snapshotPlayer() {
     crouch: p.crouch, forcedCrouch: p.forcedCrouch,
     animF: p.animF, animT: p.animT, animKey: p.animKey,
     melee: p.melee, meleeCd: p.meleeCd, meleeCombo: p.meleeCombo, meleeReset: p.meleeReset, meleeFinalLock: p.meleeFinalLock, meleeCurStage: p.meleeCurStage, meleeDir: p.meleeDir,
-    upAtk: p.upAtk, jumpCount: p.jumpCount,
+    upAtk: p.upAtk, jumpCount: p.jumpCount, shoryuT: p.shoryuT, jHoldT: p.jHoldT, stormT: p.stormT, airAtk: p.airAtk, floatT: p.floatT, downT: p.downT, downDir: p.downDir, dashAtkT: p.dashAtkT, dashAtkDir: p.dashAtkDir,
   };
 }
 
@@ -1006,13 +1077,13 @@ function switchCharacter(name) {
       crouch: false, forcedCrouch: false,
       animF: 0, animT: 0, animKey: '',
       melee: 0, meleeCd: 0, meleeCombo: 0, meleeReset: 0, meleeFinalLock: 0, meleeCurStage: 1, meleeDir: 1,
-      upAtk: false, jumpCount: 0,
+      upAtk: false, jumpCount: 0, shoryuT: 0, jHoldT: 0, stormT: 0, airAtk: false, floatT: 0, downT: 0, downDir: 1, dashAtkT: 0, dashAtkDir: 1,
     });
     charStates[name] = snapshotPlayer();
   }
   curChar = name;
   // 切换时清空全局子弹/特效残留
-  bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = []; meleeHitEffects = []; hitstop = 0; hitstopTargets.length = 0;
+  bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = []; meleeHitEffects = []; stormWaves = []; hitstop = 0; hitstopTargets.length = 0;
   updateCharUI();
 }
 
@@ -1029,6 +1100,28 @@ const MELEE_UP_CD = 20;      // 上劈独立间隔（0.33s = 20 帧），不参�
 const MELEE_UP_DMG = 3;      // 上劈每次命中伤害（默认与水平挥砍第 2 段相同，可独立调整）
 const MELEE_RESET = 18;      // 连击重置窗口（0.3s = 18 帧，超过未攻击则重置回第 1 段）
 const MELEE_FINAL_LOCK = 24; // 第三段后的硬直（0.4s = 24 帧，期间不能攻击）
+const MELEE_SHORYU_DMG = 5;      // 升龙斩每次命中伤害（接近水平第三段）
+const MELEE_SHORYU_CD = 30;      // 升龙后攻击冷却（0.5s = 30 帧）
+const MELEE_SHORYU_CHARGE = 12;  // 按住 J 0.2s = 12 帧触发升龙（60fps）
+const MELEE_SHORYU_VY = -5.41;   // 升龙垂直初速：最大高度 ≈ 60.9px = 跳跃(67.7px)的 0.9 倍
+const MELEE_SHORYU_VX = 0.95;    // 升龙水平初速：80° 仰角的水平分量
+const MELEE_SHORYU_DURS = [3, 3, 3, 3, 3, 3];  // 升龙斩 6 帧 × 3 = 18 帧
+const MELEE_STORM_DMG = 3;      // 旋风斩每次命中伤害（与上劈/中段一致）
+const MELEE_STORM_CD = 30;      // 旋风斩后攻击冷却（0.5s = 30 帧）
+const MELEE_STORM_DURS = [4, 5, 4, 5];  // 旋风斩 4 帧 × 约 18 帧总时长（4+5+4+5=18）
+const MELEE_AIR_DURS = [2, 2, 2, 2, 2, 2, 3, 3];  // 圆月斩 8 帧 × 18 帧总时长（6×2 + 2×3 = 18）
+const MELEE_FLOAT_DMG = 5;       // 滞空斩伤害（第一/第二部分一致）
+const MELEE_FLOAT_CD = 36;       // 滞空斩后攻击冷却（0.6s = 36 帧）
+const MELEE_FLOAT_STALL = 0;     // 两部分之间停滞帧数（0 = 无停滞，直接衔接）
+const MELEE_FLOAT_DURS1 = [3, 3, 3, 3, 3];  // blast-blade 5 帧 × 3 = 15 帧
+const MELEE_FLOAT_DURS2 = [4, 4, 4];        // blast-blade2 3 帧 × 4 = 12 帧
+const MELEE_DOWN_DMG = 5;       // 下劈斩伤害（与升龙/滞空斩一致）
+const MELEE_DOWN_SPEED = 8.0;   // 下劈斩冲刺速度（向下前方 45° 合成速度）
+const MELEE_DOWN_DUR = 2;       // down-blade 每帧时长（循环播放）
+const MELEE_DASH_DMG = 5;       // 冲刺斩伤害
+const MELEE_DASH_T = 42;        // 冲刺斩时长（2 倍普通冲刺 DASH_TIME=21 帧）
+const STORM_WAVE_SPEED = 6.1;   // 斩击波飞行速度（与子弹一致）
+const STORM_WAVE_DMG = 3;       // 斩击波伤害（与旋风斩一致）
 const HITSTOP = 3;        // 挥砍命中全冻结 0.05s（60fps = 3 帧，仅 Zero 近战触发）
 
 function reset() {
@@ -1041,12 +1134,12 @@ function reset() {
     crouch: false, forcedCrouch: false,
     animF: 0, animT: 0, animKey: '',
     melee: 0, meleeCd: 0, meleeCombo: 0, meleeReset: 0, meleeFinalLock: 0, meleeCurStage: 1, meleeDir: 1,
-    upAtk: false, jumpCount: 0,
+    upAtk: false, jumpCount: 0, shoryuT: 0, jHoldT: 0, stormT: 0, airAtk: false, floatT: 0, downT: 0, downDir: 1, dashAtkT: 0, dashAtkDir: 1,
   });
   // 重置两个角色的独立状态快照
   charStates.X = null; charStates.Zero = null;
   charStates[curChar] = snapshotPlayer();
-  bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = []; meleeHitEffects = []; hitstop = 0; hitstopTargets.length = 0;
+  bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = []; meleeHitEffects = []; stormWaves = []; hitstop = 0; hitstopTargets.length = 0;
   camera.x = 0;
   spawnAll();
 }
@@ -1173,8 +1266,140 @@ function meleeFrameIndex(p, total, durs) {
   return Math.min(total - 1, durs.length - 1);
 }
 
+// 滞空斩时间轴：总 37 帧 = blast-blade(15) + 停滞(10) + blast-blade2(12)
+// 返回当前阶段资源与帧；停滞阶段返回 blast-blade 最后一帧（保持画面）
+function floatBladeInfo(p) {
+  const T1 = 15, TSTALL = MELEE_FLOAT_STALL, T2 = 12;
+  const total = T1 + TSTALL + T2;
+  const elapsed = total - p.floatT;  // 已播放帧数
+  if (elapsed < T1) {
+    // 第一部分：blast-blade
+    const entry = BLAST_BLADE;
+    if (entry.loaded && entry.frames.length > 0) {
+      let acc = 0, idx = 0;
+      for (let i = 0; i < entry.frames.length; i++) { acc += MELEE_FLOAT_DURS1[i]; if (elapsed < acc) { idx = i; break; } if (i === entry.frames.length - 1) idx = i; }
+      return { entry, f: entry.frames[idx], stage: 1 };
+    }
+  } else if (elapsed < T1 + TSTALL) {
+    // 停滞：保持 blast-blade 最后一帧
+    const entry = BLAST_BLADE;
+    if (entry.loaded && entry.frames.length > 0) {
+      return { entry, f: entry.frames[entry.frames.length - 1], stage: 1 };
+    }
+  } else {
+    // 第二部分：blast-blade2
+    const entry = BLAST_BLADE2;
+    if (entry.loaded && entry.frames.length > 0) {
+      const e2 = elapsed - T1 - TSTALL;  // 0..11
+      let acc = 0, idx = 0;
+      for (let i = 0; i < entry.frames.length; i++) { acc += MELEE_FLOAT_DURS2[i]; if (e2 < acc) { idx = i; break; } if (i === entry.frames.length - 1) idx = i; }
+      return { entry, f: entry.frames[idx], stage: 2 };
+    }
+  }
+  return null;
+}
+
 function meleeRect(stage) {
   const p = player;
+  // 冲刺斩：判定框覆盖角色前方（dash-blade2 8 帧循环，顺时针旋转 90°，向右冲刺斩，向左镜像）
+  if (p.dashAtkT > 0) {
+    const db = DASH_BLADE;
+    if (db.loaded && db.frames.length > 0) {
+      const total = db.frames.length;
+      const f = db.frames[Math.floor((MELEE_DASH_T - p.dashAtkT) / 3) % total];
+      const ds = P.PH / db.fh * 2.4;
+      const dw = f.w * ds, dh = f.h * ds;
+      const cx = p.x + p.w / 2;
+      const cy = p.y + p.h / 2;
+      // 顺时针旋转 90°：刀光从竖向变横向，AABB 宽高互换
+      const rw = dh / 2, rh = dw / 2;
+      const ox = p.dashAtkDir * (dw / 2);
+      return { x: cx + ox - rw, y: cy - rh, w: rw * 2, h: rh * 2 };
+    }
+  }
+  // 下劈斩：判定框跟随 down-blade 刀光（7 帧循环，逆时针旋转 45°，左下方下劈），
+  // 右下方镜像。锚点位于角色前方下方。
+  if (p.downT > 0) {
+    const db = DOWN_BLADE;
+    if (db.loaded && db.frames.length > 0) {
+      const ds = P.PH / db.fh * 0.75 * 1.2;
+      // 循环播放：elapsed 用 downT 递减推导（downT 从 999 递减，用帧循环）
+      const total = db.frames.length;
+      const fIdx = Math.floor((999 - p.downT) / MELEE_DOWN_DUR) % total;
+      const f = db.frames[fIdx];
+      const dw = f.w * ds, dh = f.h * ds;
+      const cx = p.x + p.w / 2;
+      const cy = p.y + p.h / 2;
+      // 逆时针 45° 旋转后 AABB 近似（宽高互换取对角）
+      const rot = Math.SQRT1_2;  // cos45
+      const rw = (dw + dh) * rot * 0.5;
+      const rh = (dw + dh) * rot * 0.5;
+      const ox = p.downDir * rw;
+      const oy = rh * 0.8;
+      return { x: cx + ox - rw, y: cy + oy - rh, w: rw * 2, h: rh * 2 };
+    }
+  }
+  // 滞空斩：判定框跟随当前阶段刀光（blast-blade / 停滞 / blast-blade2），
+  // 锚点居中偏前（面朝方向），与 drawMeleeEffectFloat 完全一致。
+  if (p.floatT > 0) {
+    const info = floatBladeInfo(p);
+    if (info) {
+      const { entry, f } = info;
+      const fs = P.PH / entry.fh * 1.5 * (info.stage === 2 ? 1.1 : 0.8);
+      const dw = f.w * fs, dh = f.h * fs;
+      const cx = p.x + p.w / 2;
+      const cy = p.y + p.h / 2;
+      const refW = entry.fw * fs;
+      const anchorX = cx + p.facing * (refW * 0.2 + p.w);
+      return { x: anchorX - dw / 2, y: cy - dh / 2, w: dw, h: dh };
+    }
+  }
+  // 旋风斩：判定框覆盖角色周围（storm-blade 环绕刀光，中心对齐角色），
+  // 与 drawMeleeEffectStorm 的中心对齐一致。
+  if (p.stormT > 0) {
+    const sb = STORM_BLADE;
+    if (sb.loaded && sb.frames.length > 0) {
+      const ss = P.PH / sb.fh * 1.5 * 1.1;  // 缩小一半（原 2.2 → 1.1）
+      const total = sb.frames.length;
+      const f = sb.frames[meleeFrameIndex(p, total, MELEE_STORM_DURS)];
+      const sw = f.w * ss, sh = f.h * ss;
+      const cx = p.x + p.w / 2;
+      const cy = p.y + p.h / 2;
+      return { x: cx - sw / 2, y: cy - sh / 2, w: sw, h: sh };
+    }
+  }
+  // 升龙斩：判定框跟随 up-shoryu 序列帧（6 帧，左对齐，与 drawMeleeEffectShoryu 完全一致）
+  if (p.shoryuT > 0) {
+    const up = UP_SHORYU;
+    if (up.loaded && up.frames.length > 0) {
+      const us = P.PH / up.fh * 1.5 * 1.5;  // 放大到 1.5 倍
+      const total = up.frames.length;
+      const f = up.frames[meleeFrameIndex(p, total, MELEE_SHORYU_DURS)];
+      const uw = f.w * us, uh = f.h * us;
+      const cx = p.x + p.w / 2;
+      const cy = p.y + p.h / 2;
+      // 左对齐：刀光左边缘贴锚点；锚点位于角色中心偏上、偏前（面朝方向）
+      const refW = up.fw * us;
+      const anchorX = cx + p.facing * (refW * 0.2 + p.w);
+      const anchorY = cy - P.PH * 0.55;
+      const rx = p.facing > 0 ? anchorX - uw : anchorX;
+      return { x: rx, y: anchorY - uh / 2, w: uw, h: uh };
+    }
+  }
+  // 空中圆月斩：用 air-blade 序列帧（8 帧，面朝右侧），锚点居中（圆月斩环绕角色），
+  // 与 drawMeleeEffectAir 完全一致。面朝左时水平镜像。
+  if (p.airAtk) {
+    const ab = AIR_BLADE;
+    if (ab.loaded && ab.frames.length > 0) {
+      const as = P.PH / ab.fh * 1.8 * 1.8 * 0.8;
+      const total = ab.frames.length;
+      const f = ab.frames[meleeFrameIndex(p, total, MELEE_AIR_DURS)];
+      const dw = f.w * as, dh = f.h * as;
+      const cx = p.x + p.w / 2;
+      const cy = p.y + p.h / 2;
+      return { x: cx - dw / 2, y: cy - dh / 2, w: dw, h: dh };
+    }
+  }
   const entry = !p.upAtk ? bladeEntryFor(p) : null;
   const useBlade = entry && entry.loaded && entry.frames.length > 0;
   if (useBlade) {
@@ -1244,7 +1469,17 @@ function doMelee(stage) {
 function doMeleeHit(stage) {
   const p = player;
   let dmg;
-  if (p.upAtk) {
+  if (p.dashAtkT > 0) {
+    dmg = MELEE_DASH_DMG;
+  } else if (p.downT > 0) {
+    dmg = MELEE_DOWN_DMG;
+  } else if (p.floatT > 0) {
+    dmg = MELEE_FLOAT_DMG;
+  } else if (p.stormT > 0) {
+    dmg = MELEE_STORM_DMG;
+  } else if (p.shoryuT > 0) {
+    dmg = MELEE_SHORYU_DMG;
+  } else if (p.upAtk) {
     dmg = MELEE_UP_DMG;
   } else {
     const idx = stage - 1;
@@ -1259,8 +1494,13 @@ function doMeleeHit(stage) {
       if (en.meleeLock > 0) continue;   // 命中冷却中，本次不生效
       if (dmgEnemy(en, dmg)) enemies.splice(j, 1);
       else {
-        // 击退：上攻击向上弹开（2.5），水平挥砍沿挥砍方向弹开（2.0）
-        if (p.upAtk) knockEnemy(en, 0, -1, 2.5);
+        // 击退：冲刺斩沿冲刺方向弹开（3.0），下劈斩斜向弹开（向下前方），滞空斩水平弹开（2.5），升龙向上弹开（3.0），上攻击向上弹开（2.5），水平挥砍沿挥砍方向弹开（2.0）
+        if (p.dashAtkT > 0) knockEnemy(en, p.dashAtkDir, 0, 3.0);
+        else if (p.downT > 0) knockEnemy(en, p.downDir, 1, 3.0);
+        else if (p.floatT > 0) knockEnemy(en, p.meleeDir, 0, 2.5);
+        else if (p.stormT > 0) knockEnemy(en, 0, -1, 1.2);
+        else if (p.shoryuT > 0) knockEnemy(en, 0, -1, 3.0);
+        else if (p.upAtk) knockEnemy(en, 0, -1, 2.5);
         else knockEnemy(en, p.meleeDir, 0, 2.0);
         hitstopTargets.push(en);   // 记录本次停顿的冻结目标（仅存活的受击怪物）
       }
@@ -1327,48 +1567,133 @@ function update() {
     if (p.meleeCd > 0) p.meleeCd--;
     if (p.meleeReset > 0) { p.meleeReset--; if (p.meleeReset === 0) p.meleeCombo = 0; }
     if (p.meleeFinalLock > 0) p.meleeFinalLock--;
-    // 挥砍渐隐
-    if (p.melee > 0) p.melee--;
+    // 挥砍渐隐（滞空斩/下劈斩/冲刺斩期间 p.melee 保持 > 0，由 floatT/downT/dashAtkT 控制总时长）
+    if (p.melee > 0 && p.floatT <= 0 && p.downT <= 0 && p.dashAtkT <= 0) p.melee--;
+    // 冲刺斩倒计时：归 0 结束冲刺斩（或撞墙提前结束）
+    if (p.dashAtkT > 0) {
+      p.dashAtkT--;
+      if (p.dashAtkT === 0) { p.melee = 0; p.invT = 8; }
+    }
+    // 升龙斩击倒计时（与 melee 同步结束升龙状态）
+    if (p.shoryuT > 0) p.shoryuT--;
+    // 旋风斩倒计时：动画播完瞬间（stormT 从 1 归 0）发射左右两个斩击波
+    if (p.stormT > 0) {
+      p.stormT--;
+      if (p.stormT === 0) {
+        // 斩击波朝左右两侧同时发射，与角色面朝方向无关。
+        // 资源是「波前朝右」的斩击波：右飞原样(mirror=1)、左飞镜像(mirror=-1)。
+        spawnStormWave(1, 1);   // 右飞：dir=+1，波前朝右
+        spawnStormWave(-1, -1); // 左飞：dir=-1，波前朝左（镜像）
+      }
+    }
+    // 滞空斩倒计时：归 0 结束滞空状态（角色恢复自由落体）
+    if (p.floatT > 0) {
+      p.floatT--;
+      if (p.floatT === 0) p.melee = 0;  // 收尾：清空挥砍残留，结束刀光
+    }
+    // 下劈斩：由碰撞检测结束（downT 从 999 递减，撞障碍物时清零）；兜底防飞出边界无限无敌
+    if (p.downT > 0) {
+      p.downT--;
+      if (p.downT === 0) { p.melee = 0; p.invT = 8; }
+    }
 
     if (jPressed && jD && p.meleeCd === 0 && p.meleeFinalLock === 0) {
       jPressed = false;  // 消费按下沿：长按不连挥，每次挥砍都需要重新按攻击键
       let stage;
-      // 上攻击判定：仅地面按住 W 时触发（空中 W 无效，按普通攻击处理）
-      p.upAtk = p.grounded && wR;
-      if (p.upAtk) {
-        // 上劈：独立单段动作，不参与地面三段连击；每次间隔 20 帧（MELEE_UP_CD）
+      // 冲刺斩判定：地面冲刺（isDash）状态下按 J 触发，优先于其他地面攻击
+      if (p.isDash && p.grounded) {
+        // 冲刺斩：以冲刺动画第二帧姿态继续向前冲刺斩击，距离 2 倍普通冲刺
+        p.upAtk = false;
+        p.airAtk = false;
+        p.dashAtkDir = p.dashDir;
+        p.dashAtkT = MELEE_DASH_T;   // 42 帧 = 2 倍 DASH_TIME
+        p.meleeCd = MELEE_DASH_T;
+        p.meleeDir = p.dashDir;
+        p.melee = MELEE_ACTIVE;
+        p.meleeCurStage = 0;
+        p.invT = MELEE_DASH_T;       // 冲刺斩期间无敌
+        p.isDash = false;            // 退出普通冲刺，由冲刺斩接管（保持冲刺速度）
+        p.animF = 1; p.animT = 0;    // 冲刺动画第二帧
         stage = 0;
-        p.meleeCd = MELEE_UP_CD;
-      } else if (!p.grounded) {
-        // 空中攻击：固定第 2 段，不推进连击段数；使用独立 0.5s 间隔 CD
-        stage = 2;
-        p.meleeCd = MELEE_AIR_CD;
+      } else if (sR && p.grounded) {
+        // 旋风斩：原地旋风刀光（storm-blade 4 帧），动画播完发射左右斩击波
+        p.upAtk = false;
+        p.airAtk = false;
+        // 若处于下蹲，旋风斩瞬间站起（恢复站立碰撞盒，非强制蹲下时）
+        if (p.crouch && !p.forcedCrouch) { setPlayerBox(HITBOX.stand.w, HITBOX.stand.h); p.crouch = false; }
+        p.stormT = MELEE_ACTIVE;
+        p.meleeCd = MELEE_STORM_CD;
+        p.meleeDir = p.facing;
+        p.melee = MELEE_ACTIVE;
+        p.shootHold = 8;
+        p.meleeCurStage = 0;  // 标记为旋风斩（非三段连击）
+        doMelee(0);
+        if (p.grounded && !p.landing && mx === 0) { p.animF = 1; p.animT = 0; }
       } else {
-        // 地面攻击：连击推进（重置窗口内继续下一段，否则第 1 段；3 段后回到第 1 段）
-        stage = (p.meleeCombo >= 3) ? 1 : p.meleeCombo + 1;
-        p.meleeCombo = stage;
-        p.meleeReset = MELEE_RESET;
-        p.meleeCd = MELEE_CD;
-        // 第三段后硬直
-        if (stage === 3) p.meleeFinalLock = MELEE_FINAL_LOCK;
-        // 第三段上攻击：角色向上跃起（0.8 倍跳跃高度），斩击随角色一起上升。
-        // 跃起计为一次跳跃（jumpCount=1），空中仍可再接二段跳。
-        if (p.upAtk && stage === 3) {
-          p.vy = P.JUMP * 0.8;
-          p.grounded = false;
-          p.jumpCount = 1;
-          p.landing = false;
-          p.animF = 0; p.animT = 0;
+        // 上攻击判定：仅地面按住 W 时触发（空中 W 无效，按普通攻击处理）
+        p.upAtk = p.grounded && wR;
+        p.airAtk = false;
+        if (p.upAtk) {
+          // 上劈：独立单段动作，不参与地面三段连击；每次间隔 20 帧（MELEE_UP_CD）
+          stage = 0;
+          p.meleeCd = MELEE_UP_CD;
+        } else if (!p.grounded) {
+          // 空中攻击：按住 W 触发滞空斩（blast-blade → 停滞 10 帧 → blast-blade2），
+          // 否则为圆月斩（air-blade）
+          if (sR) {
+            // 下劈斩：向面朝方向下方 45° 冲刺，直到撞地面/墙结束。锁定触发时朝向。
+            p.airAtk = false;
+            p.downDir = p.facing;
+            p.downT = 999;  // 由碰撞检测结束（不会自然耗尽，除非撞障碍物）
+            p.meleeCd = MELEE_FLOAT_CD;
+            p.melee = MELEE_ACTIVE;
+            p.meleeCurStage = 0;
+            p.invT = 999;   // 下劈斩期间无敌
+            p.grounded = false;
+            p.animF = 0; p.animT = 0;  // 重置动画，播放 dash 第二帧
+            stage = 0;
+          } else if (wR) {
+            // 滞空斩：全程角色悬浮不下降，两部分刀光 + 中间停滞
+            p.airAtk = false;
+            p.floatT = 15 + MELEE_FLOAT_STALL + 12;  // 15 + 0 + 12 = 27 帧
+            p.meleeCd = MELEE_FLOAT_CD;
+            p.melee = MELEE_ACTIVE;
+            p.meleeCurStage = 0;
+            stage = 0;
+          } else {
+            // 空中攻击（圆月斩）：用 air-blade 资源替代跳跃斩击，固定第 2 段（伤害 3），
+            // 不推进连击段数；使用独立 0.5s 间隔 CD
+            stage = 2;
+            p.airAtk = true;
+            p.meleeCd = MELEE_AIR_CD;
+          }
+        } else {
+          // 地面攻击：连击推进（重置窗口内继续下一段，否则第 1 段；3 段后回到第 1 段）
+          stage = (p.meleeCombo >= 3) ? 1 : p.meleeCombo + 1;
+          p.meleeCombo = stage;
+          p.meleeReset = MELEE_RESET;
+          p.meleeCd = MELEE_CD;
+          // 第三段后硬直
+          if (stage === 3) p.meleeFinalLock = MELEE_FINAL_LOCK;
+          // 第三段上攻击：角色向上跃起（0.8 倍跳跃高度），斩击随角色一起上升。
+          // 跃起计为一次跳跃（jumpCount=1），空中仍可再接二段跳。
+          if (p.upAtk && stage === 3) {
+            p.vy = P.JUMP * 0.8;
+            p.grounded = false;
+            p.jumpCount = 1;
+            p.landing = false;
+            p.animF = 0; p.animT = 0;
+          }
         }
+        p.meleeCurStage = stage;  // 记录本次挥砍段数，供绘制/范围显示
+        // 挥砍朝向锁定：贴墙滑行时朝墙反方向（与 X 贴墙射击一致），否则跟随 facing
+        p.meleeDir = (p.wallSlide && p.onWall !== 0) ? -p.onWall : p.facing;
+        p.melee = MELEE_ACTIVE;
+        p.shootHold = 8;  // 挥砍进入短暂攻击动画
+        // 执行挥砍判定
+        doMelee(stage);
+        if (p.grounded && !p.landing && mx === 0) { p.animF = 1; p.animT = 0; }
       }
-      p.meleeCurStage = stage;  // 记录本次挥砍段数，供绘制/范围显示
-      // 挥砍朝向锁定：贴墙滑行时朝墙反方向（与 X 贴墙射击一致），否则跟随 facing
-      p.meleeDir = (p.wallSlide && p.onWall !== 0) ? -p.onWall : p.facing;
-      p.melee = MELEE_ACTIVE;
-      p.shootHold = 8;  // 挥砍进入短暂攻击动画
-      // 执行挥砍判定
-      doMelee(stage);
-      if (p.grounded && !p.landing && mx === 0) { p.animF = 1; p.animT = 0; }
     }
   } else {
     // === X 射击蓄力 ===
@@ -1402,6 +1727,37 @@ function update() {
         p.isChg = false; p.chgT = 0;
       }
     }
+  }
+
+  // 升龙斩派生：上劈（upAtk）挥砍中，继续按住 J 且仍按住 W、保持在地面，累计 0.2s(12帧) 触发。
+  // 触发后角色向面朝方向上方 80° 跃起（最大高度 ≈ 跳跃 0.9 倍），播放 up-shoryu 斩击（伤害 5）。
+  if (CHARS[curChar].melee && p.upAtk && p.melee > 0 && p.shoryuT <= 0) {
+    if (jD && wR && p.grounded) {
+      p.jHoldT++;
+      if (p.jHoldT >= MELEE_SHORYU_CHARGE) {
+        p.jHoldT = 0;
+        // 升龙：独立动作，覆盖当前上劈状态
+        p.upAtk = false;
+        p.shoryuT = MELEE_ACTIVE;   // 升龙斩击持续（与 melee 同步递减）
+        p.melee = MELEE_ACTIVE;     // 复用挥砍逐帧判定/渐隐
+        p.meleeDir = p.facing;
+        p.meleeCd = MELEE_SHORYU_CD;
+        // 80° 仰角初速度：垂直分量对应最大高度 60.9px（跳跃 0.9 倍），水平分量朝面朝方向
+        p.vy = MELEE_SHORYU_VY;
+        p.vx = p.facing * MELEE_SHORYU_VX;
+        p.grounded = false;
+        p.jumpCount = 1;            // 计为一次跳跃（空中仍可接二段跳）
+        p.isDash = false; p.dashAir = false;
+        p.landing = false;
+        p.animF = 0; p.animT = 0;
+        spawnPart(p.x + p.w / 2, p.y + p.h / 2, 8, '#f88');
+        doMelee(0);
+      }
+    } else {
+      p.jHoldT = 0;  // 松开 J / 松开 W / 离地 → 放弃升龙派生
+    }
+  } else {
+    p.jHoldT = 0;
   }
 
   // Dash 1
@@ -1439,7 +1795,21 @@ function update() {
     }
   }
   // 移动
-  if (!p.isDash && !p.dashAir) {
+  if (p.dashAtkT > 0) {
+    // 冲刺斩：保持冲刺速度向前斩击（锁定触发时 dashAtkDir），2 倍冲刺距离
+    p.vx = p.dashAtkDir * P.SPEED * P.DASH_MULT;
+  } else if (p.downT > 0) {
+    // 下劈斩：向面朝方向下方 45° 冲刺（锁定触发时朝向 downDir）
+    const sp = MELEE_DOWN_SPEED * 0.707;  // cos45 = sin45 ≈ 0.707
+    p.vx = p.downDir * sp;
+    p.vy = sp;
+  } else if (p.floatT > 0) {
+    // 滞空斩：全程悬浮，锁定水平位移
+    p.vx = 0;
+  } else if (p.shoryuT > 0 && p.vy < 0) {
+    // 升龙上升阶段：锁定水平位移（保持 80° 仰角轨迹），达到最大高度(vy>=0)后解锁自由移动
+    p.vx = p.facing * MELEE_SHORYU_VX;
+  } else if (!p.isDash && !p.dashAir) {
     if (p.wjLock > 0) { p.vx = p.wjDir * P.WALL_JUMP_X; }
     else {
       if (mx !== 0) p.facing = mx;   // 面向始终跟随方向键（下蹲时也允许左右选择朝向）
@@ -1483,8 +1853,8 @@ function update() {
       p.wjLock = P.WALL_LOCK; p.wjDir = -p.onWall; p.kCon = true;
       if (lR) { p.vx = -p.onWall * P.WALL_JUMP_X * P.DASH_MULT; p.dashAir = true; spawnPart(p.x + p.w / 2, p.y + p.h / 2, 6, '#aaf'); }
       else { p.vx = -p.onWall * P.WALL_JUMP_X; spawnPart(p.x + p.w / 2, p.y + p.h / 2, 6, '#8cf'); }
-    } else if (p.jumpCount < 2 && !jumpDone) {
-      // 二段跳：空中再次起跳，高度为原跳高的 0.8
+    } else if (p.jumpCount < 2 && !jumpDone && !(p.shoryuT > 0 && p.vy < 0) && p.floatT <= 0) {
+      // 二段跳：空中再次起跳，高度为原跳高的 0.8（升龙上升阶段/滞空斩期间禁止打断）
       p.vy = P.JUMP * 0.8; p.kCon = true; p.jumpCount = 2;
       // 重新从起跳段播放跳跃动画
       if (p.landing || p.animKey === 'jump' || p.animKey === 'jumpShoot') {
@@ -1500,8 +1870,11 @@ function update() {
     p.vx = mx !== 0 ? mx * P.SPEED * P.DASH_MULT : 0;
     if (mx !== 0) p.facing = mx;   // 面朝方向跟随方向键（与普通跳跃一致）
   }
-  // 重力
-  if (!p.isDash) { p.vy += GRAVITY; if (p.vy > MAX_FALL) p.vy = MAX_FALL; }
+  // 重力（滞空斩期间悬浮、下劈斩/冲刺斩期间速度已由移动块固定，均不受重力影响）
+  if (p.floatT > 0) { p.vy = 0; }
+  else if (p.downT > 0) { /* 速度由移动块固定，不受重力 */ }
+  else if (p.dashAtkT > 0) { p.vy = 0; }
+  else if (!p.isDash) { p.vy += GRAVITY; if (p.vy > MAX_FALL) p.vy = MAX_FALL; }
 
   // 碰撞
   p.x += p.vx;
@@ -1512,6 +1885,8 @@ function update() {
     if (overlap(xr, t)) {
       if (p.vx > 0) p.x = t.x - p.w; else if (p.vx < 0) p.x = t.x + t.w;
       if (p.isDash) { endDash(); p.dashReady = lR; spawnPart(p.x + p.w / 2, p.y + p.h / 2, 6, '#888'); }
+      if (p.downT > 0) { p.downT = 0; p.melee = 0; p.invT = 8; }  // 下劈斩撞墙结束，短暂无敌收尾
+      if (p.dashAtkT > 0) { p.dashAtkT = 0; p.melee = 0; p.invT = 8; }  // 冲刺斩撞墙结束
       p.vx = 0;
     }
   }
@@ -1523,9 +1898,14 @@ function update() {
     if (map[r * LW + c] === 0) continue;
     const t = { x: c * TILE, y: r * TILE, w: TILE, h: TILE };
     if (overlap(yr, t)) {
-      if (p.vy > 0) { p.y = t.y - p.h; p.vy = 0; p.grounded = true; }
+      if (p.vy > 0) { p.y = t.y - p.h; p.vy = 0; p.grounded = true; if (p.downT > 0) { p.downT = 0; p.melee = 0; p.invT = 8; } }
       else if (p.vy < 0) { p.y = t.y + t.h; p.vy = 0; }
     }
+  }
+  // 地面冲刺（isDash / 冲刺斩 dashAtkT）期间 vy 保持 0、不受重力，脚底贴地但 overlap 严格大于判定为 false，
+  // 导致 grounded 无法恢复。这里单独用脚下探测补回 grounded，保证冲刺斩触发条件（isDash && grounded）成立。
+  if ((p.isDash || p.dashAtkT > 0) && !p.grounded && hasGroundBelow()) {
+    p.grounded = true;
   }
   if ((p.grounded && !wasGnd) || (p.onWall !== 0 && wasWall === 0)) p.dashAir = false;
   // 落地重置二段跳次数
@@ -1545,8 +1925,8 @@ function update() {
   // 摄像机
   updateCamera();
 
-  // 下蹲：按住 S 蹲下，松开站起（dash/跳跃期间不处理）
-  if (sR && p.grounded && !p.isDash && !p.dashAir) {
+  // 下蹲：按住 S 蹲下，松开站起（dash/跳跃/旋风斩期间不处理）
+  if (sR && p.grounded && !p.isDash && !p.dashAir && p.stormT <= 0) {
     setCrouch(true, false);
   } else if (!sR && !p.forcedCrouch) {
     setCrouch(false, false);
@@ -1615,7 +1995,10 @@ function update() {
     const isJump = (animKey === 'jump' || animKey === 'jumpShoot');
     // 站立射击：从第二帧(索引1)倒放到第一帧(索引0)后定格，不循环
     const isShoot = (animKey === 'shoot');
-    if (holdLast && p.animF >= nf - 1) {
+    if (p.dashAtkT > 0 || p.downT > 0) {
+      // 冲刺斩 / 下劈斩：持续定格在 dash 动画第二帧（索引 1）
+      if (p.animF !== 1) p.animF = 1;
+    } else if (holdLast && p.animF >= nf - 1) {
       // 定格在最后一帧
     } else if (isShoot && p.animF <= 0) {
       // 倒放到第一帧后定格
@@ -1767,6 +2150,40 @@ function updateWorld() {
     const frameDur = entry ? Math.round(60 / entry.fps) : 6;
     h.animT += 2;  // 播放速度翻倍（帧切换速度 ×2）
     if (totalFrames === 0 || h.animT >= totalFrames * frameDur) meleeHitEffects.splice(i, 1);
+  }
+  // 旋风斩斩击波：水平飞行，撞怪（伤害）/撞墙/超时/出屏消失
+  for (let i = stormWaves.length - 1; i >= 0; i--) {
+    const w = stormWaves[i];
+    w.x += w.vx;
+    w.life--;
+    w.animT++;
+    // 斩击波左边缘对齐锚点：右飞(dir=1)内容在锚点右侧，左飞(dir=-1)内容在锚点左侧
+    const wr = { x: w.dir > 0 ? w.x : w.x - w.w, y: w.y - w.h / 2, w: w.w, h: w.h };
+    let gone = w.life <= 0;
+    // 撞墙
+    for (let r = 0; r < LH; r++) for (let c = 0; c < LW; c++) {
+      if (map[r * LW + c] === 0) continue;
+      if (overlap(wr, { x: c * TILE, y: r * TILE, w: TILE, h: TILE })) { gone = true; break; }
+    }
+    // 撞怪（冻结目标不参与）
+    if (!gone) {
+      for (let j = enemies.length - 1; j >= 0; j--) {
+        const en = enemies[j];
+        if (frozen(en)) continue;
+        if (collide(wr, enShape(en))) {
+          if (dmgEnemy(en, STORM_WAVE_DMG)) enemies.splice(j, 1);
+          else knockEnemy(en, w.dir, 0, 1.5);
+          gone = true;
+          break;
+        }
+      }
+    }
+    // 出屏（水平方向超视野一定距离消失）
+    if (!gone) {
+      const viewW = VW / (camera.zoom * VIEW_SCALE);
+      if (w.x < camera.x - 200 || w.x > camera.x + viewW + 200) gone = true;
+    }
+    if (gone) { spawnPart(w.x, w.y, 6, '#f88'); stormWaves.splice(i, 1); }
   }
   // 残影寿命递减（新残影的生成在下方动画状态机更新之后）
   for (let i = afterimages.length - 1; i >= 0; i--) { afterimages[i].life--; if (afterimages[i].life <= 0) afterimages.splice(i, 1); }
@@ -1925,7 +2342,8 @@ function drawPlayerSprite(p, cx, cy) {
 
 function drawPlayer() {
   const p = player;
-  if (p.invT > 0 && Math.floor(p.invT / 3) % 2 === 0) return;
+  // 受击无敌闪烁（下劈斩/冲刺斩的无敌不闪烁，正常绘制）
+  if (p.invT > 0 && p.downT <= 0 && p.dashAtkT <= 0 && Math.floor(p.invT / 3) % 2 === 0) return;
   const cx = Math.floor(p.x + p.w / 2);
   const cy = Math.floor(p.y + p.h / 2);
   ctx.save();
@@ -1953,11 +2371,184 @@ function drawPlayer() {
 // - 地面向上挥砍（upAtk）：保留 blade.png，逆时针旋转 175°
 // - 地面/空中水平挥砍：按段数使用 blade1-1/1-2/1-3 序列帧，资源默认朝右，朝左时水平镜像；三段大小统一
 function drawMeleeEffect(p, cx, cy) {
-  if (p.upAtk) {
+  if (p.dashAtkT > 0) {
+    drawMeleeEffectDash(p, cx, cy);
+  } else if (p.downT > 0) {
+    drawMeleeEffectDown(p, cx, cy);
+  } else if (p.floatT > 0) {
+    drawMeleeEffectFloat(p, cx, cy);
+  } else if (p.stormT > 0) {
+    drawMeleeEffectStorm(p, cx, cy);
+  } else if (p.shoryuT > 0) {
+    drawMeleeEffectShoryu(p, cx, cy);
+  } else if (p.airAtk) {
+    drawMeleeEffectAir(p, cx, cy);
+  } else if (p.upAtk) {
     drawMeleeEffectUp(p, cx, cy);
   } else {
     drawMeleeEffectHoriz(p, cx, cy);
   }
+}
+
+// 冲刺斩刀光：使用 dash-blade 单帧（去白透明），顺时针旋转 90°（向右冲刺斩），向左水平镜像。
+function drawMeleeEffectDash(p, cx, cy) {
+  const db = DASH_BLADE;
+  if (db.loaded && db.frames.length > 0) {
+    const total = db.frames.length;
+    const f = db.frames[Math.floor((MELEE_DASH_T - p.dashAtkT) / 3) % total];
+    const ds = P.PH / db.fh * 2.4;
+    const dispW = f.w * ds, dispH = f.h * ds;
+    // 锚点：角色前方（跟随冲刺方向）
+    const ox = p.dashAtkDir * (dispW / 2);
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.translate(cx + ox, cy);
+    // 先水平镜像（左方向），再顺时针旋转 90°（竖向刀光转横向）
+    ctx.scale(p.dashAtkDir > 0 ? 1 : -1, 1);
+    ctx.rotate(Math.PI / 2);
+    ctx.drawImage(db.img, f.x, f.y, f.w, f.h, -dispW / 2, -dispH / 2, dispW, dispH);
+    ctx.restore();
+    ctx.lineWidth = 1;
+    return;
+  }
+
+  // fallback：资源未加载时回退到水平挥砍刀光
+  drawMeleeEffectHoriz(p, cx, cy);
+}
+
+// 下劈斩刀光：使用 down-blade 序列帧（7 帧循环），逆时针旋转 45°（左下方下劈动画）。
+// 素材为向左下方下劈：downDir=-1 原样，downDir=1 水平镜像（向右下方）。
+function drawMeleeEffectDown(p, cx, cy) {
+  const db = DOWN_BLADE;
+  if (db.loaded && db.frames.length > 0) {
+    const ds = P.PH / db.fh * 0.75 * 1.2;
+    const total = db.frames.length;
+    const fIdx = Math.floor((999 - p.downT) / MELEE_DOWN_DUR) % total;
+    const f = db.frames[fIdx];
+    const dispW = f.w * ds, dispH = f.h * ds;
+    // 锚点：角色前方下方（跟随 45° 冲刺方向）
+    const ox = p.downDir * dispW * 0.3;
+    const oy = dispH * 0.4;
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.translate(cx + ox, cy + oy);
+    // 左下（downDir=-1）：逆时针 45°；右下（downDir=1）：逆时针 135°（不镜像）
+    ctx.rotate(p.downDir > 0 ? -Math.PI * 3 / 4 : -Math.PI / 4);
+    ctx.drawImage(db.img, f.x, f.y, f.w, f.h, -dispW / 2, -dispH / 2, dispW, dispH);
+    ctx.restore();
+    ctx.lineWidth = 1;
+    return;
+  }
+
+  // fallback：资源未加载时回退到圆月斩
+  drawMeleeEffectAir(p, cx, cy);
+}
+
+// 滞空斩刀光：第一部分 blast-blade（5 帧）→ 停滞 10 帧（保持最后一帧）→ 第二部分 blast-blade2（3 帧）。
+// 锚点居中偏前（面朝方向），资源面朝右，面朝左水平镜像。
+function drawMeleeEffectFloat(p, cx, cy) {
+  const info = floatBladeInfo(p);
+  if (info) {
+    const { entry, f } = info;
+    const progress = Math.min(1, p.melee / MELEE_ACTIVE);
+    const alpha = progress;
+    const fs = P.PH / entry.fh * 1.5 * (info.stage === 2 ? 1.1 : 0.8);
+    const dispW = f.w * fs, dispH = f.h * fs;
+    const refW = entry.fw * fs;
+    const anchorX = cx + p.facing * (refW * 0.2 + p.w);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(anchorX, cy);
+    // 面朝右原样（1），面朝左水平镜像（-1）
+    ctx.scale(p.meleeDir > 0 ? 1 : -1, 1);
+    ctx.drawImage(entry.img, f.x, f.y, f.w, f.h, -dispW / 2, -dispH / 2, dispW, dispH);
+    ctx.restore();
+    ctx.lineWidth = 1;
+    return;
+  }
+
+  // fallback：资源未加载时回退到圆月斩
+  drawMeleeEffectAir(p, cx, cy);
+}
+
+// 空中圆月斩刀光：使用 air-blade 序列帧（8 帧，18 帧动画），锚点居中（圆月斩环绕角色）。
+// 素材为角色面朝右侧的圆月斩：面朝右原样绘制，面朝左水平镜像对称。
+function drawMeleeEffectAir(p, cx, cy) {
+  const ab = AIR_BLADE;
+  if (ab.loaded && ab.frames.length > 0) {
+    const progress = p.melee / MELEE_ACTIVE;  // 1 → 0
+    const alpha = progress;
+    const as = P.PH / ab.fh * 1.8 * 1.8 * 0.8;  // 当前大小再缩为 0.8
+    const total = ab.frames.length;
+    const f = ab.frames[meleeFrameIndex(p, total, MELEE_AIR_DURS)];
+    const dispW = f.w * as, dispH = f.h * as;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(cx, cy);
+    // 面朝右原样（1），面朝左水平镜像（-1）
+    ctx.scale(p.meleeDir > 0 ? 1 : -1, 1);
+    ctx.drawImage(ab.img, f.x, f.y, f.w, f.h, -dispW / 2, -dispH / 2, dispW, dispH);
+    ctx.restore();
+    ctx.lineWidth = 1;
+    return;
+  }
+
+  // fallback：资源未加载时回退到水平挥砍刀光
+  drawMeleeEffectHoriz(p, cx, cy);
+}
+
+// 旋风斩刀光：使用 storm-blade 序列帧（4 帧，环绕刀光），中心对齐角色，随动画渐隐。
+function drawMeleeEffectStorm(p, cx, cy) {
+  const sb = STORM_BLADE;
+  if (sb.loaded && sb.frames.length > 0) {
+    const progress = p.melee / MELEE_ACTIVE;  // 1 → 0
+    const alpha = progress;
+    const ss = P.PH / sb.fh * 1.5 * 1.1;  // 缩小一半（原 2.2 → 1.1）
+    const total = sb.frames.length;
+    const f = sb.frames[meleeFrameIndex(p, total, MELEE_STORM_DURS)];
+    const dispW = f.w * ss, dispH = f.h * ss;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(cx, cy);
+    ctx.drawImage(sb.img, f.x, f.y, f.w, f.h, -dispW / 2, -dispH / 2, dispW, dispH);
+    ctx.restore();
+    ctx.lineWidth = 1;
+    return;
+  }
+
+  // fallback：资源未加载时回退到上劈刀光
+  drawMeleeEffectUp(p, cx, cy);
+}
+
+// 升龙斩刀光：使用 up-shoryu 序列帧（6 帧，18 帧动画）。
+// 素材为角色面朝左侧的动画，左对齐绘制：刀光左边缘贴锚点；面朝右时水平镜像（与右向资源相反）。
+function drawMeleeEffectShoryu(p, cx, cy) {
+  const up = UP_SHORYU;
+  if (up.loaded && up.frames.length > 0) {
+    const progress = p.melee / MELEE_ACTIVE;  // 1 → 0
+    const alpha = progress;
+    const us = P.PH / up.fh * 1.5 * 1.5;  // 放大到 1.5 倍
+    const total = up.frames.length;
+    const f = up.frames[meleeFrameIndex(p, total, MELEE_SHORYU_DURS)];
+    const dispW = f.w * us, dispH = f.h * us;
+    // 左对齐：刀光左边缘贴锚点；锚点位于角色中心偏上、偏前（面朝方向）
+    const refW = up.fw * us;
+    const anchorX = cx + p.facing * (refW * 0.2 + p.w);
+    const anchorY = cy - P.PH * 0.55;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(anchorX, anchorY);
+    // 素材默认面朝左：面朝右时水平镜像（与常规右向资源相反）
+    ctx.scale(p.facing > 0 ? -1 : 1, 1);
+    ctx.drawImage(up.img, f.x, f.y, f.w, f.h, 0, -dispH / 2, dispW, dispH);
+    ctx.restore();
+    ctx.lineWidth = 1;
+    return;
+  }
+
+  // fallback：资源未加载时回退到上劈刀光
+  drawMeleeEffectUp(p, cx, cy);
 }
 
 // 地面向上挥砍：使用 up-blade 序列帧（7 帧，右对齐，面朝左时水平镜像）
@@ -2176,6 +2767,26 @@ function drawBullets() {
     ctx.beginPath(); ctx.arc(bx, by, 2 + Math.sin(Date.now() / 60) * 0.2, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = 'rgba(255,68,255,0.5)'; ctx.beginPath(); ctx.arc(bx, by, 1, 0, Math.PI * 2); ctx.fill();
   }
+  // 旋风斩斩击波（storm-blade2，单帧去白透明，内容包围盒）：
+  // 资源波前朝右，从角色身体两侧射出。内侧（靠近角色一端）对齐角色中心，向外展开。
+  // 右飞 mirror=1：左边缘对齐锚点，波前朝右向右展开；左飞 mirror=-1：镜像，波前朝左向左展开。
+  for (const w of stormWaves) {
+    const entry = STORM_BLADE2;
+    if (entry.loaded && entry.frames.length > 0) {
+      const f = entry.frames[0];
+      const scale = P.PH / entry.fh * 0.5;  // 与 spawnStormWave 一致：缩小一半
+      const dispW = f.w * scale, dispH = f.h * scale;
+      // 渐隐：寿命越短越透明
+      const alpha = Math.min(1, w.life / 15);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(w.x, w.y);
+      ctx.scale(w.mirror, 1);  // 左飞镜像（-1），右飞原样（1）
+      // 左边缘对齐锚点：mirror=1 时内容在锚点右侧[0,dispW]；mirror=-1 时镜像后内容在锚点左侧[-dispW,0]
+      ctx.drawImage(entry.img, f.x, f.y, f.w, f.h, 0, -dispH / 2, dispW, dispH);
+      ctx.restore();
+    }
+  }
   // 枪口发射特效（out）
   for (const m of muzzleEffects) {
     const entry = BULLET_SPRITES[`${m.key}-out`];
@@ -2374,7 +2985,7 @@ function setEditMode(on) {
     editorToolbar.classList.add('active');
     updateToolUI();
     // 进入编辑模式时清空子弹和粒子残留，重置所有怪物到初始状态
-    bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = []; meleeHitEffects = []; hitstop = 0; hitstopTargets.length = 0;
+    bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = []; meleeHitEffects = []; stormWaves = []; hitstop = 0; hitstopTargets.length = 0;
     // 敌人改为自动生成，进入编辑模式不加载关卡敌人
     enemies = [];
   } else {

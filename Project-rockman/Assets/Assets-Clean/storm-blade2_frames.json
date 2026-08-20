@@ -1,0 +1,22 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "storm-blade2.png",
+  "exportedAt": "2026-08-20T08:27:43.246Z",
+  "action": "storm-blade2",
+  "fps": 10,
+  "frames": [
+    {
+      "x": 82,
+      "y": 124,
+      "w": 327,
+      "h": 189
+    }
+  ],
+  "meta": {
+    "imageWidth": 434,
+    "imageHeight": 446,
+    "cleanImage": "storm-blade2_clean.png",
+    "note": "单帧斩击波，内容包围盒(82,124)-(408,312)，主体偏右（波前朝右）"
+  }
+}

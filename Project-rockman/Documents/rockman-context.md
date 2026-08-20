@@ -1,6 +1,6 @@
 # Rockman X4 操作原型 - 策划文档 & 技术速查
 
-> 最后更新: 2026-08-20 (会话 #13)
+> 最后更新: 2026-08-20 (会话 #14)
 
 ---
 
@@ -16,8 +16,9 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 |------|------|
 | `A` / `D` | 左右移动（下蹲时仅转向，不移动） |
 | `K` | 跳跃 / 二段跳 / 墙跳 |
-| `W` | 上攻击方向键（Zero 地面按住 `W`+`J` 触发上攻击） |
-| `J` | X：射击 + 蓄力；Zero：近战挥砍（三段连击，地面按住 `W`+`J` = 上劈，独立单段） |
+| `W` | 上攻击方向键（Zero 地面按住 `W`+`J` = 上劈/升龙，空中 = 滞空斩） |
+| `S` | 下蹲（Zero 地面按住 `S`+`J` = 旋风斩，空中 = 下劈斩） |
+| `J` | X：射击 + 蓄力；Zero：近战挥砍（地面三段连击 / 上劈 / 升龙 / 旋风 / 圆月 / 滞空 / 下劈 / 冲刺斩，见 §3.8） |
 | `L` | Dash（冲刺，下蹲时可用） |
 | `S` | 下蹲（按住） |
 | `P` | 切换碰撞盒可视化 |
@@ -176,6 +177,51 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 - **刀光表现**：序列帧动画随挥砍进度渐隐消失（`alpha` 从 1 线性降到 0）；水平挥砍右对齐（右边缘贴锚点，锚点向前偏移），上劈右对齐（尖端贴锚点，锚点偏上偏右）
 - **方向**：水平挥砍面朝右刀光尖端指向右、面朝左镜像；上劈面朝右刀光尖端朝右上、面朝左镜像
 
+#### 3.9 Zero 特殊动作（会话#14 新增）
+
+本会话一次性新增 6 个 Zero 特殊动作，均按方向键 + 攻击键组合触发（优先级从高到低）：
+
+**① 升龙斩（地面 `W`+按住 `J` ≥0.2s）**：
+- 触发：地面（含跑动）按住 W + 按 J 先打出上劈，继续按住 J 累计 12 帧（0.2s，`MELEE_SHORYU_CHARGE`）且保持 W 按住、保持在地面 → 触发升龙，取代当前上劈
+- 跃起：向面朝方向上方 80° 仰角跃起（垂直初速 -5.41、水平初速 0.95，`MELEE_SHORYU_VY/VX`），最大高度 ≈ 60.9px = 跳跃 0.9 倍；达到最高点前锁定水平位移，之后可自由移动；上升阶段禁止二段跳打断
+- 刀光：`up-shoryu`（6 帧 ×3 = 18 帧），**左对齐**绘制（素材面朝左，面朝右镜像），锚点角色中心偏上偏前，缩放 ×1.5
+- 伤害 5、冷却 30 帧（`MELEE_SHORYU_CD`）、击退向上 3.0
+
+**② 旋风斩（地面 `S`+`J`）**：
+- 触发：地面按住 S + 按 J（优先于上劈/连击）；若处于下蹲则瞬间站起，结束后 S 仍按住则恢复下蹲
+- 刀光：`storm-blade`（4 帧环绕旋风刀光），中心对齐角色，缩放 ×1.1（`MELEE_STORM_DURS=[4,5,4,5]`，共 18 帧）
+- 动画期间每帧判定，伤害 3、冷却 30 帧、击退向上轻 1.2
+- 动画播完瞬间向左右各发射一个斩击波 `storm-blade2`（单帧去白透明，`loadStormBlade2` 轻量加载），速度 6.1（`STORM_WAVE_SPEED`）、伤害 3，撞怪/墙/超时消失；右飞原样（波前朝右）、左飞镜像，锚点左边缘对齐角色，缩放 ×0.5
+
+**③ 圆月斩（空中 `J`）**：
+- 触发：空中按 J（不按 W/S），替代原跳跃斩击（原固定第 2 段 blade1-2）
+- 刀光：`air-blade`（8 帧，18 帧动画 `MELEE_AIR_DURS=[2,2,2,2,2,2,3,3]`），锚点居中，面朝右原样、面朝左镜像，缩放 ×3.24（经多次调整：1.5→1.8→×1.8→×0.8）
+- 伤害 3（沿用 stage=2）、冷却 `MELEE_AIR_CD`=20 帧
+
+**④ 滞空斩（空中 `W`+`J`）**：
+- 触发：空中按住 W + 按 J（优先于圆月斩）
+- 流程：`blast-blade`（5 帧 ×3 = 15 帧）→ 停滞（`MELEE_FLOAT_STALL`=0，已取消停滞）→ `blast-blade2`（3 帧 ×4 = 12 帧），总 27 帧，结束恢复自由落体
+- 全程角色悬浮（`vy=0`、`vx=0`），禁止二段跳打断
+- 刀光锚点居中偏前，面朝右原样/面朝左镜像；第一部分缩放 ×1.5×0.8、第二部分缩放 ×1.5×1.1
+- 伤害 5、冷却 36 帧（`MELEE_FLOAT_CD`）、击退水平 2.5
+
+**⑤ 下劈斩（空中 `S`+`J`）**：
+- 触发：空中按住 S + 按 J（优先于滞空斩/圆月斩），锁定触发时 facing（`downDir`）
+- 冲刺：向面朝方向下方 45° 冲刺（`MELEE_DOWN_SPEED`=8.0），撞地面/墙结束
+- 刀光：`down-blade`（7 帧循环），逆时针旋转 45°（左下方下劈），右下方逆时针旋转 135°（不镜像），缩放 ×0.9（`×0.75×1.2`）
+- 角色动画持续定格 dash 第二帧
+- 伤害 5、无敌（`invT`）、击退斜向 3.0
+
+**⑥ 冲刺斩（地面冲刺中 `J`）**：
+- 触发：地面冲刺（`isDash`）状态下按 J，锁定触发时 `dashDir`（`dashAtkDir`）
+- 冲刺：保持冲刺速度向前，持续 42 帧（`MELEE_DASH_T`=2 倍 `DASH_TIME`），撞墙结束
+- 刀光：`dash-blade2`（8 帧循环，`loadBladeStrip`），顺时针旋转 90°（竖向刀光转横向），向左镜像（scale 在 rotate 之前），缩放 ×2.4
+- 角色动画持续定格 dash 第二帧
+- 伤害 5、无敌（`invT`）、击退沿冲刺方向 3.0
+
+> **关键 bug 修复（冲刺斩触发失败）**：地面冲刺期间角色 `vy` 保持 0、不受重力，脚底贴地但碰撞检测 `overlap` 严格大于判定为 false，导致 `grounded` 无法恢复（站立时靠每帧下坠 0.24px 触发贴地）。修复：碰撞检测末尾对 `isDash || dashAtkT>0` 且 `hasGroundBelow()` 时补回 `grounded=true`。
+> **无敌不闪烁**：受击无敌闪烁（`drawPlayer` 中 `invT>0` 时 return）对下劈斩/冲刺斩无效——这两种斩击的 `invT` 无敌不进入闪烁分支，角色和刀光正常绘制。
+
 ### 4. 玩家属性
 
 | 属性 | 值 | 说明 |
@@ -238,8 +284,11 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 | `Assets/Assets-Clean/blade1-{1,2,3}_frames.json/strip.png` | Zero 三段水平挥砍刀光序列帧（第 1/2/3 段） |
 | `Assets/Assets-Clean/up-blade_frames.json/strip.png` | Zero 上劈刀光序列帧（7 帧，尖端朝右上） |
 | `Assets/Assets-Clean/hit2_frames.json/strip.png` | Zero 近战受击特效（替换旧 hit） |
-| `Assets/Assets-Clean/{air,blast,blast2,dash,dash2,down,storm,up-shoryu}-blade_*` | 已上传、待接入的后续 Zero 动作刀光资源（已完成切割） |
-| `Assets/storm-blade2.png` | 2026-08-20 新上传刀光原始素材（Assets 根目录，尚未切割处理，待接入） |
+| `Assets/Assets-Clean/{air,blast,blast2,dash2,down,storm,up-shoryu}-blade_*` | Zero 特殊动作刀光序列帧资源（均已完成切割并接入） |
+| `Assets/Assets-Clean/storm-blade2_clean.png` + `storm-blade2_frames.json` | 斩击波单帧去白透明资源（会话#14 从 `Assets/storm-blade2.png` 去白底生成） |
+| `Assets/Assets-Clean/dash-blade_clean.png` + `dash-blade_frames.json` | 冲刺斩刀光（会话#14 从 `Assets/dash-blade.png` 去白底生成，后改用电 dash-blade2 序列帧，此资源暂未使用） |
+| `Assets/storm-blade2.png` | 斩击波原始素材（白底，Assets 根目录，保留未删） |
+| `Assets/dash-blade.png` | 冲刺斩刀光原始素材（白底单帧，Assets 根目录，保留未删） |
 
 ### 7. 核心数据结构
 
@@ -283,6 +332,15 @@ player = {
   meleeDir: 1|-1,               // 挥砍朝向（贴墙滑行时 = -onWall 朝墙反方向，否则 = facing）
   upAtk: bool,                  // 是否上攻击（地面按住 W + J 触发，第三段向上斩）
   jumpCount: int,               // 已跳次数（0=未跳, 1=首跳, 2=二段跳已用；墙跳不消耗，落地重置 0）
+  airAtk: bool,                 // 是否空中圆月斩（空中按 J 触发，用 air-blade 资源）
+  shoryuT: int,                 // 升龙斩剩余帧（>0 表示升龙斩击进行中）
+  jHoldT: int,                  // 按住 J 的累计帧数（升龙派生判定）
+  stormT: int,                  // 旋风斩剩余帧（>0 表示旋风斩进行中；动画播完瞬间发射斩击波）
+  floatT: int,                  // 滞空斩剩余帧（>0 表示滞空斩进行中；全程角色悬浮不下降）
+  downT: int,                   // 下劈斩剩余帧（>0 表示下劈斩进行中；冲刺直到撞障碍物）
+  downDir: 1|-1,                // 下劈斩冲刺方向（锁定触发时 facing）
+  dashAtkT: int,                // 冲刺斩剩余帧（>0 表示冲刺斩进行中；地面冲刺中按 J 触发）
+  dashAtkDir: 1|-1,             // 冲刺斩方向（锁定触发时 dashDir）
 }
 ```
 
@@ -292,6 +350,7 @@ player = {
 - `eBullets[]` — 敌人子弹列表
 - `particles[]` — 粒子效果列表
 - `afterimages[]` — Dash 残影列表
+- `stormWaves[]` — 旋风斩斩击波列表（storm-blade2，左右水平飞行，撞怪/墙/超时消失）
 - `enemies[]` — 怪物列表（每只含 `meleeLock`：近战命中冷却帧，>0 时挥砍跳过该怪，仅 Zero 近战使用；`knockT/knockVx/knockVy`：受击击退剩余帧+速度，>0 时 AI 暂停、物理跳过；`hurtT`：受击闪白帧；`r`：圆形碰撞半径，仅 floater 用）
 - `map[]` — 关卡 tile 数据（一维数组，`let` 可动态替换）
 
@@ -419,6 +478,23 @@ MELEE_RESET: 18 (0.3s)      // 连击重置窗口（超过未攻击则重置回�
 MELEE_FINAL_LOCK: 24 (0.4s) // 第三段后的硬直（期间不能攻击）
 HITSTOP: 3 (0.05s)          // 挥砍命中局部停顿帧数（仅 Zero 与被攻击敌人定格，其余世界照常）
 MELEE_LOCK: 6               // 怪物命中冷却帧（每段攻击对同一怪物最多命中约 5 次，因 hitstop 拉长动画）
+// Zero 特殊动作（会话#14 新增）
+MELEE_SHORYU_DMG: 5          // 升龙斩伤害
+MELEE_SHORYU_CD: 30          // 升龙后攻击冷却（0.5s）
+MELEE_SHORYU_CHARGE: 12      // 按住 J 0.2s 触发升龙
+MELEE_SHORYU_VY: -5.41       // 升龙垂直初速（最大高度 ≈ 跳跃 0.9 倍）
+MELEE_SHORYU_VX: 0.95        // 升龙水平初速（80° 仰角水平分量）
+MELEE_STORM_DMG: 3           // 旋风斩每次命中伤害
+MELEE_STORM_CD: 30           // 旋风斩后攻击冷却（0.5s）
+STORM_WAVE_SPEED: 6.1        // 斩击波飞行速度（与子弹一致）
+STORM_WAVE_DMG: 3            // 斩击波伤害
+MELEE_FLOAT_DMG: 5           // 滞空斩伤害
+MELEE_FLOAT_CD: 36           // 滞空斩后攻击冷却（0.6s）
+MELEE_FLOAT_STALL: 0         // 两部分之间停滞帧数（0=无停滞）
+MELEE_DOWN_DMG: 5            // 下劈斩伤害
+MELEE_DOWN_SPEED: 8.0        // 下劈斩冲刺速度（45° 合成）
+MELEE_DASH_DMG: 5            // 冲刺斩伤害
+MELEE_DASH_T: 42             // 冲刺斩时长（2 倍 DASH_TIME）
 // 受击击退（knockEnemy 内字面量，无命名常量）
 // knockT = 8 帧，每帧速度 ×0.85 衰减，期间怪物 AI 暂停/物理跳过
 // 强度约定：X 子弹 1.5（水平）/ Zero 水平挥砍 2.0（沿 meleeDir）/ Zero 上攻击 2.5（向上）
@@ -523,6 +599,15 @@ ENEMY_SPAWN_TYPES: ['floater']  // 自动生成类型池（当前仅 floater）
 | `drawMeleeEffectHoriz(p, cx, cy)` | 绘制水平挥砍刀光（序列帧，右对齐，面朝左镜像） |
 | `drawMeleeEffectUp(p, cx, cy)` | 绘制上劈刀光（up-blade 序列帧，右对齐，面朝左镜像） |
 | `drawMeleeEffectFallback(p, cx, cy)` | 刀光资源未加载时的回退扇形 |
+| `loadStormBlade2()` | 加载斩击波单帧去白透明资源（storm-blade2，无 strip，轻量加载） |
+| `spawnStormWave(dir, mirror)` | 生成旋风斩斩击波（左右水平发射） |
+| `floatBladeInfo(p)` | 滞空斩时间轴取帧（blast-blade → 停滞 → blast-blade2 分阶段） |
+| `drawMeleeEffectStorm(p, cx, cy)` | 绘制旋风斩刀光（storm-blade 序列帧环绕） |
+| `drawMeleeEffectShoryu(p, cx, cy)` | 绘制升龙斩刀光（up-shoryu 序列帧，左对齐） |
+| `drawMeleeEffectAir(p, cx, cy)` | 绘制圆月斩刀光（air-blade 序列帧，居中镜像） |
+| `drawMeleeEffectFloat(p, cx, cy)` | 绘制滞空斩刀光（blast-blade/blast-blade2 分阶段） |
+| `drawMeleeEffectDown(p, cx, cy)` | 绘制下劈斩刀光（down-blade 循环，逆时针旋转 45°/135°） |
+| `drawMeleeEffectDash(p, cx, cy)` | 绘制冲刺斩刀光（dash-blade2 循环，顺时针旋转 90°） |
 | `updateWorld()` | 世界更新（怪物/子弹/粒子/特效照常，hitstop 期间玩家与受击敌人跳过） |
 | `drawEnemy(en)` | 渲染怪物（按类型绘制，floater 圆形） |
 | `drawOffscreenIndicators()` | 屏幕外怪物方向指示（视野外怪物在屏幕边缘画三角箭头，随怪物移动实时更新） |
@@ -557,6 +642,7 @@ ENEMY_SPAWN_TYPES: ['floater']  // 自动生成类型池（当前仅 floater）
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-08-20 (会话#14) | **Zero 六个特殊动作一次性接入**。① 升龙斩（地面 W+按住 J 0.2s，80° 仰角跃起，`up-shoryu` 左对齐）；② 旋风斩（地面 S+J，`storm-blade` 环绕 + 动画结束发射左右斩击波 `storm-blade2` 去白透明）；③ 圆月斩（空中 J，`air-blade` 居中镜像）；④ 滞空斩（空中 W+J，`blast-blade`→停滞→`blast-blade2`，全程悬浮）；⑤ 下劈斩（空中 S+J，45° 斜向下冲刺，`down-blade` 逆时针旋转 45°/135°）；⑥ 冲刺斩（地面冲刺中 J，2 倍冲刺距离，`dash-blade2` 顺时针旋转 90° 镜像）。关键 bug：地面冲刺 vy=0 导致 grounded 失效（修复见 §3.9 注）；下劈/冲刺斩无敌不闪烁。 |
 | 2026-08-20 (补充) | **commit 乱码问题处理（方案 B）+ 新增待接入素材**。`bef3115`(8/19) commit message 存储为 GBK 乱码且已 merge 进 main，按用户决定方案 B 保持历史现状，在 memory.md 补记乱码对照表与根因复盘；global-rules §1.6 补强「提交后强制验证编码」步骤；新增待接入素材 `Assets/storm-blade2.png`（原始素材，尚未切割处理）。 |
 | 2026-08-20 (会话#13) | **Zero 近战刀光序列帧化 + 三段重调 + 上劈独立化 + 跳跃/冲刺跳修正**。① 三段水平挥砍刀光替换为 `blade1-1/1-2/1-3` 序列帧（去空白边距，判定框逐帧贴合刀光），大小倍率 0.75/0.8/1.8，第二段居中、第三段回移 1/4 帧宽，动画总时长 18 帧（第 1/3 段每 3 帧切换、第 2 段 `[3,2,3,3,3,2,2]`）；② hitstop 从全冻结改为局部停顿（仅 Zero 与受击敌人定格）；③ 近战受击特效 hit→hit2；④ 上劈（W+J）替换为 `up-blade` 序列帧、去掉三段改为独立单段（`MELEE_UP_CD`=20、`MELEE_UP_DMG`=3）；⑤ 默认角色改 Zero；⑥ 跳跃高度 1.2 倍（`JUMP` -5.2→-5.7）；⑦ 修复冲刺跳高度 bug（新增 `jumpDone` 标志，冲刺跳不再被二段跳分支覆盖）。 |
 | 2026-08-19 (会话#12) | **Zero 上攻击 + 二段跳 + 怪物受击击退**。① 上攻击：Zero 地面按住 `W`+`J` 触发，第三段向上斩且角色向上跃起（`P.JUMP×0.8`，计入二段跳次数 `jumpCount=1`），刀光 175° 旋转、判定框重做（锚点移至头顶上方）；② 二段跳：空中再按 K 再跳一次（`P.JUMP×0.8`），墙跳不消耗二段跳次数，落地重置 `jumpCount`；③ 受击击退 `knockEnemy(en, dirX, dirY, power)`：X 子弹 1.5（水平）/ Zero 水平挥砍 2.0（沿 `meleeDir`）/ 上攻击 2.5（向上），持续 8 帧每帧 ×0.85 衰减，击退期间怪物 AI 暂停、物理跳过；④ **同步此前积累未记录改动**：Dash 改为固定时长 21 帧 + 1.75 倍速（`DASH_TIME`/`DASH_MULT`，弃用 `DASH_DIST`）、游玩模式镜头默认缩放 0.7、敌人自动生成（`ENEMY_SPAWN_CD`=60、`ENEMY_MAX`=100、仅 floater，level.json 的 enemies 恒为空数组）、通用碰撞 `collide()/circleRect()/enShape()`（floater 改圆形碰撞 20×20 r=10）、怪物数值全量修正（soldier hp 13 / bee hp 8 / floater hp 11 / boss hp 107）、floater AI 改直线追踪玩家、空中挥砍 CD 30→20 帧（0.5s→0.33s）、屏幕外怪物方向指示 `drawOffscreenIndicators()`、挥砍朝向 `meleeDir`、level.json 地图 63×18→70×38、出生点 (335,351)→(1085,890)。 |

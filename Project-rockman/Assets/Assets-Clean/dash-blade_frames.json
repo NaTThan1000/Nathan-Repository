@@ -1,0 +1,21 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "dash-blade.png",
+  "exportedAt": "2026-08-20T09:25:13.261Z",
+  "action": "dash-blade",
+  "fps": 12,
+  "frames": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 307,
+      "h": 258
+    }
+  ],
+  "meta": {
+    "imageWidth": 307,
+    "imageHeight": 258,
+    "cleanImage": "dash-blade_clean.png"
+  }
+}
