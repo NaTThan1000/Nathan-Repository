@@ -1,0 +1,57 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "down-blade.png",
+  "exportedAt": "2026-08-20T07:15:26.382Z",
+  "action": "down-blade",
+  "fps": 2,
+  "frames": [
+    {
+      "x": 6,
+      "y": 27,
+      "w": 97,
+      "h": 45
+    },
+    {
+      "x": 218,
+      "y": 14,
+      "w": 147,
+      "h": 64
+    },
+    {
+      "x": 430,
+      "y": 12,
+      "w": 164,
+      "h": 67
+    },
+    {
+      "x": 642,
+      "y": 12,
+      "w": 162,
+      "h": 67
+    },
+    {
+      "x": 853,
+      "y": 11,
+      "w": 166,
+      "h": 68
+    },
+    {
+      "x": 1066,
+      "y": 6,
+      "w": 166,
+      "h": 68
+    },
+    {
+      "x": 1276,
+      "y": 6,
+      "w": 170,
+      "h": 68
+    }
+  ],
+  "meta": {
+    "imageWidth": 1460,
+    "imageHeight": 93,
+    "cleanImage": "down-blade_clean.png"
+  }
+}

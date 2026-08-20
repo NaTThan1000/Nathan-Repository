@@ -1,0 +1,45 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "blast-blade.png",
+  "exportedAt": "2026-08-20T07:13:40.788Z",
+  "action": "blast-blade",
+  "fps": 10,
+  "frames": [
+    {
+      "x": 9,
+      "y": 70,
+      "w": 190,
+      "h": 81
+    },
+    {
+      "x": 221,
+      "y": 69,
+      "w": 248,
+      "h": 123
+    },
+    {
+      "x": 530,
+      "y": 68,
+      "w": 261,
+      "h": 137
+    },
+    {
+      "x": 860,
+      "y": 68,
+      "w": 240,
+      "h": 106
+    },
+    {
+      "x": 1129,
+      "y": 94,
+      "w": 240,
+      "h": 96
+    }
+  ],
+  "meta": {
+    "imageWidth": 1387,
+    "imageHeight": 244,
+    "cleanImage": "blast-blade_clean.png"
+  }
+}

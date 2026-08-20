@@ -1,0 +1,51 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "up-shoryu.png",
+  "exportedAt": "2026-08-20T07:11:14.980Z",
+  "action": "up-shoryu",
+  "fps": 10,
+  "frames": [
+    {
+      "x": 28,
+      "y": 22,
+      "w": 191,
+      "h": 169
+    },
+    {
+      "x": 241,
+      "y": 16,
+      "w": 154,
+      "h": 177
+    },
+    {
+      "x": 459,
+      "y": 10,
+      "w": 106,
+      "h": 167
+    },
+    {
+      "x": 666,
+      "y": 11,
+      "w": 90,
+      "h": 164
+    },
+    {
+      "x": 891,
+      "y": 21,
+      "w": 79,
+      "h": 148
+    },
+    {
+      "x": 1103,
+      "y": 21,
+      "w": 80,
+      "h": 141
+    }
+  ],
+  "meta": {
+    "imageWidth": 1252,
+    "imageHeight": 202,
+    "cleanImage": "up-shoryu_clean.png"
+  }
+}

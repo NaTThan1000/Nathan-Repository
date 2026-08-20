@@ -136,7 +136,7 @@ const TILE_BIG = 56;                                  // 大砖块尺寸 = TILE 
 const P = {
   PW: 30, PH: 35,
   PC: 17,           // 下蹲/冲刺碰撞盒高度
-  SPEED: 1.75, JUMP: -5.2,
+  SPEED: 1.75, JUMP: -5.7,   // 一段跳高度按原 1.2 倍（√1.2，初速度 -5.2→-5.7）；二段跳/上攻击跃起为 JUMP×0.8 随基准同步提高
   WALL_SLIDE: 0.65, WALL_JUMP_X: 2.4, WALL_JUMP_Y: -4.4,
   DASH_MULT: 1.75, DASH_TIME: 21,  // dash 移速倍率；最大时长 21 帧(0.35s) = 原 1.5 倍速跑完 56px 距离所需时间
   CHG1: 6, CHG2: 60,
@@ -197,9 +197,9 @@ function loadBulletSprites() {
       entry.img.src = `${base}_strip.png`;
     }
   }
-  // 通用受击特效（Zero 近战命中专用）：Assets/Assets-Clean/hit_strip.png + hit_frames.json
+  // 通用受击特效（Zero 近战命中专用）：Assets/Assets-Clean/hit2_strip.png + hit2_frames.json
   {
-    const base = 'Assets/Assets-Clean/hit';
+    const base = 'Assets/Assets-Clean/hit2';
     const entry = { img: new Image(), frames: [], fps: 10, loaded: false };
     BULLET_SPRITES['melee-hit'] = entry;
     fetch(`${base}_frames.json`)
@@ -328,6 +328,44 @@ loadPlayerSprites();
 const BLADE = { img: new Image(), loaded: false };
 BLADE.img.onload = () => { BLADE.loaded = true; };
 BLADE.img.src = 'Assets/blade.png';
+
+// blade1-1 / blade1-2 / blade1-3：Zero 三段斩击各自的序列帧刀光（资源方向为角色面朝右，朝左时水平镜像）
+// 加载 Assets-Clean 下的 strip + frames.json，坐标按 strip 规则重算（x = 帧序号×帧宽 + 水平居中偏移，y = 垂直居中偏移）
+// 第 1 段 → blade1-1；第 2 段 → blade1-2（空中挥砍固定第 2 段，同样用它）；第 3 段 → blade1-3
+function loadBladeStrip(key) {
+  const entry = { img: new Image(), frames: [], fw: 1, fh: 1, fps: 10, loaded: false };
+  entry.img.onload = () => { entry.loaded = true; };
+  fetch(`Assets/Assets-Clean/${key}_frames.json`)
+    .then(r => r.json())
+    .then(data => {
+      const rawFrames = data.frames || [];
+      entry.fps = data.fps || 10;
+      if (rawFrames.length > 0) {
+        const fw = Math.max(...rawFrames.map(f => f.w));
+        const fh = Math.max(...rawFrames.map(f => f.h));
+        entry.fw = fw;
+        entry.fh = fh;
+        entry.frames = rawFrames.map((f, i) => ({
+          x: i * fw + Math.round((fw - f.w) / 2),  // strip 里水平居中后的 x
+          y: Math.round((fh - f.h) / 2),           // strip 里垂直居中后的 y
+          w: f.w,
+          h: f.h,
+        }));
+      }
+    })
+    .catch(() => { entry.frames = []; });
+  entry.img.src = `Assets/Assets-Clean/${key}_strip.png`;
+  return entry;
+}
+// 三段斩击刀光资源：索引 0/1/2 对应第 1/2/3 段
+const BLADE1 = [loadBladeStrip('blade1-1'), loadBladeStrip('blade1-2'), loadBladeStrip('blade1-3')];
+// 上劈刀光资源：up-blade（7 帧斜上挥砍，右对齐绘制）
+const UP_BLADE = loadBladeStrip('up-blade');
+// 根据玩家当前挥砍段数取对应刀光资源（meleeCurStage 1/2/3，空中固定 2 → blade1-2）
+function bladeEntryFor(p) {
+  const idx = Math.max(0, Math.min(p.meleeCurStage - 1, BLADE1.length - 1));
+  return BLADE1[idx];
+}
 
 // 根据玩家状态返回当前应播放的动画 key
 function playerAnimKey(p, mx) {
@@ -613,7 +651,8 @@ function enShape(en) {
 let bullets = [], eBullets = [], particles = [], afterimages = [], enemies = [];
 let muzzleEffects = [];   // 枪口发射特效（out 动画，瞬时）
 let hitEffects = [];      // 命中特效（hit 动画，瞬时，不延迟子弹移除）
-let hitstop = 0;          // hitstop 全冻结剩余帧数（挥砍命中怪物时世界定格，仅 Zero）
+let hitstop = 0;          // hitstop 剩余帧数（Zero 挥砍命中时仅角色与被攻击敌人定格）
+let hitstopTargets = [];  // 本次 hitstop 冻结的敌人列表（其余单位/物体不受影响）
 let meleeHitEffects = []; // Zero 近战受击特效（通用 hit 动画，画在怪物上层，区别于 X 射击的 bullet-hit）
 // 受击白色剪影用的离屏画布（source-in 涂白，只覆盖怪物形状本身）
 const HIT_CANVAS_SIZE = 64, HIT_CANVAS_HALF = HIT_CANVAS_SIZE / 2;
@@ -920,7 +959,7 @@ const CHARS = {
   X:    { name: 'X',    melee: false },
   Zero: { name: 'Zero', melee: true },
 };
-let curChar = 'X';   // 当前角色
+let curChar = 'Zero';   // 当前角色（默认 Zero）
 
 // 各角色独立状态快照（含 HP、位置、蓄力等；切换时保存/恢复）
 const charStates = {
@@ -973,7 +1012,7 @@ function switchCharacter(name) {
   }
   curChar = name;
   // 切换时清空全局子弹/特效残留
-  bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = []; meleeHitEffects = []; hitstop = 0;
+  bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = []; meleeHitEffects = []; hitstop = 0; hitstopTargets.length = 0;
   updateCharUI();
 }
 
@@ -983,9 +1022,11 @@ const MELEE_STAGES = [
   { range: 32, arc: Math.PI * 2 / 3, dmg: 3 },  // 第 2 段
   { range: 44, arc: Math.PI * 2 / 3, dmg: 5 },  // 第 3 段
 ];
-const MELEE_ACTIVE = 12;     // 挥砍动画/判定持续帧（渐隐消失）
+const MELEE_ACTIVE = 18;     // 挥砍动画/判定持续帧（每段 18 帧：6 帧动画每 3 帧切换，第二段 7 帧动画 3/2 帧混合）
 const MELEE_CD = 9;          // 段间攻击冷却（0.15s = 9 帧，攻击频率上限）
 const MELEE_AIR_CD = 20;     // 空中挥砍间隔（0.33s = 20 帧，跳跃挥砍后需等待，独立于地面段间冷却）
+const MELEE_UP_CD = 20;      // 上劈独立间隔（0.33s = 20 帧），不参与地面三段连击
+const MELEE_UP_DMG = 3;      // 上劈每次命中伤害（默认与水平挥砍第 2 段相同，可独立调整）
 const MELEE_RESET = 18;      // 连击重置窗口（0.3s = 18 帧，超过未攻击则重置回第 1 段）
 const MELEE_FINAL_LOCK = 24; // 第三段后的硬直（0.4s = 24 帧，期间不能攻击）
 const HITSTOP = 3;        // 挥砍命中全冻结 0.05s（60fps = 3 帧，仅 Zero 近战触发）
@@ -1005,7 +1046,7 @@ function reset() {
   // 重置两个角色的独立状态快照
   charStates.X = null; charStates.Zero = null;
   charStates[curChar] = snapshotPlayer();
-  bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = []; meleeHitEffects = []; hitstop = 0;
+  bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = []; meleeHitEffects = []; hitstop = 0; hitstopTargets.length = 0;
   camera.x = 0;
   spawnAll();
 }
@@ -1099,44 +1140,95 @@ function endDash() {
 }
 
 // ==================== 近战挥砍（Zero） ====================
-// 攻击范围 = blade.png 逆时针旋转 90° 后的矩形（见 meleeRect）。
-// blade 缩放规则：旋转 90° 后高度 = 角色高度（P.PH）。
-// stageMult：三段连击的范围放大倍率（第 1 段为基准 1.0）。
+// 攻击范围：上攻击沿用 blade.png 逆时针旋转 175°；水平挥砍按段数使用
+// blade1-1 / blade1-2 / blade1-3 序列帧（空中固定第 2 段 → blade1-2）。
+// 三段大小倍率（以基准大小 1.0 为参照）：第一段 0.75、第二段 0.8、
+// 第三段 2.0 → 当前再 ×0.9 = 1.8。
+// 位置：第二段与角色相对居中（水平中心对齐角色中心），其余段保持向面朝方向偏移。
 function meleeStageMult(stage) {
-  const idx = Math.max(0, Math.min(stage - 1, MELEE_STAGES.length - 1));
-  return MELEE_STAGES[idx].range / MELEE_STAGES[0].range;
+  if (stage === 1) return 0.75;
+  if (stage === 2) return 0.8;
+  return 1.8;
+}
+
+// 三段挥砍逐帧切换时长表（单位：帧）。每段总时长 18 帧：
+// 第 1/3 段：6 帧动画，每帧 3 帧切换（3×6=18）
+// 第 2 段：7 帧动画，第 2/6/7 帧每 2 帧切换，其余 3 帧（3+2+3+3+3+2+2=18）
+const MELEE_FRAME_DURS = {
+  1: [3, 3, 3, 3, 3, 3],
+  2: [3, 2, 3, 3, 3, 2, 2],
+  3: [3, 3, 3, 3, 3, 3],
+};
+
+// 根据挥砍剩余帧 p.melee 与帧切换时长表，返回当前应显示的动画帧索引。
+// durs 缺省时使用当前段对应表（水平挥砍）；上劈传入 MELEE_FRAME_DURS[2]（7 帧/18 帧）
+function meleeFrameIndex(p, total, durs) {
+  if (!durs) durs = MELEE_FRAME_DURS[p.meleeCurStage] || MELEE_FRAME_DURS[1];
+  const elapsed = MELEE_ACTIVE - p.melee;  // 已播放帧数 0..17
+  let acc = 0;
+  for (let i = 0; i < Math.min(total, durs.length); i++) {
+    acc += durs[i];
+    if (elapsed < acc) return i;
+  }
+  return Math.min(total - 1, durs.length - 1);
 }
 
 function meleeRect(stage) {
   const p = player;
-  // blade 原始宽高（未加载时用近似正方形 1:1 兜底）
+  const entry = !p.upAtk ? bladeEntryFor(p) : null;
+  const useBlade = entry && entry.loaded && entry.frames.length > 0;
+  if (useBlade) {
+    // 判定框跟随当前挥砍动画帧的真实形状：用每帧去空白边距后的尺寸 f.w/f.h（而非
+    // strip 排版最大帧 entry.fw/fh），缩放/锚点/右对齐与 drawMeleeEffectHoriz 完全一致，
+    // 使判定框每一帧都与视觉刀光贴合。
+    const s = P.PH / entry.fh * 1.5 * meleeStageMult(p.meleeCurStage);
+    const total = entry.frames.length;
+    const f = entry.frames[meleeFrameIndex(p, total)];
+    const dispW = f.w * s;
+    const dispH = f.h * s;
+    const cx = p.x + p.w / 2;
+    const cy = p.y + p.h / 2;
+    // 锚点偏移系数（以最大帧宽 refW 为基准的固定值，防抖）：
+    // 第二段水平中心对齐角色中心；第三段向角色方向回移 1/4 帧宽（0.75 → 0.5）；
+    // 其余段向前偏移 3/4 帧宽
+    const refW = entry.fw * s;
+    const offRatio = p.meleeCurStage === 2 ? (dispW / refW) / 2 : (p.meleeCurStage === 3 ? 0.5 : 0.75);
+    const anchorX = cx + p.meleeDir * (refW * offRatio);
+    const rx = p.meleeDir > 0 ? anchorX - dispW : anchorX;
+    return { x: rx, y: cy - dispH / 2, w: dispW, h: dispH };
+  }
+
+  // 上攻击或资源未加载时：沿用 blade.png 旧逻辑（取消段数放大）
   const bw = (BLADE.loaded && BLADE.img.naturalWidth) ? BLADE.img.naturalWidth : 1;
   const bh = (BLADE.loaded && BLADE.img.naturalHeight) ? BLADE.img.naturalHeight : 1;
-  // 逆时针旋转 90° 后：渲染宽 = 原高(bh)，渲染高 = 原宽(bw)
-  // 缩放：旋转后高度（=bw）→ P.PH，再乘段数放大倍率
   const targetH = P.PH;
-  const s = targetH / bw * meleeStageMult(stage);
-  const dispW = bh * s;         // 旋转后宽度（含段数放大，刀光长度方向）
-  const dispH = targetH * meleeStageMult(stage);  // 旋转后高度（含段数放大）
+  const s = targetH / bw;
+  const dispW = bh * s;
+  const dispH = targetH;
   const cx = p.x + p.w / 2;
   const cy = p.y + p.h / 2;
-  // 矩形：从角色前方开始（刀光中心向前偏移 dispW/2，与视觉一致），垂直方向居中 dispH
-  // 上攻击：刀光以头顶上方为锚点、尖端朝上。长度方向（dispW）近似竖直、厚度方向（dispH）近似水平，
-  // 判定矩形覆盖刀光两端：垂直 [anchorY-dispW/2, anchorY+dispW/2]，水平居中厚度 dispH
-  let rx, ry;
+  // 矩形：从角色前方开始，垂直方向居中
+  // 上攻击：刀光以头顶上方为锚点、尖端朝上。长度方向（dispW）近似竖直、厚度方向（dispH）近似水平
   if (p.upAtk) {
-    const anchorY = cy - P.PH * 0.6;
-    rx = cx - dispH / 2;
-    ry = anchorY - dispW / 2;
-    return { x: rx, y: ry, w: dispH, h: dispW };
-  } else if (p.meleeDir > 0) {
-    rx = cx;
-    ry = cy - dispH / 2;
-  } else {
-    rx = cx - dispW;
-    ry = cy - dispH / 2;
+  // 上劈刀光：使用 up-blade 序列帧（7 帧，18 帧动画），向面朝方向前方展开
+  const up = UP_BLADE;
+  if (up.loaded && up.frames.length > 0) {
+    const us = P.PH / up.fh * 1.5 * 1.5;  // 放大到 1.5 倍
+    const total = up.frames.length;
+    const f = up.frames[meleeFrameIndex(p, total, MELEE_FRAME_DURS[2])];
+    const uw = f.w * us, uh = f.h * us;
+    // 右对齐：刀光右边缘（尖端）贴锚点；锚点位于角色中心偏上、偏右（面朝方向）
+    const refW = up.fw * us;
+    const anchorX = cx + p.facing * (refW * 0.2 + p.w);
+    const anchorY = cy - P.PH * 0.55;
+    const rx = p.facing > 0 ? anchorX - uw : anchorX;
+    return { x: rx, y: anchorY - uh / 2, w: uw, h: uh };
   }
-  return { x: rx, y: ry, w: dispW, h: dispH };
+  const anchorY = cy - P.PH * 0.6;
+    return { x: cx - dispH / 2, y: anchorY - dispW / 2, w: dispH, h: dispW };
+  }
+  const rx = p.meleeDir > 0 ? cx : cx - dispW;
+  return { x: rx, y: cy - dispH / 2, w: dispW, h: dispH };
 }
 
 // 挥砍触发帧：仅播放特效（伤害判定交给动画期间每帧的 doMeleeHit）
@@ -1148,12 +1240,17 @@ function doMelee(stage) {
 
 // 挥砍动画期间逐帧判定（仅 Zero）。命中冷却 meleeLock>0 的怪物跳过；
 // 命中帧 + 5 帧无伤害 = 6 帧一次，12 帧动画内最多命中 2 次（第 1/7 帧）。
-// 命中触发 hitstop 全冻结；同帧多目标合并为一次停顿。
+// 命中触发 hitstop：仅角色与被攻击的敌人定格，其余世界照常（同帧多目标合并冻结）。
 function doMeleeHit(stage) {
   const p = player;
-  const idx = stage - 1;
-  if (idx < 0 || idx >= MELEE_STAGES.length) return;
-  const { dmg } = MELEE_STAGES[idx];
+  let dmg;
+  if (p.upAtk) {
+    dmg = MELEE_UP_DMG;
+  } else {
+    const idx = stage - 1;
+    if (idx < 0 || idx >= MELEE_STAGES.length) return;
+    dmg = MELEE_STAGES[idx].dmg;
+  }
   const rect = meleeRect(stage);
   let hitAny = false;
   for (let j = enemies.length - 1; j >= 0; j--) {
@@ -1165,6 +1262,7 @@ function doMeleeHit(stage) {
         // 击退：上攻击向上弹开（2.5），水平挥砍沿挥砍方向弹开（2.0）
         if (p.upAtk) knockEnemy(en, 0, -1, 2.5);
         else knockEnemy(en, p.meleeDir, 0, 2.0);
+        hitstopTargets.push(en);   // 记录本次停顿的冻结目标（仅存活的受击怪物）
       }
       en.meleeLock = 6;
       // Zero 专属受击特效（通用 hit 动画，画在怪物上层）
@@ -1179,8 +1277,13 @@ function doMeleeHit(stage) {
 function update() {
   // 编辑模式下暂停游戏逻辑
   if (editMode) return;
-  // hitstop 全冻结：怪物/玩家/子弹/挥砍动画全部定格（仅 Zero 近战命中触发）
-  if (hitstop > 0) { hitstop--; return; }
+  // hitstop：仅冻结角色与被攻击的敌人（定格受击瞬间），其余世界照常运行（仅 Zero 近战命中触发）
+  if (hitstop > 0) {
+    hitstop--;
+    if (hitstop === 0) hitstopTargets.length = 0;  // 停顿结束，解除冻结目标
+    updateWorld();
+    return;
+  }
 
   const p = player;
   if (p.invT > 0) p.invT--;
@@ -1200,6 +1303,9 @@ function update() {
   if (keys['a'] || keys['A']) mx = -1;
   if (keys['d'] || keys['D']) mx += 1;
   if ((keys['a'] || keys['A']) && (keys['d'] || keys['D'])) mx = 0;
+  // 本帧已执行跳跃的标志：冲刺跳（Dash1/Dash2）先触发后，同帧跳跃块不得再落入
+  // 二段跳分支覆盖初速度，否则冲刺跳实际高度会变成二段跳的 0.8 倍
+  let jumpDone = false;
 
   // 墙面
   const pr = { x: p.x, y: p.y, w: p.w, h: p.h };
@@ -1229,7 +1335,11 @@ function update() {
       let stage;
       // 上攻击判定：仅地面按住 W 时触发（空中 W 无效，按普通攻击处理）
       p.upAtk = p.grounded && wR;
-      if (!p.grounded) {
+      if (p.upAtk) {
+        // 上劈：独立单段动作，不参与地面三段连击；每次间隔 20 帧（MELEE_UP_CD）
+        stage = 0;
+        p.meleeCd = MELEE_UP_CD;
+      } else if (!p.grounded) {
         // 空中攻击：固定第 2 段，不推进连击段数；使用独立 0.5s 间隔 CD
         stage = 2;
         p.meleeCd = MELEE_AIR_CD;
@@ -1308,6 +1418,7 @@ function update() {
     if (cancel) { endDash(); p.dashReady = !!lR; }
     if (kD) {
       p.vy = P.JUMP; p.grounded = false; p.jumpCount = 1;
+      jumpDone = true;   // 阻止同帧跳跃块再走二段跳覆盖初速度（冲刺跳高度=普通跳）
       p.vx = mx !== 0 ? mx * P.SPEED * P.DASH_MULT : 0;
       p.isDash = false; p.dashReady = false; p.dashAir = true; p.kCon = true;
       // 空中冲刺跳恢复跳跃碰撞盒（=站立盒 A）：dashAir 动画走 jump 分支，碰撞盒须同步，不能停留在 dash 的低矮 B 盒
@@ -1321,6 +1432,7 @@ function update() {
     if (!lR) p.dashReady = false;
     if (kR && p.grounded && !p.kCon) {
       p.vy = P.JUMP; p.grounded = false; p.jumpCount = 1;
+      jumpDone = true;   // 阻止同帧跳跃块再走二段跳覆盖初速度（冲刺跳高度=普通跳）
       if (mx !== 0) p.vx = mx * P.SPEED * P.DASH_MULT;
       p.dashReady = false; p.dashAir = true; p.kCon = true;
       spawnPart(p.x + p.w / 2, p.y + p.h, 5, '#aaf');
@@ -1371,7 +1483,7 @@ function update() {
       p.wjLock = P.WALL_LOCK; p.wjDir = -p.onWall; p.kCon = true;
       if (lR) { p.vx = -p.onWall * P.WALL_JUMP_X * P.DASH_MULT; p.dashAir = true; spawnPart(p.x + p.w / 2, p.y + p.h / 2, 6, '#aaf'); }
       else { p.vx = -p.onWall * P.WALL_JUMP_X; spawnPart(p.x + p.w / 2, p.y + p.h / 2, 6, '#8cf'); }
-    } else if (p.jumpCount < 2) {
+    } else if (p.jumpCount < 2 && !jumpDone) {
       // 二段跳：空中再次起跳，高度为原跳高的 0.8
       p.vy = P.JUMP * 0.8; p.kCon = true; p.jumpCount = 2;
       // 重新从起跳段播放跳跃动画
@@ -1453,113 +1565,9 @@ function update() {
   // 挥砍逐帧命中判定（仅 Zero）：动画期间每帧判定，命中冷却 6 帧，同帧多目标合并一次停顿
   if (CHARS[curChar].melee && p.melee > 0) doMeleeHit(p.meleeCurStage);
 
-  // 自动生成怪物：每秒 1 个，地图范围内随机可生成位置，全图上限 ENEMY_MAX
-  spawnTimer++;
-  if (spawnTimer >= ENEMY_SPAWN_CD) {
-    spawnTimer = 0;
-    if (enemies.length < ENEMY_MAX) {
-      const type = ENEMY_SPAWN_TYPES[(Math.random() * ENEMY_SPAWN_TYPES.length) | 0];
-      const pos = findSpawnPos(ET[type].w, ET[type].h);
-      if (pos) enemies.push(mkEnemy(type, pos.x, pos.y));
-    }
-  }
-
-  for (const en of enemies) { ai(en); enPhys(en); }
-
-  // 玩家子弹 vs 怪物/墙
-  for (let i = bullets.length - 1; i >= 0; i--) {
-    const b = bullets[i];
-    b.x += b.vx; b.life--; b.animT++;
-    const br = { x: b.x - b.w / 2, y: b.y - b.h / 2, w: b.w, h: b.h };
-    let hit = false;
-    // 记录最靠子弹发射侧的接触表面 x（兜底为子弹前边缘）
-    let hitSurfaceX = b.dir > 0 ? -Infinity : Infinity;
-    let hitY = b.y;
-    // 打瓦片：接触边 = 瓦片靠近子弹那一侧的表面
-    for (let r = 0; r < LH; r++) for (let c = 0; c < LW; c++) {
-      if (map[r * LW + c] === 0) continue;
-      const tl = { x: c * TILE, y: r * TILE, w: TILE, h: TILE };
-      if (overlap(br, tl)) {
-        hit = true; spawnPart(b.x, b.y, b.power === 2 ? 8 : 3, b.color);
-        const sx = b.dir > 0 ? tl.x : tl.x + tl.w;
-        if (b.dir > 0) { if (sx > hitSurfaceX) hitSurfaceX = sx; }
-        else           { if (sx < hitSurfaceX) hitSurfaceX = sx; }
-      }
-    }
-    // 打敌人：接触边 = 敌人靠近子弹那一侧的表面
-    for (let j = enemies.length - 1; j >= 0; j--) {
-      const en = enemies[j];
-      if (collide(br, enShape(en))) {
-        hit = true;
-        if (dmgEnemy(en, b.dmg)) enemies.splice(j, 1);
-        else knockEnemy(en, b.dir, 0, 1.5);  // X 子弹命中：沿子弹方向水平轻微击退
-        const sx = b.dir > 0 ? en.x : en.x + en.w;
-        if (b.dir > 0) { if (sx > hitSurfaceX) hitSurfaceX = sx; }
-        else           { if (sx < hitSurfaceX) hitSurfaceX = sx; }
-      }
-    }
-    // 命中特效：以接触表面为中线（一半在目标内、一半在目标外）
-    if (hit) spawnHitEffect(hitSurfaceX, hitY, b.dir, b.type);  // 命中特效（不延迟移除）
-    if (hit || b.life <= 0 || b.x < camera.x - 22 || b.x > camera.x + VW / (camera.zoom * VIEW_SCALE) + 22) bullets.splice(i, 1);
-  }
-
-  // 敌人子弹 vs 玩家
-  for (let i = eBullets.length - 1; i >= 0; i--) {
-    const b = eBullets[i];
-    b.x += b.vx; b.y += b.vy; b.life--;
-    const br = { x: b.x - b.w / 2, y: b.y - b.h / 2, w: b.w, h: b.h };
-    if (overlap(br, pr) && p.invT <= 0) { dmgPlayer(2); spawnPart(b.x, b.y, 4, '#f4f'); eBullets.splice(i, 1); continue; }
-    let hw = false;
-    for (let r = 0; r < LH; r++) for (let c = 0; c < LW; c++) {
-      if (map[r * LW + c] === 0) continue;
-      if (overlap(br, { x: c * TILE, y: r * TILE, w: TILE, h: TILE })) hw = true;
-    }
-    if (hw || b.life <= 0 || b.x < camera.x - 22 || b.x > camera.x + VW / (camera.zoom * VIEW_SCALE) + 22 || b.y < -22 || b.y > VH / (camera.zoom * VIEW_SCALE) + 22) eBullets.splice(i, 1);
-  }
-
-  // 玩家碰怪物
-  if (p.invT <= 0) {
-    for (const en of enemies) {
-      if (collide(pr, enShape(en))) {
-        dmgPlayer(ET[en.type].boss ? 3 : 1);
-      }
-    }
-  }
-
-  // 粒子
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const pt = particles[i]; pt.x += pt.vx; pt.y += pt.vy; pt.vy += 0.04; pt.life--;
-    if (pt.life <= 0) particles.splice(i, 1);
-  }
-  // 枪口发射特效（out）：播放一遍后移除
-  for (let i = muzzleEffects.length - 1; i >= 0; i--) {
-    const m = muzzleEffects[i];
-    const entry = BULLET_SPRITES[`${m.key}-out`];
-    const totalFrames = entry ? entry.frames.length : 0;
-    const frameDur = entry ? Math.round(60 / entry.fps) : 6;
-    m.animT++;
-    if (totalFrames === 0 || m.animT >= totalFrames * frameDur) muzzleEffects.splice(i, 1);
-  }
-  // 命中特效（hit）：播放一遍后移除
-  for (let i = hitEffects.length - 1; i >= 0; i--) {
-    const h = hitEffects[i];
-    const entry = BULLET_SPRITES[`${h.key}-hit`];
-    const totalFrames = entry ? entry.frames.length : 0;
-    const frameDur = entry ? Math.round(60 / entry.fps) : 6;
-    h.animT += 2;  // 播放速度翻倍（帧切换速度 ×2）
-    if (totalFrames === 0 || h.animT >= totalFrames * frameDur) hitEffects.splice(i, 1);
-  }
-  // Zero 近战受击特效：播放一遍后移除
-  for (let i = meleeHitEffects.length - 1; i >= 0; i--) {
-    const h = meleeHitEffects[i];
-    const entry = BULLET_SPRITES['melee-hit'];
-    const totalFrames = entry ? entry.frames.length : 0;
-    const frameDur = entry ? Math.round(60 / entry.fps) : 6;
-    h.animT += 2;  // 播放速度翻倍（帧切换速度 ×2）
-    if (totalFrames === 0 || h.animT >= totalFrames * frameDur) meleeHitEffects.splice(i, 1);
-  }
-  // 残影寿命递减（新残影的生成在下方动画状态机更新之后）
-  for (let i = afterimages.length - 1; i >= 0; i--) { afterimages[i].life--; if (afterimages[i].life <= 0) afterimages.splice(i, 1); }
+  // 世界更新：怪物/子弹/粒子/特效/残影照常运行
+  // （hitstop 时仅玩家与受击敌人冻结，其余由 updateWorld 继续推进）
+  updateWorld();
 
   if (keys[' ']) { reset(); keys[' '] = false; }
 
@@ -1638,6 +1646,130 @@ function update() {
   // 射击动画持续计时：放在动画状态机之后递减，确保「本帧射击→本帧动画立即是射击形态」，
   // 避免 shootHold 在动画判定前归零造成 jump/jumpShoot、dash/dashShoot 间的一帧错位闪切
   if (p.shootHold > 0) p.shootHold--;
+}
+
+// ==================== 世界更新（怪物/子弹/粒子/特效/残影） ====================
+// 正常帧与 hitstop 帧共用：hitstop 时玩家与被攻击的敌人冻结（定格受击瞬间），
+// 其余单位/物体（其他怪物/子弹/粒子/特效/摄像机外逻辑）照常运行。
+function updateWorld() {
+  const p = player;
+  const pr = { x: p.x, y: p.y, w: p.w, h: p.h };
+  // 冻结判定：hitstop 期间被 Zero 近战命中的敌人，AI/物理/碰撞全部跳过，保持受击定格
+  const frozen = en => hitstop > 0 && hitstopTargets.indexOf(en) !== -1;
+
+  // 自动生成怪物：每秒 1 个，地图范围内随机可生成位置，全图上限 ENEMY_MAX
+  spawnTimer++;
+  if (spawnTimer >= ENEMY_SPAWN_CD) {
+    spawnTimer = 0;
+    if (enemies.length < ENEMY_MAX) {
+      const type = ENEMY_SPAWN_TYPES[(Math.random() * ENEMY_SPAWN_TYPES.length) | 0];
+      const pos = findSpawnPos(ET[type].w, ET[type].h);
+      if (pos) enemies.push(mkEnemy(type, pos.x, pos.y));
+    }
+  }
+
+  // 怪物 AI/物理：冻结目标跳过（受击定格），其余照常
+  for (const en of enemies) {
+    if (frozen(en)) continue;
+    ai(en); enPhys(en);
+  }
+
+  // 玩家子弹 vs 怪物/墙
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.x += b.vx; b.life--; b.animT++;
+    const br = { x: b.x - b.w / 2, y: b.y - b.h / 2, w: b.w, h: b.h };
+    let hit = false;
+    // 记录最靠子弹发射侧的接触表面 x（兜底为子弹前边缘）
+    let hitSurfaceX = b.dir > 0 ? -Infinity : Infinity;
+    let hitY = b.y;
+    // 打瓦片：接触边 = 瓦片靠近子弹那一侧的表面
+    for (let r = 0; r < LH; r++) for (let c = 0; c < LW; c++) {
+      if (map[r * LW + c] === 0) continue;
+      const tl = { x: c * TILE, y: r * TILE, w: TILE, h: TILE };
+      if (overlap(br, tl)) {
+        hit = true; spawnPart(b.x, b.y, b.power === 2 ? 8 : 3, b.color);
+        const sx = b.dir > 0 ? tl.x : tl.x + tl.w;
+        if (b.dir > 0) { if (sx > hitSurfaceX) hitSurfaceX = sx; }
+        else           { if (sx < hitSurfaceX) hitSurfaceX = sx; }
+      }
+    }
+    // 打敌人：接触边 = 敌人靠近子弹那一侧的表面（冻结目标不参与碰撞，保持定格）
+    for (let j = enemies.length - 1; j >= 0; j--) {
+      const en = enemies[j];
+      if (frozen(en)) continue;
+      if (collide(br, enShape(en))) {
+        hit = true;
+        if (dmgEnemy(en, b.dmg)) enemies.splice(j, 1);
+        else knockEnemy(en, b.dir, 0, 1.5);  // X 子弹命中：沿子弹方向水平轻微击退
+        const sx = b.dir > 0 ? en.x : en.x + en.w;
+        if (b.dir > 0) { if (sx > hitSurfaceX) hitSurfaceX = sx; }
+        else           { if (sx < hitSurfaceX) hitSurfaceX = sx; }
+      }
+    }
+    // 命中特效：以接触表面为中线（一半在目标内、一半在目标外）
+    if (hit) spawnHitEffect(hitSurfaceX, hitY, b.dir, b.type);  // 命中特效（不延迟移除）
+    if (hit || b.life <= 0 || b.x < camera.x - 22 || b.x > camera.x + VW / (camera.zoom * VIEW_SCALE) + 22) bullets.splice(i, 1);
+  }
+
+  // 敌人子弹 vs 玩家：hitstop 期间玩家冻结，跳过命中判定（子弹照常飞行/落地）
+  for (let i = eBullets.length - 1; i >= 0; i--) {
+    const b = eBullets[i];
+    b.x += b.vx; b.y += b.vy; b.life--;
+    const br = { x: b.x - b.w / 2, y: b.y - b.h / 2, w: b.w, h: b.h };
+    if (hitstop <= 0 && overlap(br, pr) && p.invT <= 0) { dmgPlayer(2); spawnPart(b.x, b.y, 4, '#f4f'); eBullets.splice(i, 1); continue; }
+    let hw = false;
+    for (let r = 0; r < LH; r++) for (let c = 0; c < LW; c++) {
+      if (map[r * LW + c] === 0) continue;
+      if (overlap(br, { x: c * TILE, y: r * TILE, w: TILE, h: TILE })) hw = true;
+    }
+    if (hw || b.life <= 0 || b.x < camera.x - 22 || b.x > camera.x + VW / (camera.zoom * VIEW_SCALE) + 22 || b.y < -22 || b.y > VH / (camera.zoom * VIEW_SCALE) + 22) eBullets.splice(i, 1);
+  }
+
+  // 玩家碰怪物：hitstop 期间玩家冻结，跳过伤害判定
+  if (hitstop <= 0 && p.invT <= 0) {
+    for (const en of enemies) {
+      if (frozen(en)) continue;
+      if (collide(pr, enShape(en))) {
+        dmgPlayer(ET[en.type].boss ? 3 : 1);
+      }
+    }
+  }
+
+  // 粒子
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const pt = particles[i]; pt.x += pt.vx; pt.y += pt.vy; pt.vy += 0.04; pt.life--;
+    if (pt.life <= 0) particles.splice(i, 1);
+  }
+  // 枪口发射特效（out）：播放一遍后移除
+  for (let i = muzzleEffects.length - 1; i >= 0; i--) {
+    const m = muzzleEffects[i];
+    const entry = BULLET_SPRITES[`${m.key}-out`];
+    const totalFrames = entry ? entry.frames.length : 0;
+    const frameDur = entry ? Math.round(60 / entry.fps) : 6;
+    m.animT++;
+    if (totalFrames === 0 || m.animT >= totalFrames * frameDur) muzzleEffects.splice(i, 1);
+  }
+  // 命中特效（hit）：播放一遍后移除
+  for (let i = hitEffects.length - 1; i >= 0; i--) {
+    const h = hitEffects[i];
+    const entry = BULLET_SPRITES[`${h.key}-hit`];
+    const totalFrames = entry ? entry.frames.length : 0;
+    const frameDur = entry ? Math.round(60 / entry.fps) : 6;
+    h.animT += 2;  // 播放速度翻倍（帧切换速度 ×2）
+    if (totalFrames === 0 || h.animT >= totalFrames * frameDur) hitEffects.splice(i, 1);
+  }
+  // Zero 近战受击特效：播放一遍后移除
+  for (let i = meleeHitEffects.length - 1; i >= 0; i--) {
+    const h = meleeHitEffects[i];
+    const entry = BULLET_SPRITES['melee-hit'];
+    const totalFrames = entry ? entry.frames.length : 0;
+    const frameDur = entry ? Math.round(60 / entry.fps) : 6;
+    h.animT += 2;  // 播放速度翻倍（帧切换速度 ×2）
+    if (totalFrames === 0 || h.animT >= totalFrames * frameDur) meleeHitEffects.splice(i, 1);
+  }
+  // 残影寿命递减（新残影的生成在下方动画状态机更新之后）
+  for (let i = afterimages.length - 1; i >= 0; i--) { afterimages[i].life--; if (afterimages[i].life <= 0) afterimages.splice(i, 1); }
 }
 
 // ==================== 渲染 (所有世界坐标 - camera.x) ====================
@@ -1817,59 +1949,97 @@ function drawPlayer() {
   }
 }
 
-// 绘制近战挥砍刀光（用 blade.png，三段连击共用同一刀光，范围随段数放大）
-// 不做挥砍转动，blade 资源本身已表现挥砍，仅随挥砍进度渐隐消失
+// 绘制近战挥砍刀光
+// - 地面向上挥砍（upAtk）：保留 blade.png，逆时针旋转 175°
+// - 地面/空中水平挥砍：按段数使用 blade1-1/1-2/1-3 序列帧，资源默认朝右，朝左时水平镜像；三段大小统一
 function drawMeleeEffect(p, cx, cy) {
-  if (!BLADE.loaded) {
-    // 未加载时回退到扇形
-    drawMeleeEffectFallback(p, cx, cy);
+  if (p.upAtk) {
+    drawMeleeEffectUp(p, cx, cy);
+  } else {
+    drawMeleeEffectHoriz(p, cx, cy);
+  }
+}
+
+// 地面向上挥砍：使用 up-blade 序列帧（7 帧，右对齐，面朝左时水平镜像）
+function drawMeleeEffectUp(p, cx, cy) {
+  const up = UP_BLADE;
+  if (up.loaded && up.frames.length > 0) {
+    const progress = p.melee / MELEE_ACTIVE;
+    const alpha = progress;
+    const us = P.PH / up.fh * 1.5 * 1.5;  // 放大到 1.5 倍
+    const total = up.frames.length;
+    const f = up.frames[meleeFrameIndex(p, total, MELEE_FRAME_DURS[2])];
+    const dispW = f.w * us, dispH = f.h * us;
+    // 右对齐：刀光右边缘（尖端）贴锚点；锚点位于角色中心偏上、偏右（面朝方向）
+    const refW = up.fw * us;
+    const anchorX = cx + p.facing * (refW * 0.2 + p.w);
+    const anchorY = cy - P.PH * 0.55;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(anchorX, anchorY);
+    ctx.scale(p.facing > 0 ? 1 : -1, 1);
+    ctx.drawImage(up.img, f.x, f.y, f.w, f.h, -dispW, -dispH / 2, dispW, dispH);
+    ctx.restore();
+    ctx.lineWidth = 1;
     return;
   }
-  const stage = p.meleeCurStage > 0 ? p.meleeCurStage : 1;
-  const idx = Math.min(stage - 1, MELEE_STAGES.length - 1);
-  // 三段范围放大倍率（第 1/2/3 段）
-  const stageMult = MELEE_STAGES[idx].range / MELEE_STAGES[0].range;
-  // 挥砍进度：1 → 0（渐隐）
-  const progress = p.melee / MELEE_ACTIVE;
-  const alpha = progress;  // 线性渐隐
 
+  // fallback：资源未加载时沿用 blade.png 旋转 175°
+  if (!BLADE.loaded) { drawMeleeEffectFallback(p, cx, cy); return; }
+  const progress = p.melee / MELEE_ACTIVE;
+  const alpha = progress;
   const bw = BLADE.img.naturalWidth;
   const bh = BLADE.img.naturalHeight;
-  // 逆时针旋转 90° 后：渲染宽 = 原高(bh)，渲染高 = 原宽(bw)
-  const targetH = P.PH;            // 旋转后高度 = 角色高度
-  const s = targetH / bw * stageMult; // 缩放系数（含段数放大）
-  const dispW = bh * s;            // 旋转后宽度（刀光长度方向）
-
-  // 刀光锚点：水平挥砍从角色中心向前方偏移 dispW/2，使刀光整体位于角色前方，不压住身体；
-  // 上攻击锚点固定在头顶上方，斩击随角色上升一起移动
-  let anchorX, anchorY, rot;
-  if (p.upAtk) {
-    anchorX = cx;
-    anchorY = cy - P.PH * 0.6;
-    // 面朝右：逆时针旋转 175°（尖端朝右上、接近垂直）；面朝左：镜像顺时针 175°
-    rot = p.facing > 0 ? -175 * Math.PI / 180 : 175 * Math.PI / 180;
-  } else {
-    anchorX = cx + p.meleeDir * (dispW / 2);
-    anchorY = cy;
-    rot = p.meleeDir > 0 ? -Math.PI / 2 : Math.PI / 2;
-  }
+  const s = P.PH / bw;  // 旋转后高度 = 角色高度（取消段数放大）
+  const anchorX = cx;
+  const anchorY = cy - P.PH * 0.6;
+  // 面朝右：尖端朝右上；面朝左：镜像
+  const rot = p.facing > 0 ? -175 * Math.PI / 180 : 175 * Math.PI / 180;
 
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.translate(anchorX, anchorY);
   ctx.rotate(rot);
-  // blade 绘制：原图中心对齐锚点，下方（尖端）在旋转后指向怪物方向
   ctx.drawImage(BLADE.img, -bw * s / 2, -bh * s / 2, bw * s, bh * s);
   ctx.restore();
   ctx.lineWidth = 1;
 }
 
-// blade 未加载时的回退扇形
+// 地面/空中水平挥砍：按段数使用对应刀光资源序列帧（默认朝右，朝左 scale(-1,1) 镜像）
+function drawMeleeEffectHoriz(p, cx, cy) {
+  const entry = bladeEntryFor(p);
+  if (!entry || !entry.loaded || entry.frames.length === 0) { drawMeleeEffectFallback(p, cx, cy); return; }
+  const progress = p.melee / MELEE_ACTIVE;  // 1 → 0
+  const alpha = progress;
+  const total = entry.frames.length;
+  const f = entry.frames[meleeFrameIndex(p, total)];
+
+  const s = P.PH / entry.fh * 1.5 * meleeStageMult(p.meleeCurStage);
+  const dispW = f.w * s;
+  const dispH = f.h * s;
+  // 锚点偏移系数（以最大帧宽 refW 为基准的固定值，防抖）：
+  // 第二段水平中心对齐角色中心；第三段向角色方向回移 1/4 帧宽（0.75 → 0.5）；
+  // 其余段向前偏移 3/4 帧宽
+  const refW = entry.fw * s;
+  const offRatio = p.meleeCurStage === 2 ? (dispW / refW) / 2 : (p.meleeCurStage === 3 ? 0.5 : 0.75);
+  const anchorX = cx + p.meleeDir * (refW * offRatio);
+  const anchorY = cy;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(anchorX, anchorY);
+  ctx.scale(p.meleeDir > 0 ? 1 : -1, 1);
+  // 右对齐：每帧右边缘固定在参考点，动画播放时刀光从右向左收拢（朝左镜像后等效于左边缘固定）
+  ctx.drawImage(entry.img, f.x, f.y, f.w, f.h, -dispW, -dispH / 2, dispW, dispH);
+  ctx.restore();
+  ctx.lineWidth = 1;
+}
+
+// blade 未加载时的回退扇形（三段大小统一）
 function drawMeleeEffectFallback(p, cx, cy) {
-  const stage = p.meleeCurStage > 0 ? p.meleeCurStage : 1;
-  const idx = Math.min(stage - 1, MELEE_STAGES.length - 1);
-  const range = MELEE_STAGES[idx].range;
-  const arc = MELEE_STAGES[idx].arc;
+  const range = MELEE_STAGES[0].range;
+  const arc = MELEE_STAGES[0].arc;
   const progress = p.melee / MELEE_ACTIVE;
   const alpha = progress;
   // 上攻击：扇形朝上；水平攻击：扇形朝面朝方向
@@ -2166,8 +2336,9 @@ function render() {
     }
   }
   // Zero 近战受击特效（画在怪物上层，避免被遮挡）
+  // hit2 原始帧约 190×180，比旧 hit（约 44×40）大很多，缩放 0.25 以保持合理视觉尺寸
   for (const h of meleeHitEffects) {
-    drawAnimEntry(BULLET_SPRITES['melee-hit'], h.animT, h.dir, h.x, h.y, 0.75);
+    drawAnimEntry(BULLET_SPRITES['melee-hit'], h.animT, h.dir, h.x, h.y, 0.25);
   }
   if (!editMode) drawPlayer();
 
@@ -2203,7 +2374,7 @@ function setEditMode(on) {
     editorToolbar.classList.add('active');
     updateToolUI();
     // 进入编辑模式时清空子弹和粒子残留，重置所有怪物到初始状态
-    bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = []; meleeHitEffects = []; hitstop = 0;
+    bullets = []; eBullets = []; particles = []; afterimages = []; muzzleEffects = []; hitEffects = []; meleeHitEffects = []; hitstop = 0; hitstopTargets.length = 0;
     // 敌人改为自动生成，进入编辑模式不加载关卡敌人
     enemies = [];
   } else {

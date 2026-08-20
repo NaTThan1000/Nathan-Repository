@@ -1,0 +1,33 @@
+{
+  "format": "rockman-sprite",
+  "version": 1,
+  "source": "blast-blade2.png",
+  "exportedAt": "2026-08-20T07:14:20.624Z",
+  "action": "blast-blade2",
+  "fps": 10,
+  "frames": [
+    {
+      "x": 11,
+      "y": 27,
+      "w": 298,
+      "h": 190
+    },
+    {
+      "x": 370,
+      "y": 26,
+      "w": 300,
+      "h": 191
+    },
+    {
+      "x": 730,
+      "y": 38,
+      "w": 309,
+      "h": 179
+    }
+  ],
+  "meta": {
+    "imageWidth": 1422,
+    "imageHeight": 229,
+    "cleanImage": "blast-blade2_clean.png"
+  }
+}
