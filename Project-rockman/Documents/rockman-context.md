@@ -238,7 +238,8 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 | `Assets/Assets-Clean/blade1-{1,2,3}_frames.json/strip.png` | Zero 三段水平挥砍刀光序列帧（第 1/2/3 段） |
 | `Assets/Assets-Clean/up-blade_frames.json/strip.png` | Zero 上劈刀光序列帧（7 帧，尖端朝右上） |
 | `Assets/Assets-Clean/hit2_frames.json/strip.png` | Zero 近战受击特效（替换旧 hit） |
-| `Assets/Assets-Clean/{air,blast,blast2,dash,dash2,down,storm,up-shoryu}-blade_*` | 已上传、待接入的后续 Zero 动作刀光资源 |
+| `Assets/Assets-Clean/{air,blast,blast2,dash,dash2,down,storm,up-shoryu}-blade_*` | 已上传、待接入的后续 Zero 动作刀光资源（已完成切割） |
+| `Assets/storm-blade2.png` | 2026-08-20 新上传刀光原始素材（Assets 根目录，尚未切割处理，待接入） |
 
 ### 7. 核心数据结构
 
@@ -556,6 +557,7 @@ ENEMY_SPAWN_TYPES: ['floater']  // 自动生成类型池（当前仅 floater）
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-08-20 (补充) | **commit 乱码问题处理（方案 B）+ 新增待接入素材**。`bef3115`(8/19) commit message 存储为 GBK 乱码且已 merge 进 main，按用户决定方案 B 保持历史现状，在 memory.md 补记乱码对照表与根因复盘；global-rules §1.6 补强「提交后强制验证编码」步骤；新增待接入素材 `Assets/storm-blade2.png`（原始素材，尚未切割处理）。 |
 | 2026-08-20 (会话#13) | **Zero 近战刀光序列帧化 + 三段重调 + 上劈独立化 + 跳跃/冲刺跳修正**。① 三段水平挥砍刀光替换为 `blade1-1/1-2/1-3` 序列帧（去空白边距，判定框逐帧贴合刀光），大小倍率 0.75/0.8/1.8，第二段居中、第三段回移 1/4 帧宽，动画总时长 18 帧（第 1/3 段每 3 帧切换、第 2 段 `[3,2,3,3,3,2,2]`）；② hitstop 从全冻结改为局部停顿（仅 Zero 与受击敌人定格）；③ 近战受击特效 hit→hit2；④ 上劈（W+J）替换为 `up-blade` 序列帧、去掉三段改为独立单段（`MELEE_UP_CD`=20、`MELEE_UP_DMG`=3）；⑤ 默认角色改 Zero；⑥ 跳跃高度 1.2 倍（`JUMP` -5.2→-5.7）；⑦ 修复冲刺跳高度 bug（新增 `jumpDone` 标志，冲刺跳不再被二段跳分支覆盖）。 |
 | 2026-08-19 (会话#12) | **Zero 上攻击 + 二段跳 + 怪物受击击退**。① 上攻击：Zero 地面按住 `W`+`J` 触发，第三段向上斩且角色向上跃起（`P.JUMP×0.8`，计入二段跳次数 `jumpCount=1`），刀光 175° 旋转、判定框重做（锚点移至头顶上方）；② 二段跳：空中再按 K 再跳一次（`P.JUMP×0.8`），墙跳不消耗二段跳次数，落地重置 `jumpCount`；③ 受击击退 `knockEnemy(en, dirX, dirY, power)`：X 子弹 1.5（水平）/ Zero 水平挥砍 2.0（沿 `meleeDir`）/ 上攻击 2.5（向上），持续 8 帧每帧 ×0.85 衰减，击退期间怪物 AI 暂停、物理跳过；④ **同步此前积累未记录改动**：Dash 改为固定时长 21 帧 + 1.75 倍速（`DASH_TIME`/`DASH_MULT`，弃用 `DASH_DIST`）、游玩模式镜头默认缩放 0.7、敌人自动生成（`ENEMY_SPAWN_CD`=60、`ENEMY_MAX`=100、仅 floater，level.json 的 enemies 恒为空数组）、通用碰撞 `collide()/circleRect()/enShape()`（floater 改圆形碰撞 20×20 r=10）、怪物数值全量修正（soldier hp 13 / bee hp 8 / floater hp 11 / boss hp 107）、floater AI 改直线追踪玩家、空中挥砍 CD 30→20 帧（0.5s→0.33s）、屏幕外怪物方向指示 `drawOffscreenIndicators()`、挥砍朝向 `meleeDir`、level.json 地图 63×18→70×38、出生点 (335,351)→(1085,890)。 |
 | 2026-08-18 (会话#11) | **地图边界以砖块包围盒为准 + 近战手感调整**。① 镜头边界改为以「已放置砖块的包围盒」为准（新增 `MAP_BOUNDS`/`updateMapBounds()`，加载/扩展/编辑砖块后重算），修复 level.json 网格声明 63×18 但实际砖块仅覆盖 col 9~62/row 0~14 时镜头露出空白区的问题；② 空中挥砍独立间隔 CD 0.5s（`MELEE_AIR_CD`=30，地面段间冷却保持 0.15s），跳跃挥砍后需等待，落地后剩余冷却继续生效；③ 长按攻击键不再连挥（新增 `jPressed` 按下沿，每次挥砍需重新按 J）；④ 怪物命中冷却 `meleeLock` 4→6 帧，每段攻击对同一怪物最多命中 2 次（第 1/7 帧）。 |
