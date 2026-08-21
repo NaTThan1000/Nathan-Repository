@@ -136,7 +136,8 @@ const TILE_BIG = 56;                                  // 大砖块尺寸 = TILE 
 const P = {
   PW: 30, PH: 35,
   PC: 17,           // 下蹲/冲刺碰撞盒高度
-  SPEED: 1.75, JUMP: -5.7,   // 一段跳高度按原 1.2 倍（√1.2，初速度 -5.2→-5.7）；二段跳/上攻击跃起为 JUMP×0.8 随基准同步提高
+  SPEED: 1.75, JUMP: -6.84,  // 一段跳高度：当前 -5.7 再提高 1.2 倍（初速度 -5.7×1.2 = -6.84）
+  JUMP2: 0,                   // 二段跳初速（=JUMP×0.8，随基准同步提高；下方初始化赋值）
   WALL_SLIDE: 0.65, WALL_JUMP_X: 2.4, WALL_JUMP_Y: -4.4,
   DASH_MULT: 1.75, DASH_TIME: 21,  // dash 移速倍率；最大时长 21 帧(0.35s) = 原 1.5 倍速跑完 56px 距离所需时间
   CHG1: 6, CHG2: 60,
@@ -144,6 +145,7 @@ const P = {
   INV: 30, WALL_LOCK: 6,
   MAX_HP: 28,
 };
+P.JUMP2 = P.JUMP * 0.8;  // 二段跳初速：一段跳的 0.8 倍（随 JUMP 基准同步提高）
 const DMG = { 0: 1, 1: 3, 2: 6 };
 
 // ==================== 子弹 Sprite 资源 ====================
@@ -1017,12 +1019,15 @@ const player = {
   stormT: 0,         // 旋风斩剩余帧（>0 表示正在旋风斩；动画播完瞬间发射斩击波）
   shoryuT: 0,        // 升龙斩剩余帧（>0 表示升龙斩击进行中）
   jHoldT: 0,         // 按住 J 的累计帧数（升龙派生判定）
+  jRePress: true,    // J 重新按下标志：地面升龙触发后置 false，须松开 J 再按住才允许空中再蓄力（确保"松开再按"才升龙）
   airAtk: false,     // 本次挥砍是否为空中圆月斩（空中按 J 触发，用 air-blade 资源）
   floatT: 0,         // 滞空斩剩余帧（>0 表示滞空斩进行中；全程角色悬浮不下降）
   downT: 0,          // 下劈斩剩余帧（>0 表示下劈斩进行中；冲刺直到撞障碍物）
   downDir: 1,        // 下劈斩冲刺方向（锁定触发时 facing，1 右 -1 左）
   dashAtkT: 0,       // 冲刺斩剩余帧（>0 表示冲刺斩进行中；地面冲刺中按 J 触发）
   dashAtkDir: 1,     // 冲刺斩方向（锁定触发时 dashDir，1 右 -1 左）
+  floatAtkUsed: false,  // 本段跳跃是否已用滞空斩（起跳/落地/贴墙滑行重置；二段跳每段各一次）
+  shoryuAtkUsed: false, // 本段跳跃是否已用升龙斩（同上重置规则）
 };
 
 // ==================== 角色切换（X / Zero） ====================
@@ -1050,7 +1055,7 @@ function snapshotPlayer() {
     crouch: p.crouch, forcedCrouch: p.forcedCrouch,
     animF: p.animF, animT: p.animT, animKey: p.animKey,
     melee: p.melee, meleeCd: p.meleeCd, meleeCombo: p.meleeCombo, meleeReset: p.meleeReset, meleeFinalLock: p.meleeFinalLock, meleeCurStage: p.meleeCurStage, meleeDir: p.meleeDir,
-    upAtk: p.upAtk, jumpCount: p.jumpCount, shoryuT: p.shoryuT, jHoldT: p.jHoldT, stormT: p.stormT, airAtk: p.airAtk, floatT: p.floatT, downT: p.downT, downDir: p.downDir, dashAtkT: p.dashAtkT, dashAtkDir: p.dashAtkDir,
+    upAtk: p.upAtk, jumpCount: p.jumpCount, shoryuT: p.shoryuT, jHoldT: p.jHoldT, jRePress: p.jRePress, stormT: p.stormT, airAtk: p.airAtk, floatT: p.floatT, downT: p.downT, downDir: p.downDir,     dashAtkT: p.dashAtkT, dashAtkDir: p.dashAtkDir, floatAtkUsed: p.floatAtkUsed, shoryuAtkUsed: p.shoryuAtkUsed,
   };
 }
 
@@ -1077,7 +1082,7 @@ function switchCharacter(name) {
       crouch: false, forcedCrouch: false,
       animF: 0, animT: 0, animKey: '',
       melee: 0, meleeCd: 0, meleeCombo: 0, meleeReset: 0, meleeFinalLock: 0, meleeCurStage: 1, meleeDir: 1,
-      upAtk: false, jumpCount: 0, shoryuT: 0, jHoldT: 0, stormT: 0, airAtk: false, floatT: 0, downT: 0, downDir: 1, dashAtkT: 0, dashAtkDir: 1,
+      upAtk: false, jumpCount: 0, shoryuT: 0, jHoldT: 0, jRePress: true, stormT: 0, airAtk: false, floatT: 0, downT: 0, downDir: 1,       dashAtkT: 0, dashAtkDir: 1, floatAtkUsed: false, shoryuAtkUsed: false,
     });
     charStates[name] = snapshotPlayer();
   }
@@ -1102,8 +1107,8 @@ const MELEE_RESET = 18;      // 连击重置窗口（0.3s = 18 帧，超过未�
 const MELEE_FINAL_LOCK = 24; // 第三段后的硬直（0.4s = 24 帧，期间不能攻击）
 const MELEE_SHORYU_DMG = 5;      // 升龙斩每次命中伤害（接近水平第三段）
 const MELEE_SHORYU_CD = 30;      // 升龙后攻击冷却（0.5s = 30 帧）
-const MELEE_SHORYU_CHARGE = 12;  // 按住 J 0.2s = 12 帧触发升龙（60fps）
-const MELEE_SHORYU_VY = -5.41;   // 升龙垂直初速：最大高度 ≈ 60.9px = 跳跃(67.7px)的 0.9 倍
+const MELEE_SHORYU_CHARGE = 6;   // 按住 J 0.1s = 6 帧触发升龙（60fps）
+const MELEE_SHORYU_VY = -5.41 * 1.2;   // 升龙垂直初速：随跳高同步提高 1.2 倍，保持「跳跃 0.9 倍」比例
 const MELEE_SHORYU_VX = 0.95;    // 升龙水平初速：80° 仰角的水平分量
 const MELEE_SHORYU_DURS = [3, 3, 3, 3, 3, 3];  // 升龙斩 6 帧 × 3 = 18 帧
 const MELEE_STORM_DMG = 3;      // 旋风斩每次命中伤害（与上劈/中段一致）
@@ -1119,7 +1124,8 @@ const MELEE_DOWN_DMG = 5;       // 下劈斩伤害（与升龙/滞空斩一致�
 const MELEE_DOWN_SPEED = 8.0;   // 下劈斩冲刺速度（向下前方 45° 合成速度）
 const MELEE_DOWN_DUR = 2;       // down-blade 每帧时长（循环播放）
 const MELEE_DASH_DMG = 5;       // 冲刺斩伤害
-const MELEE_DASH_T = 42;        // 冲刺斩时长（2 倍普通冲刺 DASH_TIME=21 帧）
+const MELEE_DASH_T = 21;        // 冲刺斩时长（原 42，缩短一半 = 普通冲刺 DASH_TIME=21 帧）
+const MELEE_DASH_MULT = P.DASH_MULT * 1.5 * 1.2;  // 冲刺斩速度倍率（独立于普通冲刺，提速 1.5×1.2 = 1.8 倍）
 const STORM_WAVE_SPEED = 6.1;   // 斩击波飞行速度（与子弹一致）
 const STORM_WAVE_DMG = 3;       // 斩击波伤害（与旋风斩一致）
 const HITSTOP = 3;        // 挥砍命中全冻结 0.05s（60fps = 3 帧，仅 Zero 近战触发）
@@ -1134,7 +1140,7 @@ function reset() {
     crouch: false, forcedCrouch: false,
     animF: 0, animT: 0, animKey: '',
     melee: 0, meleeCd: 0, meleeCombo: 0, meleeReset: 0, meleeFinalLock: 0, meleeCurStage: 1, meleeDir: 1,
-    upAtk: false, jumpCount: 0, shoryuT: 0, jHoldT: 0, stormT: 0, airAtk: false, floatT: 0, downT: 0, downDir: 1, dashAtkT: 0, dashAtkDir: 1,
+    upAtk: false, jumpCount: 0, shoryuT: 0, jHoldT: 0, jRePress: true, stormT: 0, airAtk: false, floatT: 0, downT: 0, downDir: 1,     dashAtkT: 0, dashAtkDir: 1, floatAtkUsed: false, shoryuAtkUsed: false,
   });
   // 重置两个角色的独立状态快照
   charStates.X = null; charStates.Zero = null;
@@ -1556,7 +1562,7 @@ function update() {
     if (ws.l) p.onWall = -1; if (ws.r) p.onWall = 1;
     if (p.onWall !== 0 && p.vy > 0) {
       const press = (p.onWall === -1 && mx === -1) || (p.onWall === 1 && mx === 1);
-      if (press) { p.vy = Math.min(p.vy, P.WALL_SLIDE); p.wallSlide = true; }
+      if (press) { p.vy = Math.min(p.vy, P.WALL_SLIDE); p.wallSlide = true; p.floatAtkUsed = false; p.shoryuAtkUsed = false; p.jRePress = true; }
     }
   }
 
@@ -1600,7 +1606,7 @@ function update() {
     if (jPressed && jD && p.meleeCd === 0 && p.meleeFinalLock === 0) {
       jPressed = false;  // 消费按下沿：长按不连挥，每次挥砍都需要重新按攻击键
       let stage;
-      // 冲刺斩判定：地面冲刺（isDash）状态下按 J 触发，优先于其他地面攻击
+      // 冲刺斩判定：仅地面冲刺（isDash）状态下按 J 触发（还原：去掉空中冲刺触发）
       if (p.isDash && p.grounded) {
         // 冲刺斩：以冲刺动画第二帧姿态继续向前冲刺斩击，距离 2 倍普通冲刺
         p.upAtk = false;
@@ -1638,8 +1644,7 @@ function update() {
           stage = 0;
           p.meleeCd = MELEE_UP_CD;
         } else if (!p.grounded) {
-          // 空中攻击：按住 W 触发滞空斩（blast-blade → 停滞 10 帧 → blast-blade2），
-          // 否则为圆月斩（air-blade）
+          // 空中攻击：下劈斩（sR）→ 圆月斩（其余，不含 W+J 的滞空/升龙，后者由独立派生块处理）
           if (sR) {
             // 下劈斩：向面朝方向下方 45° 冲刺，直到撞地面/墙结束。锁定触发时朝向。
             p.airAtk = false;
@@ -1652,20 +1657,33 @@ function update() {
             p.grounded = false;
             p.animF = 0; p.animT = 0;  // 重置动画，播放 dash 第二帧
             stage = 0;
-          } else if (wR) {
-            // 滞空斩：全程角色悬浮不下降，两部分刀光 + 中间停滞
-            p.airAtk = false;
-            p.floatT = 15 + MELEE_FLOAT_STALL + 12;  // 15 + 0 + 12 = 27 帧
-            p.meleeCd = MELEE_FLOAT_CD;
-            p.melee = MELEE_ACTIVE;
-            p.meleeCurStage = 0;
-            stage = 0;
-          } else {
+          } else if (!wR) {
             // 空中攻击（圆月斩）：用 air-blade 资源替代跳跃斩击，固定第 2 段（伤害 3），
             // 不推进连击段数；使用独立 0.5s 间隔 CD
             stage = 2;
             p.airAtk = true;
             p.meleeCd = MELEE_AIR_CD;
+          } else if (wR) {
+            // 滞空斩：空中按住 W + 按 J 立即触发（攻击块由 jPressed 进入，此处无需重复判定）；
+            // 全程悬浮不下降；每次跳跃限一次（floatAtkUsed）。可被升龙斩/跳跃打断（见下方）。
+            if (!p.floatAtkUsed) {
+              p.airAtk = false;
+              p.meleeDir = p.facing;  // 锁定朝向（修复面朝左动画方向错）
+              p.floatT = 15 + MELEE_FLOAT_STALL + 12;  // 15 + 0 + 12 = 27 帧
+              p.meleeCd = MELEE_FLOAT_CD;
+              p.melee = MELEE_ACTIVE;
+              p.meleeCurStage = 0;
+              p.floatAtkUsed = true;
+              stage = 0;
+            } else if (p.shoryuAtkUsed) {
+              // 滞空已用过 且 升龙也已用过（升龙可用时由独立派生块蓄力，不在此回退）：
+              // 回退圆月斩，保证空中 W+J 始终有攻击可放
+              stage = 2;
+              p.airAtk = true;
+              p.meleeCd = MELEE_AIR_CD;
+            } else {
+              stage = -1;  // 本帧不触发挥砍（升龙仍可用，交由派生块蓄力），跳过尾部逻辑
+            }
           }
         } else {
           // 地面攻击：连击推进（重置窗口内继续下一段，否则第 1 段；3 段后回到第 1 段）
@@ -1678,13 +1696,15 @@ function update() {
           // 第三段上攻击：角色向上跃起（0.8 倍跳跃高度），斩击随角色一起上升。
           // 跃起计为一次跳跃（jumpCount=1），空中仍可再接二段跳。
           if (p.upAtk && stage === 3) {
-            p.vy = P.JUMP * 0.8;
+            p.vy = P.JUMP2;
             p.grounded = false;
             p.jumpCount = 1;
             p.landing = false;
             p.animF = 0; p.animT = 0;
           }
         }
+        if (stage < 0) { /* 空中 W+J 已由独立派生块处理，跳过尾部挥砍 */ }
+        else {
         p.meleeCurStage = stage;  // 记录本次挥砍段数，供绘制/范围显示
         // 挥砍朝向锁定：贴墙滑行时朝墙反方向（与 X 贴墙射击一致），否则跟随 facing
         p.meleeDir = (p.wallSlide && p.onWall !== 0) ? -p.onWall : p.facing;
@@ -1693,6 +1713,7 @@ function update() {
         // 执行挥砍判定
         doMelee(stage);
         if (p.grounded && !p.landing && mx === 0) { p.animF = 1; p.animT = 0; }
+        }
       }
     }
   } else {
@@ -1729,24 +1750,46 @@ function update() {
     }
   }
 
-  // 升龙斩派生：上劈（upAtk）挥砍中，继续按住 J 且仍按住 W、保持在地面，累计 0.2s(12帧) 触发。
-  // 触发后角色向面朝方向上方 80° 跃起（最大高度 ≈ 跳跃 0.9 倍），播放 up-shoryu 斩击（伤害 5）。
-  if (CHARS[curChar].melee && p.upAtk && p.melee > 0 && p.shoryuT <= 0) {
-    if (jD && wR && p.grounded) {
-      p.jHoldT++;
-      if (p.jHoldT >= MELEE_SHORYU_CHARGE) {
-        p.jHoldT = 0;
-        // 升龙：独立动作，覆盖当前上劈状态
+  // W+J 升龙派生块（地面 + 空中均可施放）：
+  //   - 地面：上劈（upAtk）中继续按住 W+J 蓄力 ≥0.1s 触发（保留原行为）
+  //   - 空中：按住 W+J 蓄力 ≥0.1s 触发（需求 2 新增）
+  // 升龙每次长按只触发一次：触发后（空中段）shoryuAtkUsed=true，松手前不重复触发；
+  //   地面段（upAtk）触发升龙时【不】置 shoryuAtkUsed，故地面放升龙后仍可在空中再放一次。
+  //   地面升龙后空中再升龙【必须松开 J 重新按住】：升龙触发置 jRePress=false，持续按住 J 不累计蓄力；
+  //       须松开 J（jRePress 复位 true）后重新按住 W+J 蓄力才触发。空中段因 shoryuAtkUsed 已锁，至多再放一次。
+  // 升龙跃起不修改 jumpCount，避免重置二段跳次数。
+  // 升龙触发会打断滞空斩（若 floatT>0 则立即中止）。
+  // 重置点：起跳 / 落地 / 贴墙滑行（floatAtkUsed、shoryuAtkUsed 均重置）。
+  if (CHARS[curChar].melee && wR && p.meleeCd === 0 && p.meleeFinalLock === 0 && p.shoryuT <= 0 && (!p.grounded || p.upAtk)) {
+    if (jD) {
+      // 长按 J → 累计蓄力（升龙未用过且达阈值才触发，否则仅蓄力）
+      // 地面段（upAtk）不锁 shoryuAtkUsed（地面放升龙后仍可在空中再放一次）；空中段（!grounded）才锁。
+      // "必须松开 J 再重新按"语义：地面升龙触发后 jRePress=false，持续按住 J 不会累计蓄力；
+      //   仅当玩家松开过 J（jRePress 复位 true）后重新按住，才允许空中再蓄力升龙。
+      if (p.jRePress) {
+        p.jHoldT++;
+      } else {
+        p.jHoldT = 0;   // 地面升龙后尚未松开过 J，禁止蓄力（必须松手重按）
+      }
+      const groundShoryu = !!p.upAtk;  // 记录触发时是否地面段（upAtk），避免被下方改写干扰
+      const shoryuOk = groundShoryu ? true : !p.shoryuAtkUsed;
+      if (shoryuOk && p.jHoldT >= MELEE_SHORYU_CHARGE) {
+        p.jHoldT = 0;   // 触发后重置蓄力
+        // 升龙触发：打断滞空斩（若有）
+        if (p.floatT > 0) { p.floatT = 0; p.melee = 0; p.meleeCurStage = 0; }
+        // 升龙：独立动作，向面朝方向上方 80° 跃起（高度随跳高同步提高）
         p.upAtk = false;
         p.shoryuT = MELEE_ACTIVE;   // 升龙斩击持续（与 melee 同步递减）
         p.melee = MELEE_ACTIVE;     // 复用挥砍逐帧判定/渐隐
         p.meleeDir = p.facing;
         p.meleeCd = MELEE_SHORYU_CD;
-        // 80° 仰角初速度：垂直分量对应最大高度 60.9px（跳跃 0.9 倍），水平分量朝面朝方向
         p.vy = MELEE_SHORYU_VY;
         p.vx = p.facing * MELEE_SHORYU_VX;
         p.grounded = false;
-        p.jumpCount = 1;            // 计为一次跳跃（空中仍可接二段跳）
+        // 注意：升龙跃起不修改 jumpCount，避免重置二段跳次数（白送一次二段跳）
+        // 仅空中段锁 shoryuAtkUsed；地面段（groundShoryu）保持 false，故空中可再放一次
+        if (!groundShoryu) p.shoryuAtkUsed = true;
+        p.jRePress = false;  // 触发后要求松开 J 再按，才能再次升龙（地面/空中均适用）
         p.isDash = false; p.dashAir = false;
         p.landing = false;
         p.animF = 0; p.animT = 0;
@@ -1754,7 +1797,8 @@ function update() {
         doMelee(0);
       }
     } else {
-      p.jHoldT = 0;  // 松开 J / 松开 W / 离地 → 放弃升龙派生
+      p.jHoldT = 0;    // 松开 J → 放弃升龙蓄力（shoryuAtkUsed 保持）
+      p.jRePress = true;  // 松开过 J，允许下次重新按住再蓄力
     }
   } else {
     p.jHoldT = 0;
@@ -1774,6 +1818,7 @@ function update() {
     if (cancel) { endDash(); p.dashReady = !!lR; }
     if (kD) {
       p.vy = P.JUMP; p.grounded = false; p.jumpCount = 1;
+      if (p.floatT > 0) { p.floatT = 0; p.melee = 0; p.meleeCurStage = 0; }  // 跳跃打断滞空斩
       jumpDone = true;   // 阻止同帧跳跃块再走二段跳覆盖初速度（冲刺跳高度=普通跳）
       p.vx = mx !== 0 ? mx * P.SPEED * P.DASH_MULT : 0;
       p.isDash = false; p.dashReady = false; p.dashAir = true; p.kCon = true;
@@ -1788,6 +1833,7 @@ function update() {
     if (!lR) p.dashReady = false;
     if (kR && p.grounded && !p.kCon) {
       p.vy = P.JUMP; p.grounded = false; p.jumpCount = 1;
+      if (p.floatT > 0) { p.floatT = 0; p.melee = 0; p.meleeCurStage = 0; }  // 跳跃打断滞空斩
       jumpDone = true;   // 阻止同帧跳跃块再走二段跳覆盖初速度（冲刺跳高度=普通跳）
       if (mx !== 0) p.vx = mx * P.SPEED * P.DASH_MULT;
       p.dashReady = false; p.dashAir = true; p.kCon = true;
@@ -1796,8 +1842,8 @@ function update() {
   }
   // 移动
   if (p.dashAtkT > 0) {
-    // 冲刺斩：保持冲刺速度向前斩击（锁定触发时 dashAtkDir），2 倍冲刺距离
-    p.vx = p.dashAtkDir * P.SPEED * P.DASH_MULT;
+    // 冲刺斩：保持冲刺斩独立速度向前斩击（锁定触发时 dashAtkDir），提速 1.5 倍且与普通冲刺解耦
+    p.vx = p.dashAtkDir * P.SPEED * MELEE_DASH_MULT;
   } else if (p.downT > 0) {
     // 下劈斩：向面朝方向下方 45° 冲刺（锁定触发时朝向 downDir）
     const sp = MELEE_DOWN_SPEED * 0.707;  // cos45 = sin45 ≈ 0.707
@@ -1840,6 +1886,8 @@ function update() {
         p.crouch = false;
       }
       p.vy = P.JUMP; p.grounded = false; p.kCon = true; p.jumpCount = 1;
+      if (p.floatT > 0) { p.floatT = 0; p.melee = 0; p.meleeCurStage = 0; }  // 跳跃打断滞空斩
+      p.floatAtkUsed = false; p.shoryuAtkUsed = false; p.jRePress = true;  // 新跳段：重置滞空/升龙次数、允许重新蓄力
       // 若仍在落地尾段播放中（landing=true）就再次起跳，舍弃剩余尾段，重新从起跳段(索引0)播放跳跃动画
       if (p.landing || p.animKey === 'jump' || p.animKey === 'jumpShoot') {
         p.landing = false;
@@ -1855,7 +1903,9 @@ function update() {
       else { p.vx = -p.onWall * P.WALL_JUMP_X; spawnPart(p.x + p.w / 2, p.y + p.h / 2, 6, '#8cf'); }
     } else if (p.jumpCount < 2 && !jumpDone && !(p.shoryuT > 0 && p.vy < 0) && p.floatT <= 0) {
       // 二段跳：空中再次起跳，高度为原跳高的 0.8（升龙上升阶段/滞空斩期间禁止打断）
-      p.vy = P.JUMP * 0.8; p.kCon = true; p.jumpCount = 2;
+      p.vy = P.JUMP2; p.kCon = true; p.jumpCount = 2;
+      if (p.floatT > 0) { p.floatT = 0; p.melee = 0; p.meleeCurStage = 0; }  // 跳跃打断滞空斩
+      p.floatAtkUsed = false; p.shoryuAtkUsed = false; p.jRePress = true;  // 二段跳新跳段：每段各可触发一次、允许重新蓄力
       // 重新从起跳段播放跳跃动画
       if (p.landing || p.animKey === 'jump' || p.animKey === 'jumpShoot') {
         p.landing = false;
@@ -1865,7 +1915,7 @@ function update() {
       else spawnPart(p.x + p.w / 2, p.y + p.h, 5, '#fff');
     }
   }
-  // Dash air
+  // Dash air：空中冲刺跳，方向键控制水平移动
   if (p.dashAir && !p.grounded && !p.onWall && !p.isDash && p.wjLock <= 0) {
     p.vx = mx !== 0 ? mx * P.SPEED * P.DASH_MULT : 0;
     if (mx !== 0) p.facing = mx;   // 面朝方向跟随方向键（与普通跳跃一致）
@@ -1909,7 +1959,7 @@ function update() {
   }
   if ((p.grounded && !wasGnd) || (p.onWall !== 0 && wasWall === 0)) p.dashAir = false;
   // 落地重置二段跳次数
-  if (p.grounded && !wasGnd) { p.jumpCount = 0; if (lR) p.lCon = true; }
+  if (p.grounded && !wasGnd) { p.jumpCount = 0; if (lR) p.lCon = true; p.floatAtkUsed = false; p.shoryuAtkUsed = false; p.jRePress = true; }
   // 落地：若当前处于跳跃动画，标记进入落地收尾阶段（播放尾段 3 帧）
   if (p.grounded && !wasGnd && (p.animKey === 'jump' || p.animKey === 'jumpShoot')) {
     p.landing = true;
