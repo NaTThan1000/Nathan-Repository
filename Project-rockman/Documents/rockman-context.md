@@ -1,6 +1,6 @@
 # Rockman X4 操作原型 - 策划文档 & 技术速查
 
-> 最后更新: 2026-08-20 (会话 #14)
+> 最后更新: 2026-08-29（会话间未记录改动补录：以代码为准对齐文档）
 
 ---
 
@@ -55,7 +55,7 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 
 #### 3.2 Dash 机制
 
-**触发**：地面 + 按 L（地面 Dash）；**空中冲刺**：半空再次按 L（复刻地面冲刺的一次性横冲，见下方「空中冲刺」专节）
+**触发**：地面 + 按 L（地面 Dash）。（半空再次按 L 的「空中冲刺」已于会话#14（2026-08-21）还原移除，当前代码无此动作；空中二次动作仅保留二段跳。）
 
 **阶段 1：冲刺阶段**（`isDashing = true`）
 - 以 1.75 倍速度朝面朝方向冲刺
@@ -78,12 +78,7 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 - 落地或贴墙 → 清除资格
 - 碰撞盒为跳跃盒（= 碰撞盒 A，站立盒），从地面冲刺转空中冲刺跳时自动从冲刺低矮盒恢复
 
-**空中冲刺**（半空按 L，与「冲刺跳」是两种不同动作）
-- 触发：空中（非地面）**重新按一次 L**（与二段跳同属空中二次动作，互斥二选一）
-- 行为：复刻地面冲刺 —— 一次性、固定时长 `DASH_TIME`(21 帧)、向 `dashDir`（优先方向键，否则面朝）横冲、期间无重力
-- 互斥二段跳：触发时 `jumpCount = 2`（占用二段跳资格），故**空中冲刺后不能再二段跳**；反之已二段跳（`jumpCount=2`）则空中冲刺不触发
-- 与冲刺跳区分：`dashT > 0` 时为「空中冲刺」（锁方向、倒计、无重力），`dashT` 归 0 或落地结束；`dashT` 为 0 的 `dashAir` 才是「冲刺跳」跟随方向键
-- 期间按 J → 触发冲刺斩（见 ⑥）
+
 
 **Dash 权限刷新**：落地即刷新（无冷却时间），L 键消费落地时也需松手再按
 
@@ -193,7 +188,7 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 - **地面段不锁升龙次数**：地面放升龙时**不置** `shoryuAtkUsed`（保持 false），所以从地面跳起到二段跳前的空中段仍可再放一次升龙；但需**松开 J 再重新按住 W+J 蓄力**（同一次长按不会连着触发两次）——由 `jRePress` 标志保证：升龙触发后置 `jRePress=false`，持续按住 J 不会累计 `jHoldT`；仅松开 J（`jRePress` 复位 true）后重新按住才允许空中再蓄力触发升龙
 - **升龙不重置二段跳**：升龙跃起**不修改** `jumpCount`，避免二段跳已用完时放升龙又白送一次二段跳
 - **空中段限一次**：二段跳前的空中段升龙触发后置 `shoryuAtkUsed=true`，故该空中段只能再放一次；二段跳（重置点清 `shoryuAtkUsed`）后可再放一次
-- 跃起：向面朝方向上方 80° 仰角跃起（垂直初速 -5.41、水平初速 0.95，`MELEE_SHORYU_VY/VX`），最大高度 ≈ 60.9px = 跳跃 0.9 倍；达到最高点前锁定水平位移，之后可自由移动；上升阶段禁止二段跳打断
+- 跃起：向面朝方向上方约 82° 仰角跃起（垂直初速 -6.49 = -5.41×1.2、水平初速 0.95 未变，`MELEE_SHORYU_VY/VX`），最大高度 ≈ 87.8px = 跳跃 0.9 倍；**注意**：VY 在会话间被再提高 1.2 倍而 VX 未同步缩放，仰角由 80° 漂到约 82°（若需精确 80° 需回调 VX，待确认）；达到最高点前锁定水平位移，之后可自由移动；上升阶段禁止二段跳打断
 - 刀光：`up-shoryu`（6 帧 ×3 = 18 帧），**左对齐**绘制（素材面朝左，面朝右镜像），锚点角色中心偏上偏前，缩放 ×1.5
 - 伤害 5、冷却 30 帧（`MELEE_SHORYU_CD`）、击退向上 3.0
 
@@ -225,7 +220,7 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 
 **⑥ 冲刺斩（地面冲刺中 `J`）**：
 - 触发：地面冲刺（`isDash`）状态下按 J，锁定触发时 `dashDir`（`dashAtkDir`）
-- 冲刺：保持冲刺速度向前，持续 42 帧（`MELEE_DASH_T`=2 倍 `DASH_TIME`），撞墙结束
+- 冲刺：提速为普通冲刺的 1.8 倍向前斩击（`MELEE_DASH_MULT` = DASH_MULT×1.5×1.2 = 3.15），持续 21 帧（`MELEE_DASH_T` = 普通冲刺 `DASH_TIME`，原 42=2× 已减半），撞墙结束
 - 刀光：`dash-blade2`（8 帧循环，`loadBladeStrip`），顺时针旋转 90°（竖向刀光转横向），向左镜像（scale 在 rotate 之前），缩放 ×2.4
 - 角色动画持续定格 dash 第二帧
 - 伤害 5、无敌（`invT`）、击退沿冲刺方向 3.0
@@ -240,8 +235,8 @@ Rockman X4 风格操作原型，聚焦于 X（艾克斯）的核心移动和射�
 | 碰撞盒 A（站立/跳跃） | 30×35 | 站立素材最大宽高 × `SPRITE_SCALE`(1.0) |
 | 碰撞盒 B（下蹲/冲刺） | 38×27 | 宽=dash 素材最大宽(38)、高=crouch 素材最大高(27) |
 | 移速 | 1.75 px/帧 | 普通移动速度 |
-| 跳跃力 | -5.7 | 初始向上速度（原 -5.2，跳跃高度 1.2 倍，√1.2 换算） |
-| 二段跳力 | -4.56 | = 跳跃力 × 0.8（`P.JUMP × 0.8`，上攻击跃起同值） |
+| 跳跃力 | -6.84 | 初始向上速度（会话间再提高 1.2 倍：-5.7×1.2 = -6.84；跳跃高度 ≈97.5px） |
+| 二段跳力 | -5.472 | = 跳跃力 × 0.8（`P.JUMP × 0.8` = -6.84×0.8，上攻击跃起同值；跳跃高度 ≈78.0px） |
 | 重力 | 0.24 | 每帧加速度 |
 | 最大下落速度 | 5.2 | |
 | Dash 倍率 | 1.75× | Dash 速度 = 3.0625 |
@@ -363,6 +358,9 @@ player = {
 - `particles[]` — 粒子效果列表
 - `afterimages[]` — Dash 残影列表
 - `stormWaves[]` — 旋风斩斩击波列表（storm-blade2，左右水平飞行，撞怪/墙/超时消失）
+- `muzzleEffects[]` — 枪口发射特效（out 动画，瞬时）
+- `hitEffects[]` — 命中特效（hit 动画，瞬时，不延迟子弹移除）
+- `meleeHitEffects[]` — Zero 近战受击特效（通用 hit 动画，画在怪物上层）
 - `enemies[]` — 怪物列表（每只含 `meleeLock`：近战命中冷却帧，>0 时挥砍跳过该怪，仅 Zero 近战使用；`knockT/knockVx/knockVy`：受击击退剩余帧+速度，>0 时 AI 暂停、物理跳过；`hurtT`：受击闪白帧；`r`：圆形碰撞半径，仅 floater 用）
 - `map[]` — 关卡 tile 数据（一维数组，`let` 可动态替换）
 
@@ -383,17 +381,21 @@ bullet = {
 #### 子弹 Sprite 资源
 
 ```javascript
-BULLET_SPRITE = {
-  src: 'Assets/Assets-Clean/middle-bullet-flying_strip (1).png',
-  frames: 5,             // 帧数
-  frameW: 40, frameH: 19, // 单帧尺寸（等宽条带）
-  fps: 10,               // 动画帧率
-  displayW: 54, displayH: 36, // 显示尺寸（匹配 power=1 碰撞体积）
-  img, loaded,           // Image 对象 / 加载状态
-}
+// 三类子弹（small/middle/big）各自 flying/hit/out 三态 sprite，资源在 Assets/Assets-Clean/{type}-{state}_strip.png + _frames.json
+const BULLET_TYPE = {
+  small:  { power: 0, baseW: 16, baseH: 11, displayScale: 1.0 },
+  middle: { power: 1, baseW: 24, baseH: 16, displayScale: 1.0 },
+  big:    { power: 2, baseW: 39, baseH: 26, displayScale: 1.0 },  // 碰撞体积 39×26（原文档写 40×27，以代码为准）
+};
+const BULLET_STATES = {
+  small:  { states: ['flying', 'hit'],         type: 'small-bullet' },
+  middle: { states: ['flying', 'hit', 'out'],  type: 'middle-bullet' },
+  big:    { states: ['flying', 'hit', 'out'],  type: 'big-bullet' },
+};
+const BULLET_SPRITES = {};  // key: `${type}-${state}` -> { img, frames, fps, loaded }
 ```
 
-- 子弹 sprite 动画渲染（flying 循环 + hit 瞬时 + out 枪口瞬时），替换原纯色矩形
+- 子弹 sprite 动画渲染（flying 循环 + hit 瞬时 + out 枪口瞬时），替换原纯色矩形；三类子弹各有独立 flying/hit/out 资源
 - 显示尺寸以资源真实尺寸 × `displayScale`(1.0) 映射；`dir < 0` 时水平镜像
 - 图片未加载完成时回退到原纯色矩形绘制
 - 命中特效（hit 动画）播放速度翻倍（`animT += 2`，帧切换速度 ×2），枪口发射特效（out）正常速度播放
@@ -467,7 +469,7 @@ let LW: 70, LH: 38          // 当前关卡网格尺寸（动态可扩展）
 let MAP_W = LW * TILE       // 1960px，扩展后同步更新
 GRAVITY: 0.24, MAX_FALL: 5.2
 SPEED: 1.75                 // 普通移速
-JUMP: -5.7                  // 跳跃力（原 -5.2，跳跃高度 1.2 倍）
+JUMP: -6.84                 // 跳跃力（原 -5.2 → -5.7，会话间再提高 1.2 倍 = -6.84）
 WALL_SLIDE: 0.65, WALL_JUMP_X: 2.4, WALL_JUMP_Y: -4.4
 CHG1: 6 (0.1s), CHG2: 60 (1s)
 WALL_LOCK: 6 (0.1s)
@@ -494,7 +496,7 @@ MELEE_LOCK: 6               // 怪物命中冷却帧（每段攻击对同一怪�
 MELEE_SHORYU_DMG: 5          // 升龙斩伤害
 MELEE_SHORYU_CD: 30          // 升龙后攻击冷却（0.5s）
 MELEE_SHORYU_CHARGE: 6       // 按住 J 0.1s 触发升龙
-MELEE_SHORYU_VY: -5.41       // 升龙垂直初速（最大高度 ≈ 跳跃 0.9 倍）
+MELEE_SHORYU_VY: -6.492      // 升龙垂直初速（= -5.41×1.2，随跳跃再提高 1.2 倍；最大高度 ≈ 跳跃 0.9 倍 = 87.8px）
 MELEE_SHORYU_VX: 0.95        // 升龙水平初速（80° 仰角水平分量）
 MELEE_STORM_DMG: 3           // 旋风斩每次命中伤害
 MELEE_STORM_CD: 30           // 旋风斩后攻击冷却（0.5s）
@@ -506,7 +508,8 @@ MELEE_FLOAT_STALL: 0         // 两部分之间停滞帧数（0=无停滞）
 MELEE_DOWN_DMG: 5            // 下劈斩伤害
 MELEE_DOWN_SPEED: 8.0        // 下劈斩冲刺速度（45° 合成）
 MELEE_DASH_DMG: 5            // 冲刺斩伤害
-MELEE_DASH_T: 42             // 冲刺斩时长（2 倍 DASH_TIME）
+MELEE_DASH_T: 21             // 冲刺斩时长（= DASH_TIME，原 42=2× 已减半）
+MELEE_DASH_MULT: 3.15        // 冲刺斩速度倍率（= DASH_MULT×1.5×1.2，提速为普通冲刺 1.8 倍）
 // 受击击退（knockEnemy 内字面量，无命名常量）
 // knockT = 8 帧，每帧速度 ×0.85 衰减，期间怪物 AI 暂停/物理跳过
 // 强度约定：X 子弹 1.5（水平）/ Zero 水平挥砍 2.0（沿 meleeDir）/ Zero 上攻击 2.5（向上）
@@ -654,6 +657,7 @@ ENEMY_SPAWN_TYPES: ['floater']  // 自动生成类型池（当前仅 floater）
 
 | 日期 | 更新内容 |
 |------|---------|
+| 2026-08-29 | **补录会话间未记录的代码改动（以代码为准对齐文档）**。① 跳跃力 `JUMP` 再提高 1.2 倍（-5.7→-6.84，二段跳随之 -4.56→-5.472）；② 升龙垂直初速 `MELEE_SHORYU_VY` 同步 ×1.2（-5.41→-6.492，水平 VX 0.95 未变使仰角由 80° 漂到约 82°，待确认）；③ 冲刺斩时长 `MELEE_DASH_T` 42→21（减半）并新增提速常量 `MELEE_DASH_MULT`=3.15（普通冲刺 1.8 倍）；④ 删除已还原的「空中冲刺」专节；⑤ 子弹 sprite 体系更新为 small/middle/big × flying/hit/out 全套（`BULLET_TYPE`/`BULLET_STATES`/`BULLET_SPRITES`），补充 `muzzleEffects`/`hitEffects`/`meleeHitEffects` 列表。推理见 memory.md 当日补录。 |
 | 2026-08-20 (会话#14) | **Zero 六个特殊动作一次性接入**。① 升龙斩（地面 W+按住 J 0.2s，80° 仰角跃起，`up-shoryu` 左对齐）；② 旋风斩（地面 S+J，`storm-blade` 环绕 + 动画结束发射左右斩击波 `storm-blade2` 去白透明）；③ 圆月斩（空中 J，`air-blade` 居中镜像）；④ 滞空斩（空中 W+J，`blast-blade`→停滞→`blast-blade2`，全程悬浮）；⑤ 下劈斩（空中 S+J，45° 斜向下冲刺，`down-blade` 逆时针旋转 45°/135°）；⑥ 冲刺斩（地面冲刺中 J，2 倍冲刺距离，`dash-blade2` 顺时针旋转 90° 镜像）。关键 bug：地面冲刺 vy=0 导致 grounded 失效（修复见 §3.9 注）；下劈/冲刺斩无敌不闪烁。 |
 | 2026-08-20 (补充) | **commit 乱码问题处理（方案 B）+ 新增待接入素材**。`bef3115`(8/19) commit message 存储为 GBK 乱码且已 merge 进 main，按用户决定方案 B 保持历史现状，在 memory.md 补记乱码对照表与根因复盘；global-rules §1.6 补强「提交后强制验证编码」步骤；新增待接入素材 `Assets/storm-blade2.png`（原始素材，尚未切割处理）。 |
 | 2026-08-20 (会话#13) | **Zero 近战刀光序列帧化 + 三段重调 + 上劈独立化 + 跳跃/冲刺跳修正**。① 三段水平挥砍刀光替换为 `blade1-1/1-2/1-3` 序列帧（去空白边距，判定框逐帧贴合刀光），大小倍率 0.75/0.8/1.8，第二段居中、第三段回移 1/4 帧宽，动画总时长 18 帧（第 1/3 段每 3 帧切换、第 2 段 `[3,2,3,3,3,2,2]`）；② hitstop 从全冻结改为局部停顿（仅 Zero 与受击敌人定格）；③ 近战受击特效 hit→hit2；④ 上劈（W+J）替换为 `up-blade` 序列帧、去掉三段改为独立单段（`MELEE_UP_CD`=20、`MELEE_UP_DMG`=3）；⑤ 默认角色改 Zero；⑥ 跳跃高度 1.2 倍（`JUMP` -5.2→-5.7）；⑦ 修复冲刺跳高度 bug（新增 `jumpDone` 标志，冲刺跳不再被二段跳分支覆盖）。 |

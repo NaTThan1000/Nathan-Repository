@@ -1128,7 +1128,7 @@ const MELEE_DASH_T = 21;        // 冲刺斩时长（原 42，缩短一半 = 普
 const MELEE_DASH_MULT = P.DASH_MULT * 1.5 * 1.2;  // 冲刺斩速度倍率（独立于普通冲刺，提速 1.5×1.2 = 1.8 倍）
 const STORM_WAVE_SPEED = 6.1;   // 斩击波飞行速度（与子弹一致）
 const STORM_WAVE_DMG = 3;       // 斩击波伤害（与旋风斩一致）
-const HITSTOP = 3;        // 挥砍命中全冻结 0.05s（60fps = 3 帧，仅 Zero 近战触发）
+const HITSTOP = 3;        // 挥砍命中 hitstop：仅角色与受击敌人定格 3 帧（0.05s@60fps），其余世界照常（仅 Zero 近战触发）
 
 function reset() {
   const spawn = getPlayerSpawn();
@@ -1612,7 +1612,7 @@ function update() {
         p.upAtk = false;
         p.airAtk = false;
         p.dashAtkDir = p.dashDir;
-        p.dashAtkT = MELEE_DASH_T;   // 42 帧 = 2 倍 DASH_TIME
+        p.dashAtkT = MELEE_DASH_T;   // 21 帧 = 普通冲刺 DASH_TIME（原 42 已缩短一半）
         p.meleeCd = MELEE_DASH_T;
         p.meleeDir = p.dashDir;
         p.melee = MELEE_ACTIVE;
