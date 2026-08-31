@@ -3,7 +3,7 @@
 > 跨项目通用规则，适用于所有项目（match3-rpg / tarot-battle / Project-Issac-turnbase 等）。
 > 与 CodeBuddy Memories 互补：Memories = 自动加载精简索引，本文档 = 详细版 + 时间戳 + 上下文说明。
 >
-> 最后更新: 2026-08-11
+> 最后更新: 2026-08-31
 
 ---
 
@@ -90,6 +90,22 @@
 1. `git commit` 完成后，立即运行 `git log -1` 检查 message 是否正常显示中文
 2. 若显示乱码（如「鏀跺熬」「涓婃敾鍑?」等），必须立即 `git commit --amend` 修正（message 经 `[char]0xXXXX` 转义写入 UTF-8 无 BOM 文件后 `-F` 提交）
 3. **禁止带着乱码 commit 合并或推送**；merge / push 前回顾本次会话所有提交，逐一确认编码正常
+
+### 1.7 功能分支必须设置 upstream 跟踪 [2026-08-31]
+
+**问题根因（2026-08-31 实战排查）**：monorepo 下的 `dev/*` 功能分支若用 `git checkout -b dev/xxx`（基于本地分支）创建，默认不会自动设置 upstream 跟踪。缺失 `remote`/`merge` 配置会导致：
+- `git pull` 报错 `There is no tracking information for the current branch`，实际拉不到任何内容
+- `git branch -vv` 不显示 `ahead/behind`，让人误判"已同步"
+- 造成"另一台电脑已 push、本机却看不到"的假象，排查成本极高
+
+实战中 `dev/rockman`、`dev/tarot`、`dev/match3` 均曾缺失该配置，已通过 `git branch --set-upstream-to=origin/dev/xxx dev/xxx` 逐一修复。
+
+**强制要求**：
+- 新建功能分支时显式建立跟踪：`git switch -c dev/xxx --track origin/dev/xxx`（远程已存在该分支时），或首次推送使用 `git push -u origin dev/xxx`
+- 切换/打开项目分支后，执行 `git branch -vv` 确认当前分支中括号内有 `origin/xxx`；缺失则立即 `git branch --set-upstream-to=origin/dev/xxx dev/xxx`
+- 推荐全局兜底：`git config --global branch.autoSetupMerge always`（注意：默认值为 `true`，仅当基于远程跟踪分支创建时才自动跟踪；基于本地分支创建会跟踪该本地分支而非远程，仍需配合 `-u` / `--track` 习惯）
+
+**关联**：与 §2.4 多端开发同步配合使用——切换电脑执行 `pull` 前，务必先确认 upstream 已设置，否则 `pull` 静默无效。
 
 ---
 
@@ -426,5 +442,6 @@
 | 60895444 | 多端开发记忆同步：三文件体系 | §2.1 |
 | 70076756 | AI 禁止自动执行 Git 写入操作 | §1.4 |
 | 78482030 | 修改项目文档后检查是否需同步到 global-rules | §2.9 |
+| (new) | 功能分支必须设置 upstream 跟踪（否则 pull/push 静默失效） | §1.7 |
 | 32213721 | 代码-文档不一致时主动提醒用户列出差异 | §2.11 |
 | (new) | AI 通用处理五铁律：规则优先/不说谎/不私行/必追问/不乱试 | §4.6 |

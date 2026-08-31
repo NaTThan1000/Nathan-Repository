@@ -731,3 +731,32 @@ daily-end 阶段通读代码 diff 时，发现 4 处**之前会话已改代码�
 - 代码内过期注释：`prototype.html:1615` 仍写「42 帧 = 2 倍 DASH_TIME」；`:1131` `HITSTOP` 注释仍写「全冻结」（实际局部冻结）。属代码注释，未擅改，等用户决定。
 - 升龙仰角 80°→82° 漂移（见上，待确认）。
 - 以上均为文档同步，**未做任何代码改动、未提交 git**（按 §1.4 / §4.6.1，收尾提交由用户触发）。
+
+---
+
+## 2026-08-31 — git 同步排查 + 跨电脑协作工作流固化
+
+### 问题背景
+
+在另一台电脑 push 了 `dev/rockman` 的提交后，本机 git 图形界面/命令行都看不到那批提交。对方显示推送成功，本机也试过 pull/fetch 仍看不到。
+
+### 根因排查（逐层排除）
+
+1. **远程非空（关键前置）**：`git ls-remote origin` 显示 `main` 与 `dev/rockman` 实际都有另一台电脑的提交（如 `594c42487a`），远程仓库不是空的——排除"推错空仓库"。
+2. **本机从未真正 fetch**：本机 `HEAD` reflog 末尾约在 08-24，之后再无任何本地 git 操作；`FETCH_HEAD` 里 `origin/dev/rockman` 还是早期缓存值，与本地头 `d57af359` 不相等。本机既没拉下远程、也没推上去，**两条开发线长期分叉**。
+3. **上游跟踪配置缺失（本机特有）**：`dev/tarot`、`dev/match3` 段只有 `vscode-merge-base`，缺 `remote`/`merge`，`git pull` 无明确目标分支会报 `has no upstream branch`；`dev/rockman`/`dev/issac`/`main` 跟踪正常。
+4. **排除"推错分支/仓库"**：`.git/config` 的 `origin` 与对方一致（同仓库同分支），且确认对方 push 的就是 `dev/rockman`（与本机当前分支一致）。
+
+### 已修复（本机 .git/config，不进 git）
+
+- 给 `dev/tarot`、`dev/match3` 补 `remote = origin` + `merge = refs/heads/...`，使 `git pull` 有明确上游。
+- `dev/rockman` 的 `vscode-merge-base` 从 `origin/dev/issac` 修正为 `origin/dev/rockman`（仅影响 VS Code 对比基准显示，不影响 pull/push）。
+
+### 经验固化（跨项目通用）
+
+- 本次根因与排查路径已沉淀为 `Documents/global-rules.md` **§1.7「功能分支必须设置 upstream 跟踪」**，并扩展 §1.5 历史记忆复用、§2.2 收尾强制定期审计、新增报错「fatal: ... has no upstream branch」到 §2.4 报错速查表。
+- **可复用排查清单（本机看不到远程某分支提交时）**：
+  1. `git ls-remote origin <branch>` 确认远程是否真有该提交（远程是否非空）；
+  2. `git config --get branch.<x>.remote` + `git config --get branch.<x>.merge` 确认上游跟踪是否齐全；
+  3. `git reflog` / `git log -1` 看本机最后一次操作时间，判断有无真正 fetch；
+  4. `git remote -v` + 确认对方 push 的分支，排除"推错仓库/分支"。
