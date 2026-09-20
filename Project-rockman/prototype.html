@@ -413,7 +413,8 @@ function playerAnimKey(p, mx) {
   if (p.dashAtkT > 0 || p.downT > 0) {
     return 'dash';
   }
-  // 地面冲刺优先（高于下蹲）：仅 isDash（地面冲刺）播 dash；dashAir（空中冲刺跳）走 jump 分支
+  // 冲刺优先（高于下蹲）：isDash（地面冲刺 / 空中冲刺）播 dash；
+  // dashAir（冲刺跳：按住 L 起跳获得的空中加速）走 jump 分支
   if (p.isDash) {
     return shooting ? 'dashShoot' : 'dash';
   }
@@ -1001,6 +1002,7 @@ const player = {
   x: spawn.x, y: spawn.y, vx: 0, vy: 0, w: HITBOX.stand.w, h: HITBOX.stand.h,
   facing: 1, grounded: false, onWall: 0, wallSlide: false,
   isDash: false, dashT: 0, dashDir: 0, dashReady: false, dashAir: false,
+  airDash: false,   // 空中冲刺进行中（与 dashAir「冲刺跳」相互独立，不可混用）
   dashEndLock: 0,
   chgT: 0, isChg: false, shootHold: 0, wjLock: 0, wjDir: 0,
   kCon: false, lCon: false, invT: 0, hp: P.MAX_HP, landing: false,
@@ -1048,7 +1050,7 @@ function snapshotPlayer() {
   return {
     x: p.x, y: p.y, vx: p.vx, vy: p.vy, w: p.w, h: p.h,
     facing: p.facing, grounded: p.grounded, onWall: p.onWall, wallSlide: p.wallSlide,
-    isDash: p.isDash, dashT: p.dashT, dashDir: p.dashDir, dashReady: p.dashReady, dashAir: p.dashAir,
+    isDash: p.isDash, dashT: p.dashT, dashDir: p.dashDir, dashReady: p.dashReady, dashAir: p.dashAir, airDash: p.airDash,
     dashEndLock: p.dashEndLock,
     chgT: p.chgT, isChg: p.isChg, shootHold: p.shootHold, wjLock: p.wjLock, wjDir: p.wjDir,
     kCon: p.kCon, lCon: p.lCon, invT: p.invT, hp: p.hp, landing: p.landing,
@@ -1075,7 +1077,7 @@ function switchCharacter(name) {
     restorePlayer({
       x: sp.x, y: sp.y, vx: 0, vy: 0, w: HITBOX.stand.w, h: HITBOX.stand.h,
       facing: 1, grounded: false, onWall: 0, wallSlide: false,
-      isDash: false, dashT: 0, dashDir: 0, dashReady: false, dashAir: false,
+      isDash: false, dashT: 0, dashDir: 0, dashReady: false, dashAir: false, airDash: false,
       dashEndLock: 0,
       chgT: 0, isChg: false, shootHold: 0, wjLock: 0, wjDir: 0,
       kCon: false, lCon: false, invT: 0, hp: P.MAX_HP, landing: false,
@@ -1134,7 +1136,7 @@ function reset() {
   const spawn = getPlayerSpawn();
   Object.assign(player, {
     x: spawn.x, y: spawn.y, vx: 0, vy: 0, w: HITBOX.stand.w, h: HITBOX.stand.h, facing: 1, grounded: false, onWall: 0, wallSlide: false,
-    isDash: false, dashT: 0, dashDir: 0, dashReady: false, dashAir: false,
+    isDash: false, dashT: 0, dashDir: 0, dashReady: false, dashAir: false, airDash: false,
     dashEndLock: 0,
     chgT: 0, isChg: false, shootHold: 0, wjLock: 0, wjDir: 0, kCon: false, lCon: false, invT: 0, hp: P.MAX_HP, landing: false,
     crouch: false, forcedCrouch: false,
@@ -1227,15 +1229,24 @@ function setCrouch(on, forced) {
   }
 }
 
+// 恢复站立碰撞盒（A 盒）：能站起则站起，顶头则强制蹲下（锁移动，脱离夹缝后由每帧检测自动恢复）。
+// 供「冲刺结束 / 冲刺斩结束（含撞墙收尾）」复用；本身不改 vx、不加 dashEndLock。
+function restoreStandBox() {
+  if (player.crouch || player.forcedCrouch) return;
+  if (canStandUp()) setPlayerBox(HITBOX.stand.w, HITBOX.stand.h);
+  else setCrouch(true, true);
+}
+
 // dash 结束：恢复高度或转为强制蹲下
 function endDash() {
+  const wasAir = player.airDash;
   player.isDash = false;
+  player.airDash = false;
   player.vx = 0;
-  player.dashEndLock = 2;   // 冲刺结束锁：2 帧内强制地面动画，避免碰撞盒切换临界帧误入 airborne 闪 jump
-  if (!player.crouch && !player.forcedCrouch) {
-    if (canStandUp()) setPlayerBox(HITBOX.stand.w, HITBOX.stand.h);
-    else setCrouch(true, true);
-  }
+  // 地面冲刺结束锁：2 帧内强制地面动画，避免碰撞盒切换临界帧误入 airborne 闪 jump
+  // 空中冲刺不加该锁，否则半空会闪 2 帧 stand/running
+  if (!wasAir) player.dashEndLock = 2;
+  restoreStandBox();
 }
 
 // ==================== 近战挥砍（Zero） ====================
@@ -1576,9 +1587,11 @@ function update() {
     // 挥砍渐隐（滞空斩/下劈斩/冲刺斩期间 p.melee 保持 > 0，由 floatT/downT/dashAtkT 控制总时长）
     if (p.melee > 0 && p.floatT <= 0 && p.downT <= 0 && p.dashAtkT <= 0) p.melee--;
     // 冲刺斩倒计时：归 0 结束冲刺斩（或撞墙提前结束）
+    // 结束时恢复站立碰撞盒：冲刺斩从普通冲刺接管（isDash 已清），endDash 不会被再调用，
+    // 不在此恢复会一直停留在冲刺/下蹲的低矮 B 盒。
     if (p.dashAtkT > 0) {
       p.dashAtkT--;
-      if (p.dashAtkT === 0) { p.melee = 0; p.invT = 8; }
+      if (p.dashAtkT === 0) { p.melee = 0; p.invT = 8; restoreStandBox(); }
     }
     // 升龙斩击倒计时（与 melee 同步结束升龙状态）
     if (p.shoryuT > 0) p.shoryuT--;
@@ -1606,8 +1619,8 @@ function update() {
     if (jPressed && jD && p.meleeCd === 0 && p.meleeFinalLock === 0) {
       jPressed = false;  // 消费按下沿：长按不连挥，每次挥砍都需要重新按攻击键
       let stage;
-      // 冲刺斩判定：仅地面冲刺（isDash）状态下按 J 触发（还原：去掉空中冲刺触发）
-      if (p.isDash && p.grounded) {
+      // 冲刺斩判定：地面冲刺 / 空中冲刺（isDash）状态下按 J 均可触发
+      if (p.isDash) {
         // 冲刺斩：以冲刺动画第二帧姿态继续向前冲刺斩击，距离 2 倍普通冲刺
         p.upAtk = false;
         p.airAtk = false;
@@ -1618,7 +1631,7 @@ function update() {
         p.melee = MELEE_ACTIVE;
         p.meleeCurStage = 0;
         p.invT = MELEE_DASH_T;       // 冲刺斩期间无敌
-        p.isDash = false;            // 退出普通冲刺，由冲刺斩接管（保持冲刺速度）
+        p.isDash = false; p.airDash = false;   // 退出普通冲刺，由冲刺斩接管（保持冲刺速度）
         p.animF = 1; p.animT = 0;    // 冲刺动画第二帧
         stage = 0;
       } else if (sR && p.grounded) {
@@ -1813,10 +1826,14 @@ function update() {
     const hFwd = (p.dashDir === 1 && mx === 1) || (p.dashDir === -1 && mx === -1);
     if (!lR && !hFwd) cancel = true;
     if (mx !== 0 && mx !== p.dashDir) cancel = true;
-    // 冲刺过程中脚下无地面支撑则立即结束冲刺（掉落），避免悬空冲
-    if (!hasGroundBelow()) cancel = true;
-    if (cancel) { endDash(); p.dashReady = !!lR; }
-    if (kD) {
+    // 地面冲刺过程中脚下无地面支撑则立即结束冲刺（掉落），避免悬空冲；空中冲刺无此判定
+    if (!p.airDash && !hasGroundBelow()) cancel = true;
+    if (cancel) {
+      const wasAir = p.airDash;   // endDash 会清 airDash，须先取出
+      endDash();
+      if (!wasAir) p.dashReady = !!lR;   // 空中冲刺结束不进入 Dash 就绪状态
+    }
+    if (kD && !p.airDash) {   // 空中冲刺期间按 K 无效（跳跃次数已与二段跳共用）
       p.vy = P.JUMP; p.grounded = false; p.jumpCount = 1;
       if (p.floatT > 0) { p.floatT = 0; p.melee = 0; p.meleeCurStage = 0; }  // 跳跃打断滞空斩
       jumpDone = true;   // 阻止同帧跳跃块再走二段跳覆盖初速度（冲刺跳高度=普通跳）
@@ -1864,17 +1881,39 @@ function update() {
       else p.vx = 0;
     }
   }
-  // Dash
-  if (lD && p.grounded && !p.isDash && !p.dashReady) {
-    // 站立→dash 切换碰撞盒 B 前检测冲突：若新碰撞盒与地形重叠则禁止本次 dash
-    const dashBlocked = !p.crouch && !boxFitsTerrain(HITBOX.dash.w, HITBOX.dash.h);
-    if (!dashBlocked) {
-      p.isDash = true; p.dashDir = p.facing; p.lCon = true;
-      const ds = P.SPEED * P.DASH_MULT;
-      p.dashT = P.DASH_TIME;   // 时间限制（帧数固定），不再按距离换算
-      p.vx = p.dashDir * ds;
-      if (!p.crouch) setPlayerBox(HITBOX.dash.w, HITBOX.dash.h);   // dash 期间压低碰撞盒（宽=dash，高=crouch）
-      spawnPart(p.x + p.w / 2, p.y + p.h / 2, 8, '#aaf');
+  // Dash：地面冲刺 / 空中冲刺
+  if (lD && !p.isDash && !p.dashReady) {
+    if (p.grounded) {
+      // 地面冲刺：站立→dash 切换碰撞盒 B 前检测冲突，若新碰撞盒与地形重叠则禁止本次 dash
+      const dashBlocked = !p.crouch && !boxFitsTerrain(HITBOX.dash.w, HITBOX.dash.h);
+      if (!dashBlocked) {
+        p.isDash = true; p.dashDir = p.facing; p.lCon = true;
+        const ds = P.SPEED * P.DASH_MULT;
+        p.dashT = P.DASH_TIME;   // 时间限制（帧数固定），不再按距离换算
+        p.vx = p.dashDir * ds;
+        if (!p.crouch) setPlayerBox(HITBOX.dash.w, HITBOX.dash.h);   // dash 期间压低碰撞盒（宽=dash，高=crouch）
+        spawnPart(p.x + p.w / 2, p.y + p.h / 2, 8, '#aaf');
+      }
+    } else if (
+      p.jumpCount < 2 &&                 // 空中冲刺与二段跳共用一次机会（用过其一即 jumpCount=2）
+      p.onWall === 0 &&                  // 贴墙滑行时不触发（与墙跳/冲刺跳边界保持清晰）
+      p.floatT <= 0 &&                   // 滞空斩期间禁止
+      !(p.shoryuT > 0 && p.vy < 0) &&    // 升龙上升阶段禁止
+      p.downT <= 0 && p.dashAtkT <= 0    // 下劈斩 / 冲刺斩接管中禁止
+    ) {
+      // 空中冲刺：碰撞盒 / 速度 / 时长均与地面一致，但为悬浮（vy=0，全程不受重力）
+      const dashBlocked = !p.crouch && !boxFitsTerrain(HITBOX.dash.w, HITBOX.dash.h);
+      if (!dashBlocked) {
+        p.isDash = true; p.airDash = true;
+        p.dashDir = p.facing; p.lCon = true;
+        p.dashT = P.DASH_TIME;
+        p.vx = p.dashDir * P.SPEED * P.DASH_MULT;
+        p.vy = 0;               // 悬浮：全程水平冲刺，不上升也不下降
+        p.jumpCount = 2;        // 消耗与二段跳共用的那一次
+        p.dashAir = false;      // 触发空中冲刺则取消「冲刺跳」加速资格（结束后不再恢复）
+        if (!p.crouch) setPlayerBox(HITBOX.dash.w, HITBOX.dash.h);
+        spawnPart(p.x + p.w / 2, p.y + p.h / 2, 8, '#aaf');
+      }
     }
   }
   // 跳跃（含二段跳）：地面起跳 jumpCount=1；空中再跳 jumpCount=2；墙跳不消耗二段跳次数
@@ -1895,8 +1934,9 @@ function update() {
       }
       if (lR) { if (mx !== 0) p.vx = mx * P.SPEED * P.DASH_MULT; p.dashReady = false; p.dashAir = true; spawnPart(p.x + p.w / 2, p.y + p.h, 5, '#aaf'); }
       else spawnPart(p.x + p.w / 2, p.y + p.h, 5, '#fff');
-    } else if (p.onWall !== 0) {
+    } else if (p.onWall !== 0 && !p.airDash) {
       // 墙跳：不消耗二段跳次数（jumpCount 保持不变，墙跳后空中仍可二段跳）
+      // 空中冲刺进行中不响应 K：否则墙跳的 vy/朝向会与冲刺速度互相覆盖（冲刺期间 vx 由 Dash1 每帧覆写、vy 不受重力）
       p.vy = P.WALL_JUMP_Y; p.facing = -p.onWall;
       p.wjLock = P.WALL_LOCK; p.wjDir = -p.onWall; p.kCon = true;
       if (lR) { p.vx = -p.onWall * P.WALL_JUMP_X * P.DASH_MULT; p.dashAir = true; spawnPart(p.x + p.w / 2, p.y + p.h / 2, 6, '#aaf'); }
@@ -1934,9 +1974,9 @@ function update() {
     const t = { x: c * TILE, y: r * TILE, w: TILE, h: TILE };
     if (overlap(xr, t)) {
       if (p.vx > 0) p.x = t.x - p.w; else if (p.vx < 0) p.x = t.x + t.w;
-      if (p.isDash) { endDash(); p.dashReady = lR; spawnPart(p.x + p.w / 2, p.y + p.h / 2, 6, '#888'); }
+      if (p.isDash) { const wasAir = p.airDash; endDash(); if (!wasAir) p.dashReady = lR; spawnPart(p.x + p.w / 2, p.y + p.h / 2, 6, '#888'); }
       if (p.downT > 0) { p.downT = 0; p.melee = 0; p.invT = 8; }  // 下劈斩撞墙结束，短暂无敌收尾
-      if (p.dashAtkT > 0) { p.dashAtkT = 0; p.melee = 0; p.invT = 8; }  // 冲刺斩撞墙结束
+      if (p.dashAtkT > 0) { p.dashAtkT = 0; p.melee = 0; p.invT = 8; restoreStandBox(); }  // 冲刺斩撞墙结束（恢复站立盒）
       p.vx = 0;
     }
   }
@@ -1954,12 +1994,13 @@ function update() {
   }
   // 地面冲刺（isDash / 冲刺斩 dashAtkT）期间 vy 保持 0、不受重力，脚底贴地但 overlap 严格大于判定为 false，
   // 导致 grounded 无法恢复。这里单独用脚下探测补回 grounded，保证冲刺斩触发条件（isDash && grounded）成立。
-  if ((p.isDash || p.dashAtkT > 0) && !p.grounded && hasGroundBelow()) {
+  // 空中冲刺（airDash）不做补回：否则低空冲刺会被误判为落地，进而清掉 dashAir / 重置 jumpCount。
+  if (!p.airDash && (p.isDash || p.dashAtkT > 0) && !p.grounded && hasGroundBelow()) {
     p.grounded = true;
   }
   if ((p.grounded && !wasGnd) || (p.onWall !== 0 && wasWall === 0)) p.dashAir = false;
-  // 落地重置二段跳次数
-  if (p.grounded && !wasGnd) { p.jumpCount = 0; if (lR) p.lCon = true; p.floatAtkUsed = false; p.shoryuAtkUsed = false; p.jRePress = true; }
+  // 落地重置二段跳次数（空中冲刺标记一并清理）
+  if (p.grounded && !wasGnd) { p.jumpCount = 0; p.airDash = false; if (lR) p.lCon = true; p.floatAtkUsed = false; p.shoryuAtkUsed = false; p.jRePress = true; }
   // 落地：若当前处于跳跃动画，标记进入落地收尾阶段（播放尾段 3 帧）
   if (p.grounded && !wasGnd && (p.animKey === 'jump' || p.animKey === 'jumpShoot')) {
     p.landing = true;
@@ -2028,8 +2069,9 @@ function update() {
     if (!keepFrame) {
       // shoot 动画从第二帧(索引1)开始倒放；其余动画从第一帧(索引0)开始
       p.animF = (animKey === 'shoot') ? 1 : 0;
-      // 从贴墙滑行(climb)松开方向键自由下落时，直接定格在跳跃的空中帧(索引3)，不从头播起跳段
-      if (prevKey === 'climb' && (animKey === 'jump' || animKey === 'jumpShoot')) {
+      // 从贴墙滑行(climb)松手自由下落、或空中冲刺(dash)结束时，直接定格在跳跃的空中帧(索引3)，
+      // 不从头播起跳段（避免半空闪一下起跳动作）
+      if ((prevKey === 'climb' || prevKey === 'dash') && (animKey === 'jump' || animKey === 'jumpShoot')) {
         p.animF = 3;
       }
     }
