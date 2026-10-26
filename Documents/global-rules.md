@@ -9,13 +9,13 @@
 
 ## 1. Git 使用规范
 
-### 1.1 Monorepo 分支策略 [2026-07-16]
+### 1.1 Monorepo 分支策略 [2026-07-16, 2026-10-26修正]
 
 | 分支 | 用途 |
 |------|------|
 | `main` | 稳定主线，只合并经过验证的版本 |
 | `dev/match3` | match3-rpg-project 专属开发分支 |
-| `dev/tarot` | tarot-battle-project 专属开发分支 |
+| `dev/tarot-update` | tarot-battle-project 专属开发分支（`dev/tarot` 为遗留分支，与 `dev/match3` 指向同一提交 `7bf30c8`，已不再使用） |
 | `dev/issac` | Project-Issac-turnbase 专属开发分支 |
 | `dev/rockman` | Project-rockman 专属开发分支 |
 
