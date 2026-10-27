@@ -64,7 +64,7 @@ clickable options. The options are the four project directory names:
 | Project | Directory | Feature Branch |
 |---------|-----------|----------------|
 | match3-rpg-project | `match3-rpg-project/` | `dev/match3` |
-| tarot-battle-project | `tarot-battle-project/` | `dev/tarot` |
+| tarot-battle-project | `tarot-battle-project/` | `dev/tarot-update` |
 | Project-Issac-turnbase | `Project-Issac-turnbase/` | `dev/issac` |
 | Project-rockman | `Project-rockman/` | `dev/rockman` |
 

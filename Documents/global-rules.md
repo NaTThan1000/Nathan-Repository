@@ -15,7 +15,7 @@
 |------|------|
 | `main` | 稳定主线，只合并经过验证的版本 |
 | `dev/match3` | match3-rpg-project 专属开发分支 |
-| `dev/tarot-update` | tarot-battle-project 专属开发分支（`dev/tarot` 为遗留分支，与 `dev/match3` 指向同一提交 `7bf30c8`，已不再使用） |
+| `dev/tarot-update` | tarot-battle-project 专属开发分支（`dev/tarot` 为遗留分支，原与 `dev/match3` 指向同一提交 `7bf30c8`，已不再使用，并于 2026-10-26 确认从本地与远程删除） |
 | `dev/issac` | Project-Issac-turnbase 专属开发分支 |
 | `dev/rockman` | Project-rockman 专属开发分支 |
 
