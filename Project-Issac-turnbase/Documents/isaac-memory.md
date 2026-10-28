@@ -4,106 +4,707 @@
 > 核心判断标准："如果在另一台电脑不知道这件事，会不会做出错误决策或重复踩坑？" → 会就记。
 >
 > **修改规则**：
-> 1. 本文档一旦记录内容，**不可修改或删除**已有记录。新内容按时间顺序在文件末尾追加，标注日期。例如方案从 A 改为 B，需完整保留 A 的记录 → 再在最新日期追加 B 的记录并标注"[当前方案]"，而不是覆盖 A。即使出现 X→Y→X 的反复变更也要完整保留每一步。
+> 1. 本文档一旦记录内容，**不可修改或删除**已有记录。新内容按时间顺序记录，**统一「由新到旧」排列：最新条目插入文件顶部**（以 `global-rules.md §2.8` 为准）。例如方案从 A 改为 B，需完整保留 A 的记录 → 再在文件顶部追加 B 的记录并标注"[当前方案]"，而不是覆盖 A。即使出现 X→Y→X 的反复变更也要完整保留每一步。
 > 2. **不得编造任何数据**：包括但不限于具体到分钟的时间、未在对话中确认的数值、未实际发生的事件或"结论"。不确定的信息宁可省略或用模糊描述，绝不填充。日内时间描述仅可用"上午/下午/晚间"三个粗粒度标签，或完全不标注时间仅靠条目排列顺序体现先后关系。
-> 3. **写入前强制排序验证**：每次追加新内容前，必须先读取全文 → 确认当前最后一个条目是什么日期和内容 → 新条目追加在文件末尾或同日期段落末尾 → 如果是同一天多个条目，按实际对话顺序从上到下排列。
+> 3. **写入前强制排序验证**（以 `global-rules.md §2.8` 为准）：每次写入前必须先读取全文 → 确认当前最上方（最新）与最下方（最旧）条目分别是什么日期和内容 → 新条目插入文件顶部（现有最上方条目的前面） → 同一天有多个条目时，较晚写入的放在该日期段落的上方 → 若发现既有顺序与本规则不符，先向用户报告再统一重排。
 > 4. **文档同步触发规则**：`isaac-turnbase-context.md` 和 `isaac-memory.md` 的更新不得在任何代码修改任务中附带执行。这两个文档的修改操作必须且仅由用户发出"同步文档"指令时触发。AI 在完成代码修改后如果认为文档需要更新，可以提醒用户，但严禁自行修改。此规则优先级高于 AI 对"代码和文档应保持一致"的默认行为倾向。
 >
 > **组织方式**：纯时间顺序，不做模块分类。给 AI 快速浏览聊天记忆用。
 >
-> 最后更新: 2026-08-11
+> 最后更新: 2026-10-28
 
 ---
 
-## 2026-07-13
+## 2026-10-28
 
-### 精灵图集集成
-- 使用 `issac-idle.png`（32×32 每帧），替代程序化像素角色
-- 头身分离叠加（头偏移 body 30%），4 方向 × 10 帧走路动画
-- 射击表情切换（0.4s 持续），背面缺失方向暂复用正面帧
-- 移动速度 280→70 px/s 适配动画
-- 新增 sprite-debug.html 和 walk-preview.html 调试工具
+### 文档排序规范全量修正 + AI 问题汇报方式被纠正（本次为文档/规范日，无游戏代码改动）
 
-### 项目上下文文档
-- 首次创建 isaac-turnbase-context.md（策划文档 + 技术速查）
+**一、文档排序修正**
+- **[触发]** 会话启动读取发现 `isaac-memory.md` 全篇为旧→新（2026-07-13 → 2026-10-28），与 `global-rules §2.8`（2026-09-20 已改为「由新到旧、新条目插入顶部」）冲突。用户裁定：**以 global-rules 为准**，并要求检查所有其他文档
+- **[实际修复]** 19 个日期章节整篇反转为新→旧；用脚本按 `^## 20xx-xx-xx` 切块重排，正文行集合哈希校验前后完全一致（647 行零丢失）；清理重排产生的重复 `---`；`最后更新` 改为 2026-10-28
+- **[复发根因，重要]** rockman 项目 2026-09-20 修过同类问题并改了 global-rules，但 `isaac-memory.md` **文件头部规则仍写着「新内容追加在文件末尾」**，AI 每次读该文件先看到的都是这条旧说明，于是照做 → 规则改了但项目文件头没改，问题必然复发
+- **[全库巡检结果]** 仅 isaac-memory.md 违规；`isaac-turnbase-context.md` / `rockman-memory.md` / `rockman-context.md` / `tarot-battle-context.md` 均为新→旧；`match3-rpg-context.md`、各 gdd、两个 plan 文档、`Workflow/*.md` 无时序章节，不适用
 
-### 预操作队列系统 [已废弃]
-- 玩家先规划本回合所有操作（移动队列 + 射击方向），填入队列后 Space 统一执行
-- 执行阶段按队列顺序逐步执行，无暂停机会
+**二、global-rules 修改**
+- §2.8 新增第 6 条（项目文件头排序说明必须与 §2.8 一致，**头部旧说明不得作为执行依据**，发现不一致先修头部）+ 第 7 条（排序修正必须顺带巡检全库 md 的日期章节/日期表格，不得只修单文件），并补记 2026-10-28 复发沿革
+- §1.1 `dev/tarot` → `dev/tarot-update`（依据：`.git/refs/heads/dev/` 实存 `tarot-update`，tarot context 更新记录亦全为该名）
+- §3.2 工作区根目录 `c:/Users/nathan.tian/CodeBuddy/test/` → `e:/Nathan-Repository/`
+- §5 索引表中两条 `(new)` 占位（§1.7 upstream 跟踪、§4.6 五铁律）补为真实 Memory ID `16414708` / `64282487`（此前只写进文档、未在记忆系统建条目，导致不自动加载）
+- 新增 §4.8（问题呈现与修正职责，见第三部分）
+
+**三、用户确立的执行标准（AI 行为纠正，跨项目通用）**
+- **[核心纠正1]** 文档自洽类修正（失效行号引用、索引占位、旧规则残留、文档路径错误等）属于 AI 的日常职责，**在用户发出「同步文档」的时间节点统一更正，不需要用户逐条提出**
+- **[核心纠正2]** 发现问题必须**一次性列全**给用户决策，禁止每轮只挤一两个问题、逐轮追加，导致用户被迫反复中断回复
+- **[核心纠正3]** 用户未授权时不得擅自修改内容；查证类事实（分支是否存在、文档真实路径等）可自主查证后汇报，但**改动必须列出清单等用户决策**
+- **[AI 提议被否决]** 我曾主张「待定事项按最小风险默认直接改」，被用户明确否定（"我确实没有授权你自己默默修改什么内容"）
+- **[AI 被批评]** ①已说过"先不用管"的事项（match3/tarot 文档结构缺 memory 文档）我再次提问；②把"已核实无需动作"的结论（分支 dev/match3 实存于 origin）当成待决策项列出。两者均属无效提问
+- **[根因]** 我把「保持文档自洽」误当成需要逐条授权的事项，把可自查证的事实也当作必须提问 → 提问泛滥。后续机制：文档自洽修正集中在同步节点做；问题一次列全；结论类事项只汇报不提问
+
+**四、daily-start skill 修改（已同步 `Documents/skill-创建指南.md`）**
+- Step 2 新增第 4 项「排序校验」：读完 memory/context 必须确认日期章节为新→旧，若为旧→新或头部仍写"追加末尾"，报告并重排；明确 **项目文档自身头部说明优先级低于 global-rules §2.8**
+- Step 2 修正文档路径映射：`isaac-turnbase-memory.md`（不存在，本次实际踩到 ENOENT）→ `isaac-memory.md`；match3/tarot 的 context 实际在项目根目录且无 memory 文档
+- Step 3 由"直接 `git checkout dev/{project}`"改为"**先只读核实**（`git branch --show-current`，命令不可用时读 `.git/HEAD`）→ 已是目标分支则跳过切换并如实汇报 → 仅分支不同时才切换"，并要求按 §1.7 校验 upstream（`git branch -vv` 无 `[origin/...]` 则补 `--set-upstream-to`）。原因：本次 `git checkout dev/issac` 实际是无效写入且被用户拒绝，说明"无脑切换"既多余又易触发拒绝
+
+**五、CodeBuddy Memory 新建**
+- `16414708` 功能分支必须设置 upstream 跟踪（§1.7）
+- `64282487` AI 通用处理五铁律（§4.6）
+
+**六、本次同步一并修正（原属"待处理"清单）**
+- P1：`2026-07-30` 条目中引用 memory.md 自身行号（line 317/385/392）已随重排失效 → 改为章节名定位，并注明原文按行号定位
+- P2：`2026-07-21` 条目中「新条目追加在末尾」标注 `[已失效 2026-09-20]`，指向现行 §2.8
+- P5：`2026-07-31` 条目中 5 处 `demo2.html` 行号引用（line 891/1944/2158-2164/2198/5800/6325）全部改为函数名锚点
+
+### 商店道具白嫖 → 自动购买 + 移除 F 键拾取
+
+- **[问题]** 探索模式踩到商店商品格时，通用拾取逻辑先命中，商品被直接白拿（不扣金币）
+- **[演进]** ①先加 `isShopSlotCell()` 判定，让通用拾取跳过商店槽位（商品必须购买）→ ②用户要求改为**走到商品格自动结算购买**：金币足够 → 扣款/获得/标记 `sold`/移除实体；不足 → 保持在地面并显示红色「金币不足」
+- **[移除 F 键]** 自动拾取后 F 键失去意义，删除 `pickUpItems()` 与 `KeyF` 分支。清理必须覆盖 5 处：`keydown` 分支 / `actionKeys` 白名单 / `#help-modal` 帮助弹窗 / 画布 `F 拾取` 提示 / 控制台日志
+- **[新增函数]** `getShopSlotAt(col,row)`（取未售出槽位）、`isShopSlotCell(col,row)`（判定是否为商品格）
+- **[UI 同步]** `tryBuyShopItem()` 成功后补 `updateItemBar/buildHearts/buildBlueHearts/buildApDots`，否则道具生效改变的心形与 AP 上限不会刷新
+
+### 掉落表命名修复（3 只怪物配置错误）
+
+- **[问题]** `crack_maw_iii` / `flying_eye_iii` 的 `itemDropTable` 仍是旧名 `common` / `ranged`，`charge_golem` 的 `resourceDropTable` 仍是 `resource_drop_boss`
+- **[根因]** 掉落表统一加前缀（`item_drop_*` / `resource_drop_*`）时只改了大部分条目，漏了这 3 处；查表失败会回退 `default` 表，表现为「几乎必掉道具」「表意图完全错位」
+- **[修复]** `common`→`item_drop_common`、`ranged`→`item_drop_ranged`、`resource_drop_boss`→`resource_drop_monster_heavy`
+
+### ESC 回溯地形失效 — 数组引用被整体替换
+
+- **[问题]** 打碎岩石/便便后按 Esc，地形没有恢复（仍处于已破坏状态）
+- **[根因]** `restoreTurnSnapshot()` 用 `currentRoomGrid = s.currentRoomGrid.map(...)` **整体替换**了数组，但 `room.grid` 仍指向旧数组且内容已被修改，回溯只影响局部变量
+- **[修复]** 取回 `room.grid` 作为 `currentRoomGrid`，再**逐格原地写回** `s.currentRoomGrid[c][r]`，保证 `currentRoomGrid === room.grid` 引用恒等
+- **[连带]** Esc 回溯后属性可能回退（道具失效），`update*` 系列只改状态不增删 DOM → 必须显式 `buildHearts/buildBlueHearts/buildApDots` 重建
+
+### 心数上限判定漏洞 — Math.ceil 把半心算成整心
+
+- **[问题]** 蓝心为 0.5 时仍被判为"放得下"，红/蓝总心数突破 `MAX_TOTAL_HEARTS`
+- **[根因]** `totalHearts()` 用 `Math.ceil(maxHp) + Math.ceil(blueHearts)`，半心被进 1
+- **[修复]** 改为 `playerStats.maxHp + (playerResources.blueHearts || 0)`（真实数值相加）；`tryAddRedHeart` 改为 `totalHearts() + 1 <= MAX` 才允许，满了靠削 1 颗蓝心腾位；`tryAddBlueHeart(amount=1)` 改为按数量精确判定；`recalcAllStats()` 补溢出削蓝心
+- **[原则]** 红心优先级恒高于蓝心
+
+### 尖刺结算统一 — 战斗中此前完全不判定
+
+- **[问题]** 战斗中移动经过/停在尖刺格不掉血，只有探索模式会掉
+- **[修复]** 抽出 `checkSpikeUnderPlayer()`（非无敌 + 格子为 SPIKE → `damagePlayer(1)`），三处统一调用：探索移动后、战斗移动后、**回合开始时**（站在尖刺上结束回合也要结算）
+- **[顺带]** 移除移动分支里内联的旧判空代码
+
+### 怪物移动占位修正 — 后排被前排永久堵死
+
+- **[问题]** 怪物排队移动时，后排怪物会被前排"当前格"挡住，导致部分怪物永远动不了
+- **[修复]** 三处改动：①只有**本步不移动**的怪物才把当前格视为障碍（`movingIds` 集合排除待移动者）；②移动顺序按「距玩家最近」优先，同距离按 `m.id` 稳定排序，不依赖 `monsters` 数组生成顺序；③2×2 怪物占位改用 `monsterCells(m)` 遍历**完整脚印**，不再只标记左上角
+
+### 新增音效系统（WebAudio 合成，零素材）
+
+- **[设计]** 不做音频文件，全部用振荡器实时合成：`const SFX = (() => {...})()` 自执行模块
+- **[实现]** `tone(key,freq,{to,dur,type,vol,throttle})` 单音（支持频率指数滑音）、`noise(dur,vol)` 爆炸噪声、同类音效 40ms 节流防叠爆
+- **[预设]** 16 个事件：shoot/hit/kill/hurt/pickupItem/pickupRes/chest/locked/bombPlace/boom/door/battle/rewind/floor/victory/death/buy
+- **[浏览器策略]** AudioContext 必须由用户手势创建 → 首次 `keydown`/`pointerdown` 时 `SFX.unlock()`
+- **[静音]** 顶栏 🔊 按钮 → `SFX.toggle()`，`muted` 全局短路
+
+### 难度与信息可读性：道具说明弹窗 / 楼层横幅 / 黑场过渡
+
+- **[道具弹窗]** `#item-tooltip`：距地上道具**切比雪夫距离 ≤3** 时显示名称/效果/商店价格；按键 `_tooltipKey`/`_tooltipPos` 做脏检查避免每帧重排 DOM；品质决定边框色
+- **[楼层横幅]** `#floor-banner`：进入楼层显示「第 X 层」，1.4s 后淡出
+- **[黑场]** `#floor-fade` + `fadeIntoFloor(n)`（0.18s 渐黑 → 200ms 后切层）+ `playFloorFade()`（瞬间全黑盖住切层瞬间 → 0.5s 渐现）。`floorFadeBusy` 期间屏蔽全部输入，防连踩梯子重复切层
+
+### 资源命名统一：A-AP → AP，M-AP → MP
+
+- **[决策]** 全文（代码注释 + 控制台日志 + 状态栏 + context/gdd/roommonster-plan/memory）统一为 **MP（移动点）/ AP（攻击点）**，废弃 `A-AP`/`M-AP` 复合写法
+- **[理由]** 双前缀叠字符（A-AP）在状态栏和圆点标签里辨识度低，且与"AP 行动点数系统"这一总称冲突
+- **[注意]** 只改显示与命名，`turnState.mAP`/`turnState.aAP`/`maxMAP`/`maxAAP` 等**字段名保持不变**，避免大范围重构风险
+
+### 打包版本重新生成（Node 不可用，改用 PowerShell）
+
+- **[背景]** 规范仍是「日常开发只维护源码版」，本次因用户要求分发才一次性重新生成
+- **[问题]** 环境无 Node → 无法直接跑 `build-pack.js`
+- **[做法]** 用 PowerShell 等价实现打包流程（移除 Google Fonts → 内联 7 个 JSON → 内联 22 个 PNG 为 base64 → 移除 `file://` 检测），产物 0.49 MB
+- **[校验]** 逐关键符号比对 pack 与 demo2（`checkSpikeUnderPlayer`/`isShopSlotCell`/`updateItemTooltip`/`showFloorBanner`/`fadeIntoFloor`/`SFX.toggle` 出现次数一致）确认无版本漂移
 
 ---
 
-## 2026-07-14
+## 2026-08-07
 
-### 多房间地图设计方案
-- 创建 isaac-roommonster-plan.md
-- 包含楼层生成算法（随机图+BFS全连通）、房间类型（start/normal/treasure/shop/boss）、模板法内部布局、怪物配置表、掉落系统、AI行为类型枚举
+### 苍蝇公爵（Duke of Flies）Boss 系统 [当前方案]
 
-### 怪物配置初始 [已废弃]
-- MONSTER_CFG — 单一裂口尸，内联 JS 对象
+- **[触发]** 用户需要第 2 层新 Boss 类型，不同于第 1 层的跳跃巨兽
+- **[设计]** 苍蝇公爵（`duke_fly`）：2×2 体型，对角移动 + 召唤浮游眼
+  - `aiType: "boss_duke"`，独立关键帧动画系统（不走逐步移动），第 0 遍优先计算判定层
+  - `duke_diagonal_move` action：按象限方向对角移动 3 步，after_effect 触发 summon
+  - `summon` after_effect：30% 概率在相邻格召唤 `duke_floater`（公爵浮游眼），上限 3 只
+  - 首回合静止（`_dukeFirstTurn`），第二回合起进入对角移动循环
+  - 新增 4 个核心函数：`initDukeQuadrant()` / `calcDukePath()` / `updateDukeAnim()` / `handleDukeSummon()`
+- **[召唤物]** `duke_floater`：HP=6，行为类似浮游眼但用 `shoot_single` 单发直射（非扇形三连射）
+- **[squad 模板]** 新增 4 个 Boss squad：`boss_duke`（纯 duke）、`boss_duke_and_jumper_i`（第 1 层双 boss）、`boss_duke_and_jumper_iii`（第 3 层双 boss）
+- **[spawn-config 简化]** 从三元组 `{minMonsters, maxMonsters, budget}` 回退到单值 `{budget}`，`terrainModifiers` 也简化为 `{budget}` 单偏移值
+- **[怪物总数]** 从 4 类型 × 3 级 = 12 只 → 5 类型共 14 只（+duke_fly + duke_floater）
+
+### squad/spawn 命名一致性讨论
+
+- **[问题]** AI 在检查用户手动修改的 squad-templates.json 和 spawn-config.json 时，因 squad ID 与 monster cfgId 同名（`boss_jumper_i` 两者都有），误报 `spawn-config.json` 第 1 层 `bossMonsters` 填的可能不是 squad ID
+- **[结论]** 用户确认填写正确，`boss_jumper_i` 在 squad-templates.json 中是合法的 squad template。AI 之前建的 squad 模板命名不一致（有的 squad 与 monster 重名如 `boss_jumper_i`，有的不重名如 squad=`boss_duke` 对应 monster=`duke_fly`）是 AI 自己的锅，不应反过来质疑用户
+- **[教训]** 命名一致性应在设计阶段统一，不能事后发现不一致后倒推用户填写有问题
+
+### 打包版本开发阶段暂不维护规范确立
+
+- **[触发]** 用户删除 `isaac-turnbased-demo-pack.html`，确认日常开发只维护源码版
+- **[决策]** 确立规范：日常开发只改源码文件，打包版本不同步维护。只有当用户明确要求打包时，才一次性更新并生成新的 pack 文件。写入 `global-rules.md §3.5`
+
+### 项目设计合理性讨论 — 玩法评估与优化方向
+
+- **[触发]** 用户发起设计讨论，要求客观评价当前项目"在玩什么、挑战是什么、乐趣是什么"
+- **[核心循环]** 探索（自由移动找房间/开宝箱/进商店）→ 战斗（AP点数驱动即时操作+Esc回溯）→ 成长（叠属性/攒资源）→ 推进（清房间→Boss→下一层）
+- **[AI 评估结论]**
+  1. 创新点：AP驱动即时操作回合制 + Esc全回溯，有辨识度。怪物层次设计用心
+  2. 上手门槛较高（概念密度大、按键多）
+  3. Roguelike 构筑感偏弱（25种道具纯数值叠加，缺乏改变玩法的"质变"道具）
+  4. 战斗模式中"最优解过于明显"（走到安全位置→射完子弹→结束回合，缺乏回合内真正决策分支）
+- **[用户纠错与补充]**
+  1. **MP 和 AP 是独立资源池**：互不共享上限，AI 错误表述"共享回合上限"被指正
+  2. **当前是 3 层不是 6 层**：`FLOOR_CONFIG` 定义 3 层，context.md 写 6 层是过期信息（已修正）
+  3. **炸弹是 E 键不是 B 键**：context.md 操作键表写 B 键有误（已修正为 E 键）
+  4. **金币只有商店一个消费出口**：当前原型中金币的"资源管理"乐趣实际不存在
+  5. **探索深度不足**：目前只是战斗之间的过渡，没有自己的玩法深度
+- **[优化建议（用户未表态，仅供参考）]**
+  - 资源管理：增加金币/钥匙/炸弹的竞争用途 + 信息不对称 + 稀缺性 + 资源间转换渠道
+  - 探索深度：隐藏房间（炸弹炸墙）、路线选择（单向门/锁门/陷阱门）、环境叙事、探索与战斗耦合、非战斗交互
+  - 打破最优解：射击后移动惩罚、位置伤害加成、连击机制、未用 AP 转下回合收益、怪物迫使改变策略、环境利用
+  - 房间探索顺序：给玩家有限信息（门类型视觉线索）、创造顺序依赖（清房奖励影响后续）、风险-回报非对称信息
+- **[文档修正]** context.md 同步：楼层数 6→3（4处）、炸弹操作键 B→E
 
 ---
 
-## 2026-07-15
+## 2026-08-06
 
-### 核心交互重构：即时操作模型 [当前方案]
-- **[决策]** 彻底移除预操作队列，改为即时操作 + 快照系统
-- **[原因]** 预操作队列体验差，缺乏容错能力，玩家无法在执行中调整决策
-- **[方案]** WASD即时移动本体 + ↑↓←→即时射击 + Esc全重置 → 快照系统 saveTurnSnapshot/restoreTurnSnapshot
-- 首次射击触发 checkpoint，刷新可移动范围
-- 回合起始位置保留 40% 透明度幽灵作视觉参考
-- **[属性调整]** 移速=3→MP=3，射速=3→AP=3，系数1，下限1
+### 资源掉落 none 权重 bug 修复 [当前方案]
 
-### TILE系统 + 房间模板 + 地图编辑器
-- 定义 TILE 类型（FLOOR/ROCK/POOP/PIT/SPIKE/LADDER）
-- 12 种 13×7 房间模板，BFS 连通性验证
-- 创建 isaac-map-viewer.html 独立编辑器（模板池管理/画布绘制/关卡池持久化）
-- 尖刺伤害当时未细化
+- **[问题]** 用户测试发现摧毁大便几乎一直掉资源，清空房间也从不空掉，和配置中 `none` 的高权重（如 850/1000=85%不掉）明显不符
+- **[根因]** `rollResourceDrop()` 的 `pick_one` 分支（第 1434 行）`Object.entries(table).filter(([key, val]) => key !== 'none' && val > 0)` 把 `none` 过滤掉，然后 `totalWeight = entries.reduce(...)` 只用剩余条目计算总权重。以 `terrain_poop` 为例：`none:850` + 其他 150 = 1000，过滤后 totalWeight=150，100% 抽中资源
+- **[修复]**
+  1. `totalWeight` 改用 `Object.values(table).reduce((sum, v) => sum + v, 0)` — 包含 `none` 权重
+  2. 遍历时不过滤 `none`，正常参与权重累减；权重 ≤0 的条目 `continue` 跳过
+  3. 当 `roll <= 0` 命中的 key 为 `'none'` 时返回空数组 `[]`
+- **[影响]** 所有使用 `pick_one` 模式的掉落表（terrain_poop/terrain_rock/room_clear_default/room_clear_boss/room_clear_treasure/monster_default/monster_heavy/boss 等）现在 `none` 权重正确生效，不掉落概率与配置一致
+
+### 打包脚本 build-pack.js 创建及三次 bug 修复
+
+- **目标**：生成单文件 `isaac-turnbased-demo-pack.html`，可直接双击打开发送给他人，所有 JSON 和图片内联，无外部依赖
+- **打包脚本功能**：① 移除 Google Fonts → 系统回退字体；② 内联 7 个 JSON 配置文件；③ 内联 22 个 PNG 图片为 base64 data URI；④ 移除 `file://` 协议检测代码
+- **Bug 1 — 正则不匹配 `?`**：源码 fetch 格式是 `fetch('Configs/xxx.json?'+Date.now())`，`?` 在引号内，原正则 `Configs/xxx.json['"\`]` 匹配不到 → 在文件名后加 `\\?`
+- **Bug 2 — 缺少 `text()` 方法**：`loadOrGenerateFloors` 使用 `resp.text()` 获取原始字符串做 hash 比对，模拟对象只有 `json()` → 加 `text: async () => d`
+- **Bug 3 — 缺少 `await` 关键字**：正则匹配 `await fetch(...)` 整段替换为 `(async () => ...)()`，`await` 被吞掉导致 `resp` 拿到 Promise 而非对象 → 替换内容前补 `await`
+- **最终模拟响应对象**：`{ ok: true, json: async () => JSON.parse(d), text: async () => d }`
+- **[文件]** 新增 `build-pack.js` 和 `isaac-turnbased-demo-pack.html`（0.48 MB）
 
 ---
 
-## 2026-07-16
+## 2026-08-05
 
-### 无敌系统初始方案 [已废弃，2026-07-20 统一]
-- 战斗模式：受伤后无敌 3 回合（`invincibleTurns`）
-- 探索模式：受伤后无敌 `invincibleSteps = 移速×2` 步（每移动一格递减）
+### 刷怪配置架构重构：spawnConfig 从 floor-data 硬编码移至运行时计算 [当前方案]
 
-### 怪物配置重构 [当前方案]
-- MONSTER_CFG → MONSTER_DB 内联 JS（4种怪物 + 6种AI类型）
-- 进而外置到 Configs/monster-db.json，新增 movementTags（地面/飞行）/ role（melee/ranged/tank/boss）/ threat（威胁值）
-- **[原因]** 计划文档建议支持多种怪物类型，外置 JSON 便于编辑
+- **[背景]** 用户需要"每层配置不同怪物数量 + 不同房间类型微调"的功能，之前的方案在 floor-data.json 中每个 room 硬编码 spawnConfig，导致冗余且与 floor-data 生成产物的定位冲突
+- **[方案演变]**
+  1. 最初考虑在 floor-data.json 中加 spawnConfig 覆盖字段 → 用户质疑这与"floor-data 是生成产物"的矛盾
+  2. AI 一度又引入"地图编辑器手动覆盖单个房间"概念 → 用户指出这是画蛇添足
+  3. 最终方案：spawnConfig 只在 `spawn-config.json` 中配置，`demo2.html` 运行时计算
+- **[最终架构]**
+  - `spawn-config.json`：删除 `baseSpawnConfig` 整节（公式/增长率），`floorBudgets` 从 `{bonus}` 改为 `{minMonsters, maxMonsters, budget}` 三元组每层独立配置，`terrainModifiers` 从仅有 `budget` 扩展为 `{budget, minDelta, maxDelta}`
+  - `floor-data.json`：移除所有 67 个 room 的 `spawnConfig` 字段
+  - `demo2.html`：新增 `resolveSpawnConfig(room, floorNum)` → `floorBudgets[楼层] + terrainModifiers[模板]`，`room.spawnConfig` 存在时覆盖兜底
+  - `map-viewer.html`：删除硬编码 terrainModifiers 和 spawnConfig 计算循环，`saveFloorToFile` 增加 `delete r.spawnConfig`
+- **[调参方式]** 只改 spawn-config.json：调某层全局难度改 `floorBudgets["N"]`，调某种房间模板偏差改 `terrainModifiers["模板名"]`
+- **[关键洞察]** floor-data.json 是编辑器生成的产物，不应包含设计决策参数；参数应集中在 spawn-config.json 中，运行时由 resolveSpawnConfig 动态计算
 
-### 刷怪算法
-- 三层递进：标签过滤(movementTags ∩ allowedMovement) → 组合规则(至少1近战保底 + 角色多样性加权×3) → 点数预算(budget + (楼层-1)×2)
+### 编辑器 pool.json 加载 _schema 过滤修复 [当前方案]
 
-### 怪物视觉
-- 渲染复用 drawCharacterAt()，tint 色彩叠加区分类型
-- 头顶名称标签（Boss红字）、血条、受击白闪+抖动、路径预览、伤害飘字、死亡血粒子
+- **[问题]** 地图编辑器选择 pool.json 文件时报错
+- **[根因]** `pool.json` 包含 `_schema` 元数据 key，`getMergedTemplates()` 遍历 `poolFromJson` 时把 `_schema` 也当作模板合并到 `allTemplates`，后续 `refreshTemplates()` 尝试访问 `_schema.tiles`/`_schema.types` 时报错
+- **[修复]** 在 4 个加载 pool.json 的入口统一 `delete loaded._schema`：File System Access API 选择文件、回退模式 file input、autoLoadPool 从 localStorage 缓存加载、autoLoadPool 从 IndexedDB handle 加载
 
-### TILE系统调整
-- 尖刺伤害：0.5（临时值，后续修正）
-- 透视取消：VP_SCALE_TOP = VP_SCALE_BOT = 1.00，标准矩形渲染
-- 房门重绘：开=通道+门框，关=铁栏纹理
-- 移除预览线/透视描述等已淘汰内容
+### 小队模板系统（squad-templates.json）[当前方案]
 
-### 楼层生成强化
-- Boss/宝箱房强制度数=1（单门死路），至少3个叶节点
-- 所有房间度数≤4，布局 Manhattan 距离=1
-- 楼层 grid 固化：加载 floor-data.json 时保留已存 grid，修改 pool.json 不影响已有楼层
+- **[背景]** 之前的刷怪系统在普通房间中按怪物独立选取（标签过滤→组合规则→点数预算），缺乏"怪物组合"的概念。用户需要一个预定义小队模板系统来控制怪物组合
+- **[实现]**
+  - 新建 `Configs/squad-templates.json`：预定义怪物小队模板，每个 squad 含 `monsters[]`（cfgId列表）、`budget`（预算消耗）、`movementTags`（与房间标签匹配）、`minFloor`（最低楼层限制）
+  - `demo2.html` 新增 `SQUAD_TEMPLATES` 全局变量 + `loadSquadTemplates()` 异步加载函数
+  - 新增 `filterSquadsByRoom(floorNum, roomType, tpl)`：按 minFloor + movementTags 过滤可用 squad
+  - `spawnRoomMonsters()` 重构：Boss 房从 `bossMonsters[楼层]` 随机选 squad 生成，普通房贪心选取 squad（预算上限内随机选直到超预算）
+  - `spawn-config.json` 中的 `bossMonsters` 改为 squad ID 列表（而非单一 cfgId）
 
-### Git 分支策略确立
-- Monorepo 按项目分功能分支：dev/match3 / dev/tarot / dev/issac
-- main 分支保护规则：直接改 main 前必须先警告确认
-- 上下文文档同步规则：合并 main 时全覆盖检查
+### 锚点聚拢生成逻辑优化 [当前方案]
 
-### 项目文件整理
-- 按类型分目录：Assets/ / Configs/ / Documents/
-- 文件保护规则：不随意删除或重命名用户手动新增文件
-- 多项目统一在同一个 CodeBuddy 对话中管理
+- **[问题]** 原 `spawnMonsterAtRandomPos` 中 squad 锚点生成逻辑有 `topN` 退路：距离=1 无空格时取前 4 个最近的候选。这导致怪物可能生成在距离锚点 ≥2 的位置，失去聚拢意义
+- **[方案讨论]**
+  - 用户提出：距离=1 不够应该换锚点重新选位置，而不是退到 topN
+  - AI 分析 tradeoff：换锚点不会导致 squad 分裂（只有一个活跃锚点），方案合理
+- **[最终实现]**
+  - `spawnMonsterAtRandomPos`：锚点存在时只取距离=1 的候选，无则返回 `false`（去掉 topN 退路和排序逻辑）
+  - 两处调用方（Boss 房 + 普通房）：生成失败且锚点存在时 → 重置锚点为 null → 纯随机重试 → 新位置成为锚点
+  - 后续怪物继续围绕新锚点距离=1 聚拢，保证 squad 始终严格相邻
 
-### 编辑器初始方案 [已废弃]
-- node Configs/server.js 提供文件读写服务
-- 依赖 Node.js 环境
+---
+
+## 2026-08-04
+
+### 掉落表命名统一 — item_drop_ / resource_drop_ 前缀 [当前方案]
+- **[触发]** 用户注意到参数命名不规范，要求统一加上前缀区分
+- **[决策]**
+  1. `item-db.json > itemDropTables` 中 9 张表全部加 `item_drop_` 前缀：`default`→`item_drop_default`、`common`→`item_drop_common`、`ranged`→`item_drop_ranged`、`heavy`→`item_drop_heavy`、`boss`→`item_drop_boss`、`treasure_room`→`item_drop_treasure_room`、`boss_room`→`item_drop_boss_room`、`item_chest_normal`→`item_drop_chest_normal`、`item_chest_golden`→`item_drop_chest_golden`
+  2. `resource-db.json > resourceDropTables` 中 11 张表全部加 `resource_drop_` 前缀：`monster_default`→`resource_drop_monster_default`、`monster_heavy`→`resource_drop_monster_heavy`、`boss_drop`→`resource_drop_boss`、`room_clear_default`→`resource_drop_room_clear_default`、`room_clear_boss`→`resource_drop_room_clear_boss`、`room_clear_treasure`→`resource_drop_room_clear_treasure`、`terrain_rock`→`resource_drop_terrain_rock`、`terrain_poop`→`resource_drop_terrain_poop`、`chest_normal`→`resource_drop_chest_normal`、`chest_golden`→`resource_drop_chest_golden`、`shop_stock`→`resource_drop_shop_stock`
+  3. **命名冲突解决**：`chest_normal` 和 `chest_golden` 在 `resources` 对象中作为宝箱资源 key 保持不变，只在 `resourceDropTables` 中改名为 `resource_drop_chest_normal` / `resource_drop_chest_golden`，消除了之前的歧义问题
+- **[影响范围]** 6 个文件：`item-db.json`(9个key)、`resource-db.json`(11个key+宝箱loot内部引用+schema注释)、`monster-db.json`(12只怪物loot entries)、`floor-data.json`(所有roomClearDrop引用)、`isaac-map-viewer.html`(roomClearDropDefaults)、`isaac-turnbased-demo2.html`(14处fallback和引用)
+- **[验证]** 全项目零旧表名残留，所有 JSON 文件 lint 通过
+
+### roomClearDrop 配置驱动化 [当前方案]
+- **[触发]** floor-data.json 中每个房间已带有 `roomClearDrop: { resourceDropTable, itemDropTable }` 配置，但 demo2.html 中 `rollRoomClearDrop()` 仍用硬编码的 roomType→tableKey 映射，造成配置与代码不一致
+- **[决策]** `rollRoomClearDrop()` 改为读取 `room.roomClearDrop` 配置，移除硬编码的 `tableKeyMap` 映射表
+- **[影响文件]** `isaac-turnbased-demo2.html`（`rollRoomClearDrop` 函数重写，净减少约 8 行代码）
+
+### 地图编辑器 fileInput 缺少 grid 转置修复 [当前方案]
+- **[问题]** 通过文件选择按钮加载 floor-data.json 后，地图编辑器显示的房间布局不正确（房间方向错乱）
+- **[根因]** 地图编辑器有三个加载入口：`readFloorFromHandle`(File System Access API) 和 `tryLoadFloorData`(localStorage) 都有 `transposeGridRowToCol` 转置，但 `floorFileInput` change handler 缺少此步骤
+- **[修复]** 在 `floorFileInput` change handler 中补上：`else if(r.grid.length>0 && Array.isArray(r.grid[0]) && r.grid.length===ROWS) r.grid=transposeGridRowToCol(r.grid);`
+- **[原因]** floor-data.json 中 grid 存储为 row-major(7×13)，渲染需要 col-major(13×7)，三个加载路径中有一个遗漏了转置
+
+### R键重置完整性修复 — _initGrid / _initDoors 备份恢复机制 [当前方案]
+- **[问题]** 按R键重置游戏后，房间的大便被破坏状态没有恢复（之前破坏过的便便仍然显示为已破坏）
+- **[排查过程]** 全面审查了所有代码路径：`currentRoomGrid` 和 `room.grid` 的引用关系、`finishTransition` 的切换逻辑、`loadOrGenerateFloors` 的 3 秒定时器、ESC 回溯的深拷贝切断引用、`saveCheckpoint` 不保存地形等，均未找到明确的引用断裂点。期间还出现过一次严重 bug：在压缩的单行代码中加 `//` 注释导致后面的 `r._initGrid=...` 和 `;});}` 闭合括号全部被注释掉，造成语法错误页面打不开
+- **[最终方案]** 不纠结根因，采用防御性修复：在 `loadOrGenerateFloors` 首次加载时深拷贝保存每个房间的 `_initGrid`（初始地形）和 `_initDoors`（初始门状态），R键重置时从备份恢复
+- **[具体改动]**
+  1. `loadOrGenerateFloors` 第 990 行循环中：`r._initGrid = r.grid.map(col => [...col])`、`r._initDoors = { up: ..., down: ..., left: ..., right: ... }` 深拷贝
+  2. `resetGameToFloor1`：合并原来分散的两个清理 for 循环为一个统一循环，从 `_initGrid`/`_initDoors` 恢复 grid 和 doors，同时重置 `bossLadderPlaced`、`itemSpawned`、`itemDropped`、`locked`、`_shopSlots`、`_groundResources`、`_groundItems`
+- **[恢复内容]** 地形破坏（便便/岩石）、Boss 梯子放置、炸弹破坏的门、地面掉落物、商店槽位
+
+### AP 圆点视觉修复 — buildApDots 与 updateApDots 执行顺序 [当前方案]
+- **[问题]** 按R键后 MP 和 AP 圆点视觉上没有正确显示（虽然值已正确重置）
+- **[根因]** `resetGameToFloor1` 中 `updateUI()`（含 `updateApDots` 填充圆点）在第 978 行，`buildApDots`（重建圆点为 empty）在第 979 行。`buildApDots` 在 `updateApDots` 之后执行，把已填充的圆点全部重置为 empty
+- **[修复]** 将 `buildHearts`/`buildBlueHearts`/`buildApDots` 移到 `updateUI` 之前，让 `updateUI` 中的 `updateApDots` 在圆点重建后正确填充
+- **[额外加固]** 同时在 `clearInventory()` 后显式设置 `playerStats.moveSpeed = 3; playerStats.fireRate = 3;`，确保 `resetTurnAP()` 计算的基值正确
+
+### 商店购买系统 [当前方案]
+- **[触发]** 用户要求实现商店购买功能，走进商品格子自动购买
+- **[实现]**
+  1. `spawnShopItems(room)` 同时创建 `room._shopSlots` 数组，记录每个商品的价格(price)、类型(type: item/resource)、cfgId、坐标(priceCol/priceRow)、售出状态(sold)
+  2. 玩家移动到商品格子上时触发 `tryBuyShopSlot(col, row)`：检测坐标上是否有未售出商品 → 检查金币是否足够 → 扣除金币 → 获得道具(`applyItem`)或资源(`handleResourcePickup`) → 标记售出并从地面移除实体
+  3. `drawShopPrices()` 在 `render()` 中调用，渲染金色价格标签（已售出显示灰色）
+  4. 商店房进入时不再在 `spawnRoomMonsters` 中调用 `spawnShopItems`（已由 `finishTransition` 统一处理）
+- **[关键设计]** 商店价格标签通过 Canvas 渲染（而非 DOM 覆盖层），使用金色/灰色区分售出状态
+
+---
+
+## 2026-07-31
+
+### simulateFromCheckpoint 资源拾取修复 — 满血也能拾取红心 [当前方案]
+- **[问题]** 玩家满血走过红心时，红心被无条件消耗（地面资源消失但HP不增加，资源浪费）
+- **[根因]** `simulateFromCheckpoint` BFS 路径重放循环中，`handleResourcePickup(res)` 返回值被忽略，无条件 `resourcesOnGround.splice(j, 1)`。而 `autoPickupResources` 是正确判断返回值再删除的
+- **[修复]** 改为 `if (handleResourcePickup(res)) { resourcesOnGround.splice(j, 1); }`，满血时 `handleResourcePickup` 返回 `false`（红心 `case 'heart': if (hp>=maxHp) return false`），资源保留在地面
+
+### 房间资源幽灵bug修复 — 深拷贝→直接引用 [当前方案]
+- **[问题]** 房间地面上有时在ESC回溯后/离房回房后凭空出现之前没出现过的资源
+- **[根因]** `updateRoomCombatState` 房间清空时 `room._groundResources = resourcesOnGround.map(r => ({...}))` 深拷贝创建了**新数组**，切断了 `resourcesOnGround` 与 `room._groundResources` 的引用链接。之后玩家拾取资源只修改 `resourcesOnGround`，`room._groundResources` 保留旧快照。离房回房时 `finishTransition` 执行 `resourcesOnGround = room._groundResources` 加载了含已拾取资源的旧快照
+- **[修复]** 将深拷贝改为直接引用 `room._groundResources = resourcesOnGround`，与 `simulateFromCheckpoint` 和 `restoreTurnSnapshot` 保持一致。两个变量始终指向同一数组
+
+### checkpoint时机修正 — 延迟到实际效果发生 [当前方案]
+- **[问题]** 发射子弹时 `saveCheckpoint()` 在 bullet 刚生成的瞬间就保存了，之后子弹飞行→命中→怪物死亡→掉落这一整套行为的结果都没有反映到 checkpoint 中
+- **[修复]**
+  1. 移除射击处理中的 `saveCheckpoint()` — 不再在发射瞬间保存
+  2. `damageMonster` 中新增 `else if (turnState.phase === 'player_select') saveCheckpoint()` — 非致命命中时也更新 checkpoint 以反映怪物 HP 降低
+  3. 已有的：怪物击杀时（`damageMonster`）、地形破坏时（`hitTile`）、房间清空时（`updateRoomCombatState`）均正常保存 checkpoint
+- **[效果]** checkpoint 现在反映每个操作的实际结果，而非操作开始瞬间。BFS 回退时 checkpoint 持有的是最近一次实际效果完成后的状态
+
+### JSON 尾随逗号问题 — item-db.json 解析失败 [当前方案]
+- **[问题]** item-db.json 显示存在问题，检查后发现 JSON 解析失败：`itemDropTables.boss_room` 尾部有多余逗号（`boss_room` 是 itemDropTables 最后一个属性，删除 `monster_very_rare` 后变成了末位）
+- **[根因]** 对 JSON 文件做局部 `replace_in_file` 时，只匹配局部片段，没有考虑编辑后目标条目是否变成了父对象的最后一个属性，导致尾部逗号未被联动清理
+- **[修复]** 删除 `boss_room` 末尾的逗号，JSON 恢复合法可解析
+
+### AI JSON 编辑规范确立 — 每次编辑后必须校验 [当前方案]
+- **[触发]** 用户追问为什么 AI 频繁出现尾随逗号这类马虎问题，AI 分析了根因并给出改进方案
+- **[根因分析]** 局部替换片段时缺乏"向上看一层"的上下文校验习惯 — 增删 JSON 数组/对象成员后，没有联动检查被编辑条目是否变成最后一项并清理逗号
+- **[改进方案]** 三条措施：
+  1. 每次增删 JSON 列表/对象成员后，主动检查被编辑条目是否变成末位，如是则联动清理逗号
+  2. 编辑后立即调用 `read_lints` 做 JSON 语法校验（不依赖人工发现）
+  3. 对于复杂 JSON 编辑，读取整个文件后在逻辑层面修改再用 `write_to_file` 写回，写回前完整解析验证
+- **[用户确认]** 用户要求"以后不要再出现相同的问题"，AI 承诺从本次开始每次 JSON 编辑后主动跑 `read_lints` 校验
+- **[记录原因]** ①避免下次切换电脑后忘记这一教训重新踩坑 ②确保所有项目会话中 AI 都遵循 JSON 编辑后校验的规范
+
+### global-rules.md §4.1 矛盾修正 — AI 主动读取 vs 等用户指令
+- **[触发]** 用户在本轮会话中测试发现 AI 在新会话开始时未执行"每次对话自动读取 global-rules.md"规则，直接跳入任务
+- **[根因]** 系统级规则正常注入到 AI 上下文，问题出在 AI 执行层面（未在收首条消息前执行 read_file）。同时发现 global-rules.md §4.1 将 global-rules 与 memory/context 混写为"用户主动告诉 AI 读取三份文档"，与用户实际配置的"自动读取"规则矛盾，可能误导 AI 认为也需要等用户指令
+- **[修正]** §4.1 拆分为两层：①global-rules.md → AI 主动读取（不许等指令）；②memory.md + context.md → 用户发指令后读取。日期标注 [2026-07-20, 2026-07-31修正]
+- **[澄清]** "每次对话" = 每次新会话开始时读一次，非每条消息都读。global-rules.md 是相对稳定的规范文档，同会话内不会频繁变化
+
+### 怪物死亡掉落位置修正 — 资源不再随机散布 [当前方案]
+- **[问题]** 怪物死亡后资源类掉落（`resource`）在 `preRollDropEntry()` 和 `executeDropEntry()` 中各自带了 `±1` 格的随机偏移（`Math.floor(Math.random()*3)-1`），导致资源散布在怪物死亡位置周围，玩家击杀后需额外走动才能全部拾取
+- **[决策]** 移除 `preRollDropEntry()`、`applyPreRolledLoot()`、`executeDropEntry()` 三处资源掉落的随机行/列偏移，所有掉落物（道具 + 资源）统一精确生成在怪物死亡的格子位置 `(col, row)` 上
+- **[修改范围]** ① `preRollDropEntry()` — `offsetC/offsetR` 从随机改为固定 `0`；② `applyPreRolledLoot()` — 资源直接用 `col, row` 生成，不再加偏移；③ `executeDropEntry()` — 移除 `offsetC/offsetR` 随机计算，直接落在 `col, row`
+- **[影响文件]** `isaac-turnbased-demo2.html`（三处函数修改，净减少约 6 行代码）
+- **[设计收益]** 掉落行为与道具掉落的 `spawnItemOnGrid(col, row)` 保持一致，玩家击杀怪物后可以原地拾取所有奖励
+
+### 掉落系统字段命名统一重构 [当前方案]
+- **[触发]** 用户指出 item 和 resource 的配置参数名容易混淆，要求整体统一命名
+- **[决策]**
+  1. **monster loot entry type**：`resource_pool` → `resource`（与 `item` / `resource_fixed` / `nothing` 对称）
+  2. **顶层掉落表集合 key**：`item-db.json` 中 `qualityTables` → `itemDropTables`（复数）；`resource-db.json` 中 `dropTables` → `resourceDropTables`（复数）
+  3. **entry 字段**：`qualityTable` → `itemDropTable`（单数，引用 itemDropTables 中某张表）；`pool` / `dropTable` → `resourceDropTable`（单数，引用 resourceDropTables 中某张表）
+  4. **命名对称性**：item 侧 `itemDropTables`(集合) ↔ `itemDropTable`(引用)；resource 侧 `resourceDropTables`(集合) ↔ `resourceDropTable`(引用)
+  5. **宝箱 loot**：同步更新 `resource-db.json` 中 chest_normal/chest_golden 的 loot entries 字段名
+- **[暂不改动]** `weight` vs `rate` 语义区分 — 用户表示后面捋清楚再说
+- **[影响范围]** 6 个文件：`item-db.json`(顶层key+schema)、`resource-db.json`(顶层key+宝箱loot+schema)、`monster-db.json`(所有怪物loot entries+schema)、`isaac-turnbased-demo2.html`(12处代码引用)、`isaac-turnbase-context.md`、`isaac-memory.md`
+- **[验证]** 全项目零残留 `resource_pool` / `qualityTable` / `"pool"` 旧字段名，所有 3 个 JSON 语法正确
+
+---
+
+## 2026-07-30
+
+### 地形掉落预roll — 保证ESC回溯后再次破坏结果一致 [当前方案]
+- **[问题]** 破坏大便/岩石后掉落资源是当场 roll 的（`rollTerrainDestroyDrop` 内调用 `rollResourceDrop`），ESC 回溯后再次破坏同一地形会重新随机，掉落不一致
+- **[决策]** 与怪物 `_killLoot` 模式对齐：①`initTileData()` 中为每个 POOP/ROCK 预roll `_loot`（`rollResourceDrop('terrain_poop'/'terrain_rock')`，可能是空数组=不掉落），存储在 `tileData[k]._loot`。②`hitTile()` 在 `delete tileData[k]` 之前捕获 `td._loot` 为 `preLoot` 传入。③`rollTerrainDestroyDrop(col, row, terrainType, preLoot)` 优先使用预roll结果，仅 fallback 时才现场 roll
+- **[收益]** ESC 回溯后地形破坏掉落完全一致，与怪物击杀掉落行为统一
+- **[向下兼容]** `preLoot !== undefined` 判断区分"已预roll=空数组"和"未预roll=undefined"，旧存档无 `_loot` 时自动 fallback 现场roll
+
+### 资源视觉消失bug修复 — liftDir 缺失导致 liftY 变 NaN [当前方案]
+- **[问题]** 用户报告两个场景：①怪物击杀掉落资源后移动触发BFS→资源视觉消失但能走过去拾取；②摧毁大便掉落同理消失。ESC回溯不影响此问题
+- **[根因追踪]** 完整因果链：资源从 `spawnResourceOnGrid` 出生时带 `liftDir: 1` → `saveCheckpoint`/`simulateFromCheckpoint` 恢复资源时没存/没恢复 `liftDir` → BFS 触发后资源 `liftDir = undefined` → 游戏循环动画 `res.liftY += undefined * dt * 2` → `liftY = NaN` → 渲染坐标无效 → 视觉消失 → 但 col/row 正确 → `autoPickupResources` 仍能拾取
+- **[次要发现]** 道具（`itemsOnGround`）的保存/恢复一直有 `liftDir`，资源的保存/恢复却少了这个字段——同一个 checkpoint 内的两个数组不一致
+- **[修复范围]** 6 处：`saveTurnSnapshot`(1620)、`saveCheckpoint`(1683)、`restoreCheckpoint`(1751)、`restoreCheckpointWithoutBullets`(1839)、`restoreTurnSnapshot`(1925)、`simulateFromCheckpoint`(2092)，全部补上 `liftDir: r.liftDir || 1`
+- **[修复结果]** 资源在 BFS checkpoint 恢复后liftY正常计算，不再视觉消失
+
+### hitTile 破坏地形后保存 checkpoint [当前方案]
+- **[问题]** `hitTile` 破坏地形（delete tileData[k] + grid→FLOOR）+ 掉落资源后，若后续 BFS 触发 `simulateFromCheckpoint`，checkpoint 中无这些新资源，资源消失（与 liftDir bug 叠加加剧）
+- **[决策]** `hitTile` 中在 `rollTerrainDestroyDrop` 后调用 `saveCheckpoint()`，确保 checkpoint 包含破坏后的地形+新掉落资源
+
+### ESC 回溯范围扩大：地形 + 炸弹 [当前方案]
+- **[触发]** 用户要求 ESC 应回溯整个游戏所有状态："地形的也算，所有的都算"。AI 列出当前回溯/未回溯清单，确认可破坏地形和炸弹需补充
+- **[决策]** ①`saveTurnSnapshot` 新增 `tileData`(JSON深拷贝)、`currentRoomGrid`(逐列拷贝)、`bombs`(逐个对象拷贝)。②`restoreTurnSnapshot` 新增对应恢复：`tileData = JSON.parse(JSON.stringify(s.tileData))`、`currentRoomGrid = s.currentRoomGrid.map(col => [...col])`、`bombs` 重建
+- **[收益]** ESC 后大便恢复未破坏状态、岩石恢复、炸弹恢复位置和倒计时。与炸弹模式融入战斗（7/29）配合：炸弹是战斗状态的一部分，ESC自然回溯
+- **[未涉及]** `saveCheckpoint`（BFS小存档点）不需要保存 terrain——terrain 是永久性变更，在 `hitTile` 中已直接修改 `tileData`/`currentRoomGrid`，checkpoint 不恢复 terrain
+
+### tileData 注释更新
+- `tileData` 变量注释从 `{ type, hp }` 更新为 `{ type, hp, _loot }`，反映预roll字段
+
+### Boss Jumper 文档多处不实描述修正 — context.md + memory.md 历史记录纠错 [当前方案]
+- **[问题]** 用户指出 context.md 中 Boss Jumper 的 `repeatChance` 和 `landDamage` 描述多处与实际 `monster-db.json` 不符。AI 回溯发现共 9 处不实描述（context.md 7 处 + memory.md 旧记录 3 处）
+- **[实际代码]** `monster-db.json` 中 boss_jumper 的 actions 结构：`jump_small steps:[2/3/3]` → `jump_small steps:[2/3/3], repeatChance:0.5` → `jump_big_land disappearSteps:1, target:{mode:"cover_player"}, after_effect:[{type:"attack_side", damage:1, range:1}]`。`repeatChance` 挂在第二个 `jump_small` 上，`landDamage` 字段不存在（落地伤害通过 `after_effect: attack_side` 实现）
+- **[context.md 修正]** 7 处：①§1.5 Boss Jumper 概览表行 → 展开为 3 个 action 完整描述；②§1.5 字段说明范例 → `landDamage` 替换为 `target`；③Action 类型枚举 `jump_small` → 补 `repeatChance` 可选说明；④Action 类型枚举 `jump_big_land` → 移除 `landDamage`/`repeatChance`，改为 `target`/`after_effect: attack_side`；⑤§2.13 大跳跃行 → `landDamage` 改为 `after_effect: attack_side`；⑥§2.13 关键设计 → `jump_big_land.repeatChance` 改为「第二个 `jump_small.repeatChance`」；⑦历史记录 2026-07-27 → 参数迁移路径修正
+- **[memory.md 旧记录说明]** 受 immutability 约束，以下三处历史记录含 `landDamage` 不实描述**不修改**，仅在本条注明：①2026-07-23 §AI行为参数外置 写作 `landDamage 1`，实际 `after_effect: attack_side(damage:1,range:1)`；②2026-07-27 §怪物行动系统重构：actionMode + actions[] 字段示例列表含 `landDamage`；③同日期同节中 Boss Jumper 配置示例写作 `landDamage:1, repeatChance:0.5`，实际 `repeatChance` 在 `jump_small` 上。所有不实描述的修正版本以 `monster-db.json` 和 context.md 当前版本为准（原文按行号定位，行号已随 2026-10-28 文档重排失效，现改为章节名定位）
+- **[附带修正]** 小跳步数 `[3]` 改为 `[2/3/3]`（对应 I/II/III 级）
+
+### 文档同步流程缺陷根因分析与追加规则 [当前方案]
+- **[触发]** 用户上一次要求"同步文档"时，AI 只同步了最后一次代码改动（item-db.json 品质表），遗漏了几小时前就发现但未当场修的 context.md Boss Jumper 描述问题
+- **[根因]** AI 在执行"同步文档"时，注意范围潜意识收缩到「最近一次编辑操作涉及的文件」，本轮早期发现的不一致被归类为「已讨论过的事」而非「待同步的新内容」
+- **[追加强化]** 在 global-rules §2.2 新增硬性步骤：「同步文档前，必须先回溯本轮会话所有"发现但未修"的代码-文档不一致，逐条列出清单，逐一确认是否已修正」，来源包括用户口头指出的、对话中间发现的、以及"顺便提一下"的事项
+- **[用户确认]** 用户要求 AI 给出合理解释并杜绝此类遗漏，本次追加步骤为硬约束
+
+---
+
+## 2026-07-29
+
+### 资源掉落表 mode 统一 — 配置驱动改造 [当前方案]
+- **[触发]** 用户追问两个设计问题：①资源掉落表的选择模式（每种独立计算 vs 只选1个 vs 顺序判定）是否应该像 monster loot 的 entries 一样可配置？②宝藏房/Boss房不掉资源为什么用代码硬编码而不是配置控制？
+- **[问题]** 旧 `rollResourceDrop()` 硬编码为"按权重只抽1种"，且 `rollRoomClearDrop()` 中硬编码 `if (room.type === 'treasure' || room.type === 'boss') return;`。`spawnShopItems()` 各自写 for-loop 判概率，三处掉落入口三种判法
+- **[决策]** 与 `rollLoot()` 保持一致语义，`resource-db.json` 的 `resourceDropTables` 全面升级为 `{ mode, _desc, table }` 结构，所有表统一列出全部 15 种资源（不需要的配 0）
+  - `pick_one`：怪物掉落、房间清空、地形破坏、宝箱额外资源
+  - `roll_all`：商店商品（每种独立判定，最多6个）
+  - `pick_first`：预留
+  - 新增 `room_clear_treasure` 表（全 0 = 不掉落），`room_clear_boss` 也改为全 0（替代硬编码）
+- **[代码改动]** `rollResourceDrop()` 重构（读 mode+table、按 mode 分发、兼容旧格式）+ `rollRoomClearDrop()` 移除硬编码改 roomType→tableKey 映射 + `spawnShopItems()` 统一走 `rollResourceDrop('shop_stock')`
+- **[设计收益]** 掉落行为完全配置驱动，改表不碰代码；想给 Boss/宝藏房加资源只需改对应表权重值
+
+### attack_adjacent 行为修正 — 从面朝方向改为十字范围 [当前方案]
+- **[触发]** 用户发现裂口尸 chase 的 `after_effect: attack_adjacent` 有时不生效，怀疑只对面朝方向 1 格攻击
+- **[问题确认]** `resolveAfterEffects()` 中 `attack_adjacent` 使用 `context.dirX/dirY` 只检查面朝方向 line，且 `finishMonsterTurn()` 从路径最后一步取方向作为唯一方向传入
+- **[决策]** 重构为遍历上下左右 4 个方向，每个方向向外检查 range 格（遇墙停止），攻击范围内所有玩家和怪物。不再依赖传入的 dirX/dirY
+- **[代码改动]** `resolveAfterEffects()` attack_adjacent 分支（四方向 forEach）+ `finishMonsterTurn()` 移除 `lastStep`/`Math.sign` 方向计算
+
+### 掉落表条目统一化 [当前方案]
+- **[触发]** 用户要求每张 resourceDropTable 列出所有 15 种资源，不掉落的权重配 0，这样每张表条目结构完全一致
+- **[决策]** 全部 11 张表按固定排序列出完整 15 条目（coin_gold→coin_black→coin_silver→bomb_single→bomb_double→heart_half→heart_full→heart_double→blue_heart_half→blue_heart_full→blue_heart_double→chest_normal→chest_golden→key_single→key_double），不需要的权重=0
+- **[收益]** 需要添加新掉落种类时只改数值不改字段结构
+
+### 浮游眼原地不动 + random_wander 方向预筛选 [当前方案]
+- **[触发]** 用户反馈浮游眼经常一个回合原地不动，蓄力魔像也有类似问题
+- **[根因分析]** 两个原因叠加：①**条件死区**：`flying_eye_i` 的 `random_wander` 没指定 `range`，默认 5，导致 `dist>5` 才算 `out_of_range`；但 `shoot_fan` 的 `range:4` 要求 `dist≤4`。距离=5 时两个 action 条件都不满足→原地不动。`flying_eye_iii` 的 `random_wander`(默认range=5) 也会误匹配到距离6的情况。②**随机方向撞墙**：`random_wander` 代码只随机选一个方向然后尝试走 stepCount 步，第一步就可能撞墙/怪物/边界→path 为空→原地不动。在房间边缘/角落，25%~50%概率选到不可行方向。
+- **[决策]** ①`monster-db.json` 中三个等级浮游眼的 `random_wander` 补显式 `range`，与同等级 `shoot_fan` 的 range 对齐（4/5/6），消除死区。②`calcAllMonsterPaths` 中 `random_wander` 分支增加 `validDirs` 预筛选：先 `filter` 过滤出第一步可行的方向，再从有效方向中随机选。浮游眼和蓄力魔像共享此分支，同时受益。③`shoot_fan` 的 `after_effect` 中的 `random_wander` 独立副本也同步增加 `validDirs` 过滤，多一个 fallback（无可行方向时随意选一个）。
+- **[验证结果]** 与蓄力魔像 `charge_line` 已有的方向预筛选（`pickChargeDir`→`randomMovableDir`→`canMoveMin1`）模式一致：都是"filter → pick random"范式。两处差异（random_wander用4方向、charge_line用8方向含对角线）是刻意设计，不需对齐。
+
+### 道具拾取状态回溯 — ESC重置 + 移动路径回溯 [当前方案]
+- **[触发]** 用户要求道具拾取状态也应受两种回溯影响：①ESC回溯重置道具拾取生效状态；②移动范围内自由移动时，道具拾取状态随实际路径实时调整。
+- **[决策]** ①`saveTurnSnapshot` 新增保存 `playerInventory`、`playerStats` 全部属性、`playerResources.blueHearts`、`itemsOnGround` 完整快照。`restoreTurnSnapshot` 对应恢复并调用 `updateItemBar()`/`updateHearts()`/`updateResourceUI()`。②新增 `turnPickupLog[]`（资源拾取轨迹）和 `turnPickedUpItemLog[]`（道具拾取轨迹），在 `recalcContactDamage()` 中当 `turnMovePath` 截断时一并撤销拾取。③`autoPickupResources()` 和 `pickUpItems()` 各自记录 pickuplog（含 stepIdx 对应 turnMovePath 长度）。④`resetTurnAP()` 和 ESC handler 清除 pickup logs。
+- **[设计收益]** 回退时资源自动回到地面、道具回到地面并从库存移除、属性重算（`recalcAllStats`）。与接触伤害撤消模式一致。
+
+### 血量上限12 + 红心优先于蓝心 [当前方案]
+- **[触发]** 用户要求总心数上限12（红心+蓝心≤12），且红心上限增加优先级高于蓝心。
+- **[规则]** ①红心（maxHp）和蓝心（blueHearts）总和 `totalHearts()` ≤ 12。②拾取蓝心时若已达上限→不拾取（物品不消失）。③道具增加红心上限（`applyItem`）时若总和=12但有蓝心→移除1蓝心+增加1红心上限（腾出空间）。④回血（`heart` 资源 healing）不受上限影响。
+- **[代码改动]** 新增 `totalHearts()`/`tryAddRedHeart()`/`tryAddBlueHeart()` 三个辅助函数。`handleResourcePickup` 的 `blue_heart` 分支调用 `tryAddBlueHeart()`；`applyItem` 的 `maxHp` 分支改为逐颗调用 `tryAddRedHeart()`。`recalcAllStats` 不做上限检查（计算基准值，上限在添加时强制）。
+
+### 炸弹模式融合进战斗模式 [当前方案]
+- **[触发]** 用户要求炸弹模式不应独立存在，应融合进战斗模式作为特殊怪物。
+- **[旧方案]** 独立 `bombMode` 状态标志+独立 Space 分支处理+探索模式专属炸弹回合。炸弹模式下只有 MP 无法射击。
+- **[新方案]** ①移除 `bombMode`/`bombModeTurnsFrom` 变量，炸弹即是战斗模式的一部分。②放置炸弹即进入 `inCombat=true`（含交叉剑动画），统一走战斗模式流程。③炸弹倒计时从 Space 处理移至 `startMonsterTurn()` 最开头（炸弹行动优先级高于所有怪物），在 `calcAllMonsterPaths()` 之前执行 `tickBombCountdown()`。④每个怪物回合炸弹计时-1，0时引爆。⑤`updateDoorsLocked()` 改为只判断怪物存活（`hasLivingMonsters`），不判断炸弹——有炸弹无怪物时门打开可自由出入。⑥`tryWalkIntoDoor()` 允许战斗模式（因炸弹）下通过已打开的门。⑦`finishTransition()` 重新进入房间时炸弹倒计时重置为3，并恢复战斗模式。⑧`finishMonsterTurn()` 结尾根据存活怪物+未引爆炸弹决定是否结束战斗。⑨`updateActionBar()` 统一在战斗模式下显示炸弹倒计时信息。
+- **[设计收益]** 炸弹不再是特殊模式，完美融入回合制战斗。炸弹房间可自由移动和射击（保留AP）。门锁逻辑只取决于怪物，炸弹不影响房间通行。
+
+---
+
+## 2026-07-28
+
+### 代码-文档不一致处理约定 [当前方案]
+- **[触发]** 用户在 monster-db.json 中看到红色行（实际是 IDE diff 对比视图高亮，非文件问题），引出讨论：如果用户手动修改了文件但没有通知 AI，当 AI 后续发现代码与文档不一致时该如何处理？
+- **[问题]** 历史中未明确定义：AI 发现代码与文档矛盾时，自动修哪边？还是停下让用户决策？
+- **[决策]** 确立三层约定：① AI 读代码/文档发现不一致时，必须主动提醒用户，列出具体差异清单；② 不得在用户未表态的情况下擅自修改代码或修改文档；③ 用户可从三个选项中决策：以代码为准更新文档、以文档为准修正代码、或两者都保留（设计变更过渡期）
+- **[与同步文档的解耦]** 此约定适用于 AI 在任何状态下（包括非同步场景）发现不一致的情况，与"同步文档"指令是两个独立触发路径。同步文档时，以实际代码为准更新文档是默认行为
+- **[与 Ask/Craft 模式的关系]** 用户确认：Ask 模式下只讨论、分析、提醒，不动任何文件（代码或文档）。Craft 模式下，提醒后等待指令才修改。两种模式下都不擅自修改
+- **[Memory 创建]** 创建 CodeBuddy Memory ID 32213721 存储此约定，供自动加载
+- **[适用]** 此约定跨项目通用，本记录在 isaac-memory 中保留项目级讨论背景；通用规则同步到 global-rules §2.11
+
+### context.md 文件清单修复
+- monster-db.json 描述仍为旧 `movement` + `aiParams`，未随 7/27 重构更新。现修正为 `actionMode` + `actions[]`
+
+### 掉落系统全面重构 — 资源系统建立 [当前方案]
+- **[触发]** 用户给出8条掉落需求：宝箱房必出道具、Boss击杀必出道具、普通怪几乎不出道具(整局1~2次)、击杀小概率掉资源、破坏便便小概率掉资源、打开宝箱必掉1~4个道具、清理房间中概率掉资源、破坏岩石极小概率掉资源
+- **[前期探索]** AI 解释了 loot entry 中 `weight`(竞争性权重，决定"选谁")和 `rate`(独立概率门，决定"选中后是否真的生效")的区别，两者是乘法关系
+- **[设计决策]**
+  1. **怪物道具掉率**：所有非Boss怪物统一改为 item weight 0.03 + rate 1.0 + `monster_very_rare` 品质表(none:0.70)。有效概率 = 0.03 × 0.30 ≈ 0.9%/只。6层约150只怪 → 期望1.35件/局。旧品质表(common/ranged/heavy)不再被引用但保留
+  2. **Boss掉落**：改为一轮 pick_one 纯道具(rate:1.0, itemDropTable:"boss")，移除第二轮资源(roll_all resource)
+  3. **宝箱**：chest_normal / chest_golden 从 pick_one(资源or道具)改为 roll_all 纯道具4条(保底1个 + 3×55-60%)，平均约2.65-2.80个/箱
+  4. **资源掉落表**：rollResourceDrop 使用独立概率遍历所有条目(roll_all模式)，所以"一种1个资源"通过极低概率值实现(P(0)≈80-96%, P(1)≈3-18%, P(2+)<3%)
+  5. **房间清空**：room_clear_default 综合掉率 74%→43%（"中概率"）
+  6. **地形**：terrain_rock 综合掉率 20%→3.5%（"极小概率"），terrain_poop 19%→15%（"小概率"）
+- **[影响文件]** `monster-db.json`(全部12只怪物loot重配) + `resource-db.json`(新建，8张掉落表+宝箱loot重配) + `item-db.json`(新增 monster_very_rare 品质表) + `isaac-turnbased-demo2.html`(新增统一掉落调度器 rollLoot+executeDropEntry+资源系统代码)
+- **[清理]** `item-drop-tables.json` 删除（品质表合并至 item-db.json > itemDropTables）
+- **[待微调]** 用户明确表示后续会手动微调数值，本次为粗略调整建立框架
+
+### 蓄力魔像行为模式优化 [当前方案]
+- **[触发]** 用户要求将蓄力魔像从"每轮都冲刺"优化为有节奏感的 4 步行为循环
+- **[决策]** actions 改为 4 步 sequence：`random_wander`×2 → `charge_up` → `charge_line`。I/II/III 级 wander 步数分别为 2/3/4
+- **[新增 action 类型]** `charge_up`：原地不动，头顶红色脉动感叹号(!)（DOM 覆盖层 `.txt-exclaim` CSS 动画）。感叹号状态纳入回合快照（`saveTurnSnapshot`/`restoreTurnSnapshot`）
+- **[charge_line 简化]** 旧两阶段（chargeDir=null→选方向 / chargeDir已有→执行冲刺）改为单步（选方向+计算路径+执行一次完成），移除 `chargePhase` 状态依赖
+- **[影响范围]** monster-db.json(3只蓄力魔像) + demo2.html(`calcAllMonsterPaths` switch 新增 charge_up + charge_line 简化 + CSS @keyframes exclaim-pulse + `updateTextOverlay` 感叹号DOM渲染 + 快照系统)
+- **[设计意图]** 漫步→蓄力→冲刺的节奏让玩家有准备时间，感叹号提供明确的"下一轮要冲了"预警
+
+### 感叹号样式像素风化 [当前方案]
+- **[触发]** 用户反馈感叹号太小太不明显
+- **[决策]** 从 `bold 18px Arial` 改为 `bold 56px Courier New`（大号像素风等宽字体），8方向黑色像素描边 + 4方向暗红内描边 + 3层红色光晕，脉动动画 0.5s 缩放 0.85→1.25，z-index:10 保证顶层
+- **[影响范围]** demo2.html CSS `.txt-exclaim` + `@keyframes exclaim-pulse` + `updateTextOverlay()` 垂直偏移 -28→-48
+
+### 文档同步触发规则确立 [当前方案]
+- **[触发]** AI 在代码任务完成后惯性自动更新 context.md 和 memory.md，用户指出这浪费 token、破坏了"阶段性总结"的更新节奏
+- **[根因]** AI 的两个冲突指令并存：规则说"不要自动更新文档" vs 本能说"代码和文档不一致是不负责任的"。本能（更底层、更自动化）赢了
+- **[决策]** memory.md 新增修改规则 #4：`context.md` 和 `memory.md` 的更新不得在任何代码修改任务中附带执行，必须且仅由用户发出"同步文档"指令时触发。此规则优先级高于 AI 对"代码和文档应保持一致"的默认行为倾向
+- **[原因]** 代码改动是高频实验性的，文档更新是低频确认性的。程序化地在每次代码改动后跟文档浪费 token
+- **[关联]** 与 global-rules §1.4（禁止自动 Git 写入）、§4.5（疑问句vs指令区分）同类——都是管理 AI 的"自动收尾冲动"
+
+### 浮游眼行为模式重构 — condition actionMode + after_effect + 动态感叹号 [当前方案]
+- **[触发]** 用户要求浮游眼不再按权重随机选行为，改为按 condition 条件判断触发
+- **[actionMode 新增]** `mode: "condition"`：按 actions[] 顺序逐条评估 condition，选中第一个满足条件的 action。与 `sequence`（轮询）、`random`（加权随机）并列第三种选择模式
+- **[condition 新增]** `out_of_range`：`dist > range`（与 `in_range` 的 `dist <= range` 互补）
+- **[after_effect 机制]** action 新增可选的 `after_effect` 字段（`{ type, steps, stepMode }`）：主 action 执行完毕后追加执行附加行为
+- **[浮游眼新行为]**
+  - 玩家在射程外 → Action 1: `random_wander`（漫步）
+  - 玩家在射程内 → Action 2: `shoot_fan` → after_effect: `random_wander`（射击后立刻随机移动）
+- **[动态感叹号]** 新增 `updateFlyingEyeExclaim()` 函数：玩家回合中每次 WASD 移动后实时检测与浮游眼距离，进入射程显示感叹号，移出隐藏。回合开始时（`resetTurnAP()`）也调用一次
+- **[代码重构]** 抽出 `checkActionCondition(a, pCol, pRow, mCol, mRow)` 和 `resolveSteps(stepsArr, stepMode, stepWeights, turnIdx)` 两个辅助函数，消除 `resolveMonsterAction` 内重复代码
+- **[影响范围]** monster-db.json(3只浮游眼 actionMode+actions) + demo2.html(`resolveMonsterAction` 函数重写 + `calcAllMonsterPaths` shoot_fan case 新增 after_effect 处理 + `updateFlyingEyeExclaim` 新函数)
+
+---
+
+## 2026-07-27
+
+### 怪物行动系统重构：actionMode + actions[] [当前方案]
+- **[问题]** 7/24 统一了 `movement` 结构（mode/steps/stepMode/weight），但移动方向策略和 AI 参数仍然分属两个维度——`movement.mode` 管方向、`aiType`+`aiParams` 管具体行为参数。浮游眼既需要 `movement.weight`（移动概率）又需要 `aiParams.shootRange`（射程），配置分散在两个对象中。Boss Jumper 的跳跃参数也在 `aiParams` 中，与实际的行动逻辑分离。
+- **[决策]** 全面重构为行动列表系统：每个怪物定义 `actionMode`（行为选择模式）+ `actions[]`（行为列表），每个 action 独立携带所有参数。
+- **[结构设计]**
+  - `actionMode: { mode: "sequence"|"random" [, weights: []] }` — sequence 按索引顺序循环；random 按 weights 加权随机选（权重默认 1 = 均匀随机）
+  - `actions[]` — 每个 action 含 `type` + 通用字段（`steps`/`stepMode`）+ 类型专有字段（`range`/`condition`/`directMode`/`landDamage`/`repeatChance`/`disappearSteps`）
+  - `condition` — `"in_range"` 仅当玩家在 action 的 `range`（切比雪夫距离）内时该 action 可选。无 condition 则始终可选。当前仅 `shoot_fan` 使用
+  - `aiType` 保留为行为标签（不再携带参数），仅用于特殊路由（如 boss_jumper 跳过普通 `calcAllMonsterPaths` 进入 `processJumperAction`）
+- **[迁移结果]**
+  - **裂口尸**：`{mode:"sequence"}` + `[{type:"chase", steps:[2,1], stepMode:"sequence"}]`（最简单的一追到底）
+  - **浮游眼**：`{mode:"random", weights:[0.7,0.3]}` + `[{type:"random_wander", steps:[1,2,3], stepMode:"random"}, {type:"shoot_fan", range:4/5/6, condition:"in_range"}]`（70%移动/30%射击，仅射程内可射击）
+  - **蓄力魔像**：`{mode:"sequence"}` + `[{type:"charge_line", steps:[3,4,5,6]→[5,6,7,8], stepMode:"random"}]`
+  - **Boss Jumper**：`{mode:"sequence"}` + `[{type:"jump_small", steps:[3]}, {type:"jump_small", steps:[3]}, {type:"jump_big_land", disappearSteps:1, landDamage:1, repeatChance:0.5}]`（小跳×2→大跳×1 循环）
+- **[代码改动]** 新增 `resolveMonsterAction(cfg, turnIdx, mCol, mRow, pCol, pRow)` — 按 condition 过滤 eligible → actionMode 选择 → stepMode/stepWeights 解析步数。`calcAllMonsterPaths()` 改为调 `resolveMonsterAction` 获取 action + 步数后按 `action.type` 分发。`processJumperAction` / `calcJumperSmallJump` 改为从 `cfg.actions` 读取跳跃参数。怪物创建 (`spawnMonsterAtRandomPos`) 移除 `movement`/`aiType`/`aiParams` 复制。
+- **[向下兼容]** 旧字段 (`movement`/`aiParams`/`aiRange`) 全部删除，monster-db.json 为单一数据源。
+
+### stepWeights 默认行为澄清 [当前方案]
+- **[问题]** 用户问浮游眼 `random_wander` action 中 `stepMode:"random"` 但未配 `stepWeights`，是否默认为均匀随机？
+- **[确认]** 是。`resolveMonsterAction()` 中的步数解析逻辑：有 stepWeights 且长度匹配 → 加权随机；否则走 `Math.floor(Math.random() * steps.length)` 纯均匀随机。浮游眼 `steps:[1,2,3]` → 走 1/2/3 格各 1/3 概率。需要非均匀权重时才显式配 `stepWeights`。
+
+---
+
+## 2026-07-24
+
+### 验证列表遗漏事件 — 暴露 memory 记录方式缺陷
+- **[问题]** 用户追问"昨天讨论的验证列表"时，AI 无法回溯——经确认，该验证列表在 7/23 讨论过但未记录到 memory。原因是 AI 一直以"代码变更驱动"方式写 memory，验证列表没有代码变更因而被遗漏。
+- **[根因]** memory 的设计初衷是**对话记忆**而非代码变更日志，但 AI 的实际执行方式偏离了这一初衷，形成了"只记代码结果"的惯性。
+- **[验证列表内容]** 当前无法恢复（cb_summary 已压缩丢失，对话原文已不可溯源）。已知概要：AI 给用户列出了一组需要用户亲自验证的设计/体验项，围绕"游戏是否好玩、设计是否合理优秀"。
+- **[决策]** 此事件触发 global-rules §2.10 更新：明确 memory 本质是对话记忆，新增"设计验证/待办任务"必须记录的要求，以及"记忆触发标准"（如果在将来新会话中可能需要回溯→必须记录）。
+- **[适用] 此标准跨项目通用，已同步到 global-rules。
+
+### Memory 更新标准明确 — 对话驱动 vs 代码变更驱动
+- **[用户说明]** memory.md 的设计初衷："在任何时候，在任何电脑上，都可以实现几乎在跟同一个有统一记忆的 AI 聊天"。"什么样的内容需要记录到 memory"→ 基于"完整记忆"的初衷：任何在当前对话中讨论过的、未来新会话中可能需要回溯引用的内容，无论是否涉及代码变更。
+- **[结论]** memory = 对话记忆，≠ 代码变更日志。记录标准从"改了代码→记录"扩展为"聊过的重要事→记录"，覆盖：设计验证清单、待办测试项、设计疑问、待定方案、创意方向、流程决策等所有讨论内容。
+- **[影响]** global-rules §2.10 已补充"设计验证/待办任务"条目和"记忆触发标准"。
+
+### Memory 记录重点深化 — 轨迹 + 采纳状态
+- **[用户补充]** 在上一项基础上进一步细化记录重点：
+  1. **想法推进的完整轨迹**：一个想法 A 如何变成 B，又如何变成 C，结果的节点要记，结果导向的过程和原因也要记。不跳步骤、不只保留最终态。
+  2. **AI 建议的采纳状态**：当用户发起方向性讨论（如"游戏下一步该做什么"），AI 提供建议后，需要标注每条建议的用户反馈——采纳（并执行）、否定（并说明原因）、无视（未回应）。这确保将来回溯时能知道当时有哪些路径被考虑过、哪些走了哪些没走、为什么。
+- **[影响]** global-rules §2.10 二次更新：新增"想法推进的完整轨迹""AI 建议的采纳状态"两条具体要求，记忆触发标准新增"AI 建议列表及其采纳/否定/无视状态""想法演变轨迹"两项。
+
+### 怪物移动配置统一重构 [当前方案]
+- **[问题]** 怪物移动步数配置用 4 套不同字段各自为政：`moveCycle` 节奏数组（chase/boss_chase）、`moveDistMin`~`moveDistMax` 随机区间（ranged_kite）、`chargeDistMin`~`chargeDistMax` 区间（charge）、硬编码固定值（boss_jumper/patrol）。同一概念（"怪物每回合走多少格"）参数名不一致。且浮游眼的 `moveCycle:[1,1]` 纯属废字段（ranged_kite 从不读取 moveSpeed）。
+- **[讨论过程]** 最初方案是只在外层加 `movement` 统一记录步数，方向模式仍依附于 aiType。用户指出"移动方向不同应该单独有个参数来区分"，最终确立两个维度完全解耦的结构。
+- **[决策]** 新增统一 `movement` 结构：`mode`（朝哪走：chase/random_wander/charge_dir/jump/none）+ `steps`（步数池数组）+ `stepMode`（如何取值：sequence按序轮换 / random随机抽）+ `weight`（仅 random_wander 模式，移动概率）。所有 12 只怪物全部迁移。
+- **[结构设计]** 两个维度职责分明：`mode` 决定移动方向策略（追玩家BFS/随机方向/直线冲刺/跳跃），`stepMode` 决定步数取值方式（按序循环/随机抽选），`steps` 为步数池。两者可灵活组合产生丰富行为（如"偶尔冲刺的追人怪"=chase+sequence+[1,1,3]）。
+- **[浮游眼 AI 优化]** 新增切比雪夫距离射程判断：玩家在 `shootRange`（aiParams）内→按 `weight` 概率决定射击或移动；射程外→100% 只移动。解决"玩家太远浮游眼还在原地对射"的问题，使远程怪行为更符合直觉。
+- **[巡逻怪修复]** 硬编码 5 格感知范围 → `aiParams.patrolRange` 可配置，默认值保持 5。
+- **[影响范围]** monster-db.json 完全重写（移除 moveCycle / moveWeight / moveDistMin-Max / chargeDistMin-Max，统一为 movement；aiParams 精简仅保留 AI 特有参数）；demo2.html 6 处改造（movement 统一读取 + ranged_kite 射程判断 + charge 步数源切换 + patrol 可配范围 + 怪物创建 + 存档序列化）。旧字段引用全部清理，搜索验证 0 残留。
+- **[兼容性]** 代码层 `movement` 带完整默认值兜底（`{ mode:'chase', steps:[2,1], stepMode:'sequence' }`），确保读不到配置时不崩。
+
+---
+
+## 2026-07-23
+
+### AI行为参数外置 — monster-db.json `aiParams` 字段 [当前方案]
+- **[问题]** 怪物AI行为参数（浮游眼移动/射击权重、蓄力魔像冲刺距离范围、Boss提速间隔、跳跃Boss步数/概率）全部硬编码在 `calcAllMonsterPaths()` 和 `processJumperAction()` 中，策划无法调参
+- **[决策]** 在 `monster-db.json` 每个怪物条目新增 `aiParams` 结构化对象，将AI参数全部外置为JSON配置。代码统一通过 `const ap = m.aiParams || {}` + `??` 兜底读取，兼容旧存档
+- **[影响范围]** 5个怪物（crack_maw空对象、flying_eye移动权重+距离+射程、charge_golem冲刺距离、boss_maw_king提速间隔、boss_jumper跳跃步数+概率+伤害）。双HTML文件同步修改（ranged_kite/charge/boss_chase/boss_jumper AI分支 + 存档序列化）。monster-db.json 新增 aiParams 字段
+- **[同步修复]** context.md 中过时常量：rock_golem→charge_golem、HP 20→30、子弹速度 280→560、子弹重力 550→1100、粒子重力 180→360
+
+### 配置外置全面审计 — 分类原则与设计决策 [当前方案]
+- **[触发]** 用户要求将AI硬编码参数挪入JSON后，继续追问"类似的问题也都检查一下，目前有的json文件哪些代码是可以挪出来的"，触发系统性审计而非单点patch
+- **[审计范围]** 审查全部6个JSON文件（monster-db / item-db / item-drop-tables / pool / floor-data）+ 2个HTML（demo / demo2），逐段搜索硬编码数值、权重、距离、间隔、概率等
+- **[分类结果]**
+  - ✅ **应外置（已完成）**：怪物AI行为参数 → `monster-db.json.aiParams`。涵盖浮游眼（moveWeight 0.7 / moveDist 1~3 / shootRange 4）、蓄力魔像（chargeDist 3~6）、裂口之王（speedBoostInterval 4）、跳跃巨兽（smallJumpSteps 3 / repeatChance 0.5 / landDamage 1）。crack_maw 为 `{}`
+  - ❌ **保留代码（明确决策）**：①渲染常量（CELL/WALL/COLS/ROWS/子弹速度/重力/粒子重力）— 引擎级参数，与tile布局强绑定，改一个会牵动布局和视觉；②动画时长（跳跃动画0.35/0.55s）— 视觉调参，不属于策划数据范畴；③刷怪系统参数（floorBonus×2、提前停止阈值30%、role权重×3）— 核心算法内部调参，暂不暴露
+- **[设计原则]** 判断标准：策划日常需要调整的值 → JSON；引擎/渲染/算法内部调参 → 代码。作为后续同类审查的指导原则
+- **[兜底方案]** 代码统一 `const ap = m.aiParams || {}` + `??` 默认值，确保旧存档/缺失字段不崩
+
+### 双HTML文件同步策略 [当前方案]
+- **[现状]** demo.html 使用内联 `MONSTERS_INLINE` JS对象定义怪物数据；demo2.html 通过 `fetch(Configs/monster-db.json)` 异步加载。两文件功能平行独立
+- **[同步策略]** 任何涉及怪物系统的修改必须同步两份代码。本次修改量：demo.html 内联定义新增5个 `aiParams` + ranged_kite/charge/boss_chase AI代码全部改造 + 存档序列化补字段；demo2.html 怪物初始化注入 `aiParams` + 同4个AI分支改造 + 存档序列化补字段
+- **[风险]** 双文件维护成本高，但 demo.html 是早期快照版本的备份（用户明确保护不可删除），暂不合并
+- **[验证]** 修改完成后确认0处剩余AI硬编码（`Math.random()<0.7` / `3+Math.floor(4)` / `turnIdx%4===0` 均已替换为 ap 读取）
+
+### context.md 同步修正
+- 本次文档同步中逐章节交叉比对，发现并修正过时数值8处：怪物表名 rock_golem→charge_golem、HP 20→30、子弹速度 280→560 px/s、子弹重力 550→1100 px/s²、粒子重力 180→360 px/s²
+
+### global-rules §2.10 建立 — Memory 记录完整性要求 [当前方案]
+- **[触发]** 今日 AI 在记录 aiParams 外置讨论到 memory 时，只记录了代码变更结果（aiParams 字段），遗漏了三个重要讨论内容：配置外置审计方法论与分类标准、双HTML文件同步策略、context.md 过时常量修正。用户追问"为什么今天讨论的内容你没有记录到memory文档里"后逐项补全
+- **[问题根因]** AI 习惯于记录"最终代码做了什么"而忽略"讨论途中确立了什么原则和方法论"
+- **[决策]** 在 global-rules §2.10 建立 Memory 记录完整性要求：必须覆盖当天全部决策深度（推理链/审计范围/分类标准/策略流程），不只记结果。写入 memory 前回溯当天完整对话逐条确认零遗漏
+- **[定位]** 与 §4.4 互补：§4.4 管"不编造虚假数据"，§2.10 管"不遗漏真实讨论"
+
+### global-rules §4.5 建立 — 疑问句与指令的区分 [当前方案]
+- **[触发]** 用户问"你觉得今天遗漏了讨论内容这件事，需不需要记录到global-rules里面呢？"AI 将征求意见的疑问句误判为执行指令，直接写入了 global-rules。用户纠正："你能区分得清问题和指令吗？"
+- **[问题根因]** 与 §1.4 纠正过的"AI 自动提交"同类边界判断错误——没有区分"征求意见"和"下达指令"
+- **[方案讨论]** 用户再次以疑问句测试："你觉得刚才你出的这个问题，需要更新到global-rules里面吗"，AI 正确识别为征求意见，分析两个方案（A.扩展§1.4 / B.新增§4.5）并推荐方案B，等待确认后执行
+- **[最终方案]** global-rules §4.5：疑问句/征求意见（只分析建议等确认）vs 明确指令（可执行）。覆盖文件写入、Git操作、命令执行等所有有副作用的操作
+- **[定位]** 与 §1.4 互补：§1.4 管理 Git 写入操作边界，§4.5 从交互语义层面区分"问"与"令"，适用于所有有副作用的操作
+
+---
+
+## 2026-07-22
+
+### 楼层生成两步法重构 [当前方案]
+- **[问题]** 旧 `generateFloor` 将所有房间一起布局后再分配类型，Boss/宝箱可能随机出现在集群中间，导致需要裁边（保留1个门）+ 连通性修复逻辑。裁边后图可能断开，需要 `isConnected` 回退恢复连通，复杂且不直观。
+- **[方案]** 改为两步法：①骨架房（起点+普通房）先用现有的"从所有已放房间的相邻空位扩展"算法布局并全连通；②从所有骨架房边界收集空位，Boss 选距离起点最远的挂载，宝箱从剩余空位随机挂载。
+- **[结论]** Boss/宝箱始终在集群外围，天然只有 1 个门连接，不再需要裁边 (`finalEdges`/`keptFor`/`skipped`/`isConnected` 全部移除)。代码更简洁、逻辑更清晰。
+- **[影响文件]** `isaac-map-viewer.html` — `generateFloor()` 函数重写（约80行新逻辑）
+
+---
+
+## 2026-07-21
+
+### 设计三要素评估 (上午)
+- 当前判断：核心机制（即时操作+Esc兜底）有辨识度(★★★★)，但操作复杂度和概念数量超出"简单核心"期望(★★★)，上手门槛较高(★★)
+- 轻快节奏优先：去掉二次确认、幽灵等冗余元素，弱化内部 checkpoint 概念
+- WASD+箭头键保持（以撒同款），道具系统先跑通 shallow roguelike 体验
+
+### UI精简与操作流程优化
+- **[决策]** 去掉 Space 二次确认弹窗（`turn_end_confirm` 阶段），Space 直接结束回合
+- **[决策]** 去掉回合起始幽灵（`drawTurnStartGhost()`）
+- **[原因]** 幽灵概念对轻快节奏帮助有限，可能造成新玩家理解门槛
+- Esc 不需要误触保护（代价低）
+
+### 动画系统
+- **[新增]** 战斗开始"交叉剑"动画：两剑从屏幕左右飞入旋转，中心碰撞火花，0.55秒渐隐
+- **[新增]** Esc 全重置"时间倒流"动画：蓝色收缩光圈 + 白色闪光覆盖，0.35秒
+- 动画计时器在 gameLoop 中更新，由 `battleStartAnim` / `rewindAnim` 状态控制
+
+### 文字渲染重构：Canvas → DOM 覆盖层
+- **[问题]** Canvas 的 CSS `image-rendering:pixelated` 导致所有文字（无论中英文、无论字体）均被最近邻缩放压成马赛克，不可读
+- **[解决方案]** 创建 `<div id="text-overlay">` DOM 覆盖层，952×558px 绝对定位于 Canvas 上方，`pointer-events: none`
+  - 怪物名 → `.txt-monster-name` (12px 微软雅黑，boss 红字)
+  - 伤害飘字 → `.txt-damage` (14px Arial，透明度动画)
+  - AP 圆点 → `.txt-aap` (18px 圆形，用尽灰色空心)
+- **[结果]** Canvas 文字绘制全部移除以避免干扰，字体清晰度完全由浏览器文本渲染保证
+- DOM 元素在 `updateTextOverlay()` 中每帧更新位置和状态，`drawDamageNumbers` 保留为桩函数
+
+### 演示版本修复 / visitedRooms
+- demo.html 的 `finishTransition` 无条件调用 `spawnRoomMonsters()`，已补全 `visitedRooms` Set 追踪逻辑
+- demo2 的 `finishTransition` else 分支增加 `updateUI()` 调用
+
+### 字体规范 [当前方案]
+- **Canvas 文字全面废弃**，全部通过 DOM 覆盖层渲染
+- DOM 文字使用系统标准字体（`sans-serif`/`Arial`/`微软雅黑`），不强制像素风
+- 后续除非有特殊要求，不再使用像素字体
+
+### 碰撞系统全面重构 [当前方案]
+- **移除击退/反弹**：`tryPushPlayer()`/`tryPushMonster()` 整段删除。碰撞统一为：受伤 + 共格，无推击反弹
+- **怪物→玩家碰撞简化**：`updateMonsterTurn` 中不再尝试推玩家或反弹怪物，直接 `damagePlayer` + 怪物占格
+- **玩家→怪物碰撞**：BFS 不阻挡怪物格（玩家随时可穿越），走 `damagePlayer` 处理
+- **轨迹系统**：`turnMovePath` 记录每步 `{col, row, invincibleSteps}`，支持曼哈顿回溯
+  - 踩怪格 → `damagePlayer` 扣血+无敌，标记 `turnContactStepIdx`
+  - 离开怪物格 → **不撤销**（无敌正常递减）
+  - 后退超过接触步 → 回血+回无敌
+  - Checkpoint 射击 → commit 接触状态（清标记）
+  - 回合开始 → `recalcContactDamage` 首次检测
+- **invincibleSteps 回溯**：快照保存/恢复 `invincibleSteps`；轨迹每个节点记录无敌值，后退时恢复
+- **差异讨论**：用户澄清两次才定案——第一次要求曼哈顿回溯但实现后出一直无敌 bug（因无敌计时不回溯），最终定为全部回溯+固定不刷新
+
+### memory 修改规则扩充
+- **[新增规则2]** 不得编造任何数据：具体到分钟的时间、未确认数值、未发生事件、未确认状态等。日内时间仅可用"上午/下午/晚间"三个粗粒度标签，或完全不标注时间仅靠条目排列顺序体现先后关系
+- **[新增规则3]** 写入前强制排序验证：每次追加新内容前必须先读取全文 → 确认最后一个条目位置 → 新条目追加在末尾或同日期段落末尾 → 同一天多个条目按对话先后从上到下排列
+  - `[已失效 2026-09-20]` 本条的「追加在末尾」已作废：现行规则为**由新到旧、新条目插入文件顶部**（global-rules §2.8，2026-10-28 补强第 6、7 条）。本行仅作历史存档，不得作为执行依据。
+- **[对应]** global-rules §4.4（AI 数据真实性规范）+ §2.8（文档写入前验证流程）
+
+### §2.9 规则传播检查建立 [当前方案]
+- **[背景]** 本轮新增的 §4.4 / §2.8 规范本应同步到 global-rules，但 AI 完成局部修复后未主动检查是否需要传播，用户指出"规则写了但执行不到"
+- **[决策]** 在 global-rules §2.9 建立规则传播检查：当用户发出"同步文档"指令时，检查本期项目级文档中的新增规则是否跨项目通用，是则同步到 global-rules
+- **[触发调整]** 初版设为"每次修改项目文档后触发"，用户指正后修正为"仅在用户发出同步文档指令时触发"，避免日常开发中频繁无效触发导致 AI 麻木
+- **[原因]** 同步文档本身即系统性审查节点，在此处追加传播检查最自然、遗漏率最低
+- **[Memory]** 创建 Memory ID 78482030
+
+### 怪物配置异步加载 [当前方案]
+- **[决策]** MONSTER_DB 从内联 JS 常量改为 `let MONSTER_DB = {};` + `async loadMonsterDB()` 从 `Configs/monster-db.json` fetch 异步填充，`_rebuildMonsterPools()` 重建 `MONSTER_POOL_NORMAL` / `MONSTER_POOL_ALL` 过滤池
+- **[原因]** 彻底解耦配置与代码，monster-db.json 为单一数据源，后续修改怪物只需改 JSON 不碰 HTML
+
+### 道具数据库外置 [当前方案]
+- **[决策]** 创建 `Configs/item-db.json`（25种被动道具完整配置：effects 数值属性 + specials[] 结构化特效）+ `Configs/item-drop-tables.json`（三张掉落表按品质权重分配）
+- **[原因]** 道具配置从内联 JS 迁移到外部 JSON，与怪物配置保持一致的数据外置策略
+
+### 特效系统结构化 [当前方案]
+- **[决策]** `cfg.special` 字符串（`"piercing"` / `"damage_mult_1.5"`）改为 `cfg.specials[]` 结构化数组，新增 `SPECIAL_EFFECT_HANDLERS` 注册表（piercing/damage_mult/heal_full）
+- **[原因]** 旧字符串方案每加一种特效要改多处（recalcAllStats、配置定义等），注册表模式只需在 handlers 中加一个 key，注册表分发统一处理
+- **[向后兼容]** `recalcAllStats()` 保留对旧 `cfg.special` 字符串的判断分支
+
+### 掉落系统改造 [当前方案]
+- **[决策]** `spawnTreasureRoomItem()` / `spawnBossRoomItem()` 从硬编码概率改为掉落表机制（`rollItem(null, 'treasure_room')` / `rollItem(null, 'boss_room')`），由 `item-drop-tables.json` 控制品质分配
+- **[原因]** 掉落表可独立配置和热更新，无需改代码
+
+### 怪物伤害同步修正 [当前方案]
+- **[决策]** monster-db.json 中全部怪物伤害同步半心制：裂口尸 1→0.5 / 浮游眼 1→0.5 / 岩石魔像 2→1 / 裂口之王 2→1
+- **[原因]** HP系统改为3心制时 monster-db.json 伤害值未同步修正，导致实际伤害比预期高2倍
+
+### Boss Jumper — 2×2跳跃Boss系统 [当前方案]
+- **[决策]** 新增 `boss_jumper` 怪物类型，替代旧 `boss_maw_king` 为每层Boss房唯一Boss
+- **[2×2体型]** 怪物 `size:2` 属性，占据4个格子（col/row为左上角），配套 `monsterCells()` / `isInMonsterFootprint()` / `isValidLandingZone()` 辅助函数。全面适配渲染（中心偏移 `CELL*(sz-1)/2`）、碰撞（子弹/玩家接触4格检测）、快照系统
+- **[行动循环]** 状态机 phase 1→2→3(50%重复)→4→1。小跳2次 → 判定 → 大跳1次 → 循环
+- **[小跳跃]** 中心距离判定（横向/纵向选远的 ×3步）→ 落点4格内玩家0.5伤害。无视岩石尖刺，单不能全深坑。弧线动画（sin弧线+ease-in-out+缩放弹跳）
+- **[大跳跃]** Boss消失1回合（缩小淡出动画）→ 玩家回合结束落下（缩放弹出+双圈冲击波）→ 12格1点伤害（目标2×2+8邻格）。跳起时判定落点，`pendingBossLanding` 延迟执行。`jumperJustLanded` 落地回合休息
+- **[宝藏房]** 不再刷怪；道具仅宝箱房+Boss清空房
+- **[接触伤害]** 角色碰撞Boss 0.5伤害，使用 `isInMonsterFootprint` 适配2×2
+- **[修复]** 渲染中心偏移（`CELL*sz/2`→`CELL*(sz-1)/2`）、落地回合额外行动（`jumperJustLanded` 跳过）
 
 ---
 
@@ -198,654 +799,92 @@
 
 ---
 
-## 2026-07-21
+## 2026-07-16
 
-### 设计三要素评估 (上午)
-- 当前判断：核心机制（即时操作+Esc兜底）有辨识度(★★★★)，但操作复杂度和概念数量超出"简单核心"期望(★★★)，上手门槛较高(★★)
-- 轻快节奏优先：去掉二次确认、幽灵等冗余元素，弱化内部 checkpoint 概念
-- WASD+箭头键保持（以撒同款），道具系统先跑通 shallow roguelike 体验
+### 无敌系统初始方案 [已废弃，2026-07-20 统一]
+- 战斗模式：受伤后无敌 3 回合（`invincibleTurns`）
+- 探索模式：受伤后无敌 `invincibleSteps = 移速×2` 步（每移动一格递减）
 
-### UI精简与操作流程优化
-- **[决策]** 去掉 Space 二次确认弹窗（`turn_end_confirm` 阶段），Space 直接结束回合
-- **[决策]** 去掉回合起始幽灵（`drawTurnStartGhost()`）
-- **[原因]** 幽灵概念对轻快节奏帮助有限，可能造成新玩家理解门槛
-- Esc 不需要误触保护（代价低）
+### 怪物配置重构 [当前方案]
+- MONSTER_CFG → MONSTER_DB 内联 JS（4种怪物 + 6种AI类型）
+- 进而外置到 Configs/monster-db.json，新增 movementTags（地面/飞行）/ role（melee/ranged/tank/boss）/ threat（威胁值）
+- **[原因]** 计划文档建议支持多种怪物类型，外置 JSON 便于编辑
 
-### 动画系统
-- **[新增]** 战斗开始"交叉剑"动画：两剑从屏幕左右飞入旋转，中心碰撞火花，0.55秒渐隐
-- **[新增]** Esc 全重置"时间倒流"动画：蓝色收缩光圈 + 白色闪光覆盖，0.35秒
-- 动画计时器在 gameLoop 中更新，由 `battleStartAnim` / `rewindAnim` 状态控制
+### 刷怪算法
+- 三层递进：标签过滤(movementTags ∩ allowedMovement) → 组合规则(至少1近战保底 + 角色多样性加权×3) → 点数预算(budget + (楼层-1)×2)
 
-### 文字渲染重构：Canvas → DOM 覆盖层
-- **[问题]** Canvas 的 CSS `image-rendering:pixelated` 导致所有文字（无论中英文、无论字体）均被最近邻缩放压成马赛克，不可读
-- **[解决方案]** 创建 `<div id="text-overlay">` DOM 覆盖层，952×558px 绝对定位于 Canvas 上方，`pointer-events: none`
-  - 怪物名 → `.txt-monster-name` (12px 微软雅黑，boss 红字)
-  - 伤害飘字 → `.txt-damage` (14px Arial，透明度动画)
-  - AP 圆点 → `.txt-aap` (18px 圆形，用尽灰色空心)
-- **[结果]** Canvas 文字绘制全部移除以避免干扰，字体清晰度完全由浏览器文本渲染保证
-- DOM 元素在 `updateTextOverlay()` 中每帧更新位置和状态，`drawDamageNumbers` 保留为桩函数
+### 怪物视觉
+- 渲染复用 drawCharacterAt()，tint 色彩叠加区分类型
+- 头顶名称标签（Boss红字）、血条、受击白闪+抖动、路径预览、伤害飘字、死亡血粒子
 
-### 演示版本修复 / visitedRooms
-- demo.html 的 `finishTransition` 无条件调用 `spawnRoomMonsters()`，已补全 `visitedRooms` Set 追踪逻辑
-- demo2 的 `finishTransition` else 分支增加 `updateUI()` 调用
+### TILE系统调整
+- 尖刺伤害：0.5（临时值，后续修正）
+- 透视取消：VP_SCALE_TOP = VP_SCALE_BOT = 1.00，标准矩形渲染
+- 房门重绘：开=通道+门框，关=铁栏纹理
+- 移除预览线/透视描述等已淘汰内容
 
-### 字体规范 [当前方案]
-- **Canvas 文字全面废弃**，全部通过 DOM 覆盖层渲染
-- DOM 文字使用系统标准字体（`sans-serif`/`Arial`/`微软雅黑`），不强制像素风
-- 后续除非有特殊要求，不再使用像素字体
+### 楼层生成强化
+- Boss/宝箱房强制度数=1（单门死路），至少3个叶节点
+- 所有房间度数≤4，布局 Manhattan 距离=1
+- 楼层 grid 固化：加载 floor-data.json 时保留已存 grid，修改 pool.json 不影响已有楼层
 
-### 碰撞系统全面重构 [当前方案]
-- **移除击退/反弹**：`tryPushPlayer()`/`tryPushMonster()` 整段删除。碰撞统一为：受伤 + 共格，无推击反弹
-- **怪物→玩家碰撞简化**：`updateMonsterTurn` 中不再尝试推玩家或反弹怪物，直接 `damagePlayer` + 怪物占格
-- **玩家→怪物碰撞**：BFS 不阻挡怪物格（玩家随时可穿越），走 `damagePlayer` 处理
-- **轨迹系统**：`turnMovePath` 记录每步 `{col, row, invincibleSteps}`，支持曼哈顿回溯
-  - 踩怪格 → `damagePlayer` 扣血+无敌，标记 `turnContactStepIdx`
-  - 离开怪物格 → **不撤销**（无敌正常递减）
-  - 后退超过接触步 → 回血+回无敌
-  - Checkpoint 射击 → commit 接触状态（清标记）
-  - 回合开始 → `recalcContactDamage` 首次检测
-- **invincibleSteps 回溯**：快照保存/恢复 `invincibleSteps`；轨迹每个节点记录无敌值，后退时恢复
-- **差异讨论**：用户澄清两次才定案——第一次要求曼哈顿回溯但实现后出一直无敌 bug（因无敌计时不回溯），最终定为全部回溯+固定不刷新
+### Git 分支策略确立
+- Monorepo 按项目分功能分支：dev/match3 / dev/tarot / dev/issac
+- main 分支保护规则：直接改 main 前必须先警告确认
+- 上下文文档同步规则：合并 main 时全覆盖检查
 
-### memory 修改规则扩充
-- **[新增规则2]** 不得编造任何数据：具体到分钟的时间、未确认数值、未发生事件、未确认状态等。日内时间仅可用"上午/下午/晚间"三个粗粒度标签，或完全不标注时间仅靠条目排列顺序体现先后关系
-- **[新增规则3]** 写入前强制排序验证：每次追加新内容前必须先读取全文 → 确认最后一个条目位置 → 新条目追加在末尾或同日期段落末尾 → 同一天多个条目按对话先后从上到下排列
-- **[对应]** global-rules §4.4（AI 数据真实性规范）+ §2.8（文档写入前验证流程）
+### 项目文件整理
+- 按类型分目录：Assets/ / Configs/ / Documents/
+- 文件保护规则：不随意删除或重命名用户手动新增文件
+- 多项目统一在同一个 CodeBuddy 对话中管理
 
-### §2.9 规则传播检查建立 [当前方案]
-- **[背景]** 本轮新增的 §4.4 / §2.8 规范本应同步到 global-rules，但 AI 完成局部修复后未主动检查是否需要传播，用户指出"规则写了但执行不到"
-- **[决策]** 在 global-rules §2.9 建立规则传播检查：当用户发出"同步文档"指令时，检查本期项目级文档中的新增规则是否跨项目通用，是则同步到 global-rules
-- **[触发调整]** 初版设为"每次修改项目文档后触发"，用户指正后修正为"仅在用户发出同步文档指令时触发"，避免日常开发中频繁无效触发导致 AI 麻木
-- **[原因]** 同步文档本身即系统性审查节点，在此处追加传播检查最自然、遗漏率最低
-- **[Memory]** 创建 Memory ID 78482030
-
-### 怪物配置异步加载 [当前方案]
-- **[决策]** MONSTER_DB 从内联 JS 常量改为 `let MONSTER_DB = {};` + `async loadMonsterDB()` 从 `Configs/monster-db.json` fetch 异步填充，`_rebuildMonsterPools()` 重建 `MONSTER_POOL_NORMAL` / `MONSTER_POOL_ALL` 过滤池
-- **[原因]** 彻底解耦配置与代码，monster-db.json 为单一数据源，后续修改怪物只需改 JSON 不碰 HTML
-
-### 道具数据库外置 [当前方案]
-- **[决策]** 创建 `Configs/item-db.json`（25种被动道具完整配置：effects 数值属性 + specials[] 结构化特效）+ `Configs/item-drop-tables.json`（三张掉落表按品质权重分配）
-- **[原因]** 道具配置从内联 JS 迁移到外部 JSON，与怪物配置保持一致的数据外置策略
-
-### 特效系统结构化 [当前方案]
-- **[决策]** `cfg.special` 字符串（`"piercing"` / `"damage_mult_1.5"`）改为 `cfg.specials[]` 结构化数组，新增 `SPECIAL_EFFECT_HANDLERS` 注册表（piercing/damage_mult/heal_full）
-- **[原因]** 旧字符串方案每加一种特效要改多处（recalcAllStats、配置定义等），注册表模式只需在 handlers 中加一个 key，注册表分发统一处理
-- **[向后兼容]** `recalcAllStats()` 保留对旧 `cfg.special` 字符串的判断分支
-
-### 掉落系统改造 [当前方案]
-- **[决策]** `spawnTreasureRoomItem()` / `spawnBossRoomItem()` 从硬编码概率改为掉落表机制（`rollItem(null, 'treasure_room')` / `rollItem(null, 'boss_room')`），由 `item-drop-tables.json` 控制品质分配
-- **[原因]** 掉落表可独立配置和热更新，无需改代码
-
-### 怪物伤害同步修正 [当前方案]
-- **[决策]** monster-db.json 中全部怪物伤害同步半心制：裂口尸 1→0.5 / 浮游眼 1→0.5 / 岩石魔像 2→1 / 裂口之王 2→1
-- **[原因]** HP系统改为3心制时 monster-db.json 伤害值未同步修正，导致实际伤害比预期高2倍
-
-### Boss Jumper — 2×2跳跃Boss系统 [当前方案]
-- **[决策]** 新增 `boss_jumper` 怪物类型，替代旧 `boss_maw_king` 为每层Boss房唯一Boss
-- **[2×2体型]** 怪物 `size:2` 属性，占据4个格子（col/row为左上角），配套 `monsterCells()` / `isInMonsterFootprint()` / `isValidLandingZone()` 辅助函数。全面适配渲染（中心偏移 `CELL*(sz-1)/2`）、碰撞（子弹/玩家接触4格检测）、快照系统
-- **[行动循环]** 状态机 phase 1→2→3(50%重复)→4→1。小跳2次 → 判定 → 大跳1次 → 循环
-- **[小跳跃]** 中心距离判定（横向/纵向选远的 ×3步）→ 落点4格内玩家0.5伤害。无视岩石尖刺，单不能全深坑。弧线动画（sin弧线+ease-in-out+缩放弹跳）
-- **[大跳跃]** Boss消失1回合（缩小淡出动画）→ 玩家回合结束落下（缩放弹出+双圈冲击波）→ 12格1点伤害（目标2×2+8邻格）。跳起时判定落点，`pendingBossLanding` 延迟执行。`jumperJustLanded` 落地回合休息
-- **[宝藏房]** 不再刷怪；道具仅宝箱房+Boss清空房
-- **[接触伤害]** 角色碰撞Boss 0.5伤害，使用 `isInMonsterFootprint` 适配2×2
-- **[修复]** 渲染中心偏移（`CELL*sz/2`→`CELL*(sz-1)/2`）、落地回合额外行动（`jumperJustLanded` 跳过）
+### 编辑器初始方案 [已废弃]
+- node Configs/server.js 提供文件读写服务
+- 依赖 Node.js 环境
 
 ---
 
-## 2026-07-22
+## 2026-07-15
 
-### 楼层生成两步法重构 [当前方案]
-- **[问题]** 旧 `generateFloor` 将所有房间一起布局后再分配类型，Boss/宝箱可能随机出现在集群中间，导致需要裁边（保留1个门）+ 连通性修复逻辑。裁边后图可能断开，需要 `isConnected` 回退恢复连通，复杂且不直观。
-- **[方案]** 改为两步法：①骨架房（起点+普通房）先用现有的"从所有已放房间的相邻空位扩展"算法布局并全连通；②从所有骨架房边界收集空位，Boss 选距离起点最远的挂载，宝箱从剩余空位随机挂载。
-- **[结论]** Boss/宝箱始终在集群外围，天然只有 1 个门连接，不再需要裁边 (`finalEdges`/`keptFor`/`skipped`/`isConnected` 全部移除)。代码更简洁、逻辑更清晰。
-- **[影响文件]** `isaac-map-viewer.html` — `generateFloor()` 函数重写（约80行新逻辑）
+### 核心交互重构：即时操作模型 [当前方案]
+- **[决策]** 彻底移除预操作队列，改为即时操作 + 快照系统
+- **[原因]** 预操作队列体验差，缺乏容错能力，玩家无法在执行中调整决策
+- **[方案]** WASD即时移动本体 + ↑↓←→即时射击 + Esc全重置 → 快照系统 saveTurnSnapshot/restoreTurnSnapshot
+- 首次射击触发 checkpoint，刷新可移动范围
+- 回合起始位置保留 40% 透明度幽灵作视觉参考
+- **[属性调整]** 移速=3→MP=3，射速=3→AP=3，系数1，下限1
 
----
-
-## 2026-07-23
-
-### AI行为参数外置 — monster-db.json `aiParams` 字段 [当前方案]
-- **[问题]** 怪物AI行为参数（浮游眼移动/射击权重、蓄力魔像冲刺距离范围、Boss提速间隔、跳跃Boss步数/概率）全部硬编码在 `calcAllMonsterPaths()` 和 `processJumperAction()` 中，策划无法调参
-- **[决策]** 在 `monster-db.json` 每个怪物条目新增 `aiParams` 结构化对象，将AI参数全部外置为JSON配置。代码统一通过 `const ap = m.aiParams || {}` + `??` 兜底读取，兼容旧存档
-- **[影响范围]** 5个怪物（crack_maw空对象、flying_eye移动权重+距离+射程、charge_golem冲刺距离、boss_maw_king提速间隔、boss_jumper跳跃步数+概率+伤害）。双HTML文件同步修改（ranged_kite/charge/boss_chase/boss_jumper AI分支 + 存档序列化）。monster-db.json 新增 aiParams 字段
-- **[同步修复]** context.md 中过时常量：rock_golem→charge_golem、HP 20→30、子弹速度 280→560、子弹重力 550→1100、粒子重力 180→360
-
-### 配置外置全面审计 — 分类原则与设计决策 [当前方案]
-- **[触发]** 用户要求将AI硬编码参数挪入JSON后，继续追问"类似的问题也都检查一下，目前有的json文件哪些代码是可以挪出来的"，触发系统性审计而非单点patch
-- **[审计范围]** 审查全部6个JSON文件（monster-db / item-db / item-drop-tables / pool / floor-data）+ 2个HTML（demo / demo2），逐段搜索硬编码数值、权重、距离、间隔、概率等
-- **[分类结果]**
-  - ✅ **应外置（已完成）**：怪物AI行为参数 → `monster-db.json.aiParams`。涵盖浮游眼（moveWeight 0.7 / moveDist 1~3 / shootRange 4）、蓄力魔像（chargeDist 3~6）、裂口之王（speedBoostInterval 4）、跳跃巨兽（smallJumpSteps 3 / repeatChance 0.5 / landDamage 1）。crack_maw 为 `{}`
-  - ❌ **保留代码（明确决策）**：①渲染常量（CELL/WALL/COLS/ROWS/子弹速度/重力/粒子重力）— 引擎级参数，与tile布局强绑定，改一个会牵动布局和视觉；②动画时长（跳跃动画0.35/0.55s）— 视觉调参，不属于策划数据范畴；③刷怪系统参数（floorBonus×2、提前停止阈值30%、role权重×3）— 核心算法内部调参，暂不暴露
-- **[设计原则]** 判断标准：策划日常需要调整的值 → JSON；引擎/渲染/算法内部调参 → 代码。作为后续同类审查的指导原则
-- **[兜底方案]** 代码统一 `const ap = m.aiParams || {}` + `??` 默认值，确保旧存档/缺失字段不崩
-
-### 双HTML文件同步策略 [当前方案]
-- **[现状]** demo.html 使用内联 `MONSTERS_INLINE` JS对象定义怪物数据；demo2.html 通过 `fetch(Configs/monster-db.json)` 异步加载。两文件功能平行独立
-- **[同步策略]** 任何涉及怪物系统的修改必须同步两份代码。本次修改量：demo.html 内联定义新增5个 `aiParams` + ranged_kite/charge/boss_chase AI代码全部改造 + 存档序列化补字段；demo2.html 怪物初始化注入 `aiParams` + 同4个AI分支改造 + 存档序列化补字段
-- **[风险]** 双文件维护成本高，但 demo.html 是早期快照版本的备份（用户明确保护不可删除），暂不合并
-- **[验证]** 修改完成后确认0处剩余AI硬编码（`Math.random()<0.7` / `3+Math.floor(4)` / `turnIdx%4===0` 均已替换为 ap 读取）
-
-### context.md 同步修正
-- 本次文档同步中逐章节交叉比对，发现并修正过时数值8处：怪物表名 rock_golem→charge_golem、HP 20→30、子弹速度 280→560 px/s、子弹重力 550→1100 px/s²、粒子重力 180→360 px/s²
-
-### global-rules §2.10 建立 — Memory 记录完整性要求 [当前方案]
-- **[触发]** 今日 AI 在记录 aiParams 外置讨论到 memory 时，只记录了代码变更结果（aiParams 字段），遗漏了三个重要讨论内容：配置外置审计方法论与分类标准、双HTML文件同步策略、context.md 过时常量修正。用户追问"为什么今天讨论的内容你没有记录到memory文档里"后逐项补全
-- **[问题根因]** AI 习惯于记录"最终代码做了什么"而忽略"讨论途中确立了什么原则和方法论"
-- **[决策]** 在 global-rules §2.10 建立 Memory 记录完整性要求：必须覆盖当天全部决策深度（推理链/审计范围/分类标准/策略流程），不只记结果。写入 memory 前回溯当天完整对话逐条确认零遗漏
-- **[定位]** 与 §4.4 互补：§4.4 管"不编造虚假数据"，§2.10 管"不遗漏真实讨论"
-
-### global-rules §4.5 建立 — 疑问句与指令的区分 [当前方案]
-- **[触发]** 用户问"你觉得今天遗漏了讨论内容这件事，需不需要记录到global-rules里面呢？"AI 将征求意见的疑问句误判为执行指令，直接写入了 global-rules。用户纠正："你能区分得清问题和指令吗？"
-- **[问题根因]** 与 §1.4 纠正过的"AI 自动提交"同类边界判断错误——没有区分"征求意见"和"下达指令"
-- **[方案讨论]** 用户再次以疑问句测试："你觉得刚才你出的这个问题，需要更新到global-rules里面吗"，AI 正确识别为征求意见，分析两个方案（A.扩展§1.4 / B.新增§4.5）并推荐方案B，等待确认后执行
-- **[最终方案]** global-rules §4.5：疑问句/征求意见（只分析建议等确认）vs 明确指令（可执行）。覆盖文件写入、Git操作、命令执行等所有有副作用的操作
-- **[定位]** 与 §1.4 互补：§1.4 管理 Git 写入操作边界，§4.5 从交互语义层面区分"问"与"令"，适用于所有有副作用的操作
+### TILE系统 + 房间模板 + 地图编辑器
+- 定义 TILE 类型（FLOOR/ROCK/POOP/PIT/SPIKE/LADDER）
+- 12 种 13×7 房间模板，BFS 连通性验证
+- 创建 isaac-map-viewer.html 独立编辑器（模板池管理/画布绘制/关卡池持久化）
+- 尖刺伤害当时未细化
 
 ---
 
-## 2026-07-24
+## 2026-07-14
 
-### 验证列表遗漏事件 — 暴露 memory 记录方式缺陷
-- **[问题]** 用户追问"昨天讨论的验证列表"时，AI 无法回溯——经确认，该验证列表在 7/23 讨论过但未记录到 memory。原因是 AI 一直以"代码变更驱动"方式写 memory，验证列表没有代码变更因而被遗漏。
-- **[根因]** memory 的设计初衷是**对话记忆**而非代码变更日志，但 AI 的实际执行方式偏离了这一初衷，形成了"只记代码结果"的惯性。
-- **[验证列表内容]** 当前无法恢复（cb_summary 已压缩丢失，对话原文已不可溯源）。已知概要：AI 给用户列出了一组需要用户亲自验证的设计/体验项，围绕"游戏是否好玩、设计是否合理优秀"。
-- **[决策]** 此事件触发 global-rules §2.10 更新：明确 memory 本质是对话记忆，新增"设计验证/待办任务"必须记录的要求，以及"记忆触发标准"（如果在将来新会话中可能需要回溯→必须记录）。
-- **[适用] 此标准跨项目通用，已同步到 global-rules。
+### 多房间地图设计方案
+- 创建 isaac-roommonster-plan.md
+- 包含楼层生成算法（随机图+BFS全连通）、房间类型（start/normal/treasure/shop/boss）、模板法内部布局、怪物配置表、掉落系统、AI行为类型枚举
 
-### Memory 更新标准明确 — 对话驱动 vs 代码变更驱动
-- **[用户说明]** memory.md 的设计初衷："在任何时候，在任何电脑上，都可以实现几乎在跟同一个有统一记忆的 AI 聊天"。"什么样的内容需要记录到 memory"→ 基于"完整记忆"的初衷：任何在当前对话中讨论过的、未来新会话中可能需要回溯引用的内容，无论是否涉及代码变更。
-- **[结论]** memory = 对话记忆，≠ 代码变更日志。记录标准从"改了代码→记录"扩展为"聊过的重要事→记录"，覆盖：设计验证清单、待办测试项、设计疑问、待定方案、创意方向、流程决策等所有讨论内容。
-- **[影响]** global-rules §2.10 已补充"设计验证/待办任务"条目和"记忆触发标准"。
-
-### Memory 记录重点深化 — 轨迹 + 采纳状态
-- **[用户补充]** 在上一项基础上进一步细化记录重点：
-  1. **想法推进的完整轨迹**：一个想法 A 如何变成 B，又如何变成 C，结果的节点要记，结果导向的过程和原因也要记。不跳步骤、不只保留最终态。
-  2. **AI 建议的采纳状态**：当用户发起方向性讨论（如"游戏下一步该做什么"），AI 提供建议后，需要标注每条建议的用户反馈——采纳（并执行）、否定（并说明原因）、无视（未回应）。这确保将来回溯时能知道当时有哪些路径被考虑过、哪些走了哪些没走、为什么。
-- **[影响]** global-rules §2.10 二次更新：新增"想法推进的完整轨迹""AI 建议的采纳状态"两条具体要求，记忆触发标准新增"AI 建议列表及其采纳/否定/无视状态""想法演变轨迹"两项。
-
-### 怪物移动配置统一重构 [当前方案]
-- **[问题]** 怪物移动步数配置用 4 套不同字段各自为政：`moveCycle` 节奏数组（chase/boss_chase）、`moveDistMin`~`moveDistMax` 随机区间（ranged_kite）、`chargeDistMin`~`chargeDistMax` 区间（charge）、硬编码固定值（boss_jumper/patrol）。同一概念（"怪物每回合走多少格"）参数名不一致。且浮游眼的 `moveCycle:[1,1]` 纯属废字段（ranged_kite 从不读取 moveSpeed）。
-- **[讨论过程]** 最初方案是只在外层加 `movement` 统一记录步数，方向模式仍依附于 aiType。用户指出"移动方向不同应该单独有个参数来区分"，最终确立两个维度完全解耦的结构。
-- **[决策]** 新增统一 `movement` 结构：`mode`（朝哪走：chase/random_wander/charge_dir/jump/none）+ `steps`（步数池数组）+ `stepMode`（如何取值：sequence按序轮换 / random随机抽）+ `weight`（仅 random_wander 模式，移动概率）。所有 12 只怪物全部迁移。
-- **[结构设计]** 两个维度职责分明：`mode` 决定移动方向策略（追玩家BFS/随机方向/直线冲刺/跳跃），`stepMode` 决定步数取值方式（按序循环/随机抽选），`steps` 为步数池。两者可灵活组合产生丰富行为（如"偶尔冲刺的追人怪"=chase+sequence+[1,1,3]）。
-- **[浮游眼 AI 优化]** 新增切比雪夫距离射程判断：玩家在 `shootRange`（aiParams）内→按 `weight` 概率决定射击或移动；射程外→100% 只移动。解决"玩家太远浮游眼还在原地对射"的问题，使远程怪行为更符合直觉。
-- **[巡逻怪修复]** 硬编码 5 格感知范围 → `aiParams.patrolRange` 可配置，默认值保持 5。
-- **[影响范围]** monster-db.json 完全重写（移除 moveCycle / moveWeight / moveDistMin-Max / chargeDistMin-Max，统一为 movement；aiParams 精简仅保留 AI 特有参数）；demo2.html 6 处改造（movement 统一读取 + ranged_kite 射程判断 + charge 步数源切换 + patrol 可配范围 + 怪物创建 + 存档序列化）。旧字段引用全部清理，搜索验证 0 残留。
-- **[兼容性]** 代码层 `movement` 带完整默认值兜底（`{ mode:'chase', steps:[2,1], stepMode:'sequence' }`），确保读不到配置时不崩。
+### 怪物配置初始 [已废弃]
+- MONSTER_CFG — 单一裂口尸，内联 JS 对象
 
 ---
 
-## 2026-07-27
-
-### 怪物行动系统重构：actionMode + actions[] [当前方案]
-- **[问题]** 7/24 统一了 `movement` 结构（mode/steps/stepMode/weight），但移动方向策略和 AI 参数仍然分属两个维度——`movement.mode` 管方向、`aiType`+`aiParams` 管具体行为参数。浮游眼既需要 `movement.weight`（移动概率）又需要 `aiParams.shootRange`（射程），配置分散在两个对象中。Boss Jumper 的跳跃参数也在 `aiParams` 中，与实际的行动逻辑分离。
-- **[决策]** 全面重构为行动列表系统：每个怪物定义 `actionMode`（行为选择模式）+ `actions[]`（行为列表），每个 action 独立携带所有参数。
-- **[结构设计]**
-  - `actionMode: { mode: "sequence"|"random" [, weights: []] }` — sequence 按索引顺序循环；random 按 weights 加权随机选（权重默认 1 = 均匀随机）
-  - `actions[]` — 每个 action 含 `type` + 通用字段（`steps`/`stepMode`）+ 类型专有字段（`range`/`condition`/`directMode`/`landDamage`/`repeatChance`/`disappearSteps`）
-  - `condition` — `"in_range"` 仅当玩家在 action 的 `range`（切比雪夫距离）内时该 action 可选。无 condition 则始终可选。当前仅 `shoot_fan` 使用
-  - `aiType` 保留为行为标签（不再携带参数），仅用于特殊路由（如 boss_jumper 跳过普通 `calcAllMonsterPaths` 进入 `processJumperAction`）
-- **[迁移结果]**
-  - **裂口尸**：`{mode:"sequence"}` + `[{type:"chase", steps:[2,1], stepMode:"sequence"}]`（最简单的一追到底）
-  - **浮游眼**：`{mode:"random", weights:[0.7,0.3]}` + `[{type:"random_wander", steps:[1,2,3], stepMode:"random"}, {type:"shoot_fan", range:4/5/6, condition:"in_range"}]`（70%移动/30%射击，仅射程内可射击）
-  - **蓄力魔像**：`{mode:"sequence"}` + `[{type:"charge_line", steps:[3,4,5,6]→[5,6,7,8], stepMode:"random"}]`
-  - **Boss Jumper**：`{mode:"sequence"}` + `[{type:"jump_small", steps:[3]}, {type:"jump_small", steps:[3]}, {type:"jump_big_land", disappearSteps:1, landDamage:1, repeatChance:0.5}]`（小跳×2→大跳×1 循环）
-- **[代码改动]** 新增 `resolveMonsterAction(cfg, turnIdx, mCol, mRow, pCol, pRow)` — 按 condition 过滤 eligible → actionMode 选择 → stepMode/stepWeights 解析步数。`calcAllMonsterPaths()` 改为调 `resolveMonsterAction` 获取 action + 步数后按 `action.type` 分发。`processJumperAction` / `calcJumperSmallJump` 改为从 `cfg.actions` 读取跳跃参数。怪物创建 (`spawnMonsterAtRandomPos`) 移除 `movement`/`aiType`/`aiParams` 复制。
-- **[向下兼容]** 旧字段 (`movement`/`aiParams`/`aiRange`) 全部删除，monster-db.json 为单一数据源。
-
-### stepWeights 默认行为澄清 [当前方案]
-- **[问题]** 用户问浮游眼 `random_wander` action 中 `stepMode:"random"` 但未配 `stepWeights`，是否默认为均匀随机？
-- **[确认]** 是。`resolveMonsterAction()` 中的步数解析逻辑：有 stepWeights 且长度匹配 → 加权随机；否则走 `Math.floor(Math.random() * steps.length)` 纯均匀随机。浮游眼 `steps:[1,2,3]` → 走 1/2/3 格各 1/3 概率。需要非均匀权重时才显式配 `stepWeights`。
-
-## 2026-07-28
-
-### 代码-文档不一致处理约定 [当前方案]
-- **[触发]** 用户在 monster-db.json 中看到红色行（实际是 IDE diff 对比视图高亮，非文件问题），引出讨论：如果用户手动修改了文件但没有通知 AI，当 AI 后续发现代码与文档不一致时该如何处理？
-- **[问题]** 历史中未明确定义：AI 发现代码与文档矛盾时，自动修哪边？还是停下让用户决策？
-- **[决策]** 确立三层约定：① AI 读代码/文档发现不一致时，必须主动提醒用户，列出具体差异清单；② 不得在用户未表态的情况下擅自修改代码或修改文档；③ 用户可从三个选项中决策：以代码为准更新文档、以文档为准修正代码、或两者都保留（设计变更过渡期）
-- **[与同步文档的解耦]** 此约定适用于 AI 在任何状态下（包括非同步场景）发现不一致的情况，与"同步文档"指令是两个独立触发路径。同步文档时，以实际代码为准更新文档是默认行为
-- **[与 Ask/Craft 模式的关系]** 用户确认：Ask 模式下只讨论、分析、提醒，不动任何文件（代码或文档）。Craft 模式下，提醒后等待指令才修改。两种模式下都不擅自修改
-- **[Memory 创建]** 创建 CodeBuddy Memory ID 32213721 存储此约定，供自动加载
-- **[适用]** 此约定跨项目通用，本记录在 isaac-memory 中保留项目级讨论背景；通用规则同步到 global-rules §2.11
-
-### context.md 文件清单修复
-- monster-db.json 描述仍为旧 `movement` + `aiParams`，未随 7/27 重构更新。现修正为 `actionMode` + `actions[]`
-
-### 掉落系统全面重构 — 资源系统建立 [当前方案]
-- **[触发]** 用户给出8条掉落需求：宝箱房必出道具、Boss击杀必出道具、普通怪几乎不出道具(整局1~2次)、击杀小概率掉资源、破坏便便小概率掉资源、打开宝箱必掉1~4个道具、清理房间中概率掉资源、破坏岩石极小概率掉资源
-- **[前期探索]** AI 解释了 loot entry 中 `weight`(竞争性权重，决定"选谁")和 `rate`(独立概率门，决定"选中后是否真的生效")的区别，两者是乘法关系
-- **[设计决策]**
-  1. **怪物道具掉率**：所有非Boss怪物统一改为 item weight 0.03 + rate 1.0 + `monster_very_rare` 品质表(none:0.70)。有效概率 = 0.03 × 0.30 ≈ 0.9%/只。6层约150只怪 → 期望1.35件/局。旧品质表(common/ranged/heavy)不再被引用但保留
-  2. **Boss掉落**：改为一轮 pick_one 纯道具(rate:1.0, itemDropTable:"boss")，移除第二轮资源(roll_all resource)
-  3. **宝箱**：chest_normal / chest_golden 从 pick_one(资源or道具)改为 roll_all 纯道具4条(保底1个 + 3×55-60%)，平均约2.65-2.80个/箱
-  4. **资源掉落表**：rollResourceDrop 使用独立概率遍历所有条目(roll_all模式)，所以"一种1个资源"通过极低概率值实现(P(0)≈80-96%, P(1)≈3-18%, P(2+)<3%)
-  5. **房间清空**：room_clear_default 综合掉率 74%→43%（"中概率"）
-  6. **地形**：terrain_rock 综合掉率 20%→3.5%（"极小概率"），terrain_poop 19%→15%（"小概率"）
-- **[影响文件]** `monster-db.json`(全部12只怪物loot重配) + `resource-db.json`(新建，8张掉落表+宝箱loot重配) + `item-db.json`(新增 monster_very_rare 品质表) + `isaac-turnbased-demo2.html`(新增统一掉落调度器 rollLoot+executeDropEntry+资源系统代码)
-- **[清理]** `item-drop-tables.json` 删除（品质表合并至 item-db.json > itemDropTables）
-- **[待微调]** 用户明确表示后续会手动微调数值，本次为粗略调整建立框架
-
-### 蓄力魔像行为模式优化 [当前方案]
-- **[触发]** 用户要求将蓄力魔像从"每轮都冲刺"优化为有节奏感的 4 步行为循环
-- **[决策]** actions 改为 4 步 sequence：`random_wander`×2 → `charge_up` → `charge_line`。I/II/III 级 wander 步数分别为 2/3/4
-- **[新增 action 类型]** `charge_up`：原地不动，头顶红色脉动感叹号(!)（DOM 覆盖层 `.txt-exclaim` CSS 动画）。感叹号状态纳入回合快照（`saveTurnSnapshot`/`restoreTurnSnapshot`）
-- **[charge_line 简化]** 旧两阶段（chargeDir=null→选方向 / chargeDir已有→执行冲刺）改为单步（选方向+计算路径+执行一次完成），移除 `chargePhase` 状态依赖
-- **[影响范围]** monster-db.json(3只蓄力魔像) + demo2.html(`calcAllMonsterPaths` switch 新增 charge_up + charge_line 简化 + CSS @keyframes exclaim-pulse + `updateTextOverlay` 感叹号DOM渲染 + 快照系统)
-- **[设计意图]** 漫步→蓄力→冲刺的节奏让玩家有准备时间，感叹号提供明确的"下一轮要冲了"预警
-
-### 感叹号样式像素风化 [当前方案]
-- **[触发]** 用户反馈感叹号太小太不明显
-- **[决策]** 从 `bold 18px Arial` 改为 `bold 56px Courier New`（大号像素风等宽字体），8方向黑色像素描边 + 4方向暗红内描边 + 3层红色光晕，脉动动画 0.5s 缩放 0.85→1.25，z-index:10 保证顶层
-- **[影响范围]** demo2.html CSS `.txt-exclaim` + `@keyframes exclaim-pulse` + `updateTextOverlay()` 垂直偏移 -28→-48
-
-### 文档同步触发规则确立 [当前方案]
-- **[触发]** AI 在代码任务完成后惯性自动更新 context.md 和 memory.md，用户指出这浪费 token、破坏了"阶段性总结"的更新节奏
-- **[根因]** AI 的两个冲突指令并存：规则说"不要自动更新文档" vs 本能说"代码和文档不一致是不负责任的"。本能（更底层、更自动化）赢了
-- **[决策]** memory.md 新增修改规则 #4：`context.md` 和 `memory.md` 的更新不得在任何代码修改任务中附带执行，必须且仅由用户发出"同步文档"指令时触发。此规则优先级高于 AI 对"代码和文档应保持一致"的默认行为倾向
-- **[原因]** 代码改动是高频实验性的，文档更新是低频确认性的。程序化地在每次代码改动后跟文档浪费 token
-- **[关联]** 与 global-rules §1.4（禁止自动 Git 写入）、§4.5（疑问句vs指令区分）同类——都是管理 AI 的"自动收尾冲动"
-
-### 浮游眼行为模式重构 — condition actionMode + after_effect + 动态感叹号 [当前方案]
-- **[触发]** 用户要求浮游眼不再按权重随机选行为，改为按 condition 条件判断触发
-- **[actionMode 新增]** `mode: "condition"`：按 actions[] 顺序逐条评估 condition，选中第一个满足条件的 action。与 `sequence`（轮询）、`random`（加权随机）并列第三种选择模式
-- **[condition 新增]** `out_of_range`：`dist > range`（与 `in_range` 的 `dist <= range` 互补）
-- **[after_effect 机制]** action 新增可选的 `after_effect` 字段（`{ type, steps, stepMode }`）：主 action 执行完毕后追加执行附加行为
-- **[浮游眼新行为]**
-  - 玩家在射程外 → Action 1: `random_wander`（漫步）
-  - 玩家在射程内 → Action 2: `shoot_fan` → after_effect: `random_wander`（射击后立刻随机移动）
-- **[动态感叹号]** 新增 `updateFlyingEyeExclaim()` 函数：玩家回合中每次 WASD 移动后实时检测与浮游眼距离，进入射程显示感叹号，移出隐藏。回合开始时（`resetTurnAP()`）也调用一次
-- **[代码重构]** 抽出 `checkActionCondition(a, pCol, pRow, mCol, mRow)` 和 `resolveSteps(stepsArr, stepMode, stepWeights, turnIdx)` 两个辅助函数，消除 `resolveMonsterAction` 内重复代码
-- **[影响范围]** monster-db.json(3只浮游眼 actionMode+actions) + demo2.html(`resolveMonsterAction` 函数重写 + `calcAllMonsterPaths` shoot_fan case 新增 after_effect 处理 + `updateFlyingEyeExclaim` 新函数)
-
----
-
-## 2026-07-29
-
-### 资源掉落表 mode 统一 — 配置驱动改造 [当前方案]
-- **[触发]** 用户追问两个设计问题：①资源掉落表的选择模式（每种独立计算 vs 只选1个 vs 顺序判定）是否应该像 monster loot 的 entries 一样可配置？②宝藏房/Boss房不掉资源为什么用代码硬编码而不是配置控制？
-- **[问题]** 旧 `rollResourceDrop()` 硬编码为"按权重只抽1种"，且 `rollRoomClearDrop()` 中硬编码 `if (room.type === 'treasure' || room.type === 'boss') return;`。`spawnShopItems()` 各自写 for-loop 判概率，三处掉落入口三种判法
-- **[决策]** 与 `rollLoot()` 保持一致语义，`resource-db.json` 的 `resourceDropTables` 全面升级为 `{ mode, _desc, table }` 结构，所有表统一列出全部 15 种资源（不需要的配 0）
-  - `pick_one`：怪物掉落、房间清空、地形破坏、宝箱额外资源
-  - `roll_all`：商店商品（每种独立判定，最多6个）
-  - `pick_first`：预留
-  - 新增 `room_clear_treasure` 表（全 0 = 不掉落），`room_clear_boss` 也改为全 0（替代硬编码）
-- **[代码改动]** `rollResourceDrop()` 重构（读 mode+table、按 mode 分发、兼容旧格式）+ `rollRoomClearDrop()` 移除硬编码改 roomType→tableKey 映射 + `spawnShopItems()` 统一走 `rollResourceDrop('shop_stock')`
-- **[设计收益]** 掉落行为完全配置驱动，改表不碰代码；想给 Boss/宝藏房加资源只需改对应表权重值
-
-### attack_adjacent 行为修正 — 从面朝方向改为十字范围 [当前方案]
-- **[触发]** 用户发现裂口尸 chase 的 `after_effect: attack_adjacent` 有时不生效，怀疑只对面朝方向 1 格攻击
-- **[问题确认]** `resolveAfterEffects()` 中 `attack_adjacent` 使用 `context.dirX/dirY` 只检查面朝方向 line，且 `finishMonsterTurn()` 从路径最后一步取方向作为唯一方向传入
-- **[决策]** 重构为遍历上下左右 4 个方向，每个方向向外检查 range 格（遇墙停止），攻击范围内所有玩家和怪物。不再依赖传入的 dirX/dirY
-- **[代码改动]** `resolveAfterEffects()` attack_adjacent 分支（四方向 forEach）+ `finishMonsterTurn()` 移除 `lastStep`/`Math.sign` 方向计算
-
-### 掉落表条目统一化 [当前方案]
-- **[触发]** 用户要求每张 resourceDropTable 列出所有 15 种资源，不掉落的权重配 0，这样每张表条目结构完全一致
-- **[决策]** 全部 11 张表按固定排序列出完整 15 条目（coin_gold→coin_black→coin_silver→bomb_single→bomb_double→heart_half→heart_full→heart_double→blue_heart_half→blue_heart_full→blue_heart_double→chest_normal→chest_golden→key_single→key_double），不需要的权重=0
-- **[收益]** 需要添加新掉落种类时只改数值不改字段结构
-
-### 浮游眼原地不动 + random_wander 方向预筛选 [当前方案]
-- **[触发]** 用户反馈浮游眼经常一个回合原地不动，蓄力魔像也有类似问题
-- **[根因分析]** 两个原因叠加：①**条件死区**：`flying_eye_i` 的 `random_wander` 没指定 `range`，默认 5，导致 `dist>5` 才算 `out_of_range`；但 `shoot_fan` 的 `range:4` 要求 `dist≤4`。距离=5 时两个 action 条件都不满足→原地不动。`flying_eye_iii` 的 `random_wander`(默认range=5) 也会误匹配到距离6的情况。②**随机方向撞墙**：`random_wander` 代码只随机选一个方向然后尝试走 stepCount 步，第一步就可能撞墙/怪物/边界→path 为空→原地不动。在房间边缘/角落，25%~50%概率选到不可行方向。
-- **[决策]** ①`monster-db.json` 中三个等级浮游眼的 `random_wander` 补显式 `range`，与同等级 `shoot_fan` 的 range 对齐（4/5/6），消除死区。②`calcAllMonsterPaths` 中 `random_wander` 分支增加 `validDirs` 预筛选：先 `filter` 过滤出第一步可行的方向，再从有效方向中随机选。浮游眼和蓄力魔像共享此分支，同时受益。③`shoot_fan` 的 `after_effect` 中的 `random_wander` 独立副本也同步增加 `validDirs` 过滤，多一个 fallback（无可行方向时随意选一个）。
-- **[验证结果]** 与蓄力魔像 `charge_line` 已有的方向预筛选（`pickChargeDir`→`randomMovableDir`→`canMoveMin1`）模式一致：都是"filter → pick random"范式。两处差异（random_wander用4方向、charge_line用8方向含对角线）是刻意设计，不需对齐。
-
-### 道具拾取状态回溯 — ESC重置 + 移动路径回溯 [当前方案]
-- **[触发]** 用户要求道具拾取状态也应受两种回溯影响：①ESC回溯重置道具拾取生效状态；②移动范围内自由移动时，道具拾取状态随实际路径实时调整。
-- **[决策]** ①`saveTurnSnapshot` 新增保存 `playerInventory`、`playerStats` 全部属性、`playerResources.blueHearts`、`itemsOnGround` 完整快照。`restoreTurnSnapshot` 对应恢复并调用 `updateItemBar()`/`updateHearts()`/`updateResourceUI()`。②新增 `turnPickupLog[]`（资源拾取轨迹）和 `turnPickedUpItemLog[]`（道具拾取轨迹），在 `recalcContactDamage()` 中当 `turnMovePath` 截断时一并撤销拾取。③`autoPickupResources()` 和 `pickUpItems()` 各自记录 pickuplog（含 stepIdx 对应 turnMovePath 长度）。④`resetTurnAP()` 和 ESC handler 清除 pickup logs。
-- **[设计收益]** 回退时资源自动回到地面、道具回到地面并从库存移除、属性重算（`recalcAllStats`）。与接触伤害撤消模式一致。
-
-### 血量上限12 + 红心优先于蓝心 [当前方案]
-- **[触发]** 用户要求总心数上限12（红心+蓝心≤12），且红心上限增加优先级高于蓝心。
-- **[规则]** ①红心（maxHp）和蓝心（blueHearts）总和 `totalHearts()` ≤ 12。②拾取蓝心时若已达上限→不拾取（物品不消失）。③道具增加红心上限（`applyItem`）时若总和=12但有蓝心→移除1蓝心+增加1红心上限（腾出空间）。④回血（`heart` 资源 healing）不受上限影响。
-- **[代码改动]** 新增 `totalHearts()`/`tryAddRedHeart()`/`tryAddBlueHeart()` 三个辅助函数。`handleResourcePickup` 的 `blue_heart` 分支调用 `tryAddBlueHeart()`；`applyItem` 的 `maxHp` 分支改为逐颗调用 `tryAddRedHeart()`。`recalcAllStats` 不做上限检查（计算基准值，上限在添加时强制）。
-
-### 炸弹模式融合进战斗模式 [当前方案]
-- **[触发]** 用户要求炸弹模式不应独立存在，应融合进战斗模式作为特殊怪物。
-- **[旧方案]** 独立 `bombMode` 状态标志+独立 Space 分支处理+探索模式专属炸弹回合。炸弹模式下只有 MP 无法射击。
-- **[新方案]** ①移除 `bombMode`/`bombModeTurnsFrom` 变量，炸弹即是战斗模式的一部分。②放置炸弹即进入 `inCombat=true`（含交叉剑动画），统一走战斗模式流程。③炸弹倒计时从 Space 处理移至 `startMonsterTurn()` 最开头（炸弹行动优先级高于所有怪物），在 `calcAllMonsterPaths()` 之前执行 `tickBombCountdown()`。④每个怪物回合炸弹计时-1，0时引爆。⑤`updateDoorsLocked()` 改为只判断怪物存活（`hasLivingMonsters`），不判断炸弹——有炸弹无怪物时门打开可自由出入。⑥`tryWalkIntoDoor()` 允许战斗模式（因炸弹）下通过已打开的门。⑦`finishTransition()` 重新进入房间时炸弹倒计时重置为3，并恢复战斗模式。⑧`finishMonsterTurn()` 结尾根据存活怪物+未引爆炸弹决定是否结束战斗。⑨`updateActionBar()` 统一在战斗模式下显示炸弹倒计时信息。
-- **[设计收益]** 炸弹不再是特殊模式，完美融入回合制战斗。炸弹房间可自由移动和射击（保留AP）。门锁逻辑只取决于怪物，炸弹不影响房间通行。
-
----
-
-## 2026-07-30
-
-### 地形掉落预roll — 保证ESC回溯后再次破坏结果一致 [当前方案]
-- **[问题]** 破坏大便/岩石后掉落资源是当场 roll 的（`rollTerrainDestroyDrop` 内调用 `rollResourceDrop`），ESC 回溯后再次破坏同一地形会重新随机，掉落不一致
-- **[决策]** 与怪物 `_killLoot` 模式对齐：①`initTileData()` 中为每个 POOP/ROCK 预roll `_loot`（`rollResourceDrop('terrain_poop'/'terrain_rock')`，可能是空数组=不掉落），存储在 `tileData[k]._loot`。②`hitTile()` 在 `delete tileData[k]` 之前捕获 `td._loot` 为 `preLoot` 传入。③`rollTerrainDestroyDrop(col, row, terrainType, preLoot)` 优先使用预roll结果，仅 fallback 时才现场 roll
-- **[收益]** ESC 回溯后地形破坏掉落完全一致，与怪物击杀掉落行为统一
-- **[向下兼容]** `preLoot !== undefined` 判断区分"已预roll=空数组"和"未预roll=undefined"，旧存档无 `_loot` 时自动 fallback 现场roll
-
-### 资源视觉消失bug修复 — liftDir 缺失导致 liftY 变 NaN [当前方案]
-- **[问题]** 用户报告两个场景：①怪物击杀掉落资源后移动触发BFS→资源视觉消失但能走过去拾取；②摧毁大便掉落同理消失。ESC回溯不影响此问题
-- **[根因追踪]** 完整因果链：资源从 `spawnResourceOnGrid` 出生时带 `liftDir: 1` → `saveCheckpoint`/`simulateFromCheckpoint` 恢复资源时没存/没恢复 `liftDir` → BFS 触发后资源 `liftDir = undefined` → 游戏循环动画 `res.liftY += undefined * dt * 2` → `liftY = NaN` → 渲染坐标无效 → 视觉消失 → 但 col/row 正确 → `autoPickupResources` 仍能拾取
-- **[次要发现]** 道具（`itemsOnGround`）的保存/恢复一直有 `liftDir`，资源的保存/恢复却少了这个字段——同一个 checkpoint 内的两个数组不一致
-- **[修复范围]** 6 处：`saveTurnSnapshot`(1620)、`saveCheckpoint`(1683)、`restoreCheckpoint`(1751)、`restoreCheckpointWithoutBullets`(1839)、`restoreTurnSnapshot`(1925)、`simulateFromCheckpoint`(2092)，全部补上 `liftDir: r.liftDir || 1`
-- **[修复结果]** 资源在 BFS checkpoint 恢复后liftY正常计算，不再视觉消失
-
-### hitTile 破坏地形后保存 checkpoint [当前方案]
-- **[问题]** `hitTile` 破坏地形（delete tileData[k] + grid→FLOOR）+ 掉落资源后，若后续 BFS 触发 `simulateFromCheckpoint`，checkpoint 中无这些新资源，资源消失（与 liftDir bug 叠加加剧）
-- **[决策]** `hitTile` 中在 `rollTerrainDestroyDrop` 后调用 `saveCheckpoint()`，确保 checkpoint 包含破坏后的地形+新掉落资源
-
-### ESC 回溯范围扩大：地形 + 炸弹 [当前方案]
-- **[触发]** 用户要求 ESC 应回溯整个游戏所有状态："地形的也算，所有的都算"。AI 列出当前回溯/未回溯清单，确认可破坏地形和炸弹需补充
-- **[决策]** ①`saveTurnSnapshot` 新增 `tileData`(JSON深拷贝)、`currentRoomGrid`(逐列拷贝)、`bombs`(逐个对象拷贝)。②`restoreTurnSnapshot` 新增对应恢复：`tileData = JSON.parse(JSON.stringify(s.tileData))`、`currentRoomGrid = s.currentRoomGrid.map(col => [...col])`、`bombs` 重建
-- **[收益]** ESC 后大便恢复未破坏状态、岩石恢复、炸弹恢复位置和倒计时。与炸弹模式融入战斗（7/29）配合：炸弹是战斗状态的一部分，ESC自然回溯
-- **[未涉及]** `saveCheckpoint`（BFS小存档点）不需要保存 terrain——terrain 是永久性变更，在 `hitTile` 中已直接修改 `tileData`/`currentRoomGrid`，checkpoint 不恢复 terrain
-
-### tileData 注释更新
-- `tileData` 变量注释从 `{ type, hp }` 更新为 `{ type, hp, _loot }`，反映预roll字段
-
-### Boss Jumper 文档多处不实描述修正 — context.md + memory.md 历史记录纠错 [当前方案]
-- **[问题]** 用户指出 context.md 中 Boss Jumper 的 `repeatChance` 和 `landDamage` 描述多处与实际 `monster-db.json` 不符。AI 回溯发现共 9 处不实描述（context.md 7 处 + memory.md 旧记录 3 处）
-- **[实际代码]** `monster-db.json` 中 boss_jumper 的 actions 结构：`jump_small steps:[2/3/3]` → `jump_small steps:[2/3/3], repeatChance:0.5` → `jump_big_land disappearSteps:1, target:{mode:"cover_player"}, after_effect:[{type:"attack_side", damage:1, range:1}]`。`repeatChance` 挂在第二个 `jump_small` 上，`landDamage` 字段不存在（落地伤害通过 `after_effect: attack_side` 实现）
-- **[context.md 修正]** 7 处：①§1.5 Boss Jumper 概览表行 → 展开为 3 个 action 完整描述；②§1.5 字段说明范例 → `landDamage` 替换为 `target`；③Action 类型枚举 `jump_small` → 补 `repeatChance` 可选说明；④Action 类型枚举 `jump_big_land` → 移除 `landDamage`/`repeatChance`，改为 `target`/`after_effect: attack_side`；⑤§2.13 大跳跃行 → `landDamage` 改为 `after_effect: attack_side`；⑥§2.13 关键设计 → `jump_big_land.repeatChance` 改为「第二个 `jump_small.repeatChance`」；⑦历史记录 2026-07-27 → 参数迁移路径修正
-- **[memory.md 旧记录说明]** 受 immutability 约束，以下三处历史记录含 `landDamage` 不实描述**不修改**，仅在本条注明：①2026-07-23 §AI行为参数外置（line 317）写作 `landDamage 1`，实际 `after_effect: attack_side(damage:1,range:1)`；②2026-07-27 §行动系统重构（line 385）字段示例列表含 `landDamage`；③同日期 line 392 Boss Jumper 配置示例写作 `landDamage:1, repeatChance:0.5`，实际 `repeatChance` 在 `jump_small` 上。所有不实描述的修正版本以 `monster-db.json` 和 context.md 当前版本为准
-- **[附带修正]** 小跳步数 `[3]` 改为 `[2/3/3]`（对应 I/II/III 级）
-
-### 文档同步流程缺陷根因分析与追加规则 [当前方案]
-- **[触发]** 用户上一次要求"同步文档"时，AI 只同步了最后一次代码改动（item-db.json 品质表），遗漏了几小时前就发现但未当场修的 context.md Boss Jumper 描述问题
-- **[根因]** AI 在执行"同步文档"时，注意范围潜意识收缩到「最近一次编辑操作涉及的文件」，本轮早期发现的不一致被归类为「已讨论过的事」而非「待同步的新内容」
-- **[追加强化]** 在 global-rules §2.2 新增硬性步骤：「同步文档前，必须先回溯本轮会话所有"发现但未修"的代码-文档不一致，逐条列出清单，逐一确认是否已修正」，来源包括用户口头指出的、对话中间发现的、以及"顺便提一下"的事项
-- **[用户确认]** 用户要求 AI 给出合理解释并杜绝此类遗漏，本次追加步骤为硬约束
-
----
-
-## 2026-07-31
-
-### simulateFromCheckpoint 资源拾取修复 — 满血也能拾取红心 [当前方案]
-- **[问题]** 玩家满血走过红心时，红心被无条件消耗（地面资源消失但HP不增加，资源浪费）
-- **[根因]** `simulateFromCheckpoint` BFS 路径重放循环（line 2158-2164）中，`handleResourcePickup(res)` 返回值被忽略，无条件 `resourcesOnGround.splice(j, 1)`。而 `autoPickupResources` 是正确判断返回值再删除的
-- **[修复]** 改为 `if (handleResourcePickup(res)) { resourcesOnGround.splice(j, 1); }`，满血时 `handleResourcePickup` 返回 `false`（红心 `case 'heart': if (hp>=maxHp) return false`），资源保留在地面
-
-### 房间资源幽灵bug修复 — 深拷贝→直接引用 [当前方案]
-- **[问题]** 房间地面上有时在ESC回溯后/离房回房后凭空出现之前没出现过的资源
-- **[根因]** `updateRoomCombatState` 房间清空时（line 891）`room._groundResources = resourcesOnGround.map(r => ({...}))` 深拷贝创建了**新数组**，切断了 `resourcesOnGround` 与 `room._groundResources` 的引用链接。之后玩家拾取资源只修改 `resourcesOnGround`，`room._groundResources` 保留旧快照。离房回房时 `finishTransition` 执行 `resourcesOnGround = room._groundResources` 加载了含已拾取资源的旧快照
-- **[修复]** 将深拷贝改为直接引用 `room._groundResources = resourcesOnGround`，与 `simulateFromCheckpoint`(line 2198) 和 `restoreTurnSnapshot`(line 1944) 保持一致。两个变量始终指向同一数组
-
-### checkpoint时机修正 — 延迟到实际效果发生 [当前方案]
-- **[问题]** 发射子弹时 `saveCheckpoint()` 在 bullet 刚生成的瞬间就保存了，之后子弹飞行→命中→怪物死亡→掉落这一整套行为的结果都没有反映到 checkpoint 中
-- **[修复]**
-  1. 移除射击处理（line 6325）中的 `saveCheckpoint()` — 不再在发射瞬间保存
-  2. `damageMonster` 中新增 `else if (turnState.phase === 'player_select') saveCheckpoint()` — 非致命命中时也更新 checkpoint 以反映怪物 HP 降低
-  3. 已有的：怪物击杀时（line 5800）、地形破坏时（`hitTile`）、房间清空时（`updateRoomCombatState`）均正常保存 checkpoint
-- **[效果]** checkpoint 现在反映每个操作的实际结果，而非操作开始瞬间。BFS 回退时 checkpoint 持有的是最近一次实际效果完成后的状态
-
-### JSON 尾随逗号问题 — item-db.json 解析失败 [当前方案]
-- **[问题]** item-db.json 显示存在问题，检查后发现 JSON 解析失败：`itemDropTables.boss_room` 尾部有多余逗号（`boss_room` 是 itemDropTables 最后一个属性，删除 `monster_very_rare` 后变成了末位）
-- **[根因]** 对 JSON 文件做局部 `replace_in_file` 时，只匹配局部片段，没有考虑编辑后目标条目是否变成了父对象的最后一个属性，导致尾部逗号未被联动清理
-- **[修复]** 删除 `boss_room` 末尾的逗号，JSON 恢复合法可解析
-
-### AI JSON 编辑规范确立 — 每次编辑后必须校验 [当前方案]
-- **[触发]** 用户追问为什么 AI 频繁出现尾随逗号这类马虎问题，AI 分析了根因并给出改进方案
-- **[根因分析]** 局部替换片段时缺乏"向上看一层"的上下文校验习惯 — 增删 JSON 数组/对象成员后，没有联动检查被编辑条目是否变成最后一项并清理逗号
-- **[改进方案]** 三条措施：
-  1. 每次增删 JSON 列表/对象成员后，主动检查被编辑条目是否变成末位，如是则联动清理逗号
-  2. 编辑后立即调用 `read_lints` 做 JSON 语法校验（不依赖人工发现）
-  3. 对于复杂 JSON 编辑，读取整个文件后在逻辑层面修改再用 `write_to_file` 写回，写回前完整解析验证
-- **[用户确认]** 用户要求"以后不要再出现相同的问题"，AI 承诺从本次开始每次 JSON 编辑后主动跑 `read_lints` 校验
-- **[记录原因]** ①避免下次切换电脑后忘记这一教训重新踩坑 ②确保所有项目会话中 AI 都遵循 JSON 编辑后校验的规范
-
-### global-rules.md §4.1 矛盾修正 — AI 主动读取 vs 等用户指令
-- **[触发]** 用户在本轮会话中测试发现 AI 在新会话开始时未执行"每次对话自动读取 global-rules.md"规则，直接跳入任务
-- **[根因]** 系统级规则正常注入到 AI 上下文，问题出在 AI 执行层面（未在收首条消息前执行 read_file）。同时发现 global-rules.md §4.1 将 global-rules 与 memory/context 混写为"用户主动告诉 AI 读取三份文档"，与用户实际配置的"自动读取"规则矛盾，可能误导 AI 认为也需要等用户指令
-- **[修正]** §4.1 拆分为两层：①global-rules.md → AI 主动读取（不许等指令）；②memory.md + context.md → 用户发指令后读取。日期标注 [2026-07-20, 2026-07-31修正]
-- **[澄清]** "每次对话" = 每次新会话开始时读一次，非每条消息都读。global-rules.md 是相对稳定的规范文档，同会话内不会频繁变化
-
-### 怪物死亡掉落位置修正 — 资源不再随机散布 [当前方案]
-- **[问题]** 怪物死亡后资源类掉落（`resource`）在 `preRollDropEntry()` 和 `executeDropEntry()` 中各自带了 `±1` 格的随机偏移（`Math.floor(Math.random()*3)-1`），导致资源散布在怪物死亡位置周围，玩家击杀后需额外走动才能全部拾取
-- **[决策]** 移除 `preRollDropEntry()`、`applyPreRolledLoot()`、`executeDropEntry()` 三处资源掉落的随机行/列偏移，所有掉落物（道具 + 资源）统一精确生成在怪物死亡的格子位置 `(col, row)` 上
-- **[修改范围]** ① `preRollDropEntry()` — `offsetC/offsetR` 从随机改为固定 `0`；② `applyPreRolledLoot()` — 资源直接用 `col, row` 生成，不再加偏移；③ `executeDropEntry()` — 移除 `offsetC/offsetR` 随机计算，直接落在 `col, row`
-- **[影响文件]** `isaac-turnbased-demo2.html`（三处函数修改，净减少约 6 行代码）
-- **[设计收益]** 掉落行为与道具掉落的 `spawnItemOnGrid(col, row)` 保持一致，玩家击杀怪物后可以原地拾取所有奖励
-
-### 掉落系统字段命名统一重构 [当前方案]
-- **[触发]** 用户指出 item 和 resource 的配置参数名容易混淆，要求整体统一命名
-- **[决策]**
-  1. **monster loot entry type**：`resource_pool` → `resource`（与 `item` / `resource_fixed` / `nothing` 对称）
-  2. **顶层掉落表集合 key**：`item-db.json` 中 `qualityTables` → `itemDropTables`（复数）；`resource-db.json` 中 `dropTables` → `resourceDropTables`（复数）
-  3. **entry 字段**：`qualityTable` → `itemDropTable`（单数，引用 itemDropTables 中某张表）；`pool` / `dropTable` → `resourceDropTable`（单数，引用 resourceDropTables 中某张表）
-  4. **命名对称性**：item 侧 `itemDropTables`(集合) ↔ `itemDropTable`(引用)；resource 侧 `resourceDropTables`(集合) ↔ `resourceDropTable`(引用)
-  5. **宝箱 loot**：同步更新 `resource-db.json` 中 chest_normal/chest_golden 的 loot entries 字段名
-- **[暂不改动]** `weight` vs `rate` 语义区分 — 用户表示后面捋清楚再说
-- **[影响范围]** 6 个文件：`item-db.json`(顶层key+schema)、`resource-db.json`(顶层key+宝箱loot+schema)、`monster-db.json`(所有怪物loot entries+schema)、`isaac-turnbased-demo2.html`(12处代码引用)、`isaac-turnbase-context.md`、`isaac-memory.md`
-- **[验证]** 全项目零残留 `resource_pool` / `qualityTable` / `"pool"` 旧字段名，所有 3 个 JSON 语法正确
-
----
-
-## 2026-08-04
-
-### 掉落表命名统一 — item_drop_ / resource_drop_ 前缀 [当前方案]
-- **[触发]** 用户注意到参数命名不规范，要求统一加上前缀区分
-- **[决策]**
-  1. `item-db.json > itemDropTables` 中 9 张表全部加 `item_drop_` 前缀：`default`→`item_drop_default`、`common`→`item_drop_common`、`ranged`→`item_drop_ranged`、`heavy`→`item_drop_heavy`、`boss`→`item_drop_boss`、`treasure_room`→`item_drop_treasure_room`、`boss_room`→`item_drop_boss_room`、`item_chest_normal`→`item_drop_chest_normal`、`item_chest_golden`→`item_drop_chest_golden`
-  2. `resource-db.json > resourceDropTables` 中 11 张表全部加 `resource_drop_` 前缀：`monster_default`→`resource_drop_monster_default`、`monster_heavy`→`resource_drop_monster_heavy`、`boss_drop`→`resource_drop_boss`、`room_clear_default`→`resource_drop_room_clear_default`、`room_clear_boss`→`resource_drop_room_clear_boss`、`room_clear_treasure`→`resource_drop_room_clear_treasure`、`terrain_rock`→`resource_drop_terrain_rock`、`terrain_poop`→`resource_drop_terrain_poop`、`chest_normal`→`resource_drop_chest_normal`、`chest_golden`→`resource_drop_chest_golden`、`shop_stock`→`resource_drop_shop_stock`
-  3. **命名冲突解决**：`chest_normal` 和 `chest_golden` 在 `resources` 对象中作为宝箱资源 key 保持不变，只在 `resourceDropTables` 中改名为 `resource_drop_chest_normal` / `resource_drop_chest_golden`，消除了之前的歧义问题
-- **[影响范围]** 6 个文件：`item-db.json`(9个key)、`resource-db.json`(11个key+宝箱loot内部引用+schema注释)、`monster-db.json`(12只怪物loot entries)、`floor-data.json`(所有roomClearDrop引用)、`isaac-map-viewer.html`(roomClearDropDefaults)、`isaac-turnbased-demo2.html`(14处fallback和引用)
-- **[验证]** 全项目零旧表名残留，所有 JSON 文件 lint 通过
-
-### roomClearDrop 配置驱动化 [当前方案]
-- **[触发]** floor-data.json 中每个房间已带有 `roomClearDrop: { resourceDropTable, itemDropTable }` 配置，但 demo2.html 中 `rollRoomClearDrop()` 仍用硬编码的 roomType→tableKey 映射，造成配置与代码不一致
-- **[决策]** `rollRoomClearDrop()` 改为读取 `room.roomClearDrop` 配置，移除硬编码的 `tableKeyMap` 映射表
-- **[影响文件]** `isaac-turnbased-demo2.html`（`rollRoomClearDrop` 函数重写，净减少约 8 行代码）
-
-### 地图编辑器 fileInput 缺少 grid 转置修复 [当前方案]
-- **[问题]** 通过文件选择按钮加载 floor-data.json 后，地图编辑器显示的房间布局不正确（房间方向错乱）
-- **[根因]** 地图编辑器有三个加载入口：`readFloorFromHandle`(File System Access API) 和 `tryLoadFloorData`(localStorage) 都有 `transposeGridRowToCol` 转置，但 `floorFileInput` change handler 缺少此步骤
-- **[修复]** 在 `floorFileInput` change handler 中补上：`else if(r.grid.length>0 && Array.isArray(r.grid[0]) && r.grid.length===ROWS) r.grid=transposeGridRowToCol(r.grid);`
-- **[原因]** floor-data.json 中 grid 存储为 row-major(7×13)，渲染需要 col-major(13×7)，三个加载路径中有一个遗漏了转置
-
-### R键重置完整性修复 — _initGrid / _initDoors 备份恢复机制 [当前方案]
-- **[问题]** 按R键重置游戏后，房间的大便被破坏状态没有恢复（之前破坏过的便便仍然显示为已破坏）
-- **[排查过程]** 全面审查了所有代码路径：`currentRoomGrid` 和 `room.grid` 的引用关系、`finishTransition` 的切换逻辑、`loadOrGenerateFloors` 的 3 秒定时器、ESC 回溯的深拷贝切断引用、`saveCheckpoint` 不保存地形等，均未找到明确的引用断裂点。期间还出现过一次严重 bug：在压缩的单行代码中加 `//` 注释导致后面的 `r._initGrid=...` 和 `;});}` 闭合括号全部被注释掉，造成语法错误页面打不开
-- **[最终方案]** 不纠结根因，采用防御性修复：在 `loadOrGenerateFloors` 首次加载时深拷贝保存每个房间的 `_initGrid`（初始地形）和 `_initDoors`（初始门状态），R键重置时从备份恢复
-- **[具体改动]**
-  1. `loadOrGenerateFloors` 第 990 行循环中：`r._initGrid = r.grid.map(col => [...col])`、`r._initDoors = { up: ..., down: ..., left: ..., right: ... }` 深拷贝
-  2. `resetGameToFloor1`：合并原来分散的两个清理 for 循环为一个统一循环，从 `_initGrid`/`_initDoors` 恢复 grid 和 doors，同时重置 `bossLadderPlaced`、`itemSpawned`、`itemDropped`、`locked`、`_shopSlots`、`_groundResources`、`_groundItems`
-- **[恢复内容]** 地形破坏（便便/岩石）、Boss 梯子放置、炸弹破坏的门、地面掉落物、商店槽位
-
-### AP 圆点视觉修复 — buildApDots 与 updateApDots 执行顺序 [当前方案]
-- **[问题]** 按R键后 MP 和 AP 圆点视觉上没有正确显示（虽然值已正确重置）
-- **[根因]** `resetGameToFloor1` 中 `updateUI()`（含 `updateApDots` 填充圆点）在第 978 行，`buildApDots`（重建圆点为 empty）在第 979 行。`buildApDots` 在 `updateApDots` 之后执行，把已填充的圆点全部重置为 empty
-- **[修复]** 将 `buildHearts`/`buildBlueHearts`/`buildApDots` 移到 `updateUI` 之前，让 `updateUI` 中的 `updateApDots` 在圆点重建后正确填充
-- **[额外加固]** 同时在 `clearInventory()` 后显式设置 `playerStats.moveSpeed = 3; playerStats.fireRate = 3;`，确保 `resetTurnAP()` 计算的基值正确
-
-### 商店购买系统 [当前方案]
-- **[触发]** 用户要求实现商店购买功能，走进商品格子自动购买
-- **[实现]**
-  1. `spawnShopItems(room)` 同时创建 `room._shopSlots` 数组，记录每个商品的价格(price)、类型(type: item/resource)、cfgId、坐标(priceCol/priceRow)、售出状态(sold)
-  2. 玩家移动到商品格子上时触发 `tryBuyShopSlot(col, row)`：检测坐标上是否有未售出商品 → 检查金币是否足够 → 扣除金币 → 获得道具(`applyItem`)或资源(`handleResourcePickup`) → 标记售出并从地面移除实体
-  3. `drawShopPrices()` 在 `render()` 中调用，渲染金色价格标签（已售出显示灰色）
-  4. 商店房进入时不再在 `spawnRoomMonsters` 中调用 `spawnShopItems`（已由 `finishTransition` 统一处理）
-- **[关键设计]** 商店价格标签通过 Canvas 渲染（而非 DOM 覆盖层），使用金色/灰色区分售出状态
-
----
-
-## 2026-08-05
-
-### 刷怪配置架构重构：spawnConfig 从 floor-data 硬编码移至运行时计算 [当前方案]
-
-- **[背景]** 用户需要"每层配置不同怪物数量 + 不同房间类型微调"的功能，之前的方案在 floor-data.json 中每个 room 硬编码 spawnConfig，导致冗余且与 floor-data 生成产物的定位冲突
-- **[方案演变]**
-  1. 最初考虑在 floor-data.json 中加 spawnConfig 覆盖字段 → 用户质疑这与"floor-data 是生成产物"的矛盾
-  2. AI 一度又引入"地图编辑器手动覆盖单个房间"概念 → 用户指出这是画蛇添足
-  3. 最终方案：spawnConfig 只在 `spawn-config.json` 中配置，`demo2.html` 运行时计算
-- **[最终架构]**
-  - `spawn-config.json`：删除 `baseSpawnConfig` 整节（公式/增长率），`floorBudgets` 从 `{bonus}` 改为 `{minMonsters, maxMonsters, budget}` 三元组每层独立配置，`terrainModifiers` 从仅有 `budget` 扩展为 `{budget, minDelta, maxDelta}`
-  - `floor-data.json`：移除所有 67 个 room 的 `spawnConfig` 字段
-  - `demo2.html`：新增 `resolveSpawnConfig(room, floorNum)` → `floorBudgets[楼层] + terrainModifiers[模板]`，`room.spawnConfig` 存在时覆盖兜底
-  - `map-viewer.html`：删除硬编码 terrainModifiers 和 spawnConfig 计算循环，`saveFloorToFile` 增加 `delete r.spawnConfig`
-- **[调参方式]** 只改 spawn-config.json：调某层全局难度改 `floorBudgets["N"]`，调某种房间模板偏差改 `terrainModifiers["模板名"]`
-- **[关键洞察]** floor-data.json 是编辑器生成的产物，不应包含设计决策参数；参数应集中在 spawn-config.json 中，运行时由 resolveSpawnConfig 动态计算
-
-### 编辑器 pool.json 加载 _schema 过滤修复 [当前方案]
-
-- **[问题]** 地图编辑器选择 pool.json 文件时报错
-- **[根因]** `pool.json` 包含 `_schema` 元数据 key，`getMergedTemplates()` 遍历 `poolFromJson` 时把 `_schema` 也当作模板合并到 `allTemplates`，后续 `refreshTemplates()` 尝试访问 `_schema.tiles`/`_schema.types` 时报错
-- **[修复]** 在 4 个加载 pool.json 的入口统一 `delete loaded._schema`：File System Access API 选择文件、回退模式 file input、autoLoadPool 从 localStorage 缓存加载、autoLoadPool 从 IndexedDB handle 加载
-
-### 小队模板系统（squad-templates.json）[当前方案]
-
-- **[背景]** 之前的刷怪系统在普通房间中按怪物独立选取（标签过滤→组合规则→点数预算），缺乏"怪物组合"的概念。用户需要一个预定义小队模板系统来控制怪物组合
-- **[实现]**
-  - 新建 `Configs/squad-templates.json`：预定义怪物小队模板，每个 squad 含 `monsters[]`（cfgId列表）、`budget`（预算消耗）、`movementTags`（与房间标签匹配）、`minFloor`（最低楼层限制）
-  - `demo2.html` 新增 `SQUAD_TEMPLATES` 全局变量 + `loadSquadTemplates()` 异步加载函数
-  - 新增 `filterSquadsByRoom(floorNum, roomType, tpl)`：按 minFloor + movementTags 过滤可用 squad
-  - `spawnRoomMonsters()` 重构：Boss 房从 `bossMonsters[楼层]` 随机选 squad 生成，普通房贪心选取 squad（预算上限内随机选直到超预算）
-  - `spawn-config.json` 中的 `bossMonsters` 改为 squad ID 列表（而非单一 cfgId）
-
-### 锚点聚拢生成逻辑优化 [当前方案]
-
-- **[问题]** 原 `spawnMonsterAtRandomPos` 中 squad 锚点生成逻辑有 `topN` 退路：距离=1 无空格时取前 4 个最近的候选。这导致怪物可能生成在距离锚点 ≥2 的位置，失去聚拢意义
-- **[方案讨论]**
-  - 用户提出：距离=1 不够应该换锚点重新选位置，而不是退到 topN
-  - AI 分析 tradeoff：换锚点不会导致 squad 分裂（只有一个活跃锚点），方案合理
-- **[最终实现]**
-  - `spawnMonsterAtRandomPos`：锚点存在时只取距离=1 的候选，无则返回 `false`（去掉 topN 退路和排序逻辑）
-  - 两处调用方（Boss 房 + 普通房）：生成失败且锚点存在时 → 重置锚点为 null → 纯随机重试 → 新位置成为锚点
-  - 后续怪物继续围绕新锚点距离=1 聚拢，保证 squad 始终严格相邻
-
----
-
-## 2026-08-06
-
-### 资源掉落 none 权重 bug 修复 [当前方案]
-
-- **[问题]** 用户测试发现摧毁大便几乎一直掉资源，清空房间也从不空掉，和配置中 `none` 的高权重（如 850/1000=85%不掉）明显不符
-- **[根因]** `rollResourceDrop()` 的 `pick_one` 分支（第 1434 行）`Object.entries(table).filter(([key, val]) => key !== 'none' && val > 0)` 把 `none` 过滤掉，然后 `totalWeight = entries.reduce(...)` 只用剩余条目计算总权重。以 `terrain_poop` 为例：`none:850` + 其他 150 = 1000，过滤后 totalWeight=150，100% 抽中资源
-- **[修复]**
-  1. `totalWeight` 改用 `Object.values(table).reduce((sum, v) => sum + v, 0)` — 包含 `none` 权重
-  2. 遍历时不过滤 `none`，正常参与权重累减；权重 ≤0 的条目 `continue` 跳过
-  3. 当 `roll <= 0` 命中的 key 为 `'none'` 时返回空数组 `[]`
-- **[影响]** 所有使用 `pick_one` 模式的掉落表（terrain_poop/terrain_rock/room_clear_default/room_clear_boss/room_clear_treasure/monster_default/monster_heavy/boss 等）现在 `none` 权重正确生效，不掉落概率与配置一致
-
-### 打包脚本 build-pack.js 创建及三次 bug 修复
-
-- **目标**：生成单文件 `isaac-turnbased-demo-pack.html`，可直接双击打开发送给他人，所有 JSON 和图片内联，无外部依赖
-- **打包脚本功能**：① 移除 Google Fonts → 系统回退字体；② 内联 7 个 JSON 配置文件；③ 内联 22 个 PNG 图片为 base64 data URI；④ 移除 `file://` 协议检测代码
-- **Bug 1 — 正则不匹配 `?`**：源码 fetch 格式是 `fetch('Configs/xxx.json?'+Date.now())`，`?` 在引号内，原正则 `Configs/xxx.json['"\`]` 匹配不到 → 在文件名后加 `\\?`
-- **Bug 2 — 缺少 `text()` 方法**：`loadOrGenerateFloors` 使用 `resp.text()` 获取原始字符串做 hash 比对，模拟对象只有 `json()` → 加 `text: async () => d`
-- **Bug 3 — 缺少 `await` 关键字**：正则匹配 `await fetch(...)` 整段替换为 `(async () => ...)()`，`await` 被吞掉导致 `resp` 拿到 Promise 而非对象 → 替换内容前补 `await`
-- **最终模拟响应对象**：`{ ok: true, json: async () => JSON.parse(d), text: async () => d }`
-- **[文件]** 新增 `build-pack.js` 和 `isaac-turnbased-demo-pack.html`（0.48 MB）
-
----
-
-## 2026-08-07
-
-### 苍蝇公爵（Duke of Flies）Boss 系统 [当前方案]
-
-- **[触发]** 用户需要第 2 层新 Boss 类型，不同于第 1 层的跳跃巨兽
-- **[设计]** 苍蝇公爵（`duke_fly`）：2×2 体型，对角移动 + 召唤浮游眼
-  - `aiType: "boss_duke"`，独立关键帧动画系统（不走逐步移动），第 0 遍优先计算判定层
-  - `duke_diagonal_move` action：按象限方向对角移动 3 步，after_effect 触发 summon
-  - `summon` after_effect：30% 概率在相邻格召唤 `duke_floater`（公爵浮游眼），上限 3 只
-  - 首回合静止（`_dukeFirstTurn`），第二回合起进入对角移动循环
-  - 新增 4 个核心函数：`initDukeQuadrant()` / `calcDukePath()` / `updateDukeAnim()` / `handleDukeSummon()`
-- **[召唤物]** `duke_floater`：HP=6，行为类似浮游眼但用 `shoot_single` 单发直射（非扇形三连射）
-- **[squad 模板]** 新增 4 个 Boss squad：`boss_duke`（纯 duke）、`boss_duke_and_jumper_i`（第 1 层双 boss）、`boss_duke_and_jumper_iii`（第 3 层双 boss）
-- **[spawn-config 简化]** 从三元组 `{minMonsters, maxMonsters, budget}` 回退到单值 `{budget}`，`terrainModifiers` 也简化为 `{budget}` 单偏移值
-- **[怪物总数]** 从 4 类型 × 3 级 = 12 只 → 5 类型共 14 只（+duke_fly + duke_floater）
-
-### squad/spawn 命名一致性讨论
-
-- **[问题]** AI 在检查用户手动修改的 squad-templates.json 和 spawn-config.json 时，因 squad ID 与 monster cfgId 同名（`boss_jumper_i` 两者都有），误报 `spawn-config.json` 第 1 层 `bossMonsters` 填的可能不是 squad ID
-- **[结论]** 用户确认填写正确，`boss_jumper_i` 在 squad-templates.json 中是合法的 squad template。AI 之前建的 squad 模板命名不一致（有的 squad 与 monster 重名如 `boss_jumper_i`，有的不重名如 squad=`boss_duke` 对应 monster=`duke_fly`）是 AI 自己的锅，不应反过来质疑用户
-- **[教训]** 命名一致性应在设计阶段统一，不能事后发现不一致后倒推用户填写有问题
-
-### 打包版本开发阶段暂不维护规范确立
-
-- **[触发]** 用户删除 `isaac-turnbased-demo-pack.html`，确认日常开发只维护源码版
-- **[决策]** 确立规范：日常开发只改源码文件，打包版本不同步维护。只有当用户明确要求打包时，才一次性更新并生成新的 pack 文件。写入 `global-rules.md §3.5`
-
-### 项目设计合理性讨论 — 玩法评估与优化方向
-
-- **[触发]** 用户发起设计讨论，要求客观评价当前项目"在玩什么、挑战是什么、乐趣是什么"
-- **[核心循环]** 探索（自由移动找房间/开宝箱/进商店）→ 战斗（AP点数驱动即时操作+Esc回溯）→ 成长（叠属性/攒资源）→ 推进（清房间→Boss→下一层）
-- **[AI 评估结论]**
-  1. 创新点：AP驱动即时操作回合制 + Esc全回溯，有辨识度。怪物层次设计用心
-  2. 上手门槛较高（概念密度大、按键多）
-  3. Roguelike 构筑感偏弱（25种道具纯数值叠加，缺乏改变玩法的"质变"道具）
-  4. 战斗模式中"最优解过于明显"（走到安全位置→射完子弹→结束回合，缺乏回合内真正决策分支）
-- **[用户纠错与补充]**
-  1. **MP 和 AP 是独立资源池**：互不共享上限，AI 错误表述"共享回合上限"被指正
-  2. **当前是 3 层不是 6 层**：`FLOOR_CONFIG` 定义 3 层，context.md 写 6 层是过期信息（已修正）
-  3. **炸弹是 E 键不是 B 键**：context.md 操作键表写 B 键有误（已修正为 E 键）
-  4. **金币只有商店一个消费出口**：当前原型中金币的"资源管理"乐趣实际不存在
-  5. **探索深度不足**：目前只是战斗之间的过渡，没有自己的玩法深度
-- **[优化建议（用户未表态，仅供参考）]**
-  - 资源管理：增加金币/钥匙/炸弹的竞争用途 + 信息不对称 + 稀缺性 + 资源间转换渠道
-  - 探索深度：隐藏房间（炸弹炸墙）、路线选择（单向门/锁门/陷阱门）、环境叙事、探索与战斗耦合、非战斗交互
-  - 打破最优解：射击后移动惩罚、位置伤害加成、连击机制、未用 AP 转下回合收益、怪物迫使改变策略、环境利用
-  - 房间探索顺序：给玩家有限信息（门类型视觉线索）、创造顺序依赖（清房奖励影响后续）、风险-回报非对称信息
-- **[文档修正]** context.md 同步：楼层数 6→3（4处）、炸弹操作键 B→E
-
----
-
-## 2026-10-28
-
-### 商店道具白嫖 → 自动购买 + 移除 F 键拾取
-
-- **[问题]** 探索模式踩到商店商品格时，通用拾取逻辑先命中，商品被直接白拿（不扣金币）
-- **[演进]** ①先加 `isShopSlotCell()` 判定，让通用拾取跳过商店槽位（商品必须购买）→ ②用户要求改为**走到商品格自动结算购买**：金币足够 → 扣款/获得/标记 `sold`/移除实体；不足 → 保持在地面并显示红色「金币不足」
-- **[移除 F 键]** 自动拾取后 F 键失去意义，删除 `pickUpItems()` 与 `KeyF` 分支。清理必须覆盖 5 处：`keydown` 分支 / `actionKeys` 白名单 / `#help-modal` 帮助弹窗 / 画布 `F 拾取` 提示 / 控制台日志
-- **[新增函数]** `getShopSlotAt(col,row)`（取未售出槽位）、`isShopSlotCell(col,row)`（判定是否为商品格）
-- **[UI 同步]** `tryBuyShopItem()` 成功后补 `updateItemBar/buildHearts/buildBlueHearts/buildApDots`，否则道具生效改变的心形与 AP 上限不会刷新
-
-### 掉落表命名修复（3 只怪物配置错误）
-
-- **[问题]** `crack_maw_iii` / `flying_eye_iii` 的 `itemDropTable` 仍是旧名 `common` / `ranged`，`charge_golem` 的 `resourceDropTable` 仍是 `resource_drop_boss`
-- **[根因]** 掉落表统一加前缀（`item_drop_*` / `resource_drop_*`）时只改了大部分条目，漏了这 3 处；查表失败会回退 `default` 表，表现为「几乎必掉道具」「表意图完全错位」
-- **[修复]** `common`→`item_drop_common`、`ranged`→`item_drop_ranged`、`resource_drop_boss`→`resource_drop_monster_heavy`
-
-### ESC 回溯地形失效 — 数组引用被整体替换
-
-- **[问题]** 打碎岩石/便便后按 Esc，地形没有恢复（仍处于已破坏状态）
-- **[根因]** `restoreTurnSnapshot()` 用 `currentRoomGrid = s.currentRoomGrid.map(...)` **整体替换**了数组，但 `room.grid` 仍指向旧数组且内容已被修改，回溯只影响局部变量
-- **[修复]** 取回 `room.grid` 作为 `currentRoomGrid`，再**逐格原地写回** `s.currentRoomGrid[c][r]`，保证 `currentRoomGrid === room.grid` 引用恒等
-- **[连带]** Esc 回溯后属性可能回退（道具失效），`update*` 系列只改状态不增删 DOM → 必须显式 `buildHearts/buildBlueHearts/buildApDots` 重建
-
-### 心数上限判定漏洞 — Math.ceil 把半心算成整心
-
-- **[问题]** 蓝心为 0.5 时仍被判为"放得下"，红/蓝总心数突破 `MAX_TOTAL_HEARTS`
-- **[根因]** `totalHearts()` 用 `Math.ceil(maxHp) + Math.ceil(blueHearts)`，半心被进 1
-- **[修复]** 改为 `playerStats.maxHp + (playerResources.blueHearts || 0)`（真实数值相加）；`tryAddRedHeart` 改为 `totalHearts() + 1 <= MAX` 才允许，满了靠削 1 颗蓝心腾位；`tryAddBlueHeart(amount=1)` 改为按数量精确判定；`recalcAllStats()` 补溢出削蓝心
-- **[原则]** 红心优先级恒高于蓝心
-
-### 尖刺结算统一 — 战斗中此前完全不判定
-
-- **[问题]** 战斗中移动经过/停在尖刺格不掉血，只有探索模式会掉
-- **[修复]** 抽出 `checkSpikeUnderPlayer()`（非无敌 + 格子为 SPIKE → `damagePlayer(1)`），三处统一调用：探索移动后、战斗移动后、**回合开始时**（站在尖刺上结束回合也要结算）
-- **[顺带]** 移除移动分支里内联的旧判空代码
-
-### 怪物移动占位修正 — 后排被前排永久堵死
-
-- **[问题]** 怪物排队移动时，后排怪物会被前排"当前格"挡住，导致部分怪物永远动不了
-- **[修复]** 三处改动：①只有**本步不移动**的怪物才把当前格视为障碍（`movingIds` 集合排除待移动者）；②移动顺序按「距玩家最近」优先，同距离按 `m.id` 稳定排序，不依赖 `monsters` 数组生成顺序；③2×2 怪物占位改用 `monsterCells(m)` 遍历**完整脚印**，不再只标记左上角
-
-### 新增音效系统（WebAudio 合成，零素材）
-
-- **[设计]** 不做音频文件，全部用振荡器实时合成：`const SFX = (() => {...})()` 自执行模块
-- **[实现]** `tone(key,freq,{to,dur,type,vol,throttle})` 单音（支持频率指数滑音）、`noise(dur,vol)` 爆炸噪声、同类音效 40ms 节流防叠爆
-- **[预设]** 16 个事件：shoot/hit/kill/hurt/pickupItem/pickupRes/chest/locked/bombPlace/boom/door/battle/rewind/floor/victory/death/buy
-- **[浏览器策略]** AudioContext 必须由用户手势创建 → 首次 `keydown`/`pointerdown` 时 `SFX.unlock()`
-- **[静音]** 顶栏 🔊 按钮 → `SFX.toggle()`，`muted` 全局短路
-
-### 难度与信息可读性：道具说明弹窗 / 楼层横幅 / 黑场过渡
-
-- **[道具弹窗]** `#item-tooltip`：距地上道具**切比雪夫距离 ≤3** 时显示名称/效果/商店价格；按键 `_tooltipKey`/`_tooltipPos` 做脏检查避免每帧重排 DOM；品质决定边框色
-- **[楼层横幅]** `#floor-banner`：进入楼层显示「第 X 层」，1.4s 后淡出
-- **[黑场]** `#floor-fade` + `fadeIntoFloor(n)`（0.18s 渐黑 → 200ms 后切层）+ `playFloorFade()`（瞬间全黑盖住切层瞬间 → 0.5s 渐现）。`floorFadeBusy` 期间屏蔽全部输入，防连踩梯子重复切层
-
-### 资源命名统一：A-AP → AP，M-AP → MP
-
-- **[决策]** 全文（代码注释 + 控制台日志 + 状态栏 + context/gdd/roommonster-plan/memory）统一为 **MP（移动点）/ AP（攻击点）**，废弃 `A-AP`/`M-AP` 复合写法
-- **[理由]** 双前缀叠字符（A-AP）在状态栏和圆点标签里辨识度低，且与"AP 行动点数系统"这一总称冲突
-- **[注意]** 只改显示与命名，`turnState.mAP`/`turnState.aAP`/`maxMAP`/`maxAAP` 等**字段名保持不变**，避免大范围重构风险
-
-### 打包版本重新生成（Node 不可用，改用 PowerShell）
-
-- **[背景]** 规范仍是「日常开发只维护源码版」，本次因用户要求分发才一次性重新生成
-- **[问题]** 环境无 Node → 无法直接跑 `build-pack.js`
-- **[做法]** 用 PowerShell 等价实现打包流程（移除 Google Fonts → 内联 7 个 JSON → 内联 22 个 PNG 为 base64 → 移除 `file://` 检测），产物 0.49 MB
-- **[校验]** 逐关键符号比对 pack 与 demo2（`checkSpikeUnderPlayer`/`isShopSlotCell`/`updateItemTooltip`/`showFloorBanner`/`fadeIntoFloor`/`SFX.toggle` 出现次数一致）确认无版本漂移
-
+## 2026-07-13
+
+### 精灵图集集成
+- 使用 `issac-idle.png`（32×32 每帧），替代程序化像素角色
+- 头身分离叠加（头偏移 body 30%），4 方向 × 10 帧走路动画
+- 射击表情切换（0.4s 持续），背面缺失方向暂复用正面帧
+- 移动速度 280→70 px/s 适配动画
+- 新增 sprite-debug.html 和 walk-preview.html 调试工具
+
+### 项目上下文文档
+- 首次创建 isaac-turnbase-context.md（策划文档 + 技术速查）
+
+### 预操作队列系统 [已废弃]
+- 玩家先规划本回合所有操作（移动队列 + 射击方向），填入队列后 Space 统一执行
+- 执行阶段按队列顺序逐步执行，无暂停机会
