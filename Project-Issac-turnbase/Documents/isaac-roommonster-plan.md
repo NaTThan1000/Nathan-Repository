@@ -338,12 +338,12 @@ function applyPassive(itemId) {
   const item = ITEMS[itemId];
   if (item.type !== 'passive') return;
   item.onPickup(playerStats);
-  // 触发的副作用：M-AP/A-AP上限自动重新计算
+  // 触发的副作用：MP/AP上限自动重新计算
 }
 
 // 属性展示更新（UI底部自动变化）
-// 移速 3 → 3.5 → 4: M-AP 从 3→3→4 (系数1, 下限1)
-// 射速 3 → 4 → 5: A-AP 从 3→4→5 (系数1, 下限1)
+// 移速 3 → 3.5 → 4: MP 从 3→3→4 (系数1, 下限1)
+// 射速 3 → 4 → 5: AP 从 3→4→5 (系数1, 下限1)
 ```
 
 ---

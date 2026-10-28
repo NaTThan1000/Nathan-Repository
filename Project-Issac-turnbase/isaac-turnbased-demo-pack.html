@@ -639,6 +639,68 @@
     text-shadow: 0 0 14px rgba(80,255,100,0.5);
   }
 
+  /* ===== 楼层进入横幅 ===== */
+  #floor-banner {
+    position: fixed;
+    top: 36%; left: 50%;
+    transform: translate(-50%, -50%) scale(0.92);
+    padding: 12px 52px;
+    background: rgba(10, 8, 6, 0.86);
+    border-top: 2px solid #8a6a30;
+    border-bottom: 2px solid #8a6a30;
+    color: #ffcc44;
+    font-family: var(--font-cn);
+    font-size: 34px;
+    font-weight: bold;
+    letter-spacing: 8px;
+    text-shadow: 0 0 16px rgba(255,180,50,0.55);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 170;
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+  #floor-banner.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  /* ===== 进入新楼层的黑场过渡 ===== */
+  #floor-fade {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: #000;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 160;
+  }
+
+  /* ===== 地面道具说明弹窗 ===== */
+  #item-tooltip {
+    position: absolute;
+    transform: translate(-50%, -100%) translateY(-8px);
+    min-width: 84px;
+    max-width: 210px;
+    padding: 5px 9px;
+    background: rgba(12, 10, 8, 0.78);
+    border: 1px solid rgba(200, 170, 110, 0.55);
+    border-radius: 4px;
+    color: #e8ddc8;
+    font: 12px/1.45 var(--font-cn);
+    text-align: center;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    z-index: 6;
+  }
+  #item-tooltip.show { opacity: 1; }
+  #item-tooltip.rare { border-color: rgba(90, 160, 255, 0.7); }
+  #item-tooltip.legendary { border-color: rgba(255, 170, 50, 0.8); }
+  #item-tooltip .tt-name { font-weight: bold; color: #ffdd88; }
+  #item-tooltip .tt-desc { color: #cbbfa8; }
+  #item-tooltip .tt-price { color: #ffcc44; }
+
 </style>
 </head>
 <body>
@@ -667,7 +729,7 @@
       <span class="stat-label">射程</span>
       <span class="stat-value" id="ui-stat-rng">6</span>
     </div>
-    <div class="stats-row lck" title="运气">
+    <div class="stats-row lck" title="运气" style="display:none">
       <span class="stat-label">运气</span>
       <span class="stat-value" id="ui-stat-lck">0</span>
     </div>
@@ -684,11 +746,11 @@
           </div>
           <div id="res-ap-block">
             <div style="display:flex;align-items:center;gap:5px;">
-              <span class="ap-label map">M</span>
+              <span class="ap-label map">MP</span>
               <span class="ap-dots-row" id="ui-map-row"></span>
             </div>
             <div style="display:flex;align-items:center;gap:5px;">
-              <span class="ap-label aap">A</span>
+              <span class="ap-label aap">AP</span>
               <span class="ap-dots-row" id="ui-aap-row"></span>
             </div>
           </div>
@@ -710,6 +772,7 @@
           </div>
         </div>
         <div id="top-right">
+          <button class="corner-btn" id="sound-btn" title="音效开关">🔊</button>
           <button class="corner-btn" id="debug-btn" title="切换调试模式">调试:关</button>
           <button class="corner-btn" id="help-btn" title="查看操作说明">操作?</button>
           <button class="corner-btn" id="spawn-monster-btn" title="随机生成怪物">生怪</button>
@@ -720,6 +783,7 @@
     <div id="game-container">
       <canvas id="game"></canvas>
       <div id="text-overlay"></div>
+      <div id="item-tooltip"></div>
       <canvas id="minimap" width="100" height="80"></canvas>
     </div>
 
@@ -739,6 +803,10 @@
   </div><!-- #main-column -->
 </div><!-- #top-content-row -->
 
+<!-- ===== 楼层进入横幅 ===== -->
+<div id="floor-banner"></div>
+<div id="floor-fade"></div>
+
 <div id="help-modal">
   <div id="help-box">
     <h2>操作说明</h2>
@@ -748,7 +816,7 @@
     </div>
     <div class="help-row">
       <div class="help-keys"><span class="help-key">↑</span><span class="help-key">↓</span><span class="help-key">←</span><span class="help-key">→</span></div>
-      <div class="help-desc">立即射击 (消耗 1 A-AP, 首次锁定位置)</div>
+      <div class="help-desc">立即射击 (消耗 1 AP)</div>
     </div>
     <div class="help-row">
       <div class="help-keys"><span class="help-key">Space</span></div>
@@ -760,15 +828,11 @@
     </div>
     <div class="help-row">
       <div class="help-keys"><span class="help-key">E</span></div>
-      <div class="help-desc">在当前位置放置炸弹 (需要拥有炸弹)</div>
-    </div>
-    <div class="help-row">
-      <div class="help-keys"><span class="help-key">B</span></div>
-      <div class="help-desc">Bos房间放置梯子 (清怪后使用, 进下一层)</div>
+      <div class="help-desc">在当前位置放置炸弹 (需要拥有炸弹, 3 回合后引爆)</div>
     </div>
     <div class="help-row">
       <div class="help-keys"><span class="help-key">C</span></div>
-      <div class="help-desc">随机位置生成随机怪物 (5%概率Boss)</div>
+      <div class="help-desc">随机位置生成随机怪物 (调试用)</div>
     </div>
     <div class="help-row">
       <div class="help-keys"><span class="help-key">R</span></div>
@@ -776,8 +840,11 @@
     </div>
       <div class="help-note">
         浅蓝色方格 = 可移动范围.<br>
+        道具 / 资源 / 商店商品: 走到上面自动拾取，商店金币足够时自动购买.<br>
         走到门前格 + 方向键 → 切换房间 (带滑动过渡).<br>
-        走到梯子格▼ → 进入下一层地牢.
+        清空 Boss 房后自动出现梯子▼, 踩上进入下一层.<br>
+        金色宝箱需要消耗 1 把钥匙.<br>
+        站在尖刺上且未处于无敌状态会扣血.
       </div>
     <button id="help-close">关闭</button>
   </div>
@@ -787,12 +854,13 @@
 <div id="start-menu-modal" class="game-overlay show">
   <div class="overlay-box">
     <h2>以撒半回合制 Demo</h2>
-    <div class="overlay-subtitle">v3 — 道具系统</div>
+    <div class="overlay-subtitle">v3 — 道具系统 | 目标：通关 3 层地牢</div>
     <div class="overlay-controls">
       <div class="ctrl-row"><span class="ctrl-key">W A S D</span><span class="ctrl-desc">在可移动范围内移动本体</span></div>
       <div class="ctrl-row"><span class="ctrl-key">↑ ↓ ← →</span><span class="ctrl-desc">立即射击 (消耗行动力)</span></div>
       <div class="ctrl-row"><span class="ctrl-key">Space</span><span class="ctrl-desc">结束回合, 切换到怪物回合</span></div>
       <div class="ctrl-row"><span class="ctrl-key">Esc</span><span class="ctrl-desc">回溯本回合所有操作</span></div>
+      <div class="ctrl-row"><span class="ctrl-key">E</span><span class="ctrl-desc">放置炸弹（有炸弹时，3 回合后引爆）</span></div>
       <div class="ctrl-row"><span class="ctrl-key">R</span><span class="ctrl-desc">快速重玩</span></div>
     </div>
     <button id="btn-start-game" class="overlay-btn">开始游戏</button>
@@ -847,6 +915,112 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 canvas.width  = GAME_W;
 canvas.height = GAME_H;
+
+// ==================== 音效系统（WebAudio 合成，无外部素材） ====================
+const SFX = (() => {
+  let actx = null;
+  let muted = false;
+  const lastAt = {};
+
+  function ac() {
+    if (!actx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      actx = new AC();
+    }
+    if (actx.state === 'suspended') actx.resume();
+    return actx;
+  }
+  function unlock() { ac(); }
+
+  // 单音：type 波形 / vol 音量 / throttle 同种音效最小间隔(ms)
+  function tone(key, freq, opts = {}) {
+    const { to = null, dur = 0.08, type = 'square', vol = 0.12, throttle = 40 } = opts;
+    if (muted) return;
+    const now = performance.now();
+    if (lastAt[key] && now - lastAt[key] < throttle) return;
+    lastAt[key] = now;
+    const a = ac();
+    if (!a) return;
+    const t = a.currentTime;
+    const osc = a.createOscillator();
+    const gain = a.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t);
+    if (to) osc.frequency.exponentialRampToValueAtTime(Math.max(20, to), t + dur);
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(gain).connect(a.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+  }
+
+  // 噪声（爆炸）
+  function noise(dur = 0.3, vol = 0.18) {
+    if (muted) return;
+    const a = ac();
+    if (!a) return;
+    const len = Math.floor(a.sampleRate * dur);
+    const buf = a.createBuffer(1, len, a.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = a.createBufferSource();
+    src.buffer = buf;
+    const gain = a.createGain();
+    gain.gain.setValueAtTime(vol, a.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + dur);
+    src.connect(gain).connect(a.destination);
+    src.start();
+  }
+
+  function toggle() {
+    muted = !muted;
+    const btn = document.getElementById('sound-btn');
+    if (btn) btn.textContent = muted ? '🔇' : '🔊';
+    return muted;
+  }
+  function isMuted() { return muted; }
+
+  // ===== 音效预设 =====
+  const P = {
+    shoot:      () => tone('shoot', 880, { to: 440, dur: 0.06, vol: 0.08, throttle: 30 }),
+    hit:        () => tone('hit', 300, { to: 140, dur: 0.07, type: 'triangle', vol: 0.10, throttle: 30 }),
+    kill:       () => tone('kill', 180, { to: 55, dur: 0.20, type: 'sawtooth', vol: 0.14 }),
+    hurt:       () => tone('hurt', 150, { to: 70, dur: 0.22, vol: 0.16 }),
+    pickupItem: () => {
+      tone('pickupItem1', 523, { dur: 0.07, type: 'triangle', vol: 0.10 });
+      setTimeout(() => tone('pickupItem2', 784, { dur: 0.10, type: 'triangle', vol: 0.10 }), 60);
+    },
+    pickupRes:  () => tone('pickupRes', 1046, { dur: 0.05, vol: 0.07, throttle: 50 }),
+    chest:      () => {
+      tone('chest1', 659, { dur: 0.07, type: 'triangle', vol: 0.10 });
+      setTimeout(() => tone('chest2', 988, { dur: 0.12, type: 'triangle', vol: 0.10 }), 70);
+    },
+    locked:     () => tone('locked', 220, { dur: 0.09, vol: 0.10, throttle: 120 }),
+    bombPlace:  () => tone('bombPlace', 260, { to: 180, dur: 0.09, vol: 0.10 }),
+    boom:       () => { noise(0.35, 0.20); tone('boom', 70, { to: 35, dur: 0.35, type: 'sine', vol: 0.20 }); },
+    door:       () => tone('door', 320, { to: 520, dur: 0.10, vol: 0.08, throttle: 150 }),
+    battle:     () => {
+      tone('battle1', 1046, { to: 523, dur: 0.12, vol: 0.12 });
+      setTimeout(() => tone('battle2', 660, { to: 330, dur: 0.18, vol: 0.10 }), 90);
+    },
+    rewind:     () => tone('rewind', 523, { to: 1309, dur: 0.28, type: 'sine', vol: 0.12, throttle: 200 }),
+    floor:      () => { [523, 659, 784].forEach((f, i) => setTimeout(() => tone('floor' + i, f, { dur: 0.12, type: 'triangle', vol: 0.10 }), i * 80)); },
+    victory:    () => { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone('vi' + i, f, { dur: 0.18, type: 'triangle', vol: 0.12 }), i * 110)); },
+    death:      () => { [392, 330, 262, 196].forEach((f, i) => setTimeout(() => tone('de' + i, f, { dur: 0.22, type: 'sawtooth', vol: 0.12 }), i * 130)); },
+    buy:        () => {
+      tone('buy1', 784, { dur: 0.06, vol: 0.09 });
+      setTimeout(() => tone('buy2', 1046, { dur: 0.09, vol: 0.09 }), 55);
+    },
+  };
+
+  return { unlock, toggle, isMuted, ...P };
+})();
+
+// 音效开关 + 首次交互解锁 AudioContext（浏览器自动播放策略）
+document.getElementById('sound-btn')?.addEventListener('click', () => SFX.toggle());
+document.addEventListener('keydown', () => SFX.unlock(), { once: true });
+document.addEventListener('pointerdown', () => SFX.unlock(), { once: true });
 canvas.style.width  = (GAME_W * DISPLAY_SCALE) + 'px';
 canvas.style.height = (GAME_H * DISPLAY_SCALE) + 'px';
 ctx.imageSmoothingEnabled = false;
@@ -1034,6 +1208,7 @@ function updateRoomCombatState(){
 
     // 房间清空掉落
     rollRoomClearDrop();
+    SFX.door();
     // 战斗模式下清空怪物后如果还有炸弹，保持战斗模式（但门已开）
     if (bombs.some(b => b.roomId === currentRoomId)) {
       inCombat = true;
@@ -1072,6 +1247,7 @@ function updateRoomCombatState(){
     // 触发交叉剑战斗开始动画
     battleStartAnim.active = true;
     battleStartAnim.timer = 0;
+    SFX.battle();
   }
   updateDoorsLocked();
   updateUI(); // 同步 AP 面板显隐
@@ -1195,6 +1371,9 @@ function enterFloor(floorNum){
   turnState.turnNumber=0;resetTurnAP();
   spawnRoomMonsters();  // 混合刷怪（仅首次进起始房间）
   updateUI();updateFloorUI();
+  showFloorBanner(`第 ${floorNum} 层`);
+  playFloorFade();
+  SFX.floor();
 }
 
 function switchRoom(dir, fromPos){
@@ -1324,6 +1503,95 @@ function updateFloorUI(){
   el.textContent=`${currentFloor.name} | [${tn[room.type]}] ${room.tplKey}`;
 }
 
+// ==================== 楼层进入横幅 ====================
+let floorBannerTimer = null;
+function showFloorBanner(text) {
+  const el = document.getElementById('floor-banner');
+  if (!el) return;
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(floorBannerTimer);
+  floorBannerTimer = setTimeout(() => el.classList.remove('show'), 1400);
+}
+
+// ==================== 进入楼层黑场过渡 ====================
+let floorFadeTimer = null;
+let floorFadeBusy = false;
+
+// 黑场渐隐 → 切层（内部会触发渐现）
+function fadeIntoFloor(floorNum) {
+  if (floorFadeBusy) return;
+  const el = document.getElementById('floor-fade');
+  if (!el) { enterFloor(floorNum); return; }
+  floorFadeBusy = true;
+  clearTimeout(floorFadeTimer);
+  el.style.transition = 'opacity 0.18s ease';
+  el.style.opacity = '1';
+  floorFadeTimer = setTimeout(() => {
+    floorFadeBusy = false;
+    enterFloor(floorNum);
+  }, 200);
+}
+
+// 切层完成后的黑场渐现
+function playFloorFade() {
+  const el = document.getElementById('floor-fade');
+  if (!el) return;
+  // 先瞬间全黑盖住切层瞬间，再渐现
+  el.style.transition = 'none';
+  el.style.opacity = '1';
+  void el.offsetWidth;
+  clearTimeout(floorFadeTimer);
+  floorFadeTimer = setTimeout(() => {
+    el.style.transition = 'opacity 0.5s ease';
+    el.style.opacity = '0';
+  }, 80);
+}
+
+// ==================== 地面道具说明弹窗 ====================
+const TOOLTIP_RANGE = 3;   // 距道具 3 格以内显示
+let _tooltipKey = '';
+let _tooltipPos = '';
+function updateItemTooltip() {
+  const el = document.getElementById('item-tooltip');
+  if (!el) return;
+  const hide = () => {
+    if (_tooltipKey === '') return;
+    _tooltipKey = '';
+    _tooltipPos = '';
+    el.classList.remove('show');
+  };
+  if (!gameStarted || gameOver || (transition && transition.active) || !currentRoomGrid || !itemsOnGround.length) { hide(); return; }
+
+  // 取范围内最近的一个道具
+  let best = null, bestDist = 99;
+  for (const it of itemsOnGround) {
+    const d = Math.max(Math.abs(it.col - player.col), Math.abs(it.row - player.row));
+    if (d <= TOOLTIP_RANGE && d < bestDist) { best = it; bestDist = d; }
+  }
+  if (!best) { hide(); return; }
+
+  const key = `${best.id}:${best.cfgId}`;
+  if (key !== _tooltipKey) {
+    const cfg = ITEMS_DB[best.cfgId];
+    if (!cfg) { hide(); return; }
+    const shopSlot = isShopSlotCell(best.col, best.row) ? getShopSlotAt(best.col, best.row) : null;
+    const priceLine = shopSlot ? `<div class="tt-price">价格 ${shopSlot.price} 金</div>` : '';
+    const ownedLine = playerInventory.includes(best.cfgId) ? '<div class="tt-desc">（已拥有）</div>' : '';
+    el.className = (cfg.quality || 'common') + ' show';
+    el.innerHTML = `<div class="tt-name">${cfg.name}</div><div class="tt-desc">${cfg.desc || ''}</div>${priceLine}${ownedLine}`;
+    _tooltipKey = key;
+  }
+
+  const pp = project(best.px, best.py);
+  const pos = `${Math.round(pp.x * DISPLAY_SCALE)},${Math.round(pp.y * DISPLAY_SCALE)}`;
+  if (pos !== _tooltipPos) {
+    _tooltipPos = pos;
+    el.style.left = (pp.x * DISPLAY_SCALE) + 'px';
+    el.style.top = (pp.y * DISPLAY_SCALE) + 'px';
+  }
+}
+
 // ==================== 透视投影 ====================
 function vpScale(wy) {
   const t = Math.max(0, Math.min(1, (wy - FLOOR_T) / (FLOOR_B - FLOOR_T)));
@@ -1381,8 +1649,8 @@ function prect(x, y, w, h, c) {
 // ==================== 玩家属性 ====================
 const playerStats = {
   hp: 3,        maxHp: 3,
-  moveSpeed: 3,    // 移速 → M-AP上限 = moveSpeed (下限1)
-  fireRate: 3,     // 射速 → A-AP上限 = fireRate (下限1)
+  moveSpeed: 3,    // 移速 → MP上限 = moveSpeed (下限1)
+  fireRate: 3,     // 射速 → AP上限 = fireRate (下限1)
   attack: 3.5,
   range: 6,
   luck: 0,
@@ -1421,8 +1689,8 @@ let damageNumbers = [];  // [{x, y, text, life, maxLife, vy}]
 let totalShots    = 0;
 let turnSnapshot  = null;       // 回合开始时完整快照 (大存档点, Esc回溯)
 let currentCheckpoint = null;   // 当前小存档点 (拾取/击杀时保存，BFS从这里读取)
-let checkpointMAP = 0;          // 小存档点时的剩余 M-AP
-let checkpointAAP = 0;          // 小存档点时的剩余 A-AP
+let checkpointMAP = 0;          // 小存档点时的剩余 MP
+let checkpointAAP = 0;          // 小存档点时的剩余 AP
 let pendingReachableRefresh = false;  // 怪物死亡后需刷新可移动范围
 
 
@@ -1472,7 +1740,7 @@ async function loadSpawnConfig() {
 
 async function loadSquadTemplates() {
   try {
-    const r = await (async () => { const d = "{\r\n  \"_schema\": {\r\n    \"_description\": \"怪物小队模板 — 预配置的固定怪物组合，每个 squad 是一个最小战斗单元。生成时贪心随机选取，budget 匹配房间预算。\",\r\n    \"_fields\": {\r\n      \"squads.<id>.monsters\": { \"_desc\": \"怪物 cfgId 列表，对应 monster-db.json 中的怪物 ID\" },\r\n      \"squads.<id>.budget\": { \"_desc\": \"该小队的预算消耗值，贪心选取时累计不能超过房间 budget\" },\r\n      \"squads.<id>.minFloor\": { \"_desc\": \"该小队从第几层开始可用\" },\r\n      \"squads.<id>.roomTypes\": { \"_desc\": \"该小队可出现的房间类型: normal / treasure / boss\" },\r\n      \"squads.<id>.movementTags\": { \"_desc\": \"移动标签，必须与房间模板的 allowedMovement 有交集才能被选取\" },\r\n      \"squads.<id>.role\": { \"_desc\": \"怪物定位分类: melee / ranged / tank / boss\" }\r\n    }\r\n  },\r\n\r\n  \"squads\": {\r\n    \"crack_duo_i\": {\r\n      \"monsters\": [\"crack_maw_i\", \"crack_maw_i\"],\r\n      \"budget\": 6,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"melee\"\r\n    },\r\n    \"crack_duo_ii\": {\r\n      \"monsters\": [\"crack_maw_ii\", \"crack_maw_ii\"],\r\n      \"budget\": 8,\r\n      \"minFloor\": 2,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"melee\"\r\n    },\r\n    \"crack_duo_iii\": {\r\n      \"monsters\": [\"crack_maw_iii\", \"crack_maw_iii\"],\r\n      \"budget\": 10,\r\n      \"minFloor\": 3,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"melee\"\r\n    },\r\n\r\n    \"crack_trio_i\": {\r\n      \"monsters\": [\"crack_maw_i\", \"crack_maw_i\", \"crack_maw_i\"],\r\n      \"budget\": 9,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"melee\"\r\n    },\r\n    \"crack_trio_ii\": {\r\n      \"monsters\": [\"crack_maw_ii\", \"crack_maw_ii\", \"crack_maw_ii\"],\r\n      \"budget\": 12,\r\n      \"minFloor\": 2,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"melee\"\r\n    },\r\n    \"crack_trio_iii\": {\r\n      \"monsters\": [\"crack_maw_iii\", \"crack_maw_iii\", \"crack_maw_iii\"],\r\n      \"budget\": 15,\r\n      \"minFloor\": 3,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"melee\"\r\n    },\r\n\r\n    \"eye_pair_i\": {\r\n      \"monsters\": [\"flying_eye_i\", \"flying_eye_i\"],\r\n      \"budget\": 4,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"飞行\"],\r\n      \"role\": \"ranged\"\r\n    },\r\n    \"eye_pair_ii\": {\r\n      \"monsters\": [\"flying_eye_ii\", \"flying_eye_ii\"],\r\n      \"budget\": 6,\r\n      \"minFloor\": 2,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"飞行\"],\r\n      \"role\": \"ranged\"\r\n    },\r\n    \"eye_pair_iii\": {\r\n      \"monsters\": [\"flying_eye_iii\", \"flying_eye_iii\"],\r\n      \"budget\": 8,\r\n      \"minFloor\": 3,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"飞行\"],\r\n      \"role\": \"ranged\"\r\n    },\r\n\r\n    \"eye_trio_i\": {\r\n      \"monsters\": [\"flying_eye_i\", \"flying_eye_i\", \"flying_eye_i\"],\r\n      \"budget\": 6,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"飞行\"],\r\n      \"role\": \"ranged\"\r\n    },\r\n    \"eye_trio_ii\": {\r\n      \"monsters\": [\"flying_eye_ii\", \"flying_eye_ii\", \"flying_eye_ii\"],\r\n      \"budget\": 9,\r\n      \"minFloor\": 2,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"飞行\"],\r\n      \"role\": \"ranged\"\r\n    },\r\n    \"eye_trio_iii\": {\r\n      \"monsters\": [\"flying_eye_iii\", \"flying_eye_iii\", \"flying_eye_iii\"],\r\n      \"budget\": 12,\r\n      \"minFloor\": 3,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"飞行\"],\r\n      \"role\": \"ranged\"\r\n    },\r\n\r\n    \"golem_solo_i\": {\r\n      \"monsters\": [\"charge_golem_i\"],\r\n      \"budget\": 4,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"tank\"\r\n    },\r\n    \"golem_solo_ii\": {\r\n      \"monsters\": [\"charge_golem_ii\"],\r\n      \"budget\": 6,\r\n      \"minFloor\": 2,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"tank\"\r\n    },\r\n    \"golem_solo_iii\": {\r\n      \"monsters\": [\"charge_golem_iii\"],\r\n      \"budget\": 8,\r\n      \"minFloor\": 3,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"tank\"\r\n    },\r\n\r\n    \"boss_jumper_i\": {\r\n      \"monsters\": [\"boss_jumper_i\"],\r\n      \"budget\": 99,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"boss\"],\r\n      \"movementTags\": [\"地面\", \"飞行\"],\r\n      \"role\": \"boss\"\r\n    },\r\n    \"boss_jumper_ii\": {\r\n      \"monsters\": [\"boss_jumper_ii\"],\r\n      \"budget\": 99,\r\n      \"minFloor\": 2,\r\n      \"roomTypes\": [\"boss\"],\r\n      \"movementTags\": [\"地面\", \"飞行\"],\r\n      \"role\": \"boss\"\r\n    },\r\n    \"boss_jumper_iii\": {\r\n      \"monsters\": [\"boss_jumper_iii\"],\r\n      \"budget\": 99,\r\n      \"minFloor\": 3,\r\n      \"roomTypes\": [\"boss\"],\r\n      \"movementTags\": [\"地面\", \"飞行\"],\r\n      \"role\": \"boss\"\r\n    },\r\n    \"boss_duke\": {\r\n      \"monsters\": [\"duke_fly\"],\r\n      \"budget\": 99,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"boss\"],\r\n      \"movementTags\": [\"飞行\"],\r\n      \"role\": \"boss\"\r\n    },\r\n    \"boss_duke_and_jumper_i\": {\r\n      \"monsters\": [\"duke_fly\", \"boss_jumper_i\"],\r\n      \"budget\": 99,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"boss\"],\r\n      \"movementTags\": [\"飞行\", \"地面\"],\r\n      \"role\": \"boss\"\r\n    },\r\n    \"boss_duke_and_jumper_iii\": {\r\n      \"monsters\": [\"duke_fly\", \"boss_jumper_iii\"],\r\n      \"budget\": 99,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"boss\"],\r\n      \"movementTags\": [\"飞行\", \"地面\"],\r\n      \"role\": \"boss\"\r\n    }\r\n  }\r\n}\r\n"; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })();
+    const r = await (async () => { const d = "{\r\n  \"_schema\": {\r\n    \"_description\": \"怪物小队模板 — 预配置的固定怪物组合，每个 squad 是一个最小战斗单元。生成时贪心随机选取，budget 匹配房间预算。\",\r\n    \"_fields\": {\r\n      \"squads.\u003cid\u003e.monsters\": { \"_desc\": \"怪物 cfgId 列表，对应 monster-db.json 中的怪物 ID\" },\r\n      \"squads.\u003cid\u003e.budget\": { \"_desc\": \"该小队的预算消耗值，贪心选取时累计不能超过房间 budget\" },\r\n      \"squads.\u003cid\u003e.minFloor\": { \"_desc\": \"该小队从第几层开始可用\" },\r\n      \"squads.\u003cid\u003e.roomTypes\": { \"_desc\": \"该小队可出现的房间类型: normal / treasure / boss\" },\r\n      \"squads.\u003cid\u003e.movementTags\": { \"_desc\": \"移动标签，必须与房间模板的 allowedMovement 有交集才能被选取\" },\r\n      \"squads.\u003cid\u003e.role\": { \"_desc\": \"怪物定位分类: melee / ranged / tank / boss\" }\r\n    }\r\n  },\r\n\r\n  \"squads\": {\r\n    \"crack_duo_i\": {\r\n      \"monsters\": [\"crack_maw_i\", \"crack_maw_i\"],\r\n      \"budget\": 6,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"melee\"\r\n    },\r\n    \"crack_duo_ii\": {\r\n      \"monsters\": [\"crack_maw_ii\", \"crack_maw_ii\"],\r\n      \"budget\": 8,\r\n      \"minFloor\": 2,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"melee\"\r\n    },\r\n    \"crack_duo_iii\": {\r\n      \"monsters\": [\"crack_maw_iii\", \"crack_maw_iii\"],\r\n      \"budget\": 10,\r\n      \"minFloor\": 3,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"melee\"\r\n    },\r\n\r\n    \"crack_trio_i\": {\r\n      \"monsters\": [\"crack_maw_i\", \"crack_maw_i\", \"crack_maw_i\"],\r\n      \"budget\": 9,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"melee\"\r\n    },\r\n    \"crack_trio_ii\": {\r\n      \"monsters\": [\"crack_maw_ii\", \"crack_maw_ii\", \"crack_maw_ii\"],\r\n      \"budget\": 12,\r\n      \"minFloor\": 2,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"melee\"\r\n    },\r\n    \"crack_trio_iii\": {\r\n      \"monsters\": [\"crack_maw_iii\", \"crack_maw_iii\", \"crack_maw_iii\"],\r\n      \"budget\": 15,\r\n      \"minFloor\": 3,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"melee\"\r\n    },\r\n\r\n    \"eye_pair_i\": {\r\n      \"monsters\": [\"flying_eye_i\", \"flying_eye_i\"],\r\n      \"budget\": 4,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"飞行\"],\r\n      \"role\": \"ranged\"\r\n    },\r\n    \"eye_pair_ii\": {\r\n      \"monsters\": [\"flying_eye_ii\", \"flying_eye_ii\"],\r\n      \"budget\": 6,\r\n      \"minFloor\": 2,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"飞行\"],\r\n      \"role\": \"ranged\"\r\n    },\r\n    \"eye_pair_iii\": {\r\n      \"monsters\": [\"flying_eye_iii\", \"flying_eye_iii\"],\r\n      \"budget\": 8,\r\n      \"minFloor\": 3,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"飞行\"],\r\n      \"role\": \"ranged\"\r\n    },\r\n\r\n    \"eye_trio_i\": {\r\n      \"monsters\": [\"flying_eye_i\", \"flying_eye_i\", \"flying_eye_i\"],\r\n      \"budget\": 6,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"飞行\"],\r\n      \"role\": \"ranged\"\r\n    },\r\n    \"eye_trio_ii\": {\r\n      \"monsters\": [\"flying_eye_ii\", \"flying_eye_ii\", \"flying_eye_ii\"],\r\n      \"budget\": 9,\r\n      \"minFloor\": 2,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"飞行\"],\r\n      \"role\": \"ranged\"\r\n    },\r\n    \"eye_trio_iii\": {\r\n      \"monsters\": [\"flying_eye_iii\", \"flying_eye_iii\", \"flying_eye_iii\"],\r\n      \"budget\": 12,\r\n      \"minFloor\": 3,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"飞行\"],\r\n      \"role\": \"ranged\"\r\n    },\r\n\r\n    \"golem_solo_i\": {\r\n      \"monsters\": [\"charge_golem_i\"],\r\n      \"budget\": 4,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"tank\"\r\n    },\r\n    \"golem_solo_ii\": {\r\n      \"monsters\": [\"charge_golem_ii\"],\r\n      \"budget\": 6,\r\n      \"minFloor\": 2,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"tank\"\r\n    },\r\n    \"golem_solo_iii\": {\r\n      \"monsters\": [\"charge_golem_iii\"],\r\n      \"budget\": 8,\r\n      \"minFloor\": 3,\r\n      \"roomTypes\": [\"normal\"],\r\n      \"movementTags\": [\"地面\"],\r\n      \"role\": \"tank\"\r\n    },\r\n\r\n    \"boss_jumper_i\": {\r\n      \"monsters\": [\"boss_jumper_i\"],\r\n      \"budget\": 99,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"boss\"],\r\n      \"movementTags\": [\"地面\", \"飞行\"],\r\n      \"role\": \"boss\"\r\n    },\r\n    \"boss_jumper_ii\": {\r\n      \"monsters\": [\"boss_jumper_ii\"],\r\n      \"budget\": 99,\r\n      \"minFloor\": 2,\r\n      \"roomTypes\": [\"boss\"],\r\n      \"movementTags\": [\"地面\", \"飞行\"],\r\n      \"role\": \"boss\"\r\n    },\r\n    \"boss_jumper_iii\": {\r\n      \"monsters\": [\"boss_jumper_iii\"],\r\n      \"budget\": 99,\r\n      \"minFloor\": 3,\r\n      \"roomTypes\": [\"boss\"],\r\n      \"movementTags\": [\"地面\", \"飞行\"],\r\n      \"role\": \"boss\"\r\n    },\r\n    \"boss_duke\": {\r\n      \"monsters\": [\"duke_fly\"],\r\n      \"budget\": 99,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"boss\"],\r\n      \"movementTags\": [\"飞行\"],\r\n      \"role\": \"boss\"\r\n    },\r\n    \"boss_duke_and_jumper_i\": {\r\n      \"monsters\": [\"duke_fly\", \"boss_jumper_i\"],\r\n      \"budget\": 99,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"boss\"],\r\n      \"movementTags\": [\"飞行\", \"地面\"],\r\n      \"role\": \"boss\"\r\n    },\r\n    \"boss_duke_and_jumper_iii\": {\r\n      \"monsters\": [\"duke_fly\", \"boss_jumper_iii\"],\r\n      \"budget\": 99,\r\n      \"minFloor\": 1,\r\n      \"roomTypes\": [\"boss\"],\r\n      \"movementTags\": [\"飞行\", \"地面\"],\r\n      \"role\": \"boss\"\r\n    }\r\n  }\r\n}\r\n"; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })();
     if (r.ok) {
       SQUAD_TEMPLATES = await r.json();
       console.log('✅ 已加载小队模板 (' + Object.keys(SQUAD_TEMPLATES.squads || {}).length + ' 个 squad)');
@@ -1484,7 +1752,7 @@ async function loadSquadTemplates() {
 
 async function loadMonsterDB() {
   try {
-    const r = await (async () => { const d = "{\r\n  \"_schema\": {\r\n    \"_description\": \"怪物数据库 — 每只怪物的属性、AI行为、掉落配置\",\r\n    \"_fields\": {\r\n      \"aiType\": {\r\n        \"_values\": [\"chase\", \"ranged_kite\", \"charge\", \"boss_jumper\", \"boss_chase\", \"boss_duke\"],\r\n        \"_desc\": \"chase=追逐玩家, ranged_kite=远程风筝, charge=蓄力冲刺, boss_jumper=跳跃Boss, boss_chase=追逐Boss, boss_duke=公爵Boss\"\r\n      },\r\n\r\n      \"actionMode.mode\": {\r\n        \"_values\": [\"sequence\", \"random\"],\r\n        \"_desc\": \"sequence=顺序执行actions, random=按weights权重随机选action\"\r\n      },\r\n      \"actions[].type\": {\r\n        \"_values\": [\"chase\", \"random_wander\", \"shoot_fan\", \"shoot_single\", \"charge_up\", \"charge_line\", \"jump_small\", \"jump_big_land\", \"duke_idle\", \"duke_diagonal_move\"],\r\n        \"_desc\": \"AI行动类型。shoot_single=单发直射, charge_up=蓄力(原地+感叹号), charge_line=冲刺, jump_big_land=大跳(chargeSteps蓄力→砸下), duke_idle=公爵首回合静止, duke_diagonal_move=公爵对角移动\"\r\n      },\r\n      \"actions[].stepMode\": {\r\n        \"_values\": [\"sequence\", \"random\"],\r\n        \"_desc\": \"sequence=按steps数组顺序移动, random=从steps中随机选一步\"\r\n      },\r\n      \"actions[].directMode\": {\r\n        \"_values\": [\"toward_player_axis\"],\r\n        \"_desc\": \"射击方向模式\"\r\n      },\r\n      \"actions[].condition\": {\r\n        \"_values\": [\"in_range\"],\r\n        \"_desc\": \"行动触发条件\"\r\n      },\r\n      \"actions[].target.mode\": {\r\n        \"_values\": [\"cover_player\"],\r\n        \"_desc\": \"跳跃落点模式: cover_player=覆盖玩家所在格\"\r\n      },\r\n      \"actions[].after_effect[].type\": {\r\n        \"_values\": [\"attack_adjacent\", \"attack_side\", \"summon\", \"random_wander\"],\r\n        \"_desc\": \"行动后附带的攻击效果: attack_adjacent=邻格攻击, attack_side=侧面攻击, summon=召唤怪物, random_wander=随机移动\"\r\n      },\r\n      \"actions[].once\": {\r\n        \"_desc\": \"仅首回合执行一次（true则后续回合跳过此action），用于boss_duke的首回合静止\",\r\n        \"_type\": \"boolean\"\r\n      },\r\n      \"actions[].after_effect.chance\": {\r\n        \"_desc\": \"summon类型的召唤概率 (0~1)\",\r\n        \"_type\": \"number\"\r\n      },\r\n      \"actions[].after_effect.monsterId\": {\r\n        \"_desc\": \"summon类型召唤的怪物cfgId\",\r\n        \"_type\": \"string\"\r\n      },\r\n      \"actions[].after_effect.maxCount\": {\r\n        \"_desc\": \"summon类型召唤的怪物在场数量上限\",\r\n        \"_type\": \"number\"\r\n      },\r\n      \"actions[].after_effect.spawnRange\": {\r\n        \"_values\": [\"adjacent\"],\r\n        \"_desc\": \"summon类型召唤位置: adjacent=相邻格随机空格\"\r\n      },\r\n      \"loot.mode\": {\r\n        \"_values\": [\"pick_one\", \"roll_all\", \"pick_first\"],\r\n        \"_default\": \"pick_one\",\r\n        \"_desc\": \"pick_one=按权重抽一个条目执行, roll_all=每个条目独立判定, pick_first=按顺序命中第一个就停\"\r\n      },\r\n      \"loot.rounds[].entries[].type\": {\r\n        \"_values\": [\"item\", \"resource\", \"resource_fixed\", \"nothing\"],\r\n        \"_desc\": \"item=随机道具(需itemDropTable), resource=按掉落表生成资源(需resourceDropTable), resource_fixed=固定资源(需id), nothing=空掉落\"\r\n      },\r\n      \"loot.rounds[].entries[].itemDropTable\": {\r\n        \"_desc\": \"道具掉落表名，对应 item-db.json > itemDropTables 中的 key\"\r\n      },\r\n      \"loot.rounds[].entries[].resourceDropTable\": {\r\n        \"_desc\": \"资源掉落表名，对应 resource-db.json > resourceDropTables 中的 key\"\r\n      }\r\n    }\r\n  },\r\n\r\n  \"crack_maw_i\": {\r\n    \"id\": \"crack_maw_i\",\r\n    \"name\": \"裂口尸 I\",\r\n    \"hp\": 10,\r\n    \"damage\": 0.5,\r\n    \"aiType\": \"chase\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"chase\", \"steps\": [2, 2], \"stepMode\": \"sequence\", \"after_effect\": [{ \"type\": \"attack_adjacent\", \"damage\": 0.5, \"range\": 1 }] }\r\n    ],\r\n    \"tint\": null,\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_common\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.26, \"resourceDropTable\": \"resource_drop_monster_heavy\" }\r\n      ]\r\n    }\r\n  },\r\n  \"crack_maw_ii\": {\r\n    \"id\": \"crack_maw_ii\",\r\n    \"name\": \"裂口尸 II\",\r\n    \"hp\": 20,\r\n    \"damage\": 1,\r\n    \"aiType\": \"chase\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"chase\", \"steps\": [3, 3], \"stepMode\": \"sequence\", \"after_effect\": [{ \"type\": \"attack_adjacent\", \"damage\": 1, \"range\": 1 }] }\r\n    ],\r\n    \"tint\": null,\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_common\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.26, \"resourceDropTable\": \"resource_drop_monster_heavy\" }\r\n      ]\r\n    }\r\n  },\r\n  \"crack_maw_iii\": {\r\n    \"id\": \"crack_maw_iii\",\r\n    \"name\": \"裂口尸 III\",\r\n    \"hp\": 30,\r\n    \"damage\": 1,\r\n    \"aiType\": \"chase\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"chase\", \"steps\": [4, 4], \"stepMode\": \"sequence\", \"after_effect\": [{ \"type\": \"attack_adjacent\", \"damage\": 1, \"range\": 1 }] }\r\n    ],\r\n    \"tint\": null,\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"common\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.27, \"resourceDropTable\": \"monster_heavy\" }\r\n      ]\r\n    }\r\n  },\r\n  \"flying_eye_i\": {\r\n    \"id\": \"flying_eye_i\",\r\n    \"name\": \"浮游眼 I\",\r\n    \"hp\": 6,\r\n    \"damage\": 0.5,\r\n    \"aiType\": \"ranged_kite\",\r\n    \"actionMode\": { \"mode\": \"condition\" },\r\n    \"actions\": [\r\n      { \"type\": \"random_wander\", \"steps\": [2, 2, 2], \"stepMode\": \"random\", \"condition\": \"out_of_range\", \"range\": 4 },\r\n      { \"type\": \"shoot_fan\", \"range\": 4, \"directMode\": \"toward_player_axis\", \"condition\": \"in_range\",\r\n        \"after_effect\": { \"type\": \"random_wander\", \"steps\": [2, 2, 2], \"stepMode\": \"random\" } }\r\n    ],\r\n    \"tint\": \"rgba(180,180,255,0.35)\",\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_ranged\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.24, \"resourceDropTable\": \"resource_drop_monster_default\" }\r\n      ]\r\n    }\r\n  },\r\n  \"flying_eye_ii\": {\r\n    \"id\": \"flying_eye_ii\",\r\n    \"name\": \"浮游眼 II\",\r\n    \"hp\": 12,\r\n    \"damage\": 0.5,\r\n    \"aiType\": \"ranged_kite\",\r\n    \"actionMode\": { \"mode\": \"condition\" },\r\n    \"actions\": [\r\n      { \"type\": \"random_wander\", \"steps\": [3, 3, 3], \"stepMode\": \"random\", \"condition\": \"out_of_range\", \"range\": 5 },\r\n      { \"type\": \"shoot_fan\", \"range\": 5, \"directMode\": \"toward_player_axis\", \"condition\": \"in_range\",\r\n        \"after_effect\": { \"type\": \"random_wander\", \"steps\": [3, 3, 3], \"stepMode\": \"random\" } }\r\n    ],\r\n    \"tint\": \"rgba(180,180,255,0.40)\",\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_ranged\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.26, \"resourceDropTable\": \"resource_drop_monster_heavy\" }\r\n      ]\r\n    }\r\n  },\r\n  \"flying_eye_iii\": {\r\n    \"id\": \"flying_eye_iii\",\r\n    \"name\": \"浮游眼 III\",\r\n    \"hp\": 20,\r\n    \"damage\": 1,\r\n    \"aiType\": \"ranged_kite\",\r\n    \"actionMode\": { \"mode\": \"condition\" },\r\n    \"actions\": [\r\n      { \"type\": \"random_wander\", \"steps\": [4, 4, 4], \"stepMode\": \"random\", \"condition\": \"out_of_range\", \"range\": 6 },\r\n      { \"type\": \"shoot_fan\", \"range\": 6, \"directMode\": \"toward_player_axis\", \"condition\": \"in_range\",\r\n        \"after_effect\": { \"type\": \"random_wander\", \"steps\": [4, 4, 4], \"stepMode\": \"random\" } }\r\n    ],\r\n    \"tint\": \"rgba(180,180,255,0.45)\",\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"ranged\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.28, \"resourceDropTable\": \"monster_heavy\" }\r\n      ]\r\n    }\r\n  },\r\n  \"charge_golem_i\": {\r\n    \"id\": \"charge_golem_i\",\r\n    \"name\": \"蓄力魔像 I\",\r\n    \"hp\": 30,\r\n    \"damage\": 1,\r\n    \"aiType\": \"charge\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"random_wander\", \"steps\": [2], \"stepMode\": \"random\" },\r\n      { \"type\": \"random_wander\", \"steps\": [2], \"stepMode\": \"random\" },\r\n      { \"type\": \"charge_up\" },\r\n      { \"type\": \"charge_line\", \"steps\": [3, 13], \"stepMode\": \"random\" }\r\n    ],\r\n    \"tint\": \"rgba(180,160,140,0.45)\",\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_heavy\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.28, \"resourceDropTable\": \"resource_drop_boss\" }\r\n      ]\r\n    }\r\n  },\r\n  \"charge_golem_ii\": {\r\n    \"id\": \"charge_golem_ii\",\r\n    \"name\": \"蓄力魔像 II\",\r\n    \"hp\": 45,\r\n    \"damage\": 1,\r\n    \"aiType\": \"charge\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"random_wander\", \"steps\": [3], \"stepMode\": \"random\" },\r\n      { \"type\": \"random_wander\", \"steps\": [3], \"stepMode\": \"random\" },\r\n      { \"type\": \"charge_up\" },\r\n      { \"type\": \"charge_line\", \"steps\": [3, 13], \"stepMode\": \"random\" }\r\n    ],\r\n    \"tint\": \"rgba(180,160,140,0.50)\",\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_heavy\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.30, \"resourceDropTable\": \"resource_drop_boss\" }\r\n      ]\r\n    }\r\n  },\r\n  \"charge_golem_iii\": {\r\n    \"id\": \"charge_golem_iii\",\r\n    \"name\": \"蓄力魔像 III\",\r\n    \"hp\": 65,\r\n    \"damage\": 1.5,\r\n    \"aiType\": \"charge\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"random_wander\", \"steps\": [4], \"stepMode\": \"random\" },\r\n      { \"type\": \"random_wander\", \"steps\": [4], \"stepMode\": \"random\" },\r\n      { \"type\": \"charge_up\" },\r\n      { \"type\": \"charge_line\", \"steps\": [3, 13], \"stepMode\": \"random\" }\r\n    ],\r\n    \"tint\": \"rgba(180,160,140,0.55)\",\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_heavy\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.32, \"resourceDropTable\": \"resource_drop_boss\" }\r\n      ]\r\n    }\r\n  },\r\n  \"boss_jumper_i\": {\r\n    \"id\": \"boss_jumper_i\",\r\n    \"name\": \"跳跃巨兽 I\",\r\n    \"hp\": 60,\r\n    \"damage\": 0.5,\r\n    \"aiType\": \"boss_jumper\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"jump_small\", \"steps\": [2] },\r\n      { \"type\": \"jump_small\", \"steps\": [2], \"repeatChance\": 0.5 },\r\n      {\r\n        \"type\": \"jump_big_land\",\r\n        \"chargeSteps\": 1,\r\n        \"target\": { \"mode\": \"cover_player\" },\r\n        \"after_effect\": [\r\n          { \"type\": \"attack_side\", \"damage\": 1, \"range\": 1 }\r\n        ]\r\n      }\r\n    ],\r\n    \"tint\": \"rgba(200,80,200,0.45)\",\r\n    \"loot\": {\r\n      \"rounds\": [\r\n        {\r\n          \"mode\": \"pick_one\",\r\n          \"entries\": [\r\n            { \"type\": \"item\", \"rate\": 0, \"itemDropTable\": \"item_drop_boss\" }\r\n          ]\r\n        }\r\n      ]\r\n    },\r\n    \"size\": 2\r\n  },\r\n  \"boss_jumper_ii\": {\r\n    \"id\": \"boss_jumper_ii\",\r\n    \"name\": \"跳跃巨兽 II\",\r\n    \"hp\": 80,\r\n    \"damage\": 0.5,\r\n    \"aiType\": \"boss_jumper\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"jump_small\", \"steps\": [3] },\r\n      { \"type\": \"jump_small\", \"steps\": [3], \"repeatChance\": 0.5 },\r\n      {\r\n        \"type\": \"jump_big_land\",\r\n        \"chargeSteps\": 1,\r\n        \"target\": { \"mode\": \"cover_player\" },\r\n        \"after_effect\": [\r\n          { \"type\": \"attack_side\", \"damage\": 1, \"range\": 1 }\r\n        ]\r\n      }\r\n    ],\r\n    \"tint\": \"rgba(200,80,200,0.45)\",\r\n    \"loot\": {\r\n      \"rounds\": [\r\n        {\r\n          \"mode\": \"pick_one\",\r\n          \"entries\": [\r\n            { \"type\": \"item\", \"rate\": 0, \"itemDropTable\": \"item_drop_boss\" }\r\n          ]\r\n        }\r\n      ]\r\n    },\r\n    \"size\": 2\r\n  },\r\n  \"boss_jumper_iii\": {\r\n    \"id\": \"boss_jumper_iii\",\r\n    \"name\": \"跳跃巨兽 III\",\r\n    \"hp\": 105,\r\n    \"damage\": 1,\r\n    \"aiType\": \"boss_jumper\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"jump_small\", \"steps\": [3] },\r\n      { \"type\": \"jump_small\", \"steps\": [3], \"repeatChance\": 0.5 },\r\n      {\r\n        \"type\": \"jump_big_land\",\r\n        \"chargeSteps\": 1,\r\n        \"target\": { \"mode\": \"cover_player\" },\r\n        \"after_effect\": [\r\n          { \"type\": \"attack_side\", \"damage\": 1, \"range\": 1 }\r\n        ]\r\n      }\r\n    ],\r\n    \"tint\": \"rgba(200,80,200,0.45)\",\r\n    \"loot\": {\r\n      \"rounds\": [\r\n        {\r\n          \"mode\": \"pick_one\",\r\n          \"entries\": [\r\n            { \"type\": \"item\", \"rate\": 0, \"itemDropTable\": \"item_drop_boss\" }\r\n          ]\r\n        }\r\n      ]\r\n    },\r\n    \"size\": 2\r\n  },\r\n  \"duke_fly\": {\r\n    \"id\": \"duke_fly\",\r\n    \"name\": \"苍蝇公爵\",\r\n    \"hp\": 100,\r\n    \"damage\": 1,\r\n    \"aiType\": \"boss_duke\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"duke_diagonal_move\", \"steps\": [3],\r\n        \"after_effect\": { \"type\": \"summon\", \"chance\": 0.3, \"monsterId\": \"duke_floater\", \"maxCount\": 3, \"spawnRange\": \"adjacent\" } }\r\n    ],\r\n    \"tint\": \"rgba(255,200,100,0.40)\",\r\n    \"loot\": {\r\n      \"rounds\": [\r\n        {\r\n          \"mode\": \"pick_one\",\r\n          \"entries\": [\r\n            { \"type\": \"item\", \"rate\": 0, \"itemDropTable\": \"item_drop_boss\" }\r\n          ]\r\n        }\r\n      ]\r\n    },\r\n    \"size\": 2\r\n  },\r\n  \"duke_floater\": {\r\n    \"id\": \"duke_floater\",\r\n    \"name\": \"公爵浮游眼\",\r\n    \"hp\": 6,\r\n    \"damage\": 0.5,\r\n    \"aiType\": \"ranged_kite\",\r\n    \"actionMode\": { \"mode\": \"condition\" },\r\n    \"actions\": [\r\n      { \"type\": \"random_wander\", \"steps\": [2, 2, 2], \"stepMode\": \"random\", \"condition\": \"out_of_range\", \"range\": 4 },\r\n      { \"type\": \"shoot_single\", \"range\": 4, \"directMode\": \"toward_player_axis\", \"condition\": \"in_range\",\r\n        \"after_effect\": { \"type\": \"random_wander\", \"steps\": [2, 2, 2], \"stepMode\": \"random\" } }\r\n    ],\r\n    \"tint\": \"rgba(180,180,255,0.35)\",\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_ranged\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.24, \"resourceDropTable\": \"resource_drop_monster_default\" }\r\n      ]\r\n    }\r\n  }\r\n}\r\n"; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })();
+    const r = await (async () => { const d = "{\r\n  \"_schema\": {\r\n    \"_description\": \"怪物数据库 — 每只怪物的属性、AI行为、掉落配置\",\r\n    \"_fields\": {\r\n      \"aiType\": {\r\n        \"_values\": [\"chase\", \"ranged_kite\", \"charge\", \"boss_jumper\", \"boss_chase\", \"boss_duke\"],\r\n        \"_desc\": \"chase=追逐玩家, ranged_kite=远程风筝, charge=蓄力冲刺, boss_jumper=跳跃Boss, boss_chase=追逐Boss, boss_duke=公爵Boss\"\r\n      },\r\n\r\n      \"actionMode.mode\": {\r\n        \"_values\": [\"sequence\", \"random\"],\r\n        \"_desc\": \"sequence=顺序执行actions, random=按weights权重随机选action\"\r\n      },\r\n      \"actions[].type\": {\r\n        \"_values\": [\"chase\", \"random_wander\", \"shoot_fan\", \"shoot_single\", \"charge_up\", \"charge_line\", \"jump_small\", \"jump_big_land\", \"duke_idle\", \"duke_diagonal_move\"],\r\n        \"_desc\": \"AI行动类型。shoot_single=单发直射, charge_up=蓄力(原地+感叹号), charge_line=冲刺, jump_big_land=大跳(chargeSteps蓄力→砸下), duke_idle=公爵首回合静止, duke_diagonal_move=公爵对角移动\"\r\n      },\r\n      \"actions[].stepMode\": {\r\n        \"_values\": [\"sequence\", \"random\"],\r\n        \"_desc\": \"sequence=按steps数组顺序移动, random=从steps中随机选一步\"\r\n      },\r\n      \"actions[].directMode\": {\r\n        \"_values\": [\"toward_player_axis\"],\r\n        \"_desc\": \"射击方向模式\"\r\n      },\r\n      \"actions[].condition\": {\r\n        \"_values\": [\"in_range\"],\r\n        \"_desc\": \"行动触发条件\"\r\n      },\r\n      \"actions[].target.mode\": {\r\n        \"_values\": [\"cover_player\"],\r\n        \"_desc\": \"跳跃落点模式: cover_player=覆盖玩家所在格\"\r\n      },\r\n      \"actions[].after_effect[].type\": {\r\n        \"_values\": [\"attack_adjacent\", \"attack_side\", \"summon\", \"random_wander\"],\r\n        \"_desc\": \"行动后附带的攻击效果: attack_adjacent=邻格攻击, attack_side=侧面攻击, summon=召唤怪物, random_wander=随机移动\"\r\n      },\r\n      \"actions[].once\": {\r\n        \"_desc\": \"仅首回合执行一次（true则后续回合跳过此action），用于boss_duke的首回合静止\",\r\n        \"_type\": \"boolean\"\r\n      },\r\n      \"actions[].after_effect.chance\": {\r\n        \"_desc\": \"summon类型的召唤概率 (0~1)\",\r\n        \"_type\": \"number\"\r\n      },\r\n      \"actions[].after_effect.monsterId\": {\r\n        \"_desc\": \"summon类型召唤的怪物cfgId\",\r\n        \"_type\": \"string\"\r\n      },\r\n      \"actions[].after_effect.maxCount\": {\r\n        \"_desc\": \"summon类型召唤的怪物在场数量上限\",\r\n        \"_type\": \"number\"\r\n      },\r\n      \"actions[].after_effect.spawnRange\": {\r\n        \"_values\": [\"adjacent\"],\r\n        \"_desc\": \"summon类型召唤位置: adjacent=相邻格随机空格\"\r\n      },\r\n      \"loot.mode\": {\r\n        \"_values\": [\"pick_one\", \"roll_all\", \"pick_first\"],\r\n        \"_default\": \"pick_one\",\r\n        \"_desc\": \"pick_one=按权重抽一个条目执行, roll_all=每个条目独立判定, pick_first=按顺序命中第一个就停\"\r\n      },\r\n      \"loot.rounds[].entries[].type\": {\r\n        \"_values\": [\"item\", \"resource\", \"resource_fixed\", \"nothing\"],\r\n        \"_desc\": \"item=随机道具(需itemDropTable), resource=按掉落表生成资源(需resourceDropTable), resource_fixed=固定资源(需id), nothing=空掉落\"\r\n      },\r\n      \"loot.rounds[].entries[].itemDropTable\": {\r\n        \"_desc\": \"道具掉落表名，对应 item-db.json \u003e itemDropTables 中的 key\"\r\n      },\r\n      \"loot.rounds[].entries[].resourceDropTable\": {\r\n        \"_desc\": \"资源掉落表名，对应 resource-db.json \u003e resourceDropTables 中的 key\"\r\n      }\r\n    }\r\n  },\r\n\r\n  \"crack_maw_i\": {\r\n    \"id\": \"crack_maw_i\",\r\n    \"name\": \"裂口尸 I\",\r\n    \"hp\": 10,\r\n    \"damage\": 0.5,\r\n    \"aiType\": \"chase\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"chase\", \"steps\": [2, 2], \"stepMode\": \"sequence\", \"after_effect\": [{ \"type\": \"attack_adjacent\", \"damage\": 0.5, \"range\": 1 }] }\r\n    ],\r\n    \"tint\": null,\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_common\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.26, \"resourceDropTable\": \"resource_drop_monster_heavy\" }\r\n      ]\r\n    }\r\n  },\r\n  \"crack_maw_ii\": {\r\n    \"id\": \"crack_maw_ii\",\r\n    \"name\": \"裂口尸 II\",\r\n    \"hp\": 20,\r\n    \"damage\": 1,\r\n    \"aiType\": \"chase\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"chase\", \"steps\": [3, 3], \"stepMode\": \"sequence\", \"after_effect\": [{ \"type\": \"attack_adjacent\", \"damage\": 1, \"range\": 1 }] }\r\n    ],\r\n    \"tint\": null,\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_common\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.26, \"resourceDropTable\": \"resource_drop_monster_heavy\" }\r\n      ]\r\n    }\r\n  },\r\n  \"crack_maw_iii\": {\r\n    \"id\": \"crack_maw_iii\",\r\n    \"name\": \"裂口尸 III\",\r\n    \"hp\": 30,\r\n    \"damage\": 1,\r\n    \"aiType\": \"chase\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"chase\", \"steps\": [4, 4], \"stepMode\": \"sequence\", \"after_effect\": [{ \"type\": \"attack_adjacent\", \"damage\": 1, \"range\": 1 }] }\r\n    ],\r\n    \"tint\": null,\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_common\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.27, \"resourceDropTable\": \"resource_drop_monster_heavy\" }\r\n      ]\r\n    }\r\n  },\r\n  \"flying_eye_i\": {\r\n    \"id\": \"flying_eye_i\",\r\n    \"name\": \"浮游眼 I\",\r\n    \"hp\": 6,\r\n    \"damage\": 0.5,\r\n    \"aiType\": \"ranged_kite\",\r\n    \"actionMode\": { \"mode\": \"condition\" },\r\n    \"actions\": [\r\n      { \"type\": \"random_wander\", \"steps\": [2, 2, 2], \"stepMode\": \"random\", \"condition\": \"out_of_range\", \"range\": 4 },\r\n      { \"type\": \"shoot_fan\", \"range\": 4, \"directMode\": \"toward_player_axis\", \"condition\": \"in_range\",\r\n        \"after_effect\": { \"type\": \"random_wander\", \"steps\": [2, 2, 2], \"stepMode\": \"random\" } }\r\n    ],\r\n    \"tint\": \"rgba(180,180,255,0.35)\",\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_ranged\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.24, \"resourceDropTable\": \"resource_drop_monster_default\" }\r\n      ]\r\n    }\r\n  },\r\n  \"flying_eye_ii\": {\r\n    \"id\": \"flying_eye_ii\",\r\n    \"name\": \"浮游眼 II\",\r\n    \"hp\": 12,\r\n    \"damage\": 0.5,\r\n    \"aiType\": \"ranged_kite\",\r\n    \"actionMode\": { \"mode\": \"condition\" },\r\n    \"actions\": [\r\n      { \"type\": \"random_wander\", \"steps\": [3, 3, 3], \"stepMode\": \"random\", \"condition\": \"out_of_range\", \"range\": 5 },\r\n      { \"type\": \"shoot_fan\", \"range\": 5, \"directMode\": \"toward_player_axis\", \"condition\": \"in_range\",\r\n        \"after_effect\": { \"type\": \"random_wander\", \"steps\": [3, 3, 3], \"stepMode\": \"random\" } }\r\n    ],\r\n    \"tint\": \"rgba(180,180,255,0.40)\",\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_ranged\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.26, \"resourceDropTable\": \"resource_drop_monster_heavy\" }\r\n      ]\r\n    }\r\n  },\r\n  \"flying_eye_iii\": {\r\n    \"id\": \"flying_eye_iii\",\r\n    \"name\": \"浮游眼 III\",\r\n    \"hp\": 20,\r\n    \"damage\": 1,\r\n    \"aiType\": \"ranged_kite\",\r\n    \"actionMode\": { \"mode\": \"condition\" },\r\n    \"actions\": [\r\n      { \"type\": \"random_wander\", \"steps\": [4, 4, 4], \"stepMode\": \"random\", \"condition\": \"out_of_range\", \"range\": 6 },\r\n      { \"type\": \"shoot_fan\", \"range\": 6, \"directMode\": \"toward_player_axis\", \"condition\": \"in_range\",\r\n        \"after_effect\": { \"type\": \"random_wander\", \"steps\": [4, 4, 4], \"stepMode\": \"random\" } }\r\n    ],\r\n    \"tint\": \"rgba(180,180,255,0.45)\",\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_ranged\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.28, \"resourceDropTable\": \"resource_drop_monster_heavy\" }\r\n      ]\r\n    }\r\n  },\r\n  \"charge_golem_i\": {\r\n    \"id\": \"charge_golem_i\",\r\n    \"name\": \"蓄力魔像 I\",\r\n    \"hp\": 30,\r\n    \"damage\": 1,\r\n    \"aiType\": \"charge\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"random_wander\", \"steps\": [2], \"stepMode\": \"random\" },\r\n      { \"type\": \"random_wander\", \"steps\": [2], \"stepMode\": \"random\" },\r\n      { \"type\": \"charge_up\" },\r\n      { \"type\": \"charge_line\", \"steps\": [3, 13], \"stepMode\": \"random\" }\r\n    ],\r\n    \"tint\": \"rgba(180,160,140,0.45)\",\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_heavy\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.28, \"resourceDropTable\": \"resource_drop_monster_heavy\" }\r\n      ]\r\n    }\r\n  },\r\n  \"charge_golem_ii\": {\r\n    \"id\": \"charge_golem_ii\",\r\n    \"name\": \"蓄力魔像 II\",\r\n    \"hp\": 45,\r\n    \"damage\": 1,\r\n    \"aiType\": \"charge\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"random_wander\", \"steps\": [3], \"stepMode\": \"random\" },\r\n      { \"type\": \"random_wander\", \"steps\": [3], \"stepMode\": \"random\" },\r\n      { \"type\": \"charge_up\" },\r\n      { \"type\": \"charge_line\", \"steps\": [3, 13], \"stepMode\": \"random\" }\r\n    ],\r\n    \"tint\": \"rgba(180,160,140,0.50)\",\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_heavy\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.30, \"resourceDropTable\": \"resource_drop_monster_heavy\" }\r\n      ]\r\n    }\r\n  },\r\n  \"charge_golem_iii\": {\r\n    \"id\": \"charge_golem_iii\",\r\n    \"name\": \"蓄力魔像 III\",\r\n    \"hp\": 65,\r\n    \"damage\": 1.5,\r\n    \"aiType\": \"charge\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"random_wander\", \"steps\": [4], \"stepMode\": \"random\" },\r\n      { \"type\": \"random_wander\", \"steps\": [4], \"stepMode\": \"random\" },\r\n      { \"type\": \"charge_up\" },\r\n      { \"type\": \"charge_line\", \"steps\": [3, 13], \"stepMode\": \"random\" }\r\n    ],\r\n    \"tint\": \"rgba(180,160,140,0.55)\",\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_heavy\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.32, \"resourceDropTable\": \"resource_drop_monster_heavy\" }\r\n      ]\r\n    }\r\n  },\r\n  \"boss_jumper_i\": {\r\n    \"id\": \"boss_jumper_i\",\r\n    \"name\": \"跳跃巨兽 I\",\r\n    \"hp\": 60,\r\n    \"damage\": 0.5,\r\n    \"aiType\": \"boss_jumper\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"jump_small\", \"steps\": [2] },\r\n      { \"type\": \"jump_small\", \"steps\": [2], \"repeatChance\": 0.5 },\r\n      {\r\n        \"type\": \"jump_big_land\",\r\n        \"chargeSteps\": 1,\r\n        \"target\": { \"mode\": \"cover_player\" },\r\n        \"after_effect\": [\r\n          { \"type\": \"attack_side\", \"damage\": 1, \"range\": 1 }\r\n        ]\r\n      }\r\n    ],\r\n    \"tint\": \"rgba(200,80,200,0.45)\",\r\n    \"loot\": {\r\n      \"rounds\": [\r\n        {\r\n          \"mode\": \"pick_one\",\r\n          \"entries\": [\r\n            { \"type\": \"item\", \"rate\": 0, \"itemDropTable\": \"item_drop_boss\" }\r\n          ]\r\n        }\r\n      ]\r\n    },\r\n    \"size\": 2\r\n  },\r\n  \"boss_jumper_ii\": {\r\n    \"id\": \"boss_jumper_ii\",\r\n    \"name\": \"跳跃巨兽 II\",\r\n    \"hp\": 80,\r\n    \"damage\": 0.5,\r\n    \"aiType\": \"boss_jumper\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"jump_small\", \"steps\": [3] },\r\n      { \"type\": \"jump_small\", \"steps\": [3], \"repeatChance\": 0.5 },\r\n      {\r\n        \"type\": \"jump_big_land\",\r\n        \"chargeSteps\": 1,\r\n        \"target\": { \"mode\": \"cover_player\" },\r\n        \"after_effect\": [\r\n          { \"type\": \"attack_side\", \"damage\": 1, \"range\": 1 }\r\n        ]\r\n      }\r\n    ],\r\n    \"tint\": \"rgba(200,80,200,0.45)\",\r\n    \"loot\": {\r\n      \"rounds\": [\r\n        {\r\n          \"mode\": \"pick_one\",\r\n          \"entries\": [\r\n            { \"type\": \"item\", \"rate\": 0, \"itemDropTable\": \"item_drop_boss\" }\r\n          ]\r\n        }\r\n      ]\r\n    },\r\n    \"size\": 2\r\n  },\r\n  \"boss_jumper_iii\": {\r\n    \"id\": \"boss_jumper_iii\",\r\n    \"name\": \"跳跃巨兽 III\",\r\n    \"hp\": 105,\r\n    \"damage\": 1,\r\n    \"aiType\": \"boss_jumper\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"jump_small\", \"steps\": [3] },\r\n      { \"type\": \"jump_small\", \"steps\": [3], \"repeatChance\": 0.5 },\r\n      {\r\n        \"type\": \"jump_big_land\",\r\n        \"chargeSteps\": 1,\r\n        \"target\": { \"mode\": \"cover_player\" },\r\n        \"after_effect\": [\r\n          { \"type\": \"attack_side\", \"damage\": 1, \"range\": 1 }\r\n        ]\r\n      }\r\n    ],\r\n    \"tint\": \"rgba(200,80,200,0.45)\",\r\n    \"loot\": {\r\n      \"rounds\": [\r\n        {\r\n          \"mode\": \"pick_one\",\r\n          \"entries\": [\r\n            { \"type\": \"item\", \"rate\": 0, \"itemDropTable\": \"item_drop_boss\" }\r\n          ]\r\n        }\r\n      ]\r\n    },\r\n    \"size\": 2\r\n  },\r\n  \"duke_fly\": {\r\n    \"id\": \"duke_fly\",\r\n    \"name\": \"苍蝇公爵\",\r\n    \"hp\": 100,\r\n    \"damage\": 1,\r\n    \"aiType\": \"boss_duke\",\r\n    \"actionMode\": { \"mode\": \"sequence\" },\r\n    \"actions\": [\r\n      { \"type\": \"duke_diagonal_move\", \"steps\": [3],\r\n        \"after_effect\": { \"type\": \"summon\", \"chance\": 0.3, \"monsterId\": \"duke_floater\", \"maxCount\": 3, \"spawnRange\": \"adjacent\" } }\r\n    ],\r\n    \"tint\": \"rgba(255,200,100,0.40)\",\r\n    \"loot\": {\r\n      \"rounds\": [\r\n        {\r\n          \"mode\": \"pick_one\",\r\n          \"entries\": [\r\n            { \"type\": \"item\", \"rate\": 0, \"itemDropTable\": \"item_drop_boss\" }\r\n          ]\r\n        }\r\n      ]\r\n    },\r\n    \"size\": 2\r\n  },\r\n  \"duke_floater\": {\r\n    \"id\": \"duke_floater\",\r\n    \"name\": \"公爵浮游眼\",\r\n    \"hp\": 6,\r\n    \"damage\": 0.5,\r\n    \"aiType\": \"ranged_kite\",\r\n    \"actionMode\": { \"mode\": \"condition\" },\r\n    \"actions\": [\r\n      { \"type\": \"random_wander\", \"steps\": [2, 2, 2], \"stepMode\": \"random\", \"condition\": \"out_of_range\", \"range\": 4 },\r\n      { \"type\": \"shoot_single\", \"range\": 4, \"directMode\": \"toward_player_axis\", \"condition\": \"in_range\",\r\n        \"after_effect\": { \"type\": \"random_wander\", \"steps\": [2, 2, 2], \"stepMode\": \"random\" } }\r\n    ],\r\n    \"tint\": \"rgba(180,180,255,0.35)\",\r\n    \"loot\": {\r\n      \"mode\": \"pick_one\",\r\n      \"entries\": [\r\n        { \"type\": \"item\", \"weight\": 0.03, \"rate\": 1.0, \"itemDropTable\": \"item_drop_ranged\" },\r\n        { \"type\": \"resource\", \"weight\": 0.97, \"rate\": 0.24, \"resourceDropTable\": \"resource_drop_monster_default\" }\r\n      ]\r\n    }\r\n  }\r\n}\r\n"; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })();
     if (r.ok) {
       MONSTER_DB = await r.json();
       _rebuildMonsterPools();
@@ -1560,7 +1828,7 @@ let playerResources = {
 
 async function loadResourceDB() {
   try {
-    const r = await (async () => { const d = "{\r\n  \"_schema\": {\r\n    \"_description\": \"资源数据库 — 金币、炸弹、红心、蓝心、宝箱、钥匙等可拾取资源的定义与掉落配置\",\r\n    \"_fields\": {\r\n      \"resources.*.type\": {\r\n        \"_values\": [\"coin\", \"bomb\", \"heart\", \"blue_heart\", \"chest\", \"key\"],\r\n        \"_desc\": \"资源类型\"\r\n      },\r\n      \"resources.*.price\": {\r\n        \"_desc\": \"商店售价（金币），非coin/chest类型默认为5\",\r\n        \"_type\": \"number\"\r\n      },\r\n      \"resourceDropTables\": {\r\n        \"_desc\": \"资源掉落表，每张表结构 { mode, table }。mode: pick_one(权重抽1) / roll_all(每种独立判定) / pick_first(顺序首个命中即停)。被 monster-db.json > loot > entries[].resourceDropTable 引用。table中的数值在pick_one模式下为权重(整数)，在roll_all/pick_first模式下为概率(0~1)。table中应包含 \\\"none\\\" key，默认值为0(不掉落)，需要时可调高表示\\\"什么都不掉\\\"的概率/权重。\",\r\n        \"_tables\": {\r\n          \"resource_drop_monster_default\": \"普通小怪 (threat<3) 掉落 — pick_one\",\r\n          \"resource_drop_monster_heavy\": \"重型小怪 (threat≥3) 掉落 — pick_one\",\r\n          \"resource_drop_boss\": \"Tank怪/Boss怪击杀掉落 — pick_one\",\r\n          \"resource_drop_room_clear_default\": \"普通/商店/起始房间清空奖励 — pick_one\",\r\n          \"resource_drop_room_clear_boss\": \"Boss房间清空奖励 — pick_one(空table)\",\r\n          \"resource_drop_room_clear_treasure\": \"宝藏房间清空奖励 — pick_one(空table)\",\r\n          \"resource_drop_terrain_rock\": \"破坏岩石掉落 — pick_one\",\r\n          \"resource_drop_terrain_poop\": \"破坏便便掉落 — pick_one\",\r\n          \"resource_drop_chest_normal\": \"普通宝箱额外资源 — pick_one\",\r\n          \"resource_drop_chest_golden\": \"金宝箱(需钥匙)额外资源 — pick_one\",\r\n          \"resource_drop_shop_stock\": \"商店商品生成 — pick_one\"\r\n        }\r\n      },\r\n      \"_limits\": {\r\n        \"_desc\": \"玩家资源上限\",\r\n        \"coinMax\": \"金币上限\",\r\n        \"bombMax\": \"炸弹上限\",\r\n        \"keyMax\": \"钥匙上限\"\r\n      }\r\n    }\r\n  },\r\n\r\n  \"resources\": {\r\n    \"coin_gold\": {\r\n      \"type\": \"coin\",\r\n      \"id\": \"coin_gold\",\r\n      \"name\": \"金币(1元)\",\r\n      \"icon\": \"$\",\r\n      \"value\": 1,\r\n      \"color\": \"#ffd700\",\r\n      \"desc\": \"金色硬币，价值1元\"\r\n    },\r\n    \"coin_black\": {\r\n      \"type\": \"coin\",\r\n      \"id\": \"coin_black\",\r\n      \"name\": \"黑币(5元)\",\r\n      \"icon\": \"$\",\r\n      \"value\": 5,\r\n      \"color\": \"#555555\",\r\n      \"desc\": \"黑色硬币，价值5元\"\r\n    },\r\n    \"coin_silver\": {\r\n      \"type\": \"coin\",\r\n      \"id\": \"coin_silver\",\r\n      \"name\": \"银币(10元)\",\r\n      \"icon\": \"$\",\r\n      \"value\": 10,\r\n      \"color\": \"#e8e8e8\",\r\n      \"desc\": \"银白色硬币，价值10元\"\r\n    },\r\n\r\n    \"bomb_single\": {\r\n      \"type\": \"bomb\",\r\n      \"id\": \"bomb_single\",\r\n      \"name\": \"炸弹\",\r\n      \"icon\": \"@\",\r\n      \"amount\": 1,\r\n      \"desc\": \"可放置的炸弹，爆炸造成50伤害\",\r\n      \"damage\": 50,\r\n      \"radius\": 2,\r\n      \"detonateTurns\": 3,\r\n      \"price\": 5\r\n    },\r\n    \"bomb_double\": {\r\n      \"type\": \"bomb\",\r\n      \"id\": \"bomb_double\",\r\n      \"name\": \"双炸弹\",\r\n      \"icon\": \"@@\",\r\n      \"amount\": 2,\r\n      \"desc\": \"两个炸弹，爆炸造成50伤害\",\r\n      \"damage\": 50,\r\n      \"radius\": 2,\r\n      \"detonateTurns\": 3,\r\n      \"price\": 5\r\n    },\r\n\r\n    \"heart_half\": {\r\n      \"type\": \"heart\",\r\n      \"id\": \"heart_half\",\r\n      \"name\": \"半颗红心\",\r\n      \"icon\": \"v\",\r\n      \"heal\": 0.5,\r\n      \"color\": \"#ff4444\",\r\n      \"desc\": \"回复半颗红心生命值\",\r\n      \"price\": 5\r\n    },\r\n    \"heart_full\": {\r\n      \"type\": \"heart\",\r\n      \"id\": \"heart_full\",\r\n      \"name\": \"一颗红心\",\r\n      \"icon\": \"V\",\r\n      \"heal\": 1,\r\n      \"color\": \"#ff3333\",\r\n      \"desc\": \"回复一颗红心生命值\",\r\n      \"price\": 5\r\n    },\r\n    \"heart_double\": {\r\n      \"type\": \"heart\",\r\n      \"id\": \"heart_double\",\r\n      \"name\": \"两颗红心\",\r\n      \"icon\": \"W\",\r\n      \"heal\": 2,\r\n      \"color\": \"#ff2222\",\r\n      \"desc\": \"回复两颗红心生命值\",\r\n      \"price\": 5\r\n    },\r\n\r\n    \"blue_heart_half\": {\r\n      \"type\": \"blue_heart\",\r\n      \"id\": \"blue_heart_half\",\r\n      \"name\": \"半颗蓝心\",\r\n      \"icon\": \"b\",\r\n      \"amount\": 0.5,\r\n      \"color\": \"#4488ff\",\r\n      \"desc\": \"获得半颗临时蓝心，受伤优先扣除\",\r\n      \"price\": 5\r\n    },\r\n    \"blue_heart_full\": {\r\n      \"type\": \"blue_heart\",\r\n      \"id\": \"blue_heart_full\",\r\n      \"name\": \"一颗蓝心\",\r\n      \"icon\": \"B\",\r\n      \"amount\": 1,\r\n      \"color\": \"#3366ff\",\r\n      \"desc\": \"获得一颗临时蓝心，受伤优先扣除\",\r\n      \"price\": 5\r\n    },\r\n    \"blue_heart_double\": {\r\n      \"type\": \"blue_heart\",\r\n      \"id\": \"blue_heart_double\",\r\n      \"name\": \"两颗蓝心\",\r\n      \"icon\": \"8\",\r\n      \"amount\": 2,\r\n      \"color\": \"#2255ff\",\r\n      \"desc\": \"获得两颗临时蓝心，受伤优先扣除\",\r\n      \"price\": 5\r\n    },\r\n\r\n    \"chest_normal\": {\r\n      \"type\": \"chest\",\r\n      \"id\": \"chest_normal\",\r\n      \"name\": \"宝箱\",\r\n      \"icon\": \"c\",\r\n      \"locked\": false,\r\n      \"color\": \"#aa8855\",\r\n      \"resourceDropTable\": \"resource_drop_chest_normal\",\r\n      \"desc\": \"碰触打开，获得随机资源，有概率掉落道具\",\r\n      \"loot\": {\r\n        \"rounds\": [\r\n          {\r\n            \"mode\": \"pick_first\",\r\n            \"_comment\": \"先判断是否掉道具(35%)，命中则停；否则随机掉1~4个资源\",\r\n            \"entries\": [\r\n              { \"type\": \"item\", \"itemDropTable\": \"item_drop_chest_normal\", \"rate\": 0.35,\r\n                \"_desc\": \"35%概率掉1个道具，命中后不再继续\" },\r\n              { \"type\": \"resource\", \"rate\": 1.0,\r\n                \"resourceDropTable\": \"resource_drop_chest_normal\", \"minDrop\": 1, \"maxDrop\": 4,\r\n                \"_desc\": \"没掉道具 → 从resource_drop_chest_normal表随机抽1~4次资源(每次独立pick_one)\" }\r\n            ]\r\n          }\r\n        ]\r\n      }\r\n    },\r\n    \"chest_golden\": {\r\n      \"type\": \"chest\",\r\n      \"id\": \"chest_golden\",\r\n      \"name\": \"上锁金宝箱\",\r\n      \"icon\": \"C\",\r\n      \"locked\": true,\r\n      \"color\": \"#ffcc44\",\r\n      \"resourceDropTable\": \"resource_drop_chest_golden\",\r\n      \"desc\": \"需要1把钥匙才能打开，获得随机资源，有概率掉落道具\",\r\n      \"loot\": {\r\n        \"rounds\": [\r\n          {\r\n            \"mode\": \"pick_first\",\r\n            \"_comment\": \"先判断是否掉道具(50%)，命中则停；否则随机掉1~4个资源\",\r\n            \"entries\": [\r\n              { \"type\": \"item\", \"itemDropTable\": \"item_drop_chest_golden\", \"rate\": 0.50,\r\n                \"_desc\": \"50%概率掉1个道具，命中后不再继续\" },\r\n              { \"type\": \"resource\", \"rate\": 1.0,\r\n                \"resourceDropTable\": \"resource_drop_chest_golden\", \"minDrop\": 1, \"maxDrop\": 4,\r\n                \"_desc\": \"没掉道具 → 从resource_drop_chest_golden表随机抽1~4次资源(每次独立pick_one)\" }\r\n            ]\r\n          }\r\n        ]\r\n      }\r\n    },\r\n\r\n    \"key_single\": {\r\n      \"type\": \"key\",\r\n      \"id\": \"key_single\",\r\n      \"name\": \"钥匙\",\r\n      \"icon\": \"k\",\r\n      \"amount\": 1,\r\n      \"color\": \"#cccc88\",\r\n      \"desc\": \"用来打开上锁的门或宝箱\",\r\n      \"price\": 5\r\n    },\r\n    \"key_double\": {\r\n      \"type\": \"key\",\r\n      \"id\": \"key_double\",\r\n      \"name\": \"双钥匙\",\r\n      \"icon\": \"K\",\r\n      \"amount\": 2,\r\n      \"color\": \"#ddaa44\",\r\n      \"desc\": \"两把钥匙，用来打开上锁的门或宝箱\",\r\n      \"price\": 5\r\n    }\r\n  },\r\n\r\n  \"_limits\": {\r\n    \"coinMax\": 99,\r\n    \"bombMax\": 99,\r\n    \"keyMax\": 99\r\n  },\r\n\r\n  \"resourceDropTables\": {\r\n    \"resource_drop_monster_default\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"普通小怪(威胁<3)掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            780,\r\n        \"coin_gold\":       60,\r\n        \"coin_black\":      30,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     30,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      60,\r\n        \"heart_full\":      20,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      20,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_monster_heavy\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"重型小怪(威胁≥3)掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            780,\r\n        \"coin_gold\":       50,\r\n        \"coin_black\":      30,\r\n        \"coin_silver\":     10,\r\n        \"bomb_single\":     20,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      50,\r\n        \"heart_full\":      20,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 20,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      20,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_boss\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"蓄力魔像类坦克怪掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            820,\r\n        \"coin_gold\":       50,\r\n        \"coin_black\":      30,\r\n        \"coin_silver\":     20,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     10,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      40,\r\n        \"heart_double\":    10,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 10,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      0,\r\n        \"key_double\":      10\r\n      }\r\n    },\r\n\r\n    \"resource_drop_room_clear_default\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"普通/商店/起始房间清空奖励 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            570,\r\n        \"coin_gold\":       120,\r\n        \"coin_black\":      80,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     50,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      120,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      60,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_room_clear_boss\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"Boss房间清空奖励 — 全0(不掉落资源)，需要时改数值即可\",\r\n      \"table\": {\r\n        \"none\":            1000,\r\n        \"coin_gold\":       0,\r\n        \"coin_black\":      0,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      0,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_room_clear_treasure\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"宝藏房间清空奖励 — 全0(不掉落资源)，需要时改数值即可\",\r\n      \"table\": {\r\n        \"none\":            1000,\r\n        \"coin_gold\":       0,\r\n        \"coin_black\":      0,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      0,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n\r\n    \"resource_drop_terrain_rock\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"破坏岩石掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            965,\r\n        \"coin_gold\":       10,\r\n        \"coin_black\":      5,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     5,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      10,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      5,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_terrain_poop\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"破坏便便掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            850,\r\n        \"coin_gold\":       50,\r\n        \"coin_black\":      0,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      40,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 30,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      30,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n\r\n    \"resource_drop_chest_normal\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"打开普通宝箱额外获得的1种资源\",\r\n      \"table\": {\r\n        \"none\":            0,\r\n        \"coin_gold\":       100,\r\n        \"coin_black\":      50,\r\n        \"coin_silver\":     12,\r\n        \"bomb_single\":     30,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      40,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 25,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      25,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_chest_golden\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"打开金宝箱额外获得的1种资源\",\r\n      \"table\": {\r\n        \"none\":            0,\r\n        \"coin_gold\":       100,\r\n        \"coin_black\":      80,\r\n        \"coin_silver\":     100,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     35,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    50,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 40,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      0,\r\n        \"key_double\":      30\r\n      }\r\n    },\r\n\r\n    \"resource_drop_shop_stock\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"商店商品生成 — 按权重抽1种资源，rollShopSlots循环抽3次不重复\",\r\n      \"table\": {\r\n        \"none\":            695,\r\n        \"coin_gold\":       0,\r\n        \"coin_black\":      0,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     40,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      60,\r\n        \"heart_full\":      80,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 40,\r\n        \"blue_heart_full\": 50,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      35,\r\n        \"key_double\":      0\r\n      }\r\n    }\r\n  }\r\n}\r\n"; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })();
+    const r = await (async () => { const d = "{\r\n  \"_schema\": {\r\n    \"_description\": \"资源数据库 — 金币、炸弹、红心、蓝心、宝箱、钥匙等可拾取资源的定义与掉落配置\",\r\n    \"_fields\": {\r\n      \"resources.*.type\": {\r\n        \"_values\": [\"coin\", \"bomb\", \"heart\", \"blue_heart\", \"chest\", \"key\"],\r\n        \"_desc\": \"资源类型\"\r\n      },\r\n      \"resources.*.price\": {\r\n        \"_desc\": \"商店售价（金币），非coin/chest类型默认为5\",\r\n        \"_type\": \"number\"\r\n      },\r\n      \"resourceDropTables\": {\r\n        \"_desc\": \"资源掉落表，每张表结构 { mode, table }。mode: pick_one(权重抽1) / roll_all(每种独立判定) / pick_first(顺序首个命中即停)。被 monster-db.json \u003e loot \u003e entries[].resourceDropTable 引用。table中的数值在pick_one模式下为权重(整数)，在roll_all/pick_first模式下为概率(0~1)。table中应包含 \\\"none\\\" key，默认值为0(不掉落)，需要时可调高表示\\\"什么都不掉\\\"的概率/权重。\",\r\n        \"_tables\": {\r\n          \"resource_drop_monster_default\": \"普通小怪 (threat\u003c3) 掉落 — pick_one\",\r\n          \"resource_drop_monster_heavy\": \"重型小怪 (threat≥3) 掉落 — pick_one\",\r\n          \"resource_drop_boss\": \"Tank怪/Boss怪击杀掉落 — pick_one\",\r\n          \"resource_drop_room_clear_default\": \"普通/商店/起始房间清空奖励 — pick_one\",\r\n          \"resource_drop_room_clear_boss\": \"Boss房间清空奖励 — pick_one(空table)\",\r\n          \"resource_drop_room_clear_treasure\": \"宝藏房间清空奖励 — pick_one(空table)\",\r\n          \"resource_drop_terrain_rock\": \"破坏岩石掉落 — pick_one\",\r\n          \"resource_drop_terrain_poop\": \"破坏便便掉落 — pick_one\",\r\n          \"resource_drop_chest_normal\": \"普通宝箱额外资源 — pick_one\",\r\n          \"resource_drop_chest_golden\": \"金宝箱(需钥匙)额外资源 — pick_one\",\r\n          \"resource_drop_shop_stock\": \"商店商品生成 — pick_one\"\r\n        }\r\n      },\r\n      \"_limits\": {\r\n        \"_desc\": \"玩家资源上限\",\r\n        \"coinMax\": \"金币上限\",\r\n        \"bombMax\": \"炸弹上限\",\r\n        \"keyMax\": \"钥匙上限\"\r\n      }\r\n    }\r\n  },\r\n\r\n  \"resources\": {\r\n    \"coin_gold\": {\r\n      \"type\": \"coin\",\r\n      \"id\": \"coin_gold\",\r\n      \"name\": \"金币(1元)\",\r\n      \"icon\": \"$\",\r\n      \"value\": 1,\r\n      \"color\": \"#ffd700\",\r\n      \"desc\": \"金色硬币，价值1元\"\r\n    },\r\n    \"coin_black\": {\r\n      \"type\": \"coin\",\r\n      \"id\": \"coin_black\",\r\n      \"name\": \"黑币(5元)\",\r\n      \"icon\": \"$\",\r\n      \"value\": 5,\r\n      \"color\": \"#555555\",\r\n      \"desc\": \"黑色硬币，价值5元\"\r\n    },\r\n    \"coin_silver\": {\r\n      \"type\": \"coin\",\r\n      \"id\": \"coin_silver\",\r\n      \"name\": \"银币(10元)\",\r\n      \"icon\": \"$\",\r\n      \"value\": 10,\r\n      \"color\": \"#e8e8e8\",\r\n      \"desc\": \"银白色硬币，价值10元\"\r\n    },\r\n\r\n    \"bomb_single\": {\r\n      \"type\": \"bomb\",\r\n      \"id\": \"bomb_single\",\r\n      \"name\": \"炸弹\",\r\n      \"icon\": \"@\",\r\n      \"amount\": 1,\r\n      \"desc\": \"可放置的炸弹，爆炸造成50伤害\",\r\n      \"damage\": 50,\r\n      \"radius\": 2,\r\n      \"detonateTurns\": 3,\r\n      \"price\": 5\r\n    },\r\n    \"bomb_double\": {\r\n      \"type\": \"bomb\",\r\n      \"id\": \"bomb_double\",\r\n      \"name\": \"双炸弹\",\r\n      \"icon\": \"@@\",\r\n      \"amount\": 2,\r\n      \"desc\": \"两个炸弹，爆炸造成50伤害\",\r\n      \"damage\": 50,\r\n      \"radius\": 2,\r\n      \"detonateTurns\": 3,\r\n      \"price\": 5\r\n    },\r\n\r\n    \"heart_half\": {\r\n      \"type\": \"heart\",\r\n      \"id\": \"heart_half\",\r\n      \"name\": \"半颗红心\",\r\n      \"icon\": \"v\",\r\n      \"heal\": 0.5,\r\n      \"color\": \"#ff4444\",\r\n      \"desc\": \"回复半颗红心生命值\",\r\n      \"price\": 5\r\n    },\r\n    \"heart_full\": {\r\n      \"type\": \"heart\",\r\n      \"id\": \"heart_full\",\r\n      \"name\": \"一颗红心\",\r\n      \"icon\": \"V\",\r\n      \"heal\": 1,\r\n      \"color\": \"#ff3333\",\r\n      \"desc\": \"回复一颗红心生命值\",\r\n      \"price\": 5\r\n    },\r\n    \"heart_double\": {\r\n      \"type\": \"heart\",\r\n      \"id\": \"heart_double\",\r\n      \"name\": \"两颗红心\",\r\n      \"icon\": \"W\",\r\n      \"heal\": 2,\r\n      \"color\": \"#ff2222\",\r\n      \"desc\": \"回复两颗红心生命值\",\r\n      \"price\": 5\r\n    },\r\n\r\n    \"blue_heart_half\": {\r\n      \"type\": \"blue_heart\",\r\n      \"id\": \"blue_heart_half\",\r\n      \"name\": \"半颗蓝心\",\r\n      \"icon\": \"b\",\r\n      \"amount\": 0.5,\r\n      \"color\": \"#4488ff\",\r\n      \"desc\": \"获得半颗临时蓝心，受伤优先扣除\",\r\n      \"price\": 5\r\n    },\r\n    \"blue_heart_full\": {\r\n      \"type\": \"blue_heart\",\r\n      \"id\": \"blue_heart_full\",\r\n      \"name\": \"一颗蓝心\",\r\n      \"icon\": \"B\",\r\n      \"amount\": 1,\r\n      \"color\": \"#3366ff\",\r\n      \"desc\": \"获得一颗临时蓝心，受伤优先扣除\",\r\n      \"price\": 5\r\n    },\r\n    \"blue_heart_double\": {\r\n      \"type\": \"blue_heart\",\r\n      \"id\": \"blue_heart_double\",\r\n      \"name\": \"两颗蓝心\",\r\n      \"icon\": \"8\",\r\n      \"amount\": 2,\r\n      \"color\": \"#2255ff\",\r\n      \"desc\": \"获得两颗临时蓝心，受伤优先扣除\",\r\n      \"price\": 5\r\n    },\r\n\r\n    \"chest_normal\": {\r\n      \"type\": \"chest\",\r\n      \"id\": \"chest_normal\",\r\n      \"name\": \"宝箱\",\r\n      \"icon\": \"c\",\r\n      \"locked\": false,\r\n      \"color\": \"#aa8855\",\r\n      \"resourceDropTable\": \"resource_drop_chest_normal\",\r\n      \"desc\": \"碰触打开，获得随机资源，有概率掉落道具\",\r\n      \"loot\": {\r\n        \"rounds\": [\r\n          {\r\n            \"mode\": \"pick_first\",\r\n            \"_comment\": \"先判断是否掉道具(35%)，命中则停；否则随机掉1~4个资源\",\r\n            \"entries\": [\r\n              { \"type\": \"item\", \"itemDropTable\": \"item_drop_chest_normal\", \"rate\": 0.35,\r\n                \"_desc\": \"35%概率掉1个道具，命中后不再继续\" },\r\n              { \"type\": \"resource\", \"rate\": 1.0,\r\n                \"resourceDropTable\": \"resource_drop_chest_normal\", \"minDrop\": 1, \"maxDrop\": 4,\r\n                \"_desc\": \"没掉道具 → 从resource_drop_chest_normal表随机抽1~4次资源(每次独立pick_one)\" }\r\n            ]\r\n          }\r\n        ]\r\n      }\r\n    },\r\n    \"chest_golden\": {\r\n      \"type\": \"chest\",\r\n      \"id\": \"chest_golden\",\r\n      \"name\": \"上锁金宝箱\",\r\n      \"icon\": \"C\",\r\n      \"locked\": true,\r\n      \"color\": \"#ffcc44\",\r\n      \"resourceDropTable\": \"resource_drop_chest_golden\",\r\n      \"desc\": \"需要1把钥匙才能打开，获得随机资源，有概率掉落道具\",\r\n      \"loot\": {\r\n        \"rounds\": [\r\n          {\r\n            \"mode\": \"pick_first\",\r\n            \"_comment\": \"先判断是否掉道具(50%)，命中则停；否则随机掉1~4个资源\",\r\n            \"entries\": [\r\n              { \"type\": \"item\", \"itemDropTable\": \"item_drop_chest_golden\", \"rate\": 0.50,\r\n                \"_desc\": \"50%概率掉1个道具，命中后不再继续\" },\r\n              { \"type\": \"resource\", \"rate\": 1.0,\r\n                \"resourceDropTable\": \"resource_drop_chest_golden\", \"minDrop\": 1, \"maxDrop\": 4,\r\n                \"_desc\": \"没掉道具 → 从resource_drop_chest_golden表随机抽1~4次资源(每次独立pick_one)\" }\r\n            ]\r\n          }\r\n        ]\r\n      }\r\n    },\r\n\r\n    \"key_single\": {\r\n      \"type\": \"key\",\r\n      \"id\": \"key_single\",\r\n      \"name\": \"钥匙\",\r\n      \"icon\": \"k\",\r\n      \"amount\": 1,\r\n      \"color\": \"#cccc88\",\r\n      \"desc\": \"用来打开上锁的门或宝箱\",\r\n      \"price\": 5\r\n    },\r\n    \"key_double\": {\r\n      \"type\": \"key\",\r\n      \"id\": \"key_double\",\r\n      \"name\": \"双钥匙\",\r\n      \"icon\": \"K\",\r\n      \"amount\": 2,\r\n      \"color\": \"#ddaa44\",\r\n      \"desc\": \"两把钥匙，用来打开上锁的门或宝箱\",\r\n      \"price\": 5\r\n    }\r\n  },\r\n\r\n  \"_limits\": {\r\n    \"coinMax\": 99,\r\n    \"bombMax\": 99,\r\n    \"keyMax\": 99\r\n  },\r\n\r\n  \"resourceDropTables\": {\r\n    \"resource_drop_monster_default\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"普通小怪(威胁\u003c3)掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            780,\r\n        \"coin_gold\":       60,\r\n        \"coin_black\":      30,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     30,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      60,\r\n        \"heart_full\":      20,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      20,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_monster_heavy\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"重型小怪(威胁≥3)掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            780,\r\n        \"coin_gold\":       50,\r\n        \"coin_black\":      30,\r\n        \"coin_silver\":     10,\r\n        \"bomb_single\":     20,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      50,\r\n        \"heart_full\":      20,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 20,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      20,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_boss\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"蓄力魔像类坦克怪掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            820,\r\n        \"coin_gold\":       50,\r\n        \"coin_black\":      30,\r\n        \"coin_silver\":     20,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     10,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      40,\r\n        \"heart_double\":    10,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 10,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      0,\r\n        \"key_double\":      10\r\n      }\r\n    },\r\n\r\n    \"resource_drop_room_clear_default\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"普通/商店/起始房间清空奖励 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            570,\r\n        \"coin_gold\":       120,\r\n        \"coin_black\":      80,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     50,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      120,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      60,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_room_clear_boss\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"Boss房间清空奖励 — 全0(不掉落资源)，需要时改数值即可\",\r\n      \"table\": {\r\n        \"none\":            1000,\r\n        \"coin_gold\":       0,\r\n        \"coin_black\":      0,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      0,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_room_clear_treasure\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"宝藏房间清空奖励 — 全0(不掉落资源)，需要时改数值即可\",\r\n      \"table\": {\r\n        \"none\":            1000,\r\n        \"coin_gold\":       0,\r\n        \"coin_black\":      0,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      0,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n\r\n    \"resource_drop_terrain_rock\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"破坏岩石掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            965,\r\n        \"coin_gold\":       10,\r\n        \"coin_black\":      5,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     5,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      10,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      5,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_terrain_poop\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"破坏便便掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            850,\r\n        \"coin_gold\":       50,\r\n        \"coin_black\":      0,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      40,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 30,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      30,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n\r\n    \"resource_drop_chest_normal\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"打开普通宝箱额外获得的1种资源\",\r\n      \"table\": {\r\n        \"none\":            0,\r\n        \"coin_gold\":       100,\r\n        \"coin_black\":      50,\r\n        \"coin_silver\":     12,\r\n        \"bomb_single\":     30,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      40,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 25,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      25,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_chest_golden\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"打开金宝箱额外获得的1种资源\",\r\n      \"table\": {\r\n        \"none\":            0,\r\n        \"coin_gold\":       100,\r\n        \"coin_black\":      80,\r\n        \"coin_silver\":     100,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     35,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    50,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 40,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      0,\r\n        \"key_double\":      30\r\n      }\r\n    },\r\n\r\n    \"resource_drop_shop_stock\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"商店商品生成 — 按权重抽1种资源，rollShopSlots循环抽3次不重复\",\r\n      \"table\": {\r\n        \"none\":            695,\r\n        \"coin_gold\":       0,\r\n        \"coin_black\":      0,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     40,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      60,\r\n        \"heart_full\":      80,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 40,\r\n        \"blue_heart_full\": 50,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      35,\r\n        \"key_double\":      0\r\n      }\r\n    }\r\n  }\r\n}\r\n"; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })();
     if (r.ok) {
       const data = await r.json();
       RESOURCE_DB = data.resources || {};
@@ -2267,7 +2535,15 @@ function restoreTurnSnapshot() {
     tileData = JSON.parse(JSON.stringify(s.tileData));
   }
   if (s.currentRoomGrid) {
-    currentRoomGrid = s.currentRoomGrid.map(col => [...col]);
+    // 原地写回，保持 currentRoomGrid 与 room.grid 是同一个数组引用
+    // （整体替换数组会让 room.grid 仍停留在"已破坏"状态，ESC 回溯等于失效）
+    const curRoom = currentFloor && currentFloor.rooms.find(r => r.id === currentRoomId);
+    if (curRoom && curRoom.grid) currentRoomGrid = curRoom.grid;
+    if (currentRoomGrid) {
+      for (let c = 0; c < COLS; c++) {
+        for (let r = 0; r < ROWS; r++) currentRoomGrid[c][r] = s.currentRoomGrid[c][r];
+      }
+    }
   }
   // 恢复炸弹
   bombs = (s.bombs || []).map(b => ({ id: b.id, col: b.col, row: b.row, timer: b.timer, roomId: b.roomId }));
@@ -2485,7 +2761,7 @@ function simulateFromCheckpoint(path) {
     }
   }
 
-  // --- 4. 最终位置 + M-AP (从 checkpoint MAP 扣减) + UI ---
+  // --- 4. 最终位置 + MP (从 checkpoint MAP 扣减) + UI ---
   player.col = finalPos.col; player.row = finalPos.row;
   turnState.mAP = checkpointMAP - (path.length - 1);
   updateHearts();
@@ -2517,6 +2793,7 @@ function resetTurnAP() {
     const onMonster = monsters.find(m => !m.jumperVanished && isInMonsterFootprint(m, player.col, player.row) && m.hp > 0);
     if (onMonster) damagePlayer(onMonster.damage || 1);
   }
+  checkSpikeUnderPlayer();   // 回合开始时站在尖刺上也要结算
   updateFlyingEyeExclaim();  // 回合开始时更新浮游眼感叹号
   updateActionBar();
 }
@@ -3178,16 +3455,15 @@ const MAX_TOTAL_HEARTS = 12;
 
 // 计算当前总心数（红心 + 蓝心，向上取整）
 function totalHearts() {
-  return Math.ceil(playerStats.maxHp) + Math.ceil(playerResources.blueHearts);
+  // 红心是整数，蓝心可能是 0.5，按真实数值统计（不能用 Math.ceil，否则半心会被多算）
+  return playerStats.maxHp + (playerResources.blueHearts || 0);
 }
 
 // 尝试增加红心上限，可能替换蓝心
 function tryAddRedHeart() {
-  if (totalHearts() < MAX_TOTAL_HEARTS) {
-    // 没到上限，直接加
-    return true;
-  }
-  // 已到上限，检查是否有蓝心可以替换
+  // 还放得下 1 颗红心 → 直接加
+  if (totalHearts() + 1 <= MAX_TOTAL_HEARTS) return true;
+  // 已到上限：牺牲 1 颗蓝心换红心（红心优先）
   if (playerResources.blueHearts > 0) {
     playerResources.blueHearts = Math.max(0, playerResources.blueHearts - 1);
     return true;
@@ -3196,13 +3472,18 @@ function tryAddRedHeart() {
   return false;
 }
 
-// 尝试增加蓝心
-function tryAddBlueHeart(amount) {
-  if (totalHearts() < MAX_TOTAL_HEARTS) {
-    return true;
+// 尝试增加蓝心（按数量精确判定是否放得下，红心优先）
+function tryAddBlueHeart(amount = 1) {
+  return totalHearts() + amount <= MAX_TOTAL_HEARTS;
+}
+
+// 站在尖刺格且非无敌 → 掉血并进入无敌状态（无敌期内不重复结算）
+function checkSpikeUnderPlayer() {
+  if (!currentRoomGrid) return;
+  if (player.invincibleSteps > 0) return;
+  if (currentRoomGrid[player.col] && currentRoomGrid[player.col][player.row] === TILE.SPIKE) {
+    damagePlayer(1);
   }
-  // 已到上限，红心优先，不能获取蓝心
-  return false;
 }
 
 // ==================== 玩家受伤系统 ====================
@@ -3222,6 +3503,7 @@ function damagePlayer(amount) {
     playerStats.hp = Math.max(0, playerStats.hp - remaining);
   }
 
+  SFX.hurt();
   player.hitFlash = 0.12;
   player.shakeX = (Math.random() - 0.5) * 5;
   player.shakeY = (Math.random() - 0.5) * 4;
@@ -3246,6 +3528,7 @@ function triggerDeathScreen() {
   document.getElementById('stat-bombs').textContent = playerResources.bombs;
   document.getElementById('stat-keys').textContent = playerResources.keys;
   document.getElementById('stat-blue').textContent = playerResources.blueHearts;
+  SFX.death();
   document.getElementById('death-modal').classList.add('show');
 }
 
@@ -3258,6 +3541,7 @@ function triggerVictoryScreen() {
   document.getElementById('vstat-bombs').textContent = playerResources.bombs;
   document.getElementById('vstat-keys').textContent = playerResources.keys;
   document.getElementById('vstat-blue').textContent = playerResources.blueHearts;
+  SFX.victory();
   document.getElementById('victory-modal').classList.add('show');
 }
 
@@ -3283,67 +3567,6 @@ function spawnItemOnGrid(col, row, cfgId) {
   itemsOnGround.push(item);
   pickupHintTimer = 2.0; // 显示提示
   return item;
-}
-
-// 尝试拾取玩家脚下的道具
-function pickUpItems() {
-  // 在商店房间时，道具走购买逻辑
-  const room = currentFloor.rooms.find(r => r.id === currentRoomId);
-  if (room && room.type === 'shop' && room._shopSlots) {
-    const slot = room._shopSlots.find(s => s.col === player.col && s.row === player.row && !s.sold);
-    if (slot) {
-      tryBuyShopItem(player.col, player.row);
-      return false;
-    }
-  }
-
-  let picked = false;
-  for (let i = itemsOnGround.length - 1; i >= 0; i--) {
-    const it = itemsOnGround[i];
-    if (it.col === player.col && it.row === player.row) {
-      const cfg = ITEMS_DB[it.cfgId];
-      if (playerInventory.includes(it.cfgId)) continue; // 已拥有，跳过
-      applyItem(it.cfgId);
-      // 拾取特效
-      const pp = project(it.px, it.py);
-      for (let j = 0; j < 8; j++) {
-        particles.push({
-          x: it.px, y: it.py,
-          vx: (Math.random() - 0.5) * 80,
-          vy: (Math.random() - 0.5) * 80 - 30,
-          life: 0.4 + Math.random() * 0.3,
-          maxLife: 0.7,
-          size: 2 + Math.random() * 2,
-          color: cfg.quality === 'legendary' ? '#ffcc44' : cfg.quality === 'rare' ? '#88ccff' : '#aacccc',
-        });
-      }
-      // 飘字
-      damageNumbers.push({
-        x: it.px, y: it.py - 8,
-        text: '＋' + cfg.name,
-        life: 1.2, maxLife: 1.2,
-        vy: -40 - Math.random() * 20,
-        vx: 0,
-      });
-      itemsOnGround.splice(i, 1);
-      picked = true;
-    }
-  }
-  if (picked) {
-    updateItemBar();
-    // 拾取道具后同步AP上限（recalcAllStats已更新playerStats）
-    turnState.maxMAP = Math.floor(playerStats.moveSpeed);
-    turnState.maxAAP = Math.floor(playerStats.fireRate);
-    turnState.mAP = Math.min(turnState.mAP, turnState.maxMAP);
-    turnState.aAP = Math.min(turnState.aAP, turnState.maxAAP);
-    updateUI();
-    buildHearts(playerStats.maxHp);
-    buildBlueHearts();
-    buildApDots('ui-aap-row', turnState.maxAAP);
-    buildApDots('ui-map-row', turnState.maxMAP);
-    turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
-  }
-  return picked;
 }
 
 // ==================== 资源拾取系统 ====================
@@ -3426,6 +3649,7 @@ function handleResourcePickup(res) {
     vx: 0,
   });
 
+  SFX.pickupRes();
   updateHearts();
   updateResourceUI();
   updateUI();
@@ -3438,9 +3662,10 @@ function openChest(res) {
 
   // 上锁宝箱需要钥匙
   if (cfg.locked) {
-    if (playerResources.keys <= 0) return false; // 没钥匙打不开
+    if (playerResources.keys <= 0) { SFX.locked(); return false; } // 没钥匙打不开
     playerResources.keys--;
   }
+  SFX.chest();
 
   // === 如果配置了 loot 字段，走统一掉落系统（支持道具+资源混合掉落）===
   if (cfg.loot) {
@@ -3517,6 +3742,7 @@ function updatePlayerStatsUI() {
 function placeBomb(col, row) {
   if (playerResources.bombs <= 0) return;
   playerResources.bombs--;
+  SFX.bombPlace();
 
   const bomb = {
     id: ++bombIdCounter,
@@ -3577,6 +3803,7 @@ function detonateBomb(bomb) {
   const damageRadius = cfg.radius || 2;
 
   console.log(`💥 炸弹爆炸! (${cx},${cy}) 范围${damageRadius}`);
+  SFX.boom();
 
   // 爆炸粒子特效
   const bp = gridToPixel(cx, cy);
@@ -3697,6 +3924,7 @@ function applyItem(cfgId) {
 
   // 累计道具拾取记录（不受Esc回溯影响）
   itemsCollected.push(cfg.name);
+  SFX.pickupItem();
 
   // 记录改变前的HP百分比（防除零）
   const hpRatio = playerStats.maxHp > 0 ? playerStats.hp / playerStats.maxHp : 0;
@@ -3801,6 +4029,12 @@ function recalcAllStats() {
   playerStats.moveSpeed = Math.max(1, playerStats.moveSpeed);
   playerStats.range = Math.max(3, playerStats.range);
   playerStats.maxHp = Math.max(1, Math.min(MAX_TOTAL_HEARTS, playerStats.maxHp));
+  // 红+蓝总心数不得超过上限：超出部分优先削蓝心（红心优先）
+  const heartOverflow = playerStats.maxHp + playerResources.blueHearts - MAX_TOTAL_HEARTS;
+  if (heartOverflow > 0) {
+    playerResources.blueHearts = Math.max(0, playerResources.blueHearts - heartOverflow);
+  }
+  if (playerStats.hp > playerStats.maxHp) playerStats.hp = playerStats.maxHp;
 
   updatePlayerStatsUI(); // 同步攻击力/射程/运气到侧边栏
 }
@@ -3968,6 +4202,18 @@ function spawnShopGoods(room) {
   }
 }
 
+// 取商店某格未售出的槽位
+function getShopSlotAt(col, row) {
+  const room = currentFloor && currentFloor.rooms.find(r => r.id === currentRoomId);
+  if (!room || room.type !== 'shop' || !room._shopSlots) return null;
+  return room._shopSlots.find(s => s.col === col && s.row === row && !s.sold) || null;
+}
+
+// 判断某格是否为商店未售出的商品槽位（商店商品必须购买，禁止被通用拾取逻辑白拿）
+function isShopSlotCell(col, row) {
+  return !!getShopSlotAt(col, row);
+}
+
 // 玩家尝试购买商店商品（移动到时调用）
 function tryBuyShopItem(col, row) {
   const room = currentFloor.rooms.find(r => r.id === currentRoomId);
@@ -3981,6 +4227,7 @@ function tryBuyShopItem(col, row) {
 
   // 扣除金币
   playerResources.coins -= slot.price;
+  SFX.buy();
 
   // 获得商品
   if (slot.type === 'item') {
@@ -3998,6 +4245,17 @@ function tryBuyShopItem(col, row) {
   // 同步到房间持久存储
   if (room._groundItems) room._groundItems = itemsOnGround;
   if (room._groundResources) room._groundResources = resourcesOnGround;
+
+  // 购买后同步属性相关 UI（心形与 AP 上限可能因道具生效而变化）
+  turnState.maxMAP = Math.floor(playerStats.moveSpeed);
+  turnState.maxAAP = Math.floor(playerStats.fireRate);
+  turnState.mAP = Math.min(turnState.mAP, turnState.maxMAP);
+  turnState.aAP = Math.min(turnState.aAP, turnState.maxAAP);
+  updateItemBar();
+  buildHearts(playerStats.maxHp);
+  buildBlueHearts();
+  buildApDots('ui-aap-row', turnState.maxAAP);
+  buildApDots('ui-map-row', turnState.maxMAP);
 
   updateResourceUI();
   updateUI();
@@ -4776,14 +5034,21 @@ function updateMonsterTurn(dt) {
   if (!anyStepLeft && !dukeAnimating) { finishMonsterTurn(); return; }
 
   // 第二遍：应用移动 (已占用的格子不能再被其他怪物占据)
+  // 只把"本步不移动"的怪物当前格视为障碍：本步要走的怪物会腾出自己的格子，
+  // 否则后排怪物会被前排永远挡住（顺带让结算顺序确定，不依赖 monsters 数组生成顺序）
+  const movingIds = new Set(planned.map(p => p.monster.id));
   const occupied = new Set();
-  // 把玩家和静止怪物当前位置标记为占用(移动后腾出)，支持2×2
   for (const m of monsters) {
-    if (m.jumperVanished) continue;
+    if (m.jumperVanished || movingIds.has(m.id)) continue;
     for (const mc of monsterCells(m)) occupied.add(`${mc.col},${mc.row}`);
   }
 
-  // 先标记起始位置 (避免怪物踩到另一个怪物的起点)
+  // 移动顺序：离玩家越近越先（前排先占位），同距离按 id 稳定排序
+  planned.sort((a, b) => {
+    const da = Math.max(Math.abs(player.col - a.toCol), Math.abs(player.row - a.toRow));
+    const db = Math.max(Math.abs(player.col - b.toCol), Math.abs(player.row - b.toRow));
+    return da - db || a.monster.id - b.monster.id;
+  });
 
   for (const p of planned) {
     const m = p.monster;
@@ -4803,7 +5068,7 @@ function updateMonsterTurn(dt) {
       // 无论是否受伤，怪物都占据该格（与玩家共格）
       m.col = p.toCol;
       m.row = p.toRow;
-      occupied.add(key);
+      for (const mc of monsterCells(m)) occupied.add(`${mc.col},${mc.row}`);
       continue;
     }
 
@@ -4822,7 +5087,7 @@ function updateMonsterTurn(dt) {
     if (currentRoomGrid && currentRoomGrid[p.toCol][p.toRow] === TILE.SPIKE) {
       damageMonster(m, 5);
     }
-    occupied.add(key);
+    for (const mc of monsterCells(m)) occupied.add(`${mc.col},${mc.row}`);
   }
 
   monsterExecStepIdx++;
@@ -5263,7 +5528,7 @@ function drawPlayer() {
     ctx.restore();
   }
 
-  // A-AP 圆点已迁移到 DOM 覆盖层 (updateTextOverlay)
+  // AP 圆点已迁移到 DOM 覆盖层 (updateTextOverlay)
 }
 
 // --- 像素风子弹 ---
@@ -5474,14 +5739,17 @@ function drawItemsOnGround() {
       ctx.fill();
     }
 
-    // 拾取提示 (玩家站在道具格上时)
+    // 站在商店商品上但金币不足时的提示（普通道具踩上即自动拾取）
     if (it.col === player.col && it.row === player.row) {
-      const blink = 0.5 + 0.5 * Math.sin(performance.now() * 0.006);
-      ctx.globalAlpha = 0.5 + blink * 0.5;
-      ctx.fillStyle = '#ffcc44';
-      ctx.font = `${Math.max(5, Math.round(6 * s))}px sans-serif`;
-      ctx.fillText('F 拾取', cx, cy - size - Math.round(16 * s));
-      ctx.globalAlpha = 1;
+      const shopSlot = getShopSlotAt(it.col, it.row);
+      if (shopSlot && playerResources.coins < shopSlot.price) {
+        const blink = 0.5 + 0.5 * Math.sin(performance.now() * 0.006);
+        ctx.globalAlpha = 0.5 + blink * 0.5;
+        ctx.fillStyle = '#ee6644';
+        ctx.font = `${Math.max(5, Math.round(6 * s))}px sans-serif`;
+        ctx.fillText('金币不足', cx, cy - size - Math.round(16 * s));
+        ctx.globalAlpha = 1;
+      }
     }
 
     ctx.restore();
@@ -5624,6 +5892,7 @@ function render() {
   drawRewindEffect();       // Esc全重置时间倒流
   drawDebugOverlay();
   drawMinimap(); // 小地图
+  updateItemTooltip(); // 地面道具说明弹窗
 }
 
 // ==================== 怪物渲染 ====================
@@ -6419,7 +6688,7 @@ function updateActionBar() {
     const lockedTag = turnState.hasShot ? '<span style="color:#ee6644;">[已锁定]</span>' : '<span style="color:#88ccff;">[自由]</span>';
     const bombInfo = bombs.filter(b => b.roomId === currentRoomId).map(b => `💣${b.timer}`).join(' ');
     const bombPart = bombInfo ? `<span style="color:#ff8844;"> ${bombInfo}</span>` : '';
-    bar.innerHTML = `<span class="action-bar-placeholder">${lockedTag} M-AP:${turnState.mAP}/${turnState.maxMAP} A-AP:${turnState.aAP}/${turnState.maxAAP}${bombPart}</span>`;
+    bar.innerHTML = `<span class="action-bar-placeholder">${lockedTag} MP:${turnState.mAP}/${turnState.maxMAP} AP:${turnState.aAP}/${turnState.maxAAP}${bombPart}</span>`;
   } else {
     bar.innerHTML = '<span class="action-bar-placeholder">-</span>';
   }
@@ -6623,7 +6892,7 @@ function updateTextOverlay() {
   }
   for (let i = dmgIdx; i < existingDmgs.length; i++) existingDmgs[i].style.display = 'none';
 
-  // --- A-AP 圆点 (角色右上角，仅战斗模式) ---
+  // --- AP 圆点 (角色右上角，仅战斗模式) ---
   const aapEl = overlay.querySelector('.txt-aap') || (() => { const e = document.createElement('div'); e.className = 'txt-aap'; overlay.appendChild(e); return e; })();
   if (inCombat && turnState.phase === 'player_select') {
     const pp = project(player.px, player.py);
@@ -6715,6 +6984,7 @@ function updateMove(dt) {
 
 // ==================== 子弹系统 ====================
 function spawnBullet(dir, fromPx, fromPy) {
+  SFX.shoot();
   const vec = DIR_VEC[dir];
   bullets.push({
     x: fromPx, y: fromPy,
@@ -6759,6 +7029,7 @@ function bulletHitMonster(bx, by, bullet) {
 
 function damageMonster(m, dmg) {
   m.hp = Math.max(0, m.hp - dmg);
+  if (m.hp <= 0) SFX.kill(); else SFX.hit();
   // 受击闪烁 + 抖动
   m.hitFlash = 0.12;
   m.shakeX = (Math.random() - 0.5) * 4;
@@ -6794,7 +7065,7 @@ function damageMonster(m, dmg) {
     }
     updateRoomCombatState();
   } else if (turnState.phase === 'player_select') {
-    // 子弹命中但未击杀：更新 checkpoint 以反映怪物受击后 HP（A-AP 已在射击时扣除）
+    // 子弹命中但未击杀：更新 checkpoint 以反映怪物受击后 HP（AP 已在射击时扣除）
     saveCheckpoint();
   }
 }
@@ -7185,7 +7456,7 @@ function finishPlayerTurn() {
   damageNumbers = [];
   turnState.phase = 'monster_turn';
   document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">-</span>';
-  // 未消耗的M-AP计入无敌步数消耗
+  // 未消耗的MP计入无敌步数消耗
   if (player.invincibleSteps > 0 && turnState.mAP > 0) {
     player.invincibleSteps = Math.max(0, player.invincibleSteps - turnState.mAP);
   }
@@ -7195,7 +7466,7 @@ function finishPlayerTurn() {
 
 // ==================== 输入处理 ====================
 document.addEventListener('keydown', (e) => {
-  const actionKeys = ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','Escape','KeyC','KeyR','KeyF','KeyE'];
+  const actionKeys = ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','Escape','KeyC','KeyR','KeyE'];
   if (actionKeys.includes(e.code)) e.preventDefault();
 
   // ---- 弹窗期间：拦截 Space 触发对应按钮，拦截其他所有游戏操作键 ----
@@ -7223,8 +7494,9 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // ---- 场景过渡中禁止操作 ----
+  // ---- 场景过渡/楼层黑场中禁止操作 ----
   if(transition&&transition.active)return;
+  if(floorFadeBusy)return;
 
   // ---- 阶段：怪物回合禁止操作 ----
   if (turnState.phase === 'monster_turn') return;
@@ -7253,10 +7525,10 @@ document.addEventListener('keydown', (e) => {
           if(!turnState.reachableTiles.has(key))return;
 
           if (turnState.mAP > 0) {
-            // 正常移动：仅扣 M-AP，不碰 checkpoint
+            // 正常移动：仅扣 MP，不碰 checkpoint
             turnState.mAP--;
           } else {
-            // M-AP 耗尽兜底：从 checkpoint BFS 最短路径
+            // MP 耗尽兜底：从 checkpoint BFS 最短路径
             const cp = currentCheckpoint;
             if (!cp) return;
             const path = bfsShortestPath(cp.playerCol, cp.playerRow, nc, nr);
@@ -7285,13 +7557,17 @@ document.addEventListener('keydown', (e) => {
         if(!inCombat){
           // 探索模式：直接结算 + 自动拾取道具和资源
           if(player.invincibleSteps>0)player.invincibleSteps--;
-          if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.SPIKE){damagePlayer(1);}
+          checkSpikeUnderPlayer();
           autoPickupResources();
           // 自动拾取脚下道具
           let itemPickedExplore = false;
           for (let j = itemsOnGround.length - 1; j >= 0; j--) {
             const it = itemsOnGround[j];
             if (it.col === player.col && it.row === player.row) {
+              if (isShopSlotCell(it.col, it.row)) {
+                tryBuyShopItem(it.col, it.row); // 金币足够则自动购买
+                break;
+              }
               if (!playerInventory.includes(it.cfgId)) {
                 applyItem(it.cfgId);
                 itemsOnGround.splice(j, 1);
@@ -7312,6 +7588,10 @@ document.addEventListener('keydown', (e) => {
           for (let j = itemsOnGround.length - 1; j >= 0; j--) {
             const it = itemsOnGround[j];
             if (it.col === player.col && it.row === player.row) {
+              if (isShopSlotCell(it.col, it.row)) {
+                tryBuyShopItem(it.col, it.row); // 金币足够则自动购买
+                break;
+              }
               if (!playerInventory.includes(it.cfgId)) {
                 applyItem(it.cfgId);
                 itemsOnGround.splice(j, 1);
@@ -7341,10 +7621,11 @@ document.addEventListener('keydown', (e) => {
             if (om) damagePlayer(om.damage || 1);
           }
           if (player.invincibleSteps > 0) player.invincibleSteps--;
+          checkSpikeUnderPlayer();
         }
         if(currentRoomGrid&&currentRoomGrid[nc][nr]===TILE.LADDER){
           const nextF=currentFloor.floorNum+1;
-          if(allFloors[nextF]){enterFloor(nextF);return;}
+          if(allFloors[nextF]){fadeIntoFloor(nextF);return;}
           else if (nextF > 3) { triggerVictoryScreen(); return; }
         }
         updateActionBar();updateUI();
@@ -7407,6 +7688,11 @@ document.addEventListener('keydown', (e) => {
           turnState.mAP = turnState.maxMAP;
           turnState.aAP = turnState.maxAAP;
           turnState.hasShot = false;
+          // 属性回退后必须重建心形/AP 圆点 DOM（update* 只能改状态，不能增删元素）
+          buildHearts(playerStats.maxHp);
+          buildBlueHearts();
+          buildApDots('ui-aap-row', turnState.maxAAP);
+          buildApDots('ui-map-row', turnState.maxMAP);
           currentCheckpoint = null;
           turnState.phase = 'player_select';
           turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
@@ -7415,17 +7701,13 @@ document.addEventListener('keydown', (e) => {
           // 触发时间倒流动画
           rewindAnim.active = true;
           rewindAnim.timer = 0;
+          SFX.rewind();
           updateActionBar();
           updateUI();
         }
         return;
       }
 
-      case 'KeyF': {
-        // 拾取脚下道具
-        pickUpItems();
-        break;
-      }
       case 'KeyR': {
         resetGameToFloor1();
         showStartMenu();
@@ -7621,7 +7903,7 @@ function gameLoop(timestamp) {
 
 // ==================== 启动 ====================
 async function bootGame(){
-  // file:// protocol check removed for standalone build
+  // file protocol guard removed for standalone build
 
   await loadTemplates();
   await loadMonsterDB();    // 加载怪物数据库
@@ -7654,6 +7936,7 @@ function startGameFromMenu() {
   gameStarted = true;
   gameOver = false;
   document.getElementById('start-menu-modal').classList.remove('show');
+  if (currentFloor) showFloorBanner(`第 ${currentFloor.floorNum} 层`);
   lastTime = performance.now();
   // gameLoop 已经在跑了，这里重置时间基准避免 dt 过大
 }
@@ -7932,11 +8215,11 @@ document.getElementById('btn-retry-victory').addEventListener('click', () => {
 
 console.log('⚔ 以撒半回合制 Demo v3 — 道具+资源系统 已就绪');
 console.log('  WASD = 移动  |  ↑↓←→ = 射击  |  Space = 结束回合  |  Esc = 全重置');
-console.log('  E = 放置炸弹  |  F = 拾取道具  |  B = Boss房放梯子');
+console.log('  E = 放置炸弹  |  道具与资源踩上自动拾取（商店金币足够时自动购买）');
 console.log(`  房间: ${COLS}×${ROWS} 格子  |  射程: ${CFG.BULLET_MAX_DIST} 格`);
 console.log(`  道具库: ${ITEM_POOL_ALL.length} 个被动道具 (${ITEM_POOL_COMMON.length}C/${ITEM_POOL_RARE.length}R/${ITEM_POOL_LEGENDARY.length}L)`);
 console.log(`  资源库: ${Object.keys(RESOURCE_DB).length} 种资源 (金币/炸弹/红心/蓝心/宝箱/钥匙)`);
-console.log(`  A-AP=${playerStats.fireRate}  M-AP=${playerStats.moveSpeed}  HP=${playerStats.hp}/${playerStats.maxHp}`);
+console.log(`  AP=${playerStats.fireRate}  MP=${playerStats.moveSpeed}  HP=${playerStats.hp}/${playerStats.maxHp}`);
 </script>
 </body>
 </html>
