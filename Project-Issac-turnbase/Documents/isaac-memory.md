@@ -52,7 +52,7 @@
 - **[方案]** WASD即时移动本体 + ↑↓←→即时射击 + Esc全重置 → 快照系统 saveTurnSnapshot/restoreTurnSnapshot
 - 首次射击触发 checkpoint，刷新可移动范围
 - 回合起始位置保留 40% 透明度幽灵作视觉参考
-- **[属性调整]** 移速=3→M-AP=3，射速=3→A-AP=3，系数1，下限1
+- **[属性调整]** 移速=3→MP=3，射速=3→AP=3，系数1，下限1
 
 ### TILE系统 + 房间模板 + 地图编辑器
 - 定义 TILE 类型（FLOOR/ROCK/POOP/PIT/SPIKE/LADDER）
@@ -111,9 +111,9 @@
 
 ### 无敌系统统一 [当前方案]
 - **[决策]** 移除 invincibleTurns，战斗/探索统一使用 invincibleSteps = 移速×2
-- **[关键规则]** 战斗结束回合时未消耗 M-AP 计入无敌步数：invincibleSteps -= turnState.mAP（只读，不改变AP系统）
+- **[关键规则]** 战斗结束回合时未消耗 MP 计入无敌步数：invincibleSteps -= turnState.mAP（只读，不改变AP系统）
 - **[原因]** 战斗↔探索切换时无敌持续逻辑不一致
-- **[示例]** 移速=3 → 受伤后无敌6步。战斗中移动1步结束回合，剩余2 M-AP → 再减2步，无敌剩3步
+- **[示例]** 移速=3 → 受伤后无敌6步。战斗中移动1步结束回合，剩余2 MP → 再减2步，无敌剩3步
 
 ### 尖刺伤害修正 [当前方案]
 - 尖刺伤害定为：玩家 2 / 怪物 5
@@ -221,7 +221,7 @@
 - **[解决方案]** 创建 `<div id="text-overlay">` DOM 覆盖层，952×558px 绝对定位于 Canvas 上方，`pointer-events: none`
   - 怪物名 → `.txt-monster-name` (12px 微软雅黑，boss 红字)
   - 伤害飘字 → `.txt-damage` (14px Arial，透明度动画)
-  - A-AP 圆点 → `.txt-aap` (18px 圆形，用尽灰色空心)
+  - AP 圆点 → `.txt-aap` (18px 圆形，用尽灰色空心)
 - **[结果]** Canvas 文字绘制全部移除以避免干扰，字体清晰度完全由浏览器文本渲染保证
 - DOM 元素在 `updateTextOverlay()` 中每帧更新位置和状态，`drawDamageNumbers` 保留为桩函数
 
@@ -501,9 +501,9 @@
 
 ### 炸弹模式融合进战斗模式 [当前方案]
 - **[触发]** 用户要求炸弹模式不应独立存在，应融合进战斗模式作为特殊怪物。
-- **[旧方案]** 独立 `bombMode` 状态标志+独立 Space 分支处理+探索模式专属炸弹回合。炸弹模式下只有 M-AP 无法射击。
+- **[旧方案]** 独立 `bombMode` 状态标志+独立 Space 分支处理+探索模式专属炸弹回合。炸弹模式下只有 MP 无法射击。
 - **[新方案]** ①移除 `bombMode`/`bombModeTurnsFrom` 变量，炸弹即是战斗模式的一部分。②放置炸弹即进入 `inCombat=true`（含交叉剑动画），统一走战斗模式流程。③炸弹倒计时从 Space 处理移至 `startMonsterTurn()` 最开头（炸弹行动优先级高于所有怪物），在 `calcAllMonsterPaths()` 之前执行 `tickBombCountdown()`。④每个怪物回合炸弹计时-1，0时引爆。⑤`updateDoorsLocked()` 改为只判断怪物存活（`hasLivingMonsters`），不判断炸弹——有炸弹无怪物时门打开可自由出入。⑥`tryWalkIntoDoor()` 允许战斗模式（因炸弹）下通过已打开的门。⑦`finishTransition()` 重新进入房间时炸弹倒计时重置为3，并恢复战斗模式。⑧`finishMonsterTurn()` 结尾根据存活怪物+未引爆炸弹决定是否结束战斗。⑨`updateActionBar()` 统一在战斗模式下显示炸弹倒计时信息。
-- **[设计收益]** 炸弹不再是特殊模式，完美融入回合制战斗。炸弹房间可自由移动和射击（保留A-AP）。门锁逻辑只取决于怪物，炸弹不影响房间通行。
+- **[设计收益]** 炸弹不再是特殊模式，完美融入回合制战斗。炸弹房间可自由移动和射击（保留AP）。门锁逻辑只取决于怪物，炸弹不影响房间通行。
 
 ---
 
@@ -644,7 +644,7 @@
 - **[恢复内容]** 地形破坏（便便/岩石）、Boss 梯子放置、炸弹破坏的门、地面掉落物、商店槽位
 
 ### AP 圆点视觉修复 — buildApDots 与 updateApDots 执行顺序 [当前方案]
-- **[问题]** 按R键后 M-AP 和 A-AP 圆点视觉上没有正确显示（虽然值已正确重置）
+- **[问题]** 按R键后 MP 和 AP 圆点视觉上没有正确显示（虽然值已正确重置）
 - **[根因]** `resetGameToFloor1` 中 `updateUI()`（含 `updateApDots` 填充圆点）在第 978 行，`buildApDots`（重建圆点为 empty）在第 979 行。`buildApDots` 在 `updateApDots` 之后执行，把已填充的圆点全部重置为 empty
 - **[修复]** 将 `buildHearts`/`buildBlueHearts`/`buildApDots` 移到 `updateUI` 之前，让 `updateUI` 中的 `updateApDots` 在圆点重建后正确填充
 - **[额外加固]** 同时在 `clearInventory()` 后显式设置 `playerStats.moveSpeed = 3; playerStats.fireRate = 3;`，确保 `resetTurnAP()` 计算的基值正确
@@ -767,7 +767,7 @@
   3. Roguelike 构筑感偏弱（25种道具纯数值叠加，缺乏改变玩法的"质变"道具）
   4. 战斗模式中"最优解过于明显"（走到安全位置→射完子弹→结束回合，缺乏回合内真正决策分支）
 - **[用户纠错与补充]**
-  1. **M-AP 和 A-AP 是独立资源池**：互不共享上限，AI 错误表述"共享回合上限"被指正
+  1. **MP 和 AP 是独立资源池**：互不共享上限，AI 错误表述"共享回合上限"被指正
   2. **当前是 3 层不是 6 层**：`FLOOR_CONFIG` 定义 3 层，context.md 写 6 层是过期信息（已修正）
   3. **炸弹是 E 键不是 B 键**：context.md 操作键表写 B 键有误（已修正为 E 键）
   4. **金币只有商店一个消费出口**：当前原型中金币的"资源管理"乐趣实际不存在
@@ -779,4 +779,73 @@
   - 房间探索顺序：给玩家有限信息（门类型视觉线索）、创造顺序依赖（清房奖励影响后续）、风险-回报非对称信息
 - **[文档修正]** context.md 同步：楼层数 6→3（4处）、炸弹操作键 B→E
 
+---
+
+## 2026-10-28
+
+### 商店道具白嫖 → 自动购买 + 移除 F 键拾取
+
+- **[问题]** 探索模式踩到商店商品格时，通用拾取逻辑先命中，商品被直接白拿（不扣金币）
+- **[演进]** ①先加 `isShopSlotCell()` 判定，让通用拾取跳过商店槽位（商品必须购买）→ ②用户要求改为**走到商品格自动结算购买**：金币足够 → 扣款/获得/标记 `sold`/移除实体；不足 → 保持在地面并显示红色「金币不足」
+- **[移除 F 键]** 自动拾取后 F 键失去意义，删除 `pickUpItems()` 与 `KeyF` 分支。清理必须覆盖 5 处：`keydown` 分支 / `actionKeys` 白名单 / `#help-modal` 帮助弹窗 / 画布 `F 拾取` 提示 / 控制台日志
+- **[新增函数]** `getShopSlotAt(col,row)`（取未售出槽位）、`isShopSlotCell(col,row)`（判定是否为商品格）
+- **[UI 同步]** `tryBuyShopItem()` 成功后补 `updateItemBar/buildHearts/buildBlueHearts/buildApDots`，否则道具生效改变的心形与 AP 上限不会刷新
+
+### 掉落表命名修复（3 只怪物配置错误）
+
+- **[问题]** `crack_maw_iii` / `flying_eye_iii` 的 `itemDropTable` 仍是旧名 `common` / `ranged`，`charge_golem` 的 `resourceDropTable` 仍是 `resource_drop_boss`
+- **[根因]** 掉落表统一加前缀（`item_drop_*` / `resource_drop_*`）时只改了大部分条目，漏了这 3 处；查表失败会回退 `default` 表，表现为「几乎必掉道具」「表意图完全错位」
+- **[修复]** `common`→`item_drop_common`、`ranged`→`item_drop_ranged`、`resource_drop_boss`→`resource_drop_monster_heavy`
+
+### ESC 回溯地形失效 — 数组引用被整体替换
+
+- **[问题]** 打碎岩石/便便后按 Esc，地形没有恢复（仍处于已破坏状态）
+- **[根因]** `restoreTurnSnapshot()` 用 `currentRoomGrid = s.currentRoomGrid.map(...)` **整体替换**了数组，但 `room.grid` 仍指向旧数组且内容已被修改，回溯只影响局部变量
+- **[修复]** 取回 `room.grid` 作为 `currentRoomGrid`，再**逐格原地写回** `s.currentRoomGrid[c][r]`，保证 `currentRoomGrid === room.grid` 引用恒等
+- **[连带]** Esc 回溯后属性可能回退（道具失效），`update*` 系列只改状态不增删 DOM → 必须显式 `buildHearts/buildBlueHearts/buildApDots` 重建
+
+### 心数上限判定漏洞 — Math.ceil 把半心算成整心
+
+- **[问题]** 蓝心为 0.5 时仍被判为"放得下"，红/蓝总心数突破 `MAX_TOTAL_HEARTS`
+- **[根因]** `totalHearts()` 用 `Math.ceil(maxHp) + Math.ceil(blueHearts)`，半心被进 1
+- **[修复]** 改为 `playerStats.maxHp + (playerResources.blueHearts || 0)`（真实数值相加）；`tryAddRedHeart` 改为 `totalHearts() + 1 <= MAX` 才允许，满了靠削 1 颗蓝心腾位；`tryAddBlueHeart(amount=1)` 改为按数量精确判定；`recalcAllStats()` 补溢出削蓝心
+- **[原则]** 红心优先级恒高于蓝心
+
+### 尖刺结算统一 — 战斗中此前完全不判定
+
+- **[问题]** 战斗中移动经过/停在尖刺格不掉血，只有探索模式会掉
+- **[修复]** 抽出 `checkSpikeUnderPlayer()`（非无敌 + 格子为 SPIKE → `damagePlayer(1)`），三处统一调用：探索移动后、战斗移动后、**回合开始时**（站在尖刺上结束回合也要结算）
+- **[顺带]** 移除移动分支里内联的旧判空代码
+
+### 怪物移动占位修正 — 后排被前排永久堵死
+
+- **[问题]** 怪物排队移动时，后排怪物会被前排"当前格"挡住，导致部分怪物永远动不了
+- **[修复]** 三处改动：①只有**本步不移动**的怪物才把当前格视为障碍（`movingIds` 集合排除待移动者）；②移动顺序按「距玩家最近」优先，同距离按 `m.id` 稳定排序，不依赖 `monsters` 数组生成顺序；③2×2 怪物占位改用 `monsterCells(m)` 遍历**完整脚印**，不再只标记左上角
+
+### 新增音效系统（WebAudio 合成，零素材）
+
+- **[设计]** 不做音频文件，全部用振荡器实时合成：`const SFX = (() => {...})()` 自执行模块
+- **[实现]** `tone(key,freq,{to,dur,type,vol,throttle})` 单音（支持频率指数滑音）、`noise(dur,vol)` 爆炸噪声、同类音效 40ms 节流防叠爆
+- **[预设]** 16 个事件：shoot/hit/kill/hurt/pickupItem/pickupRes/chest/locked/bombPlace/boom/door/battle/rewind/floor/victory/death/buy
+- **[浏览器策略]** AudioContext 必须由用户手势创建 → 首次 `keydown`/`pointerdown` 时 `SFX.unlock()`
+- **[静音]** 顶栏 🔊 按钮 → `SFX.toggle()`，`muted` 全局短路
+
+### 难度与信息可读性：道具说明弹窗 / 楼层横幅 / 黑场过渡
+
+- **[道具弹窗]** `#item-tooltip`：距地上道具**切比雪夫距离 ≤3** 时显示名称/效果/商店价格；按键 `_tooltipKey`/`_tooltipPos` 做脏检查避免每帧重排 DOM；品质决定边框色
+- **[楼层横幅]** `#floor-banner`：进入楼层显示「第 X 层」，1.4s 后淡出
+- **[黑场]** `#floor-fade` + `fadeIntoFloor(n)`（0.18s 渐黑 → 200ms 后切层）+ `playFloorFade()`（瞬间全黑盖住切层瞬间 → 0.5s 渐现）。`floorFadeBusy` 期间屏蔽全部输入，防连踩梯子重复切层
+
+### 资源命名统一：A-AP → AP，M-AP → MP
+
+- **[决策]** 全文（代码注释 + 控制台日志 + 状态栏 + context/gdd/roommonster-plan/memory）统一为 **MP（移动点）/ AP（攻击点）**，废弃 `A-AP`/`M-AP` 复合写法
+- **[理由]** 双前缀叠字符（A-AP）在状态栏和圆点标签里辨识度低，且与"AP 行动点数系统"这一总称冲突
+- **[注意]** 只改显示与命名，`turnState.mAP`/`turnState.aAP`/`maxMAP`/`maxAAP` 等**字段名保持不变**，避免大范围重构风险
+
+### 打包版本重新生成（Node 不可用，改用 PowerShell）
+
+- **[背景]** 规范仍是「日常开发只维护源码版」，本次因用户要求分发才一次性重新生成
+- **[问题]** 环境无 Node → 无法直接跑 `build-pack.js`
+- **[做法]** 用 PowerShell 等价实现打包流程（移除 Google Fonts → 内联 7 个 JSON → 内联 22 个 PNG 为 base64 → 移除 `file://` 检测），产物 0.49 MB
+- **[校验]** 逐关键符号比对 pack 与 demo2（`checkSpikeUnderPlayer`/`isShopSlotCell`/`updateItemTooltip`/`showFloorBanner`/`fadeIntoFloor`/`SFX.toggle` 出现次数一致）确认无版本漂移
 
