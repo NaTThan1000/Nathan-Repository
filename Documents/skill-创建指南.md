@@ -85,25 +85,47 @@ Read all three documentation files in parallel:
 3. **Project Context** — `{project}/Documents/{project}-context.md`
    - Design document + technical quick-reference (game mechanics, architecture, constants, file inventory)
 
-File path mapping:
-- match3-rpg: `match3-rpg-project/Documents/match3-rpg-memory.md` and `match3-rpg-project/Documents/match3-rpg-context.md`
-- tarot-battle: `tarot-battle-project/Documents/tarot-battle-memory.md` and `tarot-battle-project/Documents/tarot-battle-context.md`
-- isaac-turnbase: `Project-Issac-turnbase/Documents/isaac-turnbase-memory.md` and `Project-Issac-turnbase/Documents/isaac-turnbase-context.md`
-- rockman: `Project-rockman/Documents/rockman-memory.md` and `Project-rockman/Documents/rockman-context.md`
+File path mapping (verify with `list_dir` when a path does not exist — some
+projects keep context docs in the project root and have no memory doc yet):
+- match3-rpg: `match3-rpg-project/match3-rpg-context.md`（暂无 memory 文档，目录下也没有 Documents/）
+- tarot-battle: `tarot-battle-project/tarot-battle-context.md`（暂无 memory 文档，目录下也没有 Documents/）
+- isaac-turnbase: `Project-Issac-turnbase/Documents/isaac-memory.md` 和 `Project-Issac-turnbase/Documents/isaac-turnbase-context.md`
+- rockman: `Project-rockman/Documents/rockman-memory.md` 和 `Project-rockman/Documents/rockman-context.md`
 
-### Step 3: Switch to the Correct Branch
+4. **Ordering check (mandatory, per `global-rules §2.8`)**
+   - After reading memory + context, confirm the date sections/tables are ordered
+     **new → old** (newest at the top)
+   - If a doc is ordered old → new, or its header still says "append at the end",
+     report it to the user and reorder it (do not silently follow the stale header
+     text)
+   - Never trust a project doc's own header ordering instruction over `global-rules §2.8`
 
-Switch to the feature branch corresponding to the identified project:
+### Step 3: Verify the Branch (switch only when actually needed)
 
-```
-git checkout dev/{project}
-```
-
-Then verify the branch:
+Do NOT blindly run `git checkout`. First verify the current branch **read-only**:
 
 ```
 git branch --show-current
 ```
+
+(If command execution is unavailable/rejected, read `.git/HEAD` instead — it
+contains `ref: refs/heads/<branch>`.)
+
+- If the current branch already **is** the project's feature branch → skip
+  switching entirely and just report it. Running `git checkout` on the branch you
+  are already on is pointless and counts as an unnecessary write operation.
+- Only when the current branch differs → switch:
+  `git checkout dev/{branch}` (branch names per the Step 1 table, e.g. `dev/tarot-update`)
+
+Then verify upstream tracking (`global-rules §1.7`):
+
+```
+git branch -vv
+```
+
+If the current branch shows no `[origin/...]`, run
+`git branch --set-upstream-to=origin/dev/{branch} dev/{branch}`, otherwise
+`git pull` silently does nothing.
 
 ### Step 4: Check Working Tree Status
 
