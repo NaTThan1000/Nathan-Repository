@@ -727,8 +727,8 @@ function project(wx, wy) {
 | `isaac-turnbased-demo.html` | HTML/JS | ~~已废弃删除~~（功能已合并至 demo2.html） |
 | `isaac-turnbased-demo2.html` | HTML/JS | 主开发文件（v3道具系统版，即时操作回合制） |
 | `isaac-map-viewer.html` | HTML/JS | 房间模板编辑器（File System Access API 直读直写，生成json手动复制） |
-| `isaac-turnbased-demo-pack.html` | HTML/JS | 单文件打包产物（2026-10-28 重新生成，含音效/弹窗/黑场/自动购买；7 JSON + 22 图片内联，可直接双击打开） |
-| `build-pack.js` | Node.js | 打包脚本：按需生成 `demo-pack.html`（内联JSON/图片+移除外部依赖） |
+| `isaac-turnbased-demo-pack.html` | HTML/JS | 单文件打包产物；2026-10-29 重新生成，用户确认可通过浏览器双击运行 |
+| `build-pack.js` | Node.js | 打包脚本：运行代码、配置或必要资源修改后生成 `isaac-turnbased-demo-pack.html`；内联配置与图片，并检查特定残留引用 |
 | `sprite-debug.html` | HTML/JS | 精灵表调试工具（网格叠加查看帧坐标） |
 | `walk-preview.html` | HTML/JS | 走路动画预览工具（循环播放各方向帧） |
 

@@ -52,15 +52,10 @@ for (const jsonFile of jsonFiles) {
   
   // 匹配模式：fetch('Configs/xxx.json' + ...) 或 fetch("Configs/xxx.json" + ...)
   // 策略：把整个 fetch + await 替换为一个返回模拟 fetch 响应的 async IIFE
-  const fetchPattern = new RegExp(
-    `(const\\s+\\w+\\s*=\\s*)?await\\s+fetch\\(['"\`]Configs/${escapeRegex(jsonFile)}['"\`]\\s*\\+\\s*Date\\.now\\(\\)\\)`,
-    'g'
-  );
-  
   // 匹配 await fetch('Configs/xxx.json?'+Date.now()) 并替换为内联数据
   // 正则匹配的是 "await fetch(...)" 整段，替换时在前面补回 await
   html = html.replace(
-    new RegExp(`await fetch\\(['"\`]Configs/${escapeRegex(jsonFile)}\\?['"\`]\\s*\\+\\s*Date\\.now\\(\\)\\)`, 'g'),
+    new RegExp(`await\\s+fetch\\(\\s*['"\`]Configs/${escapeRegex(jsonFile)}\\?['"\`]\\s*\\+\\s*Date\\.now\\(\\)\\s*\\)`, 'g'),
     `await (async () => { const d = ${escaped}; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })()`
   );
 }
@@ -112,6 +107,9 @@ html = html.replace(
 console.log('  ✅ 已移除 file:// 检测代码');
 
 // ============ 6. 写入输出文件 ============
+if (/fetch\s*\(\s*['"`]Configs\//.test(html) || /Assets\/[\w./-]+\.(?:png|jpg|jpeg|gif|svg|webp)/i.test(html) || /window\.location\.protocol\s*===\s*['"]file:/.test(html)) {
+  throw new Error('打包不完整：仍存在本地配置、图片引用或 file:// 限制，未覆盖输出文件。');
+}
 fs.writeFileSync(OUT_HTML, html, 'utf-8');
 const sizeMB = (fs.statSync(OUT_HTML).size / (1024 * 1024)).toFixed(2);
 console.log(`\n✅ 打包完成: ${OUT_HTML} (${sizeMB} MB)`);
