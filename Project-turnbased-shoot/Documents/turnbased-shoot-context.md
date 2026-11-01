@@ -1,0 +1,771 @@
+# Project-turnbased-shoot — 项目总览
+
+> 主文件：`turnbased-shoot-demo2.html`；房间编辑器：`turnbased-shoot-map-viewer.html`；打包脚本：`build-pack.js`。楼层、房间、怪物、小队、道具、资源和刷怪配置位于 `Configs/`；文件索引见 Part 2。设计与技术概览见本文，历史决策见 `turnbased-shoot-memory.md`。
+
+---
+
+# Part 1: 游戏策划文档
+
+> 本文同时记录设计目标与继承的原型现状。标注「目标设计／待实现」的内容尚未实现；其余原型描述供开发核对，实际行为以代码为准。
+
+> **数值来源**：已外置的策划数值以 `Configs/` 对应 JSON 为准；字段是否生效、默认值及覆盖行为以游戏代码为准。未外置的运行常量以 `turnbased-shoot-demo2.html` 的对应定义为准。本文保留规则和索引，不维护数值副本；历史记录仅反映当时状态。
+
+## 1. 游戏概述
+
+### 1.1 游戏定位
+**类型**: Roguelike 半回合制地牢战斗 | **原型平台**: 网页 Canvas | **目标平台**: Godot 引擎
+
+**体验定位**：做一个操作门槛较低、手残玩家也能玩的《以撒》式游戏，保留应对危险的刺激感，以及随机道具组合改变攻击方式和游玩体验的惊喜爽感。通过即时操作的半回合制降低操作门槛；允许策略判断，期望玩家能快速看懂局面并做选择，具体节奏与难度须通过试玩验证。
+
+### 1.2 核心概念
+受《以撒的结合》启发，Roguelike 半回合制 + AP 行动点数系统（2026-07-15 重构），含探索模式(非战斗)与战斗模式两套操作逻辑：
+- 回合开始时计算可移动范围（BFS，考虑不可通行地形，怪物格不阻挡），浅蓝色呼吸闪烁标示
+- WASD 在可移动范围内**即时移动本体**（非预览），消耗 MP
+- ↑↓←→ **即时射击**（非预览），立即发射子弹，消耗 AP
+- 射击后锁定可移动范围从当前位置重新计算（内部 checkpoint，玩家无需感知概念）
+- Esc **全重置**本玩家回合的操作和结果（角色/怪物/环境回到本回合开始时），不能撤销此前已发生的怪物回合；触发时间倒流动画。**目标设计／待实现**：每回合最多 2 次，回合开始时恢复次数，耗尽后不可回溯；次数待试玩调整。
+- Space **直接结束回合** → 切换怪物回合（无二次确认弹窗）
+- 操作键：WASD 移动、↑↓←→ 射击、Space 结束回合、Esc 全重置、E 放炸弹、R 重置游戏（F 键拾取已移除：道具/资源/商店商品走到上面自动处理）
+- 资源命名：射击点统一称 **AP**（原 A-AP），移动点统一称 **MP**（原 M-AP）
+- 标准矩形像素风格渲染，文字通过独立 DOM 覆盖层渲染保证清晰度
+
+### 1.3 玩家属性
+
+基础属性及上下限查主文件 `playerStats`、`recalcAllStats()` 与 `MAX_TOTAL_HEARTS`；道具加成查 `Configs/item-db.json` 的 `items.*.effects` 和 `specials`。
+
+血量使用心形显示并支持半心；移速影响 MP 上限，射速影响 AP 上限，攻击力影响子弹伤害，射程影响飞行距离。运气目前为占位，侧边栏隐藏。
+
+### 1.4 设计目标
+- 让低操作能力玩家也能感受危险应对的刺激，以及随机道具组合带来的惊喜与爽感。
+- 让玩家依据清晰的危险信息快速行动；策略深度与节奏通过试玩调整。
+- 使用网页 Canvas 原型验证战斗、随机成长及完整通关流程。
+
+### 1.5 怪物系统
+
+**怪物配置数据库** `MONSTER_DB` 数据来源 `Configs/monster-db.json`。当前怪物配置没有旧方案中的「角色／威胁值」字段，刷怪预算由小队配置控制。
+
+| 配置 ID 前缀 | 类型 | 行为概要 |
+|---|---|---|
+| `crack_maw` | 裂口尸 | 追踪，随后十字邻格攻击 |
+| `flying_eye` | 浮游眼 | 射程外游走，射程内扇形射击后游走 |
+| `charge_golem` | 蓄力魔像 | 游走、蓄力、冲刺 |
+| `boss_jumper` | 跳跃巨兽 | 小跳与大跳循环 |
+| `duke_fly` | 苍蝇公爵 | 对角移动并可能召唤 |
+| `duke_floater` | 公爵浮游眼 | 射程外游走，射程内单发射击后游走 |
+
+各等级的 `hp`、`damage`、`size`、`actions` 和 `loot` 查 `Configs/monster-db.json` 中的具体 ID；本表仅为行为概览。
+
+**怪物配置字段说明**：
+- `actionMode`：行为选择模式 `{ mode, [weights] }`。`mode: "sequence"` 按索引顺序循环执行 actions；`mode: "random"` 按 `weights[]` 加权随机选一个 action；`mode: "condition"` 按顺序逐条评估 action 的 condition，选中第一个满足条件的 action。权重默认 1（均匀随机）
+- `actions[]`：行为列表，每行为独立配置对象。通用字段：`type`（行为类型标识）、`steps`（步数池数组）、`stepMode`（sequence按序轮换 / random均匀随机）。每个 action 类型可携带额外专有参数（如 `range`/`condition`/`directMode`/`repeatChance`/`disappearSteps`/`target`/`after_effect` 等）
+- `condition`（action 可选字段）：`"in_range"` → 仅当玩家在 action 的 `range`（切比雪夫距离）内时该 action 可选；`"out_of_range"` → 仅当玩家在射程外时可选。无 condition 则始终可选
+- `after_effect`（action 可选字段）：主 action 执行完毕后追加执行的附加行为，支持三种格式：①单一对象 `{ type, steps, stepMode }`（浮游眼 shoot_fan→random_wander）；②数组 `[{ type, damage, range }]`（裂口尸 chase→attack_adjacent 十字邻格攻击，上下左右各 range 格；Boss Jumper jump_big_land→attack_side 冲击波范围攻击）；③召唤配置对象 `{ type: "summon", chance, monsterId, maxCount, spawnRange }`（苍蝇公爵 duke_diagonal_move→summon 召唤浮游眼）
+- `once`（action 可选字段，boolean）：设为 true 时该 action 仅首回合执行一次（duke 首回合静止用）
+- `chance`（summon after_effect 字段）：召唤触发概率 (0~1)
+- `monsterId`（summon after_effect 字段）：召唤的怪物 cfgId
+- `maxCount`（summon after_effect 字段）：召唤怪物在场数量上限
+- `spawnRange`（summon after_effect 字段）：召唤位置模式（`"adjacent"`=相邻格随机空格）
+- `aiType`：行为标签（chase/ranged_kite/charge/boss_jumper/boss_duke），保留用于特殊路由（如 boss_jumper 跳过普通 AI 分发进入 `processJumperAction`、boss_duke 走独立关键帧动画 + 召唤逻辑），但不再携带参数
+- `movementTags`：当前用于房间筛选的是 `squad-templates.json` 中的小队标签；不要将小队的标签或角色字段误认为怪物配置字段。
+- 普通房按符合条件的小队预算随机贪心选取，不保证角色类型多样性；`role` 不参与当前选择。
+
+**Action 类型枚举**（11种，替代旧 `movement.mode` + `aiType` 的分离结构）：
+
+| action type | 行为描述 |
+|------------|---------|
+| `chase` | 向玩家追踪移动（BFS寻路），步数从 `steps`/`stepMode` 取。支持 after_effect: [attack_adjacent] → 移动结束后对四方向邻格造成伤害 |
+| `random_wander` | 随机方向漫步，步数从 `steps`/`stepMode` 取。`stepMode:"random"` + 无 `stepWeights` → 均匀随机（每步等权重） |
+| `shoot_fan` | 扇形三连射，`range` 控制射程，`directMode:"toward_player_axis"` 朝玩家主轴向射击。通常配 `condition:"in_range"` 仅射程内可选 |
+| `shoot_single` | 单发直射（公爵浮游眼用），与 shoot_fan 相同的主轴向判定但只射 1 发 |
+| `charge_up` | 蓄力：原地不动，头顶红色感叹号提示（闪烁脉动动画），为下一轮 `charge_line` 冲刺做准备 |
+| `charge_line` | 蓄力冲刺：选择方向 + 计算路径 + 执行移动一气呵成（不再分两阶段），`steps` 从池中随机取冲刺距离 |
+| `jump_small` | Boss Jumper 小跳跃，中心距离判定 × `steps`[0] 步。可选 `repeatChance` 控制重复小跳概率 |
+| `jump_big_land` | Boss Jumper 大跳+落地，`chargeSteps`蓄力回合数、`target`落点选择模式(cover_player)、`after_effect: attack_side`落地范围伤害 |
+| `duke_diagonal_move` | 苍蝇公爵对角移动：按象限方向走关键帧动画，after_effect 可触发 summon 召唤浮游眼 |
+| `summon` | 召唤效果（作为 after_effect 存在）：按 chance 概率在相邻空格召唤指定怪物，受 maxCount 上限约束 |
+| (patrol/stationary) | 巡逻/不移动（通过 `aiType` 路由，暂无独立 action 配置） |
+
+**生成方式**：
+- **自动刷怪**：`spawnRoomMonsters()` — 进入房间/楼层切换时自动调用：
+  - **Boss 房**：从 `spawn-config.json > bossMonsters[楼层]` 取 squad ID 列表，随机选一个 squad，按 squad 的 `monsters[]` 逐个生成（2×2体型 Boss）
+  - **普通房**：`filterSquadsByRoom(floorNum, roomType, tpl)` 按 `minFloor`/`movementTags` 过滤可用 squad → 贪心选取（预算上限内随机选 squad 直到超预算）→ 逐个 squad 生成怪物
+  - 起点/宝藏/商店房不生成怪物
+- **squad 模板系统**（`Configs/squad-templates.json > squads`）：预定义怪物组合，含 `monsters[]`（怪物 ID）、`budget`、`movementTags`、`minFloor` 等；实际组合与数量查配置文件，筛选和生成规则查 `filterSquadsByRoom()`、`spawnRoomMonsters()`。
+- **squad 锚点聚拢生成**：同一 squad 的怪物聚在一起生成。第一只纯随机选位置作为锚点，后续怪物在锚点距离=1的相邻空格中随机选。若锚点周围无相邻空格则换锚点（重新纯随机选位）重试
+- **调试生怪**：C键或「生怪」按钮 → `spawnMonster()` 从怪物配置中随机选择并尝试生成 1 只怪物。
+
+**移动与碰撞**：
+- 普通怪物逐步移动并使用平滑动画；步进与插值参数查 `updateMonsterTurn()` 和 `MONSTER_ANIM_SPEED`，Boss 有独立行为。
+- 怪物之间不可重叠（occupied Set排队）；撞玩家 → 伤害由怪物类型决定 + 怪物占格共处（无击退/反弹）
+- 玩家撞怪物 → 按怪物类型计算伤害（`damagePlayer`），可穿过共格。接触伤害走曼哈顿轨迹回溯。BFS不挡怪物格。（2026-07-21重构：移除击退/反弹系统）
+- 尖刺地格：怪物经过及玩家踩上会受伤；伤害值查主文件 `updateMonsterTurn()`、`checkSpikeUnderPlayer()`。
+
+**视觉**：
+- 使用角色精灵+朝向，红色血条 (黑色底槽+百分比填充)，受击白闪+抖动
+- 每只怪物通过 `tint` 半透明色彩叠加区分类型（浮游眼蓝紫/魔像棕/Boss红橙）
+- 头顶名称标签（Boss红字突出，普通棕色）
+- 伤害反馈：黄色飘字迸发 + 血条白色延迟扣除动画 + 血雾粒子
+- 死亡：18颗血粒子爆浆特效
+
+**每只怪物独立属性**：
+- `actionMode` + `actions[]`：行动列表 + 选择模式，统一替代旧 `movement`/`aiType`/`aiParams` 分散字段。每个 action 独立配置步数、射程、条件等全部参数
+- `damage`：每个怪物独立的碰撞伤害
+- `aiType`：行为标签（用于特殊路由，如 boss_jumper 跳过普通 AI 分发）
+- `tint`：RGBA 色彩叠加，渲染时传入 `drawCharacterAt()`
+
+**无敌系统**：`invincibleSteps = 移速×2` 步数制，固定时长不刷新。
+- 每步移动 → `invincibleSteps--`；未消耗 MP 结束时也递减
+- 无敌期间可穿过怪物不受伤，`damagePlayer` 内部跳过
+- 接触伤害走曼哈顿轨迹回溯：踩怪格扣血+无敌，后退超接触步撤销；离开怪物格不撤销
+
+**接触伤害系统**（2026-07-21重构）：
+- 基于移动轨迹 `turnMovePath`，每个节点记录 `invincibleSteps`
+- `recalcContactDamage(nx,ny)`：新位置在轨迹中→回溯恢复无敌值；新位置→追加
+- `turnContactStepIdx` 标记触发接触的步数；后退超过该步 → 回血+回无敌
+- Checkpoint 在子弹产生实际命中等效果时更新；不是在发射瞬间保存。
+- 回合开始时调用一次，检测是否已站在怪物上
+
+---
+
+## 2. 系统设计
+
+### 2.1 房间与网格
+
+网格、墙壁和画布尺寸查主文件 `CFG`、`GAME_W`、`GAME_H` 和 `DISPLAY_SCALE`；房间布局查 `Configs/floor-data.json` 与 `Configs/pool.json`。
+
+- 墙壁包围地板区域，玩家不可移出网格范围
+- 墙壁用像素石头纹理绘制，带内缘高光线和阴影
+
+**危险格（目标设计／待实现）**：玩家回合内根据当前局面显示结束回合后的危险；玩家移动、射击等行为可使部分怪物调整行动，提示须随之更新，以结束回合前最终显示为准。
+
+危险预测应与怪物实际行动使用一致的规则，覆盖移动、攻击及特殊行动；预测不得提前抽取或反复刷新须在怪物回合才确定的随机结果，也不得因计算提示改变游戏状态。现有怪物路径计算仍用于执行怪物行动，具体如何拆分和复用待实现时核对。
+
+- **红格**：停在该格结束回合将确定受伤，只标记实际造成伤害的格子；障碍阻挡、怪物被击杀等会改变结果的因素须反映在提示中。
+- **黄格**：可能受伤的整体区域，必须覆盖全部实际可能受伤位置；它是警告而非确定落点。玩家可以整体避开，也可以在规避确定危险时冒险；熟练玩家可通过怪物表现与多次体验摸索规律。
+- 进入怪物回合时才确定黄色区域中的随机结果，立即将实际危险显示为红色，留出足够辨认的短暂时间后再执行攻击与伤害；展示时长待试玩确定。
+- 验收时检查红格与实际伤害一致、黄格覆盖完整，以及操作和回溯后提示及时更新。重叠危险的具体显示方式待定。
+
+### 2.2 AP 行动点数系统
+
+**两种 AP 点数**：
+
+| 类型 | 来源 | 消耗方式 |
+|---------|------|---------|
+| MP (移动) | 移速属性 | 移动消耗，回合起点留半透明幽灵 |
+| AP (攻击) | 射速属性 | 射击消耗，即时发射子弹 |
+
+初始值与消耗规则查主文件 `playerStats`、`resetTurnAP()` 和按键处理代码。
+
+- 每回合上限固定，可消耗任意点数（不强制用完）
+- 回合结束 → AP 重置为满值
+- **可移动范围**：通过 BFS 从当前位置计算，考虑不可通行地形，怪物格不阻挡；以浅蓝色呼吸闪烁标示。
+
+### 2.3 即时操作与 Checkpoint 系统
+
+**全新交互模型**（替代旧预览队列系统）：
+
+- **移动**：WASD 在可移动范围内即时移动本体，MP-1，范围动态刷新
+- **射击**：↑↓←→ 立即发射子弹，AP-1
+- **Checkpoint 时机**：不在发射子弹时保存，而是在子弹实际产生效果时更新——命中怪物(含非致命)、击杀怪物(含掉落)、命中地形破坏、房间清空。每个操作的结果及时反映到checkpoint
+- **Esc 全重置**：恢复完整回合快照（`turnSnapshot`），玩家/怪物/HP/道具/地形/炸弹全部回到回合开始时状态，伴随时间倒流动画
+- **回溯次数（目标设计／待实现）**：每个玩家回合可回溯 2 次，回合开始时恢复，耗尽后不可再用；不撤销此前怪物回合。回溯后按恢复的局面更新危险格。次数为试玩初值，须验证是否足够容错。
+- **掉落一致性**：同一怪物在玩家回合被击杀后，Esc 再次击杀不得重新随机掉落；可破坏地形同理。现有实现使用预先确定的掉落，后续改动需验证。
+- **待讨论备选**：回合倒计时、Esc 消耗时间、快速操作奖励，以及道具或房间机制调整回溯次数，均未确定采用。
+- **回合快照**：`saveTurnSnapshot()` 保存玩家坐标/HP、怪物坐标/HP、道具库存、地上资源道具、可破坏瓷砖(tileData/currentRoomGrid)、炸弹等；`restoreTurnSnapshot()` 恢复
+- **可移动范围计算**：`calcReachableTiles(fromCol, fromRow, maxSteps)` 使用 BFS 排除不可通行格；怪物占据格不阻挡，可进入并触发接触伤害。
+
+### 2.4 角色移动与精灵动画
+
+- 玩家占据网格坐标 (col, row)，初始位置查 `player`、`enterFloor()`。
+- **探索模式**：WASD 自由移动（无 AP 限制），按方向键切换房间
+- **战斗模式**：WASD 在可移动范围(浅蓝呼吸)内即时移动本体，每步消耗 1 MP；方向键射击消耗 AP；角色右上角黄色圆点实时显示剩余 AP
+- **走路动画**：移动时播放精灵图集走路循环；帧序列和速度查 `SPRITE`。
+- 移动受限：网格边界外和不可通行地形不能进入；怪物格可进入，可能产生接触伤害。
+- 朝向跟踪：记录最后移动/射击方向，决定精灵帧方向
+
+### 2.5 角色精灵渲染
+
+角色使用精灵图集 `turnbased-shoot-idle.png`（32×32 每帧）进行渲染，采用**头身分离**叠加方式，通过 `drawCharacterAt()` 统一绘制（本体和幽灵复制体共用）：
+
+| 层级 | 内容 | 说明 |
+|------|------|------|
+| 底层 | 身体走路帧 | 正面与侧面走路动画；具体帧查 `SPRITE.WALK` |
+| 上层 | 头部 | 按朝向和射击状态选帧；位置偏移查 `drawCharacterAt()` |
+
+- **方向映射**：↓=正面、↑=复用正面（背面缺失）、→=侧面、←=侧面水平翻转
+- **射击表情**：按方向键射击时头部切换为射击表情，持续时长查 `spawnBullet()` 和 `player.shootTimer`。
+- 精灵未加载时降级为色块占位
+
+### 2.6 子弹系统
+
+射程来源见 `playerStats.range`；飞行速度、下落距离与重力等查主文件 `CFG` 和 `updateBullets()`。
+
+- 即时射击：按方向键立即从角色位置发射子弹
+- 子弹三阶段：飞行（匀速）→ 下落（水平减速+垂直加速）→ 碎裂为粒子
+- 碎裂粒子随机溅射；数量和持续时间查 `CFG`。
+- 子弹像素绘制：光晕（两层半透明方块）+ 发光核心 + 拖尾像素
+
+### 2.7 TILE 瓷砖系统
+
+房间内部由 TILE 网格组成，尺寸查 `CFG`，类型如下：
+
+| TILE | 字符 | 名称 | 可行走 | 说明 |
+|------|------|------|--------|------|
+| FLOOR | `.` | 普通地面 | ✅ | 默认地面 |
+| ROCK | `#` | 岩石 | ❌ | 阻挡通行和子弹 |
+| POOP | `P` | 便便 | ❌ | 可破坏，挡子弹 |
+| PIT | `O` | 深渊 | ❌ | 玩家不可通行 |
+| SPIKE | `^` | 尖刺 | ✅ | 踩上造成伤害 |
+| LADDER | `L` | 梯子 | ✅ | Boss房踩上进入下一层或最终结算 |
+
+- 便便与岩石的生命值及伤害处理查 `initTileData()`、`hitTile()` 和子弹/炸弹碰撞代码；破坏后地形变为 FLOOR。
+- 可破坏瓷砖在`initTileData()`中预roll掉落（`_loot` = `rollResourceDrop('resource_drop_terrain_poop'/'resource_drop_terrain_rock')`），保证ESC回溯后再次破坏结果一致
+- `hitTile()` 破坏时捕获预roll结果再删除 tileData，调用 `rollTerrainDestroyDrop(col, row, type, preLoot)` 使用预roll掉落，随后 `saveCheckpoint()` 确保BFS回退时地形保持已破坏状态
+- 门位位于各边中央；坐标查 `DOOR_POS`，门前格须可通行。
+- `drawTiles()`：使用 `cellRect()` 透视坐标渲染六种瓷砖（岩石叠层/便便棕块/深渊/尖刺菱形/梯子深坑）
+- `drawDoors()`：房门渲染（打开=深色通道+门框/关闭=铁栏纹理+横竖铁条），区分上下/左右方向实现
+
+### 2.8 多房间楼层系统
+
+- **楼层结构**：游戏启动时加载 `Configs/floor-data.json`；楼层与房间数据以该文件为准，加载失败不会自动生成楼层。当前游戏的楼层遍历及通关边界另由主文件代码控制。
+- **编辑器生成**：房间编辑器提供楼层生成与导出；游戏读取已保存的楼层结构和 grid。
+- **房间类型**：start(起点)/normal(普通)/treasure(宝箱)/boss(Boss)/shop(商店)
+- **模板系统**：每个房间引用 `pool.json` 中的模板(tplKey)，生成时解析 TILE 布局。`BUILTIN_TEMPLATES()` 作为兜底，已与 `pool.json` 对齐
+- **门系统**：每房间最多 4 扇门(每个方向一扇)，房间清怪后门自动打开(`updateDoorsLocked()` 只判断怪物，不判断炸弹)
+- **探索模式** `inCombat=false`：无怪物且无炸弹时 WASD 自由移动，门前格加方向键切换房间。
+- **战斗模式** `inCombat=true`：有怪物或有未引爆炸弹时进入回合制；炸弹倒计时在怪物行动前执行。门只依据怪物状态控制，无怪但有炸弹时战斗可继续且门可打开。
+- **Boss 梯子**：清空 Boss 房后自动放置，位置查 `updateRoomCombatState()`；踩上后触发楼层切换或最终结算。
+- **楼层过渡**：`#floor-fade` 全屏黑场，渐隐后切层再渐现；时长查 `fadeIntoFloor()`，过渡期间 `floorFadeBusy` 屏蔽按键。
+- **楼层持久化**：`floor-data.json` 保存楼层结构+房间 grid，加载时保留已存 grid（修改关卡池不影响已有楼层）
+- **`cellRect(col,row)`**：返回透视投影后格子中心坐标/尺寸，供 TILE 和门渲染使用
+
+### 2.9 投影系统
+
+```
+缩放因子 s(y) = VP_SCALE_TOP + t * (VP_SCALE_BOT - VP_SCALE_TOP)
+其中 t = (y - FLOOR_T) / (FLOOR_B - FLOOR_T)，归一化到 [0, 1]
+```
+
+上下缩放和投影中心查 `CFG.VP_SCALE_TOP`、`CFG.VP_SCALE_BOT`、`VP_CX`。
+
+- 投影公式：`screenX = VP_CX + (worldX - VP_CX) * s` → 等同 `screenX = worldX`（恒等映射）
+- 角色、子弹、粒子均等比例渲染（无 Y 轴缩放变形）
+- 地板砖块为标准正方形，网格线为直线
+
+### 2.10 粒子系统
+
+重力、碎裂粒子数与持续时间查 `CFG` 和粒子更新函数。
+
+- 子弹死亡时迸发粒子：随机角度、随机速度、两种颜色（金黄/橙）
+- 粒子有生命周期，随时间淡出
+
+### 2.11 游戏状态机 (turnState.phase)
+
+以下为现有原型状态机；危险格揭晓和每回合回溯次数的目标设计见 §2.1、§2.3，尚未接入。
+
+```
+player_select ──→ monster_turn ──→ player_select
+     │    ↑
+     │    └── Esc (重置回合 + 时间倒流动画)
+     └── Space (直接结束回合)
+```
+
+| 阶段 | 说明 |
+|------|------|
+| `player_select` | 即时操作：WASD移动本体、↑↓←→即时射击、Esc全重置、Space直接结束回合(未消耗MP计无敌) |
+| `monster_turn` | 怪物AI路由分发→逐步移动(每怪独立移速/dmg)→碰撞+尖刺检测，完成后重置AP |
+
+- 无预操作队列，所有行为即时生效
+- `hasShot` 标记首次射击（内部 checkpoint）
+- Esc 全重置本回合 → `restoreTurnSnapshot()` + 时间倒流动画（含地形、炸弹回溯）
+- Space 直接进入 `monster_turn`（无二次确认弹窗）
+
+### 2.12 道具系统
+
+**道具数据库** `ITEMS_DB` 数据来源 `Configs/item-db.json`，通过 `loadItemDB()` 异步加载；道具列表和数量以配置为准。
+
+道具及品质查 `Configs/item-db.json > items`；品质对应的显示方式查游戏源码中的道具栏和绘制逻辑。
+
+**属性效果** `effects`：
+- `maxHp`：HP 上限增加
+- `attack`：攻击力增加
+- `fireRate`：射速增加（→ 对应 AP 上限）
+- `moveSpeed`：移速增加（→ 对应 MP 上限）
+- `range`：射程增加
+
+**特殊效果** `specials[]`（结构化声明，经 `SPECIAL_EFFECT_HANDLERS` 注册表分发）：
+
+| 特效类型 | 效果 | 拥有道具 |
+|---------|------|---------|
+| `piercing` | 子弹穿透敌人（不销毁，不重复伤害同一目标） | 丘比特之箭、死神的镰刀 |
+| `damage_mult` | 伤害倍率（mult 参数） | 查道具配置的 `specials` |
+| `heal_full` | 拾取时回复全部 HP | 早餐/午餐/晚餐/甜点/肉！/魔法蘑菇/圣心 |
+
+**掉落系统**：品质权重以 `Configs/item-db.json > itemDropTables` 为准，包括通用、怪物、商店、Boss、宝箱房及普通／金宝箱等场景；表名以 `item_drop_` 开头。怪物掉落入口查 `monster-db.json > 各怪物 ID > loot`，宝箱掉落入口查 `resource-db.json > resources > 各宝箱 ID > loot`。
+
+- `none` 权重表示该品质抽取结果无道具；怪物先按各自 `loot` 的权重和概率决定掉落条目，因此表内品质权重不等于击杀的总体掉落概率。
+- common/ranged/heavy 三表由对应怪物的 `loot.entries.itemDropTable` 引用（2026-10-28 修复了三级怪表名缺前缀导致回退 default 表、几乎必掉道具的问题）
+
+**拾取与叠加**：
+- 走到道具格上**自动拾取**（原 F 键已移除），加入 `playerInventory` 数组；同一道具不会重复入包
+- 角色接近地上道具时显示名称和 `desc`，商店商品额外显示价格；触发距离查 `updateItemTooltip()`。
+- `recalcAllStats()` 遍历背包，累加 `effects` 数值属性 + 遍历 `specials[]` 调用注册表 handler
+- 穿透不叠加（布尔值），伤害倍率可叠加（`damageMultiplier *= mult`）
+- HP 上限提升后当前 HP 等比增加
+
+**道具栏 UI**：底部图标横排（品质边框颜色），悬浮显示道具名+描述+来源提示
+
+### 2.13 Boss Jumper — 2×2跳跃Boss系统
+
+Boss 房使用的怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），不参与普通移动。小跳步数和重复概率配置在 `jump_small`，大跳目标和附加伤害配置在 `jump_big_land`。
+
+**行动循环**：小跳后可能重复，再进入大跳；实际行为及概率查 `Configs/monster-db.json > boss_jumper_* > actions` 与 `processJumperAction()`。
+
+| 行动 | 机制 | 伤害 | 动画 |
+|------|------|------|------|
+| **小跳跃** | 按玩家相对位置选方向和落点，处理落地碰撞；具体步数、体型及伤害查怪物配置和 `calcJumperSmallJump()` | 查怪物配置及代码 | 弧线跳跃 |
+| **大跳跃** | 蓄力后确定落点，延迟落地并执行 `after_effect`；范围与伤害查怪物配置及落地代码 | 查怪物配置及代码 | 消失与冲击波 |
+
+**关键设计**：
+- `pendingBossLanding`：大跳落点跳起时即确定（不依赖落下时玩家位置），跨回合延迟执行
+- `jumperJustLanded`：落地回合Boss休息不行动，下个怪物回合才循环回phase 1
+- 无需BFS寻路（`predictedPath` 永久为空），跳跃一次性完成
+- 接触伤害和体型以怪物配置为准；子弹检测怪物占据区域。
+- `jump_small.repeatChance` 控制重复小跳的概率，以怪物配置为准。
+
+**2×2适配**：`monsterCells()` / `isInMonsterFootprint()` / `isValidLandingZone()` 辅助函数。全系统适配（渲染中心偏移 `CELL*(sz-1)/2`、碰撞、快照、占用、DOM标签）。
+
+### 2.14 炸弹系统
+
+玩家消耗背包中的炸弹资源（`playerResources.bombs`），在当前位置放置炸弹，炸弹爆炸对范围内怪物造成伤害并破坏地形。
+
+炸弹倒计时、伤害与半径查 `Configs/resource-db.json > resources.bomb_single`；实际默认值与行为查 `placeBomb()`、`tickBombCountdown()`、`detonateBomb()`。
+
+**核心流程**：
+- **放置炸弹** `placeBomb(col, row)`：消耗 1 个炸弹 → 在当前位置生成炸弹对象 → 强制进入战斗模式（如在探索模式中）
+- **倒计时** `tickBombCountdown()`：每回合怪物行动前**最高优先级**执行，所有当前房间炸弹的 `timer-1`，计时归零的炸弹立即引爆
+- **引爆** `detonateBomb(bomb)`：读取炸弹伤害与半径配置，对范围内怪物造成伤害并产生粒子，可破坏范围内的 POOP/ROCK 地形格。
+- **快照支持**：炸弹纳入 `saveTurnSnapshot()` / `restoreTurnSnapshot()`，ESC 回溯可恢复炸弹状态
+- **战斗状态联动**：房间有未引爆的炸弹时 `inCombat=true`（即使怪物已清空），`updateDoorsLocked()` 不判断炸弹只判断怪物
+
+### 2.15 苍蝇公爵（Duke of Flies）Boss 系统
+
+Boss 房可出现的怪物，使用独立关键帧动画系统和召唤机制；体型查 `monster-db.json > duke_fly.size`，楼层分配查 `spawn-config.json > bossMonsters` 及小队模板。
+
+**行动循环**：`duke_diagonal_move` 对角移动后可触发 `after_effect: summon`。移动步数、召唤概率及上限查 `Configs/monster-db.json > duke_fly > actions`。
+
+**关键帧动画**：Duke 不走逐步移动（`predictedPath` 固定为空），而是通过 `initDukeQuadrant()` 初始化象限方向 → `calcDukePath()` 计算对角移动关键帧 → `updateDukeAnim()` 逐帧插值控制 px/py。关键帧在 `calcAllMonsterPaths()` 中作为第 0 遍优先计算（判定层先于其他小怪），确保 Duke 移动完成后其他怪物再行动。
+
+**召唤机制**（`handleDukeSummon()`）：
+- Duke 对角移动结束后，按 `after_effect.chance` 判定是否触发召唤；默认值查 `handleDukeSummon()`。
+- 被召唤怪物 `duke_floater` 的属性与行为查 `Configs/monster-db.json > duke_floater`。
+- `maxCount` 限制召唤物在场数量上限。
+- `spawnRange: "adjacent"` 在 Duke 相邻空格随机生成
+
+**首回合静止**：Duke 首回合不移动（`_dukeFirstTurn=true`），第二回合起进入正常循环。
+
+**渲染**：Duke 走独立关键帧动画（`updateDukeAnim` 直接控制 px/py），不参与普通怪物逐帧移动循环。DOM 标签与 Boss Jumper 同级（红色名字）。
+
+### 2.16 资源与宝箱系统
+
+资源系统（`RESOURCE_DB`，数据来源 `resource-db.json`）管理六类可拾取物品：
+
+| 资源类型 | ID 示例 | 说明 |
+|---------|--------|------|
+| 金币 | `coin_gold` / `coin_black` / `coin_silver` | 货币，碰触自动拾取 |
+| 炸弹 | `bomb_single` / `bomb_double` | 收录背包，`playerResources.bombs` |
+| 红心 | `heart_half`(半心) / `heart_full`(全心) | 碰触回复 HP |
+| 蓝心 | `blue_heart_half` / `blue_heart_full` / `blue_heart_double` | 临时护盾，受伤优先扣除 |
+| 钥匙 | `key_single` / `key_double` | 开锁消耗，`playerResources.keys` |
+| 宝箱 | `chest_normal`(普通) / `chest_golden`(金) | 碰触打开，触发掉落 |
+
+**宝箱类型区分**：
+- **普通宝箱** `chest_normal`：`locked: false`，碰触即开；单轮 `pick_first` 先判定道具条目，若条目概率未命中则抽取资源。
+- **上锁金宝箱** `chest_golden`：`locked: true`，消耗钥匙；同样先判定道具条目，未命中则抽取资源。两种宝箱的道具分支概率查 `Configs/resource-db.json > resources.<宝箱 ID>.loot`，品质权重查 `Configs/item-db.json > itemDropTables`。代码在道具条目命中后即结束本轮；若将来品质表配置 `none`，抽到它时不会转抽资源。
+
+**拾取与上限**：
+- 资源碰触自动拾取（`autoPickupResources()`），加入 `playerResources`
+- 资源上限查 `Configs/resource-db.json > _limits`；拾取与代码兜底查 `handleResourcePickup()`。
+- 资源 UI 实时显示当前数量（`updateResourceUI()`）
+
+### 2.17 商店与经济
+
+- 商店房由 `floor-data.json > shopRoomIds` 标记，进入时由 `spawnShopGoods()` 生成槽位（2 道具 + 3 资源，坐标固定），记录在 `room._shopSlots`（`type/cfgId/price/sold`）
+- 价格来自道具/资源配置的 `price`；**交互为走到商品格自动结算**：金币足够 → 扣款/获得/标记售出；不足 → 不购买并显示红色「金币不足」（`getShopSlotAt()` 判定槽位）
+- 金币来源包括房间清空、怪物与地形掉落；上限查 `resource-db.json > _limits`，当前消费出口为商店。
+
+### 2.18 音效系统（WebAudio 合成）
+
+- 零素材、零外部依赖：`const SFX` 自执行模块，首次按键/点击 `SFX.unlock()` 创建/恢复 AudioContext
+- 音效事件：射击 / 命中 / 击杀 / 受伤 / 拾道具 / 拾资源 / 开箱 / 开锁失败 / 放炸弹 / 爆炸 / 开门 / 进战斗 / 回溯 / 进楼层 / 通关 / 死亡 / 购买
+- 同类音效 40ms 节流、多音琶音预设；顶栏 🔊 按钮 → `SFX.toggle()` 静音
+
+### 2.19 UI 弹窗与提示层
+
+**怪物行为表现（目标方向／待细化）**：可通过感叹号、动作和声音传递行为类别，例如射击前鼓嘴颤抖、冲撞前原地奔跑、跳跃前压扁蓄力；具体表现和可读性待设计、试玩验证。
+
+| 元素 | 说明 |
+|------|------|
+| `#start-menu-modal` 开始菜单 | 加载完成后显示，列出键位与「通关 3 层」目标，点击/空格开始 |
+| `#death-modal` / `#victory-modal` | 死亡与通关结算（击杀数/拾取道具/金币/炸弹/钥匙/蓝心），可重试 |
+| `#help-modal` 操作说明 | 顶栏「操作?」打开，内容与实际键位保持一致（无 B/F） |
+| `#floor-banner` 楼层横幅 | 进入楼层显示「第 X 层」，1.4s 后淡出 |
+| `#floor-fade` 黑场 | 楼层切换遮罩，渐隐→切层→渐现 |
+| `#item-tooltip` 道具说明 | 接近地上道具时显示名称、效果和价格；距离查 `updateItemTooltip()` |
+
+---
+
+## 3. 界面与交互
+
+### 3.1 操作方式
+
+| 按键 | 阶段 | 功能 |
+|------|------|------|
+| W / A / S / D | 探索/战斗 | 探索模式自由移动；战斗模式在可移动范围(浅蓝呼吸)内即时移动本体 |
+| W/A/S/D + 门前格 | 探索 | 站在门前格+按门方向键 → 切换房间(带滑动过渡动画) |
+| ↑ / ↓ / ← / → | 战斗 | 即时射击（按即发射） |
+| 空格 | 战斗 | 直接结束回合 → 进入怪物回合（无二次确认弹窗） |
+| Esc | 战斗 | 全重置本玩家回合 + 时间倒流动画；目标设计为每回合限 2 次（待实现） |
+| R | 任意 | 重置游戏 → 回到第1层起点（重置地形/门/掉落物/标记等全部运行时状态） |
+| E | 任意 | 放置炸弹；消耗、倒计时和伤害查资源配置及炸弹代码 |
+
+### 3.2 UI 面板
+
+| 面板 | 内容 |
+|------|------|
+| HP | 当前血量/上限，以心形显示并支持半心 |
+| AP | 剩余攻击点数/上限 (橙色圆点) |
+| MP | 剩余移动点数/上限 (蓝色圆点) |
+| AP 圆点 | 战斗时角色右上角黄色圆点 + 数字，用尽变灰色空心 |
+| 阶段 | 当前回合阶段文字 + 颜色标记 |
+| 回合 | 当前回合编号 |
+| 属性 | 显示攻击力、射程；运气属性当前隐藏 |
+| **状态栏** | 棋盘下方，显示 [自由]/[已锁定] + 当前 MP, AP 剩余/上限（探索模式隐藏） |
+| **楼层信息** | 左上角显示当前楼层名+房间类型+tplKey |
+| **可移动范围** | BFS 计算的浅蓝色呼吸闪烁方格（仅战斗模式） |
+| **DOM 覆盖层** | Canvas 上方独立的 HTML 文字层，绕过 `image-rendering:pixelated` 渲染清晰文字 |
+| **道具说明弹窗** | 显示附近道具的名称、效果描述及商店价格；距离查 `updateItemTooltip()` |
+| **音效开关** | 顶栏 🔊/🔇 按钮，控制全部合成音效 |
+| **楼层横幅 / 黑场** | 进入楼层显示「第 X 层」，并在黑场遮罩中渐现 |
+
+---
+
+## 4. 游戏流程（当前原型）
+
+1. 页面加载 → 依次加载模板、怪物、刷怪、小队、道具、资源和 `floor-data.json`，初始化第 1 层
+2. `enterFloor(1)` → 进入第1层起始房间 → 探索模式(`inCombat=false`)
+3. **开始菜单**：初始化后显示开始菜单，点击按钮/空格 → `startGameFromMenu()` → 显示「第 1 层」横幅
+4. **探索模式**：
+   - WASD 自由移动，不受 AP 限制
+   - 道具/资源/商店商品：走到格子上自动拾取，商店金币足够时自动购买
+   - 走到门前格+按方向键 → 滑动过渡切换房间
+   - 进入新房间 → `updateRoomCombatState()`：已访问过且清空则不刷怪，有怪则进入战斗
+   - 踩到梯子 → `fadeIntoFloor()` 黑场过渡 → `enterFloor()` 进入下一层
+   - 踩到尖刺 → `checkSpikeUnderPlayer()`：非无敌状态受伤并进入无敌；站在尖刺上开始回合同样结算
+   - AP 面板在探索模式下隐藏
+5. **战斗模式** `player_select`：
+   - 进入战斗触发"交叉剑"动画（两剑从左右飞入旋转碰撞）
+   - WASD 在浅蓝可移动范围内即时移动本体，每步 -1 MP
+   - ↑↓←→ 即时射击，-1 AP，角色右上角黄色圆点实时显示 AP
+   - Esc → 时间倒流动画 + 恢复回合快照
+   - Space → 先处理大跳Boss落地 → 直接结束回合（无弹窗）→ monster_turn
+6. `monster_turn` → Duke 优先计算关键帧 → Boss Jumper 行动、普通怪逐步移动、碰撞及尖刺处理、Duke 召唤 → `updateRoomCombatState()`
+   - Boss Jumper 状态机：大跳时 Boss 消失，玩家回合结束后落下（延迟执行）
+   - Duke 召唤：对角移动后按配置的概率和上限在相邻格召唤 duke_floater
+   - 清怪（含召唤物）→ 门打开 → Boss房掉落道具(spawnBossRoomItem) → 回到探索模式
+   - 有怪 → 继续战斗，回合数+1
+7. 第 3 层 Boss 房清空后踩梯子，触发胜利画面。
+
+---
+
+# Part 2: 技术架构速查
+
+## 1. 架构概览
+
+```
+单文件 HTML (turnbased-shoot-demo2.html 约 8000 行 / 300KB；turnbased-shoot-demo-pack.html 为打包产物)
+├── CSS: UI 样式 + DOM 文字覆盖层样式 (.txt-monster-name/.txt-damage/.txt-aap)
+├── HTML: Canvas 游戏容器 + #text-overlay 覆盖层 + 状态栏 (#action-bar) + UI 面板
+└── JavaScript
+    ├── 渲染配置 & 精灵图集 (SPRITE)
+    ├── 投影系统 & 坐标转换
+    ├── TILE 瓷砖系统 (FLOOR/ROCK/POOP/PIT/SPIKE/LADDER 六种)
+    ├── 玩家属性 (playerStats: HP/移速/射速/攻击/射程/运气)
+    ├── 运行时状态 (player pos/animation/invincibleSteps)
+    ├── 回合状态 (turnState: phase/AP/hasShot/reachableTiles/turnNumber)
+    ├── 快照系统 (saveTurnSnapshot, restoreTurnSnapshot — 支撑Esc全重置)
+    ├── 可移动范围 (calcReachableTiles BFS, refreshReachableTiles)
+    ├── AP 管理 (resetTurnAP)
+    ├── 动画系统 (battleStartAnim 交叉剑 / rewindAnim 时间倒流)
+    ├── 房间/楼层系统 (loadTemplates/loadOrGenerateFloors/enterFloor/updateDoorsLocked/tryWalkIntoDoor；楼层生成在编辑器)
+    ├── 渲染系统 (drawWalls/Floor/Tiles/Doors/Grid/ReachableOverlay/Player/Bullets/Particles/Monsters)
+    ├── 角色渲染 (drawCharacterAt — 统一角色绘制)
+    ├── DOM 文字覆盖层 (updateTextOverlay — 怪物名/伤害飘字/AP圆点，绕过Canvas像素缩放)
+    ├── 移动系统 (探索自由移动 + 战斗AP移动 + 场景过渡动画)
+    ├── 子弹系统 (spawnBullet, updateBullets, shatterBullet)
+    ├── 粒子系统 (updateParticles) & 受伤系统 (damagePlayer)
+    ├── 怪物系统 (MONSTER_DB 配置表 + actionMode/actions[] 行动列表 + resolveMonsterAction 行为选择 + AI行为路由 + calcAllMonsterPaths/startMonsterTurn/updateMonsterTurn/spawnMonster + 2×2怪物辅助函数)
+    ├── Boss Jumper系统 (processJumperAction/calcJumperSmallJump/calcJumperBigJump/executeBossLanding — 状态机驱动2×2跳跃Boss)
+    ├── 苍蝇公爵系统 (initDukeQuadrant/calcDukePath/updateDukeAnim/handleDukeSummon — 对角移动关键帧动画 + 召唤浮游眼)
+    ├── 道具系统 (ITEMS_DB 道具数据库 + SPECIAL_EFFECT_HANDLERS 特效注册表 + playerInventory 背包 + recalcAllStats 属性重算)
+    ├── 资源系统 (RESOURCE_DB 资源定义 + RES_DROP_TABLES 掉落表(mode/table结构) + playerResources 背包 + rollResourceDrop/rollRoomClearDrop/rollTerrainDestroyDrop)
+    ├── 炸弹系统 (placeBomb放置/tickBombCountdown倒计时/detonateBomb引爆 — 纳入快照，最高优先级于怪物行动前执行)
+    ├── 宝箱系统 (chest_normal普通碰触开 / chest_golden金宝箱需钥匙，loot通过rollLoot调度)
+    ├── 掉落系统 (rollLoot 统一调度器 + executeDropEntry 分发 + rollMonsterKillDrop + chest loot in resource-db.json)
+    ├── 数据加载层 (loadMonsterDB/loadItemDB/loadResourceDB/loadSpawnConfig/loadSquadTemplates — 异步fetch JSON配置文件)
+    ├── 刷怪配置解析 (resolveSpawnConfig — floorBudgets + terrainModifiers 运行时计算)
+    ├── 小队模板系统 (SQUAD_TEMPLATES + filterSquadsByRoom + squad锚点聚拢生成)
+    ├── UI 更新 (updateUI, updateActionBar, updateFloorUI)
+    ├── 音效系统 (SFX — WebAudio 合成音效 + 40ms 节流)
+    ├── 商店系统 (spawnShopGoods/rollShopSlots/tryBuyShopItem/isShopSlotCell/getShopSlotAt/drawShopPrices)
+    ├── 提示与过渡 (showFloorBanner 楼层横幅 / playFloorFade 黑场渐现 / fadeIntoFloor 黑场切层 / updateItemTooltip 道具说明弹窗)
+    ├── 弹窗层 (开始菜单 startGameFromMenu / 死亡 triggerDeathScreen / 通关 triggerVictoryScreen / 帮助 help-modal)
+    ├── 输入处理 (keydown — WASD移动/箭头射击/Esc重置/Space结束/E放炸弹/R重置/C生怪)
+    └── 游戏循环 (gameLoop → requestAnimationFrame)
+```
+
+## 2. 渲染配置与常量
+
+画布尺寸与缩放查主文件 `GAME_W`、`GAME_H`、`DISPLAY_SCALE`；网格、移动、子弹和粒子参数查 `CFG`；战斗与回溯动画时长查对应动画常量。这些值目前在代码中，不由 JSON 管理。
+
+## 3. SPRITE 精灵图集配置
+
+图集帧尺寸、头像和行走帧映射、缩放与动画速度查主文件 `SPRITE`；方向复用与翻转规则查 `getWalkDir()`、`needsFlipX()`。
+
+## 4. 投影公式
+
+```javascript
+// vpScale(wy) → 返回缩放因子 s = 1.00（恒等，无透视变形）
+function vpScale(wy) {
+  const t = clamp((wy - FLOOR_T) / (FLOOR_B - FLOOR_T), 0, 1);
+  return VP_S + t * (VP_E - VP_S);  // 1.00 + t * 0.00 = 1.00
+}
+
+// project(wx, wy) → { x, y, s }  屏幕坐标 + 缩放因子
+function project(wx, wy) {
+  const s = vpScale(wy);
+  return { x: VP_CX + (wx - VP_CX) * s, y: wy, s };
+}
+```
+
+## 5. 关键函数索引
+
+| 函数 | 职责 |
+|------|------|
+| `resetTurnAP()` | 初始化回合 AP，计算可移动范围，保存回合快照 |
+| `saveTurnSnapshot()` | 保存回合开始时完整快照（玩家/怪物/道具/地形tileData+currentRoomGrid/炸弹） |
+| `restoreTurnSnapshot()` | 恢复回合快照，重置所有状态到回合开始（含地形、炸弹） |
+| `calcReachableTiles(fromCol, fromRow, maxSteps)` | BFS 计算可移动方格集，排除不可通行地形，不排除怪物格 |
+| `refreshReachableTiles()` | 从当前位置以剩余 MP 刷新可移动范围 |
+| `loadTemplates()` | 加载 `pool.json` 关卡池模板→`poolTemplates` |
+| `loadMonsterDB()` | 异步 fetch `monster-db.json` → `MONSTER_DB` + `_rebuildMonsterPools()` |
+| `loadSpawnConfig()` | 异步 fetch `spawn-config.json` → `SPAWN_CONFIG` 楼层刷怪配置 |
+| `loadSquadTemplates()` | 异步 fetch `squad-templates.json` → `SQUAD_TEMPLATES` 小队模板数据 |
+| `loadItemDB()` | 异步 fetch `item-db.json` → `ITEMS_DB` 道具数据库（含掉落表 itemDropTables） |
+| `loadResourceDB()` | 异步 fetch `resource-db.json` → `RESOURCE_DB` 资源数据库（含资源定义+掉落表+宝箱loot） |
+| `rollItem(quality?, tableKey?)` | 按品质/掉落表权重随机抽取道具配置ID，默认 tableKey=`item_drop_default` |
+| `rollLoot(lootConfig, col, row)` | 统一掉落调度器：解析怪物/宝箱的 loot 配置，支持 rounds/entries/mode(pick_one/roll_all/pick_first) |
+| `executeDropEntry(entry, col, row)` | 执行单个掉落条目：item→rollItem 生成道具 / resource→rollResourceDrop 生成资源 / resource_fixed→固定资源。fallback 默认表名使用 `item_drop_default` / `resource_drop_monster_default` |
+| `rollResourceDrop(tableKey)` | 从 `resource-db.json > resourceDropTables` 按表的 `mode`(pick_one/roll_all/pick_first) 驱动随机生成资源 ID 列表。表名统一 `resource_drop_` 前缀 |
+| `rollMonsterKillDrop(m)` | 优先使用怪物生成时预抽取的掉落；缺少预抽结果时调用 `rollLoot` |
+| `rollRoomClearDrop()` | 清房时读取 `room.roomClearDrop.resourceDropTable` 掉落资源；Boss 房道具由 `spawnBossRoomItem()` 读取 `itemDropTable` 单独处理 |
+| `rollTerrainDestroyDrop(col, row, type, preLoot)` | 破坏地形掉落：优先使用 room 初始化时预roll的 `preLoot`，保证ESC回溯后再次破坏结果一致。fallback 现场 roll `resource_drop_terrain_rock`/`resource_drop_terrain_poop` 表 |
+| `placeBomb(col, row)` | 消耗背包炸弹在当前位置放置，倒计时按资源配置和代码兜底处理，强制进入战斗模式 |
+| `tickBombCountdown()` | 怪物回合开始前最高优先级：所有炸弹 timer-1，归零即引爆 |
+| `detonateBomb(bomb)` | 炸弹引爆：按炸弹配置和代码兜底处理范围、伤害及粒子 |
+| `handleResourcePickup(res)` | 拾取单个资源实体：金币/炸弹/红心/蓝心/钥匙/宝箱（宝箱触发展开loot），返回是否成功拾取 |
+| `autoPickupResources(col, row)` | 检测指定坐标上的资源实体并自动拾取（含 pickup log 用于回溯撤销） |
+| `spawnShopGoods()` | 商店房商品生成：`rollShopSlots()` 随机 2 道具 + 3 资源，写入 `room._shopSlots`（含 price/type/sold）并在地面生成实体 |
+| `tryBuyShopItem(col, row)` | 商店购买：走到商品格自动触发，金币足够则扣款获得道具/资源、标记售出并同步心形与 AP 圆点 UI |
+| `isShopSlotCell(col, row)` / `getShopSlotAt(col, row)` | 商店槽位判定：前者用于阻止通用拾取逻辑白拿商品，后者用于取槽位价格 |
+| `drawShopPrices()` | 渲染商店价格标签（未售出=金色，已售出=灰色），在 `render()` 中调用 |
+| `resolveAfterEffects(action, context)` | 执行 action 的 after_effect：attack_adjacent(四方向十字攻击)/attack_side(Boss冲击波范围) |
+| `spawnItemOnGrid(col, row, cfgId)` | 在指定网格位置生成道具实体 |
+| `recalcAllStats()` | 遍历背包重算所有属性（effects 数值累加 + specials[] 注册表分发） |
+| `getTpl(key)` | 按 key 获取模板，优先 poolTemplates，回退内置 |
+| `generateFloor(floorNum)` | 房间编辑器中的楼层生成函数，不在游戏主文件中 |
+| `loadOrGenerateFloors(forceReload)` | 从 `floor-data.json` 加载楼层数据（hash 变化时触发重置），首次加载后深拷贝保存 `_initGrid`/`_initDoors` 供 R 键恢复 |
+| `resetGameToFloor1()` | 重置游戏状态回到第1层起点（R键调用），从 `_initGrid`/`_initDoors` 恢复所有房间地形和门状态 |
+| `enterFloor(floorNum)` | 进入指定楼层起始房间 |
+| `tryWalkIntoDoor(fromCol,fromRow,dir)` | 检测门触发：站在门前格+按方向→切换房间 |
+| `updateRoomCombatState()` | 更新战斗/探索状态，触发回合初始化或结束。房间清空时同步 `room._groundResources = resourcesOnGround`（直接引用不再深拷贝，防幽灵资源） |
+| `updateDoorsLocked()` | 按活怪状态控制房门；不因炸弹单独锁门 |
+| `damagePlayer(amount)` | 玩家受伤：战斗/探索统一无敌移速×2步（战斗中结束回合时未消耗MP也计入） |
+| `damageMonster(m, amount)` | 怪物受击：hp>0时保存checkpoint(反映HP降低)，hp≤0时走死亡流程(掉落+保存checkpoint) |
+| `drawCharacterAt(px,py,facing,walkFrame,shootTimer,alpha,tint)` | 通用角色渲染，支持透明度/无敌闪烁/tint色彩叠加 |
+| `drawReachableOverlay()` | 渲染浅蓝色呼吸闪烁可移动方格 |
+| `drawBattleStartSwords()` | 战斗开始交叉剑动画：两剑从左右飞入旋转碰撞火花 |
+| `drawRewindEffect()` | Esc全重置时间倒流动画：蓝色收缩光圈 + 白色闪光 |
+| `updateTextOverlay()` | 管理 DOM 覆盖层文字（怪物名/伤害飘字/AP圆点） |
+| `initTileData()` | 初始化可变瓷砖状态：遍历 currentRoomGrid 识别 POOP/ROCK，预roll掉落存 `_loot`，保证ESC回溯后再次破坏结果一致 |
+| `hitTile(col, row, dmg)` | 对瓷砖造成伤害：hp≤0时捕获预roll的`_loot`→删除tileData→改grid→`rollTerrainDestroyDrop(预roll)`→`saveCheckpoint()` |
+| `drawTiles()` | 渲染六种 TILE（岩/便/坑/刺/梯），使用 `cellRect()` 透视坐标 |
+| `drawDoors()` | 房门渲染：开=通道+门框/关=铁栏纹理，区分上下左右 |
+| `cellRect(col,row)` | 透视投影后格子中心坐标+尺寸，供 TILE/门渲染 |
+| `drawWalls/Floor/GridHighlight/Bullets/Particles` | 各渲染子系统 |
+| `spawnBullet(dir,fromPx,fromPy)` / `updateBullets(dt)` / `shatterBullet(b)` | 子弹生命周期 |
+| `updateParticles(dt)` | 粒子物理+淡出 |
+| `spawnMonster(cfgId?)` | 调试生怪：指定 ID 或随机选择怪物配置并尝试生成 |
+| `spawnMonsterAtRandomPos(cfgId, overrideMovementTags, anchorPos)` | 在随机可行走位置生成指定怪物（支持2×2体型判定 + 锚点距离=1聚拢）。anchorPos 有值时仅在距离=1的相邻空格中选，无相邻空格返回 false 让调用方换锚点重试。返回是否成功 |
+| `resolveSpawnConfig(room, floorNum)` | 运行时按楼层预算和模板偏移计算 `{budget}`，兼容房间覆盖 |
+| `spawnRoomMonsters()` | 混合刷怪主函数：Boss房→按 `bossMonsters[楼层]` 选 squad 生成、宝藏/起点/商店房无怪、普通房→squad贪心选取生成 |
+| `filterSquadsByRoom(floorNum, roomType, tpl)` | 按楼层/房间类型/地形标签过滤可用 squad（minFloor 过滤 + movementTags 匹配） |
+| `monsterCells(m)` / `isInMonsterFootprint(m,c,r)` | 2×2怪物辅助：获取占据格列表 / 检测格子是否在怪物范围内 |
+| `isValidLandingZone(c,r,size)` | 2×2落脚验证：不越界、不是墙、不能全深坑 |
+| `processJumperAction(m)` | Boss Jumper行动分发：phase 1/2→小跳、phase 4→大跳消失、justLanded→跳过 |
+| `calcJumperSmallJump(m)` | 小跳跃计算：根据配置步数选择方向并验证落点，随后处理移动与接触伤害 |
+| `calcJumperBigJump(m)` | 大跳跃计算：记录玩家位置 → 选2×2落点 → 标记vanished + pendingBossLanding |
+| `executeBossLanding()` | 大跳落地执行：Boss出现 → 执行落地伤害 → 重置phase → 标记justLanded；范围和伤害查配置与代码 |
+| `initDukeQuadrant(m)` | 初始化苍蝇公爵象限方向（首回合调用），随机选一个对角象限方向 |
+| `calcDukePath(m, turnIdx)` | 计算苍蝇公爵对角移动关键帧（判定+动画用），duke_diagonal_move action 专用 |
+| `updateDukeAnim(dt)` | 苍蝇公爵关键帧动画更新：逐帧插值控制 px/py |
+| `handleDukeSummon(m)` | 苍蝇公爵召唤处理：按概率在相邻空格召唤 duke_floater，受 maxCount 上限约束 |
+| `calcAllMonsterPaths()` / `startMonsterTurn()` / `updateMonsterTurn(dt)` | 怪物回合系统：第 0 遍先计算 Duke 关键帧（判定层优先）→ `resolveMonsterAction()` 选择行为（按 actionMode 过滤+加权）→ AI路由分发 → 每怪移动路径计算 + ranged_kite 射程判断 |
+| `resolveMonsterAction(cfg, turnIdx, mCol, mRow, pCol, pRow)` | 解析怪物本回合行为：按 action.condition 过滤 eligible → 按 actionMode (sequence/random weight) 选择一个 action → 按 stepMode/stepWeights 解析步数 |
+| `updateActionBar()` | 更新底部状态栏（探索模式隐藏 / 战斗模式显示 AP） |
+| `updateUI()` / `updateFloorUI()` | 更新所有 DOM UI 面板（含AP面板显隐、楼层信息栏） |
+| `showFloorBanner(text)` / `playFloorFade()` / `fadeIntoFloor(n)` | 楼层横幅「第 X 层」与黑场过渡（渐隐→切层→渐现） |
+| `updateItemTooltip()` | 地面道具说明弹窗：按函数中的距离判断显示名称、效果及商店价格 |
+| `checkSpikeUnderPlayer()` | 站在尖刺格且非无敌时受伤并进入无敌；伤害查函数代码 |
+| `SFX.*`（shoot/hit/kill/hurt/pickupItem/pickupRes/chest/locked/bombPlace/boom/door/battle/rewind/floor/victory/death/buy） | WebAudio 合成音效预设，`SFX.toggle()` 静音开关 |
+| `gameLoop(timestamp)` | 主循环：动画→输入→子弹→粒子→怪物回合→渲染 |
+
+## 6. 数据流
+
+```
+启动:
+  loadTemplates() → poolTemplates
+  loadMonsterDB() → MONSTER_DB (异步fetch monster-db.json)
+  loadSpawnConfig() → SPAWN_CONFIG (异步fetch spawn-config.json，floorBudgets + terrainModifiers + bossMonsters)
+  loadSquadTemplates() → SQUAD_TEMPLATES (异步fetch squad-templates.json)
+  loadItemDB() → ITEMS_DB (异步fetch item-db.json, 含掉落表itemDropTables)
+  loadResourceDB() → RESOURCE_DB (异步fetch resource-db.json, 含资源定义+掉落表+宝箱loot)
+  loadOrGenerateFloors() → allFloors (从 floor-data.json 加载；失败不自动生成)
+  enterFloor(1) → 设置 currentFloor/currentRoomId/currentRoomGrid → spawnRoomMonsters()
+
+探索模式 (inCombat=false):
+  WASD → isWall检查 → 自由移动(col/row/px/py)
+       → invincibleSteps递减 → checkSpikeUnderPlayer() → 梯子(fadeIntoFloor→enterFloor)
+       → autoPickupResources() → 商店格尝试自动购买 → 普通道具自动拾取
+       → E键 → placeBomb → 强制进入战斗模式(如在探索中)
+       → tryWalkIntoDoor → 门前格+方向 → 房间切换(滑动过渡) → finishTransition → spawnRoomMonsters()
+
+战斗模式 (inCombat=true):
+  resetTurnAP() → 计算可移动范围 → 保存快照(含道具状态)
+  WASD → 检查 reachableTiles.has(key) → 移动本体 → MP-1 → invincibleSteps-- → recalcContactDamage(含拾取撤销) → autoPickupResources(含pickup log)
+  ↑↓←→ → 即时 spawnBullet → AP-1 → 首次? 设 hasShot + checkpointPos
+  Esc  → restoreTurnSnapshot(含道具/库存/属性/地形/炸弹) → 重置所有状态
+  Space → 结束回合 → 未消耗MP计入invincibleSteps → monster_turn:
+         startMonsterTurn → tickBombCountdown(炸弹倒计时,优先于怪物)
+         → calcAllMonsterPaths() → 第0遍优先计算Duke关键帧(initDukeQuadrant+calcDukePath)
+         → resolveMonsterAction(按condition过滤+actionMode选择)
+         → AI路由分发(action type: chase/random_wander/shoot_fan/shoot_single/charge_line/duke_diagonal_move)
+         → 怪物逐步移动+碰撞+尖刺5 + Duke关键帧动画(updateDukeAnim) + Duke召唤(handleDukeSummon)
+         → finishMonsterTurn(检查怪物+炸弹决定战斗结束)
+       → updateDoorsLocked(仅判断怪物,不判断炸弹) → 无怪有炸弹:战斗继续/门开
+
+渲染层序:
+  gameLoop → render()
+           → 墙壁 → 地板 → TILE瓷砖(岩/便/坑/刺/梯) → 房门(开/关)
+           → 网格高亮 → 可移动范围(浅蓝呼吸) → 地上道具 → 资源 → 商店价格 → 炸弹
+           → 子弹 → 粒子 → 怪物 → 角色 → 战斗开始剑动画 → Esc时间倒流动画 → 调试层与小地图
+           → DOM 覆盖层独立渲染文字(怪物名/伤害飘字/AP圆点)
+```
+
+## 7. 项目文件清单
+
+### 根目录
+
+| 文件 | 类型 | 说明 |
+|------|------|------|
+| `turnbased-shoot-demo2.html` | HTML/JS | 主开发文件（v3道具系统版，即时操作回合制） |
+| `turnbased-shoot-map-viewer.html` | HTML/JS | 房间模板编辑器（File System Access API 直读直写，生成json手动复制） |
+| `turnbased-shoot-demo-pack.html` | HTML/JS | 新项目的单文件打包产物，由 `build-pack.js` 生成，设计为双击运行 |
+| `build-pack.js` | Node.js | 打包脚本：运行代码、配置或必要资源修改后生成 `turnbased-shoot-demo-pack.html`；内联配置与图片，并检查特定残留引用 |
+| `sprite-debug.html` | HTML/JS | 精灵表调试工具（网格叠加查看帧坐标） |
+| `walk-preview.html` | HTML/JS | 走路动画预览工具（循环播放各方向帧） |
+
+### Assets/ (美术素材)
+
+| 文件 | 类型 | 说明 |
+|------|------|------|
+| `turnbased-shoot-idle.png` | 图片 | 角色精灵图集（头+身体走路帧，32×32 每帧） |
+| `turnbased-shoot-background.png` | 图片 | 备用地面背景图 |
+| `UI-reference1.png` | 图片 | UI 参考图1 |
+| `UI_reference2.png` | 图片 | UI 参考图2 |
+| `usable_assets/` | 目录 | 资源图标素材（18个PNG：金币×4/炸弹×2/红心×4/蓝心×4/宝箱×2/钥匙×2） |
+
+### Configs/ (配置与服务)
+
+| 文件 | 类型 | 说明 |
+|------|------|------|
+| `pool.json` | JSON | 关卡池数据文件（模板定义 + allowedMovement 配置，编辑器读写） |
+| `floor-data.json` | JSON | 楼层生成数据（房间结构+grid，编辑器/游戏加载，不含 spawnConfig） |
+| `monster-db.json` | JSON | 怪物属性、行动与掉落配置 |
+| `item-db.json` | JSON | 道具定义 `items` 与品质权重 `itemDropTables` |
+| `resource-db.json` | JSON | 资源、宝箱掉落、`resourceDropTables` 和 `_limits` |
+| `spawn-config.json` | JSON | 楼层刷怪配置（`floorBudgets` 每层独立 `{budget}` 单值 + `terrainModifiers` 模板预算偏移 + `bossMonsters` Boss 分配表） |
+| `squad-templates.json` | JSON | 怪物小队模板与预算、标签和楼层限制 |
+
+> **已删除文件**：`item-drop-tables.json` — 品质表已合并至 `item-db.json > itemDropTables` | `isaac-room-pool - original backup.json` — 原始关卡池备份（已清理）
+
+### Documents/ (文档)
+
+| 文件 | 类型 | 说明 |
+|------|------|------|
+| `turnbased-shoot-context.md` | 文档 | 本文档：策划+技术架构速查 |
+| `turnbased-shoot-memory.md` | 文档 | 项目决策记忆：所有重要决策演变、方案变更、问题攻克记录 |
+| `turnbased-shoot-roommonster-plan.md` | 文档 | 多房间地图+怪物配置+掉落系统设计方案 |
+| `monster-random-plan.md` | 文档 | 混合刷怪系统方案（标签匹配+组合规则+点数预算实现文档） |
+| `turnbased-shoot-asset-desc.md` | 文档 | 资源替换步骤指南 |
+| `turnbased-shoot-gdd.md` | 文档 | 继承的设计梳理，部分结论可能过期 |
+| `turnbased-shoot-decision-index.md` | 文档 | 继承的决策索引 |
+
+---
+
+## 最近更新记录
+
+以下为历史记录，描述各日期当时的设计和实现，不代表当前状态；当前规则以正文及代码为准。
+
+| 日期 | 更新内容 |
+|------|---------|
+| 2026-11-01 | **文档与宝箱配置整理**：正文中的已配置数值改为配置／代码索引，保留玩法规则与待实现目标；普通宝箱道具分支概率下调，两类宝箱道具品质表移除 `none` 权重，具体数值以 JSON 为准。删除未使用的旧怪物路径箭头和路径红格绘制，红黄危险格仍待实现。 |
+| 2026-10-31 | **新项目核心设计讨论**：明确低操作门槛与随机道具爽感的体验目标；制定红黄危险格及黄色结果揭晓的目标规则；回溯以每玩家回合 2 次作为试玩初值，保留同一怪物及地形掉落不因回溯刷新。危险格和次数限制尚未实现，细节与平衡待验证。 |
+| 2026-10-28 | **可玩性修复批次 + 音效/提示系统**。①修复商店道具白嫖（移除通用拾取对商店槽位的覆盖，`isShopSlotCell` 判定），随后按需求改为**走到商品格自动购买**（金币足够即扣款），并移除 F 键拾取功能（按键/帮助/画布提示全部清理）。②修复 `crack_maw_iii`/`flying_eye_iii` 掉落表名缺前缀（回退 default 表导致几乎必掉道具）、`charge_golem` 资源表误用 `resource_drop_boss`。③修复 ESC 回溯地形：`restoreTurnSnapshot` 改为原地写回 `room.grid`（原整体替换数组导致地形回溯失效）；ESC 后补 `buildHearts/buildBlueHearts/buildApDots` 重建 DOM。④修复心数上限：`totalHearts` 去掉 `Math.ceil`、红/蓝心精确判定、`recalcAllStats` 溢出削蓝心。⑤尖刺规则统一：`checkSpikeUnderPlayer()`，移动后与回合开始均结算（战斗中此前完全无判定）。⑥怪物移动占位修正：只挡"本步不动"的怪物 + 按距玩家距离排序 + 完整脚印占位。⑦新增 WebAudio 合成音效（16 事件 + 静音按钮）、地面道具说明弹窗（≤3 格）、楼层横幅「第 X 层」与黑场渐隐渐现、开始/死亡/通关弹窗纳入文档。⑧全项目 A-AP→AP、M-AP→MP 更名（含注释）。⑨重新生成 `turnbased-shoot-demo-pack.html`（Node 不可用，用 PowerShell 等价实现 build-pack 流程）。 |
+| 2026-08-07 | **苍蝇公爵 Boss 系统**。新增 `duke_fly`（2×2 对角移动 Boss）+ `duke_floater`（公爵浮游眼召唤物），含独立关键帧动画系统（initDukeQuadrant/calcDukePath/updateDukeAnim）和 summon 召唤机制（handleDukeSummon）。新增 4 个 Boss squad 模板（boss_duke/boss_duke_and_jumper_i/boss_duke_and_jumper_iii 等）。spawn-config 从三元组简化回单值 `{budget}`。action 类型枚举新增 shoot_single/duke_diagonal_move/summon。怪物总数从 12 增至 14 只。 |
+| 2026-08-06(晚) | **打包脚本 build-pack.js 创建**。生成 `turnbased-shoot-demo-pack.html` 单文件独立打包版（7个JSON内联 + 22个PNG base64 + Google Fonts移除 + file://检测移除），可双击直接打开无需本地服务器。修复打包脚本三个bug：正则未匹配`?`、模拟对象缺`text()`方法、替换后缺`await`。 |
+| 2026-08-05 | **刷怪配置架构重构：spawnConfig 从 floor-data 移至运行时计算**。①`spawn-config.json` 重构：删除 `baseSpawnConfig` 公式层，`floorBudgets` 改为 `{minMonsters, maxMonsters, budget}` 完整三元组每层独立配置，`terrainModifiers` 扩展为 `{budget, minDelta, maxDelta}` 支持对 min/max 怪物数做微调。②`floor-data.json` 移除全部 67 个 room 的 `spawnConfig` 字段（不再硬编码在生成产物中）。③`demo2.html` 新增 `resolveSpawnConfig(room, floorNum)` 函数，运行时计算 `floorBudgets[楼层] + terrainModifiers[模板]`，`room.spawnConfig` 存在时覆盖兜底。④`map-viewer.html` 删除硬编码 terrainModifiers 和 spawnConfig 计算循环，`saveFloorToFile` 增加 `delete r.spawnConfig`。⑤修复编辑器选择 pool.json 时报错：4个加载入口统一 `delete loaded._schema` 过滤元数据 key。 |
+| 2026-08-04(晚) | **R键重置完整性修复 + 商店购买系统 + AP视觉修复**。①`loadOrGenerateFloors` 首次加载后深拷贝保存 `_initGrid`/`_initDoors`，R键重置时从备份恢复所有房间的地形破坏、门状态、Boss梯子、道具标记等，彻底修复R键后大便/岩石未恢复的问题。②合并原来分散的两个清理循环为一个统一循环。③`buildApDots`/`buildHearts`/`buildBlueHearts` 移到 `updateUI` 之前执行，修复因 `buildApDots` 在 `updateApDots` 之后调用导致 AP 圆点视觉未更新的 bug。④新增商店购买系统：`tryBuyShopSlot(col,row)` 检测商品→扣金币→获得道具/资源→标记售出；`drawShopPrices()` 渲染价格标签(金色/灰色)。⑤商店房进入时不调用 `spawnShopItems`（已在 `finishTransition` 中处理）。 |
+| 2026-08-04 | **掉落表命名统一 + roomClearDrop配置驱动化**。①`itemDropTables` 9张表全部加 `item_drop_` 前缀，`resourceDropTables` 11张表全部加 `resource_drop_` 前缀，宝箱资源对象名不变以消除歧义。②全项目 6 文件同步更新所有引用（monster-db/floor-data/map-viewer/demo2）。③`rollRoomClearDrop()` 从硬编码 roomType→tableKey 映射改为读取 `room.roomClearDrop` 配置。④修复地图编辑器 `floorFileInput` 缺少 grid 转置导致显示不正确。 |
+| 2026-07-31(晚2) | **context.md Boss Jumper 文档不实描述批量修正**。①怪物表概览行展开为 3 个 action 完整描述（steps:[2/3/3]、repeatChance:0.5 在第二个 jump_small、落地伤害由 after_effect:attack_side 实现）。②字段说明范例 landDamage→target。③Action 类型枚举 jump_small 补 repeatChance、jump_big_land 移除 landDamage/repeatChance 改 target+after_effect。④§2.13 大跳跃行 landDamage→after_effect:attack_side。⑤§2.13 关键设计 jump_big_land.repeatChance→第二个 jump_small.repeatChance。⑥历史记录 2026-07-27 参数迁移路径修正。⑦global-rules §2.2 追加「同步前回溯本轮所有待修条目」硬性步骤。 |
+| 2026-07-31(晚) | **JSON尾随逗号修复 + AI JSON编辑后校验规范确立**。①修复 `item-db.json` 中 `boss_room` 尾部多余逗号（删除 `monster_very_rare` 表后 `boss_room` 变成末位，逗号未联动清理导致 JSON 解析失败）。②确立规范：每次编辑 JSON 文件后主动调用 `read_lints` 校验，增删成员时联动检查尾部逗号。③context.md 品质表同步修正（8张→7张，移除 monster_very_rare 行，common/ranged/heavy 数值修正为 90/5/3/2）。④文件清单移除 `isaac-room-pool - original backup.json`（已删除）。 |
+| 2026-07-31 | **满血拾取修复 + 幽灵资源修复 + checkpoint时机修正**。①`simulateFromCheckpoint` BFS路径重放中资源拾取改为判断`handleResourcePickup`返回值后再splice，修复满血走过红心被无条件消耗的bug。②`updateRoomCombatState` 中 `room._groundResources` 从深拷贝改为直接引用，消除因引用断裂导致离房再回房时已拾取资源幽灵重现。③移除子弹发射时的过早 `saveCheckpoint`，改为在`damageMonster`中怪物受击(含非致命)时更新，确保checkpoint始终反映操作的实际结果而非操作瞬间。 |
+| 2026-07-30 | **地形掉落预roll + liftDir修复 + ESC回溯补全**。①`initTileData()` 房间初始化时为每个 POOP/ROCK 预roll掉落(`_loot`)，`hitTile()` 破坏时捕获预roll传给 `rollTerrainDestroyDrop(preLoot)`，保证ESC回溯后再次破坏同一地形掉落一致。②6处资源保存/恢复（`saveTurnSnapshot`/`saveCheckpoint`/`restoreCheckpoint`/`restoreCheckpointWithoutBullets`/`restoreTurnSnapshot`/`simulateFromCheckpoint`）补上 `liftDir`，修复资源在BFS触发checkpoint恢复后因 `liftDir=undefined→liftY=NaN` 导致视觉消失但可拾取的bug。③`saveTurnSnapshot`/`restoreTurnSnapshot` 新增 `tileData`/`currentRoomGrid`/`bombs` 快照，ESC回溯覆盖可破坏地形和炸弹状态。④`hitTile()` 破坏后调用 `saveCheckpoint()` 确保BFS回退时地形保持已破坏。 |
+| 2026-07-29 | **资源掉落表 mode 统一 + attack_adjacent 十字化**。①`resource-db.json` resourceDropTables 全部升级为 `{ mode, table }` 结构，每表统一 15 种资源条目(不掉落的权重=0)，新增 `room_clear_treasure` 表。②`rollResourceDrop()` 重构支持三种 mode(pick_one/roll_all/pick_first)，向下兼容旧格式。③`rollRoomClearDrop()` 移除硬编码(宝藏/Boss房不掉的 if 判断)，改为 roomType→tableKey 纯配置驱动映射。④`spawnShopItems()` 改用统一 `rollResourceDrop('shop_stock')`。⑤`resolveAfterEffects()` 中 `attack_adjacent` 从面朝方向单向攻击改为四方向十字范围攻击(上下左右各 range 格)。⑥`finishMonsterTurn()` 简化移除 dirX/dirY 计算。 |
+| 2026-07-28(晚) | **浮游眼行为模式重构**。①新增 `condition` actionMode：按顺序逐条评估 condition，选中第一个满足的 action（替代旧 random 权重随机）。②新增 `out_of_range` 条件（与 `in_range` 互补）。③新增 `after_effect` 机制：主 action 执行完毕后追加执行附加行为（shoot_fan→after_effect:random_wander → 射击后立刻移动）。④玩家回合动态感叹号：WASD移动时实时检测与浮游眼切比雪夫距离，进入射程显示"!"，移出消失。⑤抽出 `checkActionCondition` + `resolveSteps` 辅助函数。 |
+| 2026-07-28(晚) | **蓄力魔像行为优化**。①蓄力魔像 actions 从单一 `charge_line` 改为 4 步 sequence：`random_wander`(2步) → `random_wander`(2步) → `charge_up`(蓄力+感叹号) → `charge_line`(冲刺)。I/II/III级 wander 步数分别为 2/3/4。②新增 `charge_up` action 类型：原地不动+头顶红色闪烁感叹号(!)脉动动画（DOM覆盖层渲染）。③`charge_line` 简化为单步执行（选方向+直接冲刺，不再分两阶段）。④感叹号状态纳入回合快照。⑤action 类型枚举从 7 种增至 8 种。⑥感叹号样式优化：56px Courier New大号像素风，8方向黑色像素描边+3层红色光晕脉动（0.5s，0.85→1.25缩放）。 |
+| 2026-07-28(晚) | **掉落系统全面重构 + 资源系统建立**。①新建 `resource-db.json`：15种资源定义 + 11张资源掉落表(含新增 room_clear_treasure) + 宝箱loot配置。②怪物loot全面重配：所有非Boss怪改为极少道具 + 小概率资源；Boss纯道具无资源。③宝箱改为必掉1~4个道具(roll_all模式)。④删除 `item-drop-tables.json`，品质表合并至 `item-db.json > itemDropTables`。⑤新增统一掉落调度器 rollLoot/executeDropEntry 及资源掉落 rollResourceDrop。 |
+| 2026-07-28 | **文档体系补充：代码-文档不一致处理约定**。①确立约定：AI 发现实际代码和项目文档不一致时，必须主动提醒用户，列出具体差异清单让用户决策（①以代码为准更新文档 / ②以文档为准修正代码 / ③两者都保留（设计变更过渡期）），不得在用户未表态的情况下擅自修改代码或修改文档。②确认 Ask/Craft 模式分工边界：Ask 模式只分析/提醒差异，不动文件；文档更新需用户明确指令。③文件清单修正：monster-db.json 描述从旧 `movement`+`aiParams` 更新为 `actionMode`+`actions[]`。 |
+| 2026-07-27 | **怪物行动系统重构：actionMode + actions[]**。①移除旧 `movement`/`aiParams`/`aiRange` 分散字段，统一为 `actionMode`（行为选择模式：sequence按序/random加权随机）+ `actions[]`（行为列表，每个 action 独立携带 type + steps/stepMode/range/condition 等全部参数）。②新增 `resolveMonsterAction()` 函数：按 condition 过滤 eligible → actionMode 挑选 → stepMode/stepWeights 解析步数。stepWeights 未配时默认均匀随机。③5种怪物12条全部迁移。裂口尸→chase、浮游眼→random_wander+shoot_fan（actionMode.random + condition.in_range）、蓄力魔像→charge_line、Boss Jumper→jump_small+jump_big_land。④Boss Jumper 参数从 `aiParams` 移至 `actions[]`：`jump_small`（steps/repeatChance）、`jump_big_land`（disappearSteps/target/after_effect:attack_side）。⑤context.md 全覆盖交叉比对：怪物表重写、AI类型表→Action类型表、配置字段说明重写、Boss Jumper 参数来源更新、架构概览/函数索引/数据流更新。 |
+| 2026-07-24 | **怪物移动配置统一重构 + 浮游眼AI行为优化**。①新增统一 `movement` 结构（`mode`/`steps`/`stepMode`/`weight`），替代旧 `moveCycle`/`moveDistMin-Max`/`chargeDistMin-Max` 等分散字段。12只怪物全部迁移，同一概念（步数）不再各自为政。②浮游眼 AI 新增切比雪夫距离射程判断：射程内按权重射击/移动，射程外强制只移动，不走无意义的远程对射。③巡逻怪硬编码 5 格 → `aiParams.patrolRange` 可配置。④context.md 全文交叉比对：怪物表重写（boss_maw_king 移除、I/II/III 三级标注、移动列重写）、AI类型表更新、文件清单新增 spawn-config.json + demo.html 标记废弃、函数索引/独立属性描述更新。 |
+| 2026-07-23 | **AI行为参数外置 + 配置外置审计标准 + global-rules 规范扩充**。①monster-db.json 新增 `aiParams` 字段，5种怪物AI参数全部外置消除硬编码。②系统性审计6个JSON+2个HTML，确立分类标准：策划数据→JSON、引擎/渲染/算法内部调参→代码（渲染常量/动画时长/刷怪算法明确保留代码不挪JSON）。③建立双HTML同步策略（demo.html内联 + demo2.html JSON加载双轨维护）。④global-rules 新增 §2.10 Memory记录完整性要求（不遗漏讨论深度）+ §4.5 疑问句与指令区分（只建议不抢先执行）。⑤context.md全覆盖交叉比对：8处过时常量修正（怪物名/HP/子弹速度/重力）。 |
+| 2026-07-22 | **楼层生成两步法重构**。`generateFloor()` 改为骨架房优先扩展布局 → Boss/宝箱从集群边界空位挂载。Boss选距离起点最远的边界位置，宝箱从剩余边界随机选。Boss/宝箱始终在集群外围且天然只有1个连接，彻底消除旧方案的裁边+连通性修复逻辑。 |
+| 2026-07-21(晚) | **Boss Jumper 2×2跳跃Boss系统**。①新增 `boss_jumper` 怪物（size:2占据4格），替代旧boss为每层Boss房唯一Boss。②行动循环：小跳×2（中心距离判定+3步目标+弧线动画）→50%重复判定→大跳（消失淡出+延迟落地+12格范围1心伤害+冲击波动画）。③2×2全系统适配：渲染（中心偏移公式修正）、碰撞（子弹4格检测）、接触伤害（0.5心）、快照/占用/标签。④`pendingBossLanding` 跨回合延迟执行 + `jumperJustLanded` 落地休息。⑤宝藏房不刷怪。⑥新增 §2.13 Boss Jumper 章节 + AI类型表。 |
+| 2026-07-20 | **godot-setup-checklist.md 移至根目录 Documents/**。文件从项目专属文档升级为跨项目通用参考文档，从 context.md 文件清单中移除引用。 |
+| 2026-07-20 | **三层记忆体系建立**。①新增 `Documents/turnbased-shoot-memory.md`：从 context.md 全部历史记录 + chat-log + 当前会话三个数据源提取所有重要决策，按功能领域系统化整理（AP演变/无敌X→Y/怪物三次重构/尖刺调整/编辑器去服务器/道具系统等）。②新增根目录 `Documents/global-rules.md`：从 6 条 CodeBuddy Memories 迁移跨项目通用规范，补充时间戳和详细说明。③文件清单新增 turnbased-shoot-memory.md 引用。④删除 `chat-log-2026-07-20.md`（内容已迁移到 memory.md）。⑤CodeBuddy Memories 新增"多端开发记忆同步"规则。 |
+| 2026-07-20 | **道具系统 + 小地图 + 访问记录 + AP动态 + 编辑器文件直读 + demo2 + 服务器彻底移除**。①创建 `turnbased-shoot-demo2.html`（v3道具版），新增 25 种被动道具（15普通/7稀有/3传说），宝箱房必定掉落稀有道具、Boss房清怪后掉落。②道具属性叠加系统：攻击/射速/移速/射程/HP上限，其中射速→AP、移速→MP（Math.floor 向下取整），拾取道具后动态调整 AP。③特殊道具效果：穿透子弹（丘比特之箭/死神的镰刀）、伤害倍率（蟋蟀头 ×1.5）。④道具栏 UI（底部图标+悬浮提示）+ 拾取交互（F键）+ 品质区分（金/蓝/棕边框）。⑤右下角小地图（100×80px）：根据 floor.layout 绘制已探索房间（起点S/BossB/宝箱T），当前房间金色边框，未探索深色方块。⑥已进入房间不再刷怪：visitedRooms(Set) 追踪，finishTransition 检测重复进入。⑦编辑器彻底移除 server.js 依赖：模板池/楼层数据改用 File System Access API 直读直写（showOpenFilePicker + IndexedDB 记住句柄），"生成json"按钮弹出文本框供手动复制覆盖。⑧demo.html/demo2.html/map-viewer.html 三文件统一清理所有服务器相关代码（localhost:8080/BroadcastChannel），`loadTemplates` 和 `loadOrGenerateFloors` 改为直接 fetch `Configs/pool.json` 和 `Configs/floor-data.json`。⑨删除 `Configs/server.js`、`test-save.html`、`server.py`、`server.ps1`。 |
+| 2026-07-16 | **混合刷怪系统（标签匹配+组合规则+点数预算）**。①怪物配置新增 3 字段：`movementTags`（移动特征标签：地面/飞行）、`role`（战斗角色：melee/ranged/tank/boss）、`threat`（威胁值点数）。②`pool.json` 每个房间模板新增 `spawnConfig`（`allowedMovement`/`minMonsters`/`maxMonsters`/`budget`），手动配置房间地形与怪物标签的匹配关系。③实现三层递进刷怪算法：标签过滤（怪物 movementTags ∩ 房间 allowedMovement）→ 组合规则（至少1近战保底 + 角色多样性加权×3）→ 点数预算（基础budget + (楼层-1)×2 递进）。④`enterFloor()` 和 `finishTransition()` 接入 `spawnRoomMonsters()` 自动刷怪；Boss房固定生成、起点房无怪。⑤生成 `Documents/monster-random-plan.md` 方案文档。⑥同步更新上下文文档相关章节。 |
+| 2026-07-16 | **怪物配置表外置 + 参数文档化**。①创建 `Configs/monster-db.json` 外部 JSON 配置文件，将怪物配置从内联 JS 对象迁移为独立数据文件，便于编辑和维护。②文档化所有怪物参数字段含义：`id`（标识符）、`name`（显示名）、`hp`（生命值）、`damage`（碰撞伤害）、`moveCycle`（移动周期数组）、`aiType`（AI类型：chase/ranged_kite/boss_chase）、`aiRange`（远程AI距离）、`tint`（颜色叠加）、`dropTable`/`dropRate`（掉落表与概率，待后续系统确认）、`roomTypes`（出现房间类型）。③同步更新上下文文档相关章节。 |
+| 2026-07-16 | **怪物配置表接入+无敌统一+尖刺伤害修正**。①`MONSTER_CFG` 替换为 `MONSTER_DB` 怪物配置数据库：4种怪物（裂口尸/浮游眼/岩石魔像/Boss裂口之王），每怪独立 `moveCycle`/`damage`/`aiType`/`tint`。②`AI_TYPE` 枚举 6 种 AI 行为类型（chase/ranged_kite/patrol/charge/stationary/boss_chase），`calcAllMonsterPaths()` 新增 AI 路由分发。③C键/生怪按钮改为随机生成怪物（95%普通池+5%含Boss），`spawnMonster(cfgId?)` 支持指定类型。④怪物渲染增加 tint 色彩叠加区分类型 + 头顶名称标签（Boss红字）。⑤无敌系统统一：移除 `invincibleTurns`，战斗/探索均使用 `invincibleSteps = 移速×2` 步数制；战斗模式结束回合时未消耗 MP 计入无敌步数消耗（只读，不影响 AP 系统）。⑥尖刺伤害修正：玩家 2 点、怪物 5 点（新增怪物尖刺判定）。⑦怪物碰撞伤害按类型区分（裂口尸/浮游眼=1，魔像/Boss=2）。 |
+| 2026-07-16 | **探索模式无敌+房门重绘+透视取消+编辑器验证+楼层grid固化+清理**。①探索模式受伤触发步数制无敌：`invincibleSteps=移速×2`（移速=3→6步），每移动一格递减，受伤格为第1步，到0消失；战斗模式保持回合制无敌3回合。②`drawDoors()` 重绘：移除绿色提示块，使用 `cellRect()` 透视坐标渲染房门（打开=深色通道+门框/关闭=铁栏纹理+横竖铁条），区分上下/左右方向。③取消房间透视变形：`VP_SCALE_TOP` 改为 1.00，`project()` 变为恒等映射，地板网格/瓷砖/门全部恢复标准矩形。④R键直接用 `resetGameToFloor1()` 重置，不再经过 `loadOrGenerateFloors()`。⑤编辑器 `closeEditor(true)` 保存前强制 `validateTiles()` 验证，门阻塞或不连通时拒绝保存。⑥楼层 grid 固化：加载 `floor-data.json` 时保留已存 grid（仅缺失时模板兜底），修改 `pool.json` 不再影响已生成楼层。⑦删除无用的根目录 `pool.json`（已迁移至 `Configs/`）。同步更新设计文档。 |
+| 2026-07-16 | **楼层生成规则强化 + 布局/门系统修复**。①房间类型约束：Boss 房和宝箱房强制度数=1（单门死路），图生成阶段保证至少 3 个叶节点（start/boss/treasure 各一）。②所有房间度数 ≤4（每方向最多一扇门），生成树构建时跳过已满节点，额外边也做度数上限检查，杜绝一门连多个房间。③布局强制相邻：连接房间必须 Manhattan 距离=1，采用随机顺序重试机制（最多 30 次）确保相邻放置可行；渲染层兜底 L 形线绝不画斜线。④门一致性校验：分配时检测方向覆盖冲突，分配后验证每个房间门数=边数。⑤`turnbased-shoot-map-viewer.html` 新增 `CACHE_KEY` 机制：手动选择/同步文件后缓存到 localStorage，启动时优先读取，无需每次重新选文件。同步更新 `turnbased-shoot-roommonster-plan.md` 设计文档。 |
+| 2026-07-16 | **项目文件分类整理 + 编辑器保存机制重构**。项目文件按类型重组到子目录：`Assets/`（图片素材）、`Configs/`（pool.json 关卡池 + server.js 文件读写服务 + 原始备份）、`Documents/`（全部 md 文档）。清理冗余文件：删除失败的 server.py、cgi-bin/、err.log、out.log。`turnbased-shoot-map-viewer.html` 编辑器保存机制改用 `<form>` POST + 隐藏 `<iframe>` 绕过 IDE 代理拦截，通过 `server.js` (Node.js) 实现可靠的 pool.json 文件读写。新增文件管理规则：不随意删除或重命名用户手动新增文件，操作前需经用户同意。 |
+| 2026-07-15 | **房间框架实现：TILE 系统 + 12 种模板 + 地图编辑器**。定义 5 种 TILE 类型（FLOOR/ROCK/POOP/PIT/SPIKE）及行为属性表，确定门系统（每边正中一个门前格，不占格子）。设计 12 种 13×7 房间模板（含便便/尖刺），全部通过自动化 BFS 连通性验证（4门位在曼哈顿移动下全连通）。创建 `turnbased-shoot-map-viewer.html` 独立编辑器：模板池管理（查看/编辑/复制/删除）、13×7 画布绘制（5色调色板+撤销）、6 种 Isaac 风格自动生成图案（角岩/十字/石墙/石柱/斜线/中柱）、双模式关卡池持久化（File System Access API 直读直写 + 文件选择器/下载回退）、`isaac-room-pool.json` 数据文件、楼层生成预览。更新 `turnbased-shoot-roommonster-plan.md` 同步设计方案为已实现状态。 |
+| 2026-07-15 | **核心交互重构：即时操作 + ESC 全重置**。彻底移除预操作队列系统（`actionQueue`/`player_shoot_dir`/`player_execute`），改为即时操作模型：WASD 在 BFS 可移动范围(浅蓝呼吸)内即时移动本体、↑↓←→ 即时射击发射子弹。新增回合快照系统 (`saveTurnSnapshot`/`restoreTurnSnapshot`) 支撑 Esc 全重置（角色/怪物/环境全部回到回合开始时）。射击后触发 checkpoint (`hasShot`/`checkpointPos`) 并刷新可移动范围。回合起始位置保留半透明幽灵作视觉参考。同步调整初始属性 (移速3→MP=3, 射速3→AP=3, 均系数1下限1)。更新上下文文档全部相关章节。 |
+| 2026-07-14 | **多房间地图设计方案**：创建 `turnbased-shoot-roommonster-plan.md`，包含楼层生成算法（随机图生成 + BFS 全连通检查，采用以撒模式无走廊）、房间类型分配（start/normal/treasure/shop/boss）、模板法内部布局、怪物配置表（MONSTER_DB 内联 JS 对象）、掉落系统（权重随机 + DROP_TABLES）、AI 行为类型枚举、道具被动能力提升。方案基于现有 13×7 单房间框架扩充为 Roguelike 多房间系统。 |
+| 2026-07-13 | 集成精灵图集渲染：使用 `turnbased-shoot-idle.png`（32×32 每帧）替代程序化像素角色。实现头身分离叠加（头偏移 body 30%）、4 方向 × 10 帧走路动画、射击表情切换（0.4s 持续）。背面缺失方向暂复用正面帧。移动速度从 280 → 70 px/s 以适配动画播放。新增 `sprite-debug.html` 和 `walk-preview.html` 调试工具。更新文档各节编号，修正函数索引、数据流和文件清单。 |
+| 2026-07-13 | 首次创建项目上下文文档（turnbased-shoot-context.md），记录 HTML Canvas 原型的技术架构、核心系统、关键函数索引与数据流。 |
+
+---
+
+> **后续讨论方向（未定案）**：危险格及回溯次数的实现与试玩、掉落和经济、难度曲线、道具体验、探索内容和 Boss 设计。当前第 3 层配置为苍蝇公爵 + 一只 III 级跳跃巨兽；是否调整由后续设计讨论决定。

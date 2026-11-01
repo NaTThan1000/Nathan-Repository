@@ -1,0 +1,960 @@
+{
+  "1": {
+    "floorNum": 1,
+    "name": "地牢1层",
+    "shopModifier": {
+      "type": "none"
+    },
+    "rooms": [
+      {
+        "id": "f1_r0",
+        "type": "start",
+        "tplKey": "open",
+        "doors": {
+          "up": null,
+          "down": null,
+          "left": {
+            "targetRoomId": "f1_r3",
+            "open": true
+          },
+          "right": null
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        }
+      },
+      {
+        "id": "f1_r1",
+        "type": "normal",
+        "tplKey": "four_corners",
+        "doors": {
+          "up": null,
+          "down": null,
+          "left": null,
+          "right": {
+            "targetRoomId": "f1_r4",
+            "open": true
+          }
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        }
+      },
+      {
+        "id": "f1_r2",
+        "type": "shop",
+        "tplKey": "open",
+        "doors": {
+          "up": null,
+          "down": null,
+          "left": {
+            "targetRoomId": "f1_r4",
+            "open": true
+          },
+          "right": null
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        }
+      },
+      {
+        "id": "f1_r3",
+        "type": "normal",
+        "tplKey": "diagonal",
+        "doors": {
+          "up": {
+            "targetRoomId": "f1_r4",
+            "open": true
+          },
+          "down": {
+            "targetRoomId": "f1_r6",
+            "open": true
+          },
+          "left": {
+            "targetRoomId": "f1_r5",
+            "open": true
+          },
+          "right": {
+            "targetRoomId": "f1_r0",
+            "open": true
+          }
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        }
+      },
+      {
+        "id": "f1_r4",
+        "type": "normal",
+        "tplKey": "room_split",
+        "doors": {
+          "up": null,
+          "down": {
+            "targetRoomId": "f1_r3",
+            "open": true
+          },
+          "left": {
+            "targetRoomId": "f1_r1",
+            "open": true
+          },
+          "right": {
+            "targetRoomId": "f1_r2",
+            "open": true
+          }
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        }
+      },
+      {
+        "id": "f1_r5",
+        "type": "treasure",
+        "tplKey": "ring",
+        "doors": {
+          "up": null,
+          "down": null,
+          "left": null,
+          "right": {
+            "targetRoomId": "f1_r3",
+            "open": true
+          }
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_treasure"
+        }
+      },
+      {
+        "id": "f1_r6",
+        "type": "normal",
+        "tplKey": "corridor_v",
+        "doors": {
+          "up": {
+            "targetRoomId": "f1_r3",
+            "open": true
+          },
+          "down": {
+            "targetRoomId": "f1_r8",
+            "open": true
+          },
+          "left": null,
+          "right": null
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        }
+      },
+      {
+        "id": "f1_r7",
+        "type": "boss",
+        "tplKey": "boss_arena",
+        "doors": {
+          "up": {
+            "targetRoomId": "f1_r8",
+            "open": true
+          },
+          "down": null,
+          "left": null,
+          "right": null
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_boss",
+          "itemDropTable": "item_drop_boss_room"
+        }
+      },
+      {
+        "id": "f1_r8",
+        "type": "normal",
+        "tplKey": "custom_3",
+        "doors": {
+          "up": {
+            "targetRoomId": "f1_r6",
+            "open": true
+          },
+          "down": {
+            "targetRoomId": "f1_r7",
+            "open": true
+          },
+          "left": null,
+          "right": null
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        }
+      }
+    ],
+    "edges": [
+      [
+        "f1_r6",
+        "f1_r3"
+      ],
+      [
+        "f1_r6",
+        "f1_r8"
+      ],
+      [
+        "f1_r3",
+        "f1_r4"
+      ],
+      [
+        "f1_r3",
+        "f1_r0"
+      ],
+      [
+        "f1_r4",
+        "f1_r1"
+      ],
+      [
+        "f1_r8",
+        "f1_r7"
+      ],
+      [
+        "f1_r3",
+        "f1_r5"
+      ],
+      [
+        "f1_r4",
+        "f1_r2"
+      ]
+    ],
+    "layout": {
+      "f1_r6": {
+        "gx": 0,
+        "gy": 0
+      },
+      "f1_r3": {
+        "gx": 0,
+        "gy": -1
+      },
+      "f1_r4": {
+        "gx": 0,
+        "gy": -2
+      },
+      "f1_r0": {
+        "gx": 1,
+        "gy": -1
+      },
+      "f1_r8": {
+        "gx": 0,
+        "gy": 1
+      },
+      "f1_r1": {
+        "gx": -1,
+        "gy": -2
+      },
+      "f1_r7": {
+        "gx": 0,
+        "gy": 2,
+        "adjacentTo": "f1_r8",
+        "dir": "down",
+        "distance": 4
+      },
+      "f1_r5": {
+        "gx": -1,
+        "gy": -1,
+        "adjacentTo": "f1_r3",
+        "dir": "left",
+        "distance": 2
+      },
+      "f1_r2": {
+        "gx": 1,
+        "gy": -2,
+        "adjacentTo": "f1_r4",
+        "dir": "right",
+        "distance": 3
+      }
+    },
+    "startRoomId": "f1_r0",
+    "bossRoomId": "f1_r7",
+    "treasureRoomIds": [
+      "f1_r5"
+    ],
+    "shopRoomIds": [
+      "f1_r2"
+    ]
+  },
+  "2": {
+    "floorNum": 2,
+    "name": "地牢2层",
+    "shopModifier": {
+      "type": "none"
+    },
+    "rooms": [
+      {
+        "id": "f2_r0",
+        "type": "normal",
+        "tplKey": "pillars",
+        "doors": {
+          "up": {
+            "targetRoomId": "f2_r6",
+            "open": true
+          },
+          "down": {
+            "targetRoomId": "f2_r1",
+            "open": true
+          },
+          "left": null,
+          "right": null
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f2_r1",
+        "type": "normal",
+        "tplKey": "cross_rocks",
+        "doors": {
+          "up": {
+            "targetRoomId": "f2_r0",
+            "open": true
+          },
+          "down": {
+            "targetRoomId": "f2_r4",
+            "open": true
+          },
+          "left": null,
+          "right": null
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f2_r2",
+        "type": "normal",
+        "tplKey": "custom_3",
+        "doors": {
+          "up": null,
+          "down": null,
+          "left": {
+            "targetRoomId": "f2_r8",
+            "open": true
+          },
+          "right": null
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f2_r3",
+        "type": "shop",
+        "tplKey": "open",
+        "doors": {
+          "up": null,
+          "down": {
+            "targetRoomId": "f2_r7",
+            "open": true
+          },
+          "left": null,
+          "right": null
+        },
+        "locked": true,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f2_r4",
+        "type": "boss",
+        "tplKey": "boss_arena",
+        "doors": {
+          "up": {
+            "targetRoomId": "f2_r1",
+            "open": true
+          },
+          "down": null,
+          "left": null,
+          "right": null
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_boss",
+          "itemDropTable": "item_drop_boss_room"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f2_r5",
+        "type": "treasure",
+        "tplKey": "four_corners",
+        "doors": {
+          "up": null,
+          "down": null,
+          "left": null,
+          "right": {
+            "targetRoomId": "f2_r6",
+            "open": true
+          }
+        },
+        "locked": true,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_treasure"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f2_r6",
+        "type": "normal",
+        "tplKey": "four_corners",
+        "doors": {
+          "up": null,
+          "down": {
+            "targetRoomId": "f2_r0",
+            "open": true
+          },
+          "left": {
+            "targetRoomId": "f2_r5",
+            "open": true
+          },
+          "right": {
+            "targetRoomId": "f2_r8",
+            "open": true
+          }
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f2_r7",
+        "type": "start",
+        "tplKey": "open",
+        "doors": {
+          "up": {
+            "targetRoomId": "f2_r3",
+            "open": true
+          },
+          "down": {
+            "targetRoomId": "f2_r8",
+            "open": true
+          },
+          "left": null,
+          "right": null
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f2_r8",
+        "type": "normal",
+        "tplKey": "scattered",
+        "doors": {
+          "up": {
+            "targetRoomId": "f2_r7",
+            "open": true
+          },
+          "down": null,
+          "left": {
+            "targetRoomId": "f2_r6",
+            "open": true
+          },
+          "right": {
+            "targetRoomId": "f2_r2",
+            "open": true
+          }
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        },
+        "bossLadderPlaced": false
+      }
+    ],
+    "edges": [
+      [
+        "f2_r0",
+        "f2_r6"
+      ],
+      [
+        "f2_r0",
+        "f2_r1"
+      ],
+      [
+        "f2_r6",
+        "f2_r8"
+      ],
+      [
+        "f2_r8",
+        "f2_r7"
+      ],
+      [
+        "f2_r8",
+        "f2_r2"
+      ],
+      [
+        "f2_r1",
+        "f2_r4"
+      ],
+      [
+        "f2_r6",
+        "f2_r5"
+      ],
+      [
+        "f2_r7",
+        "f2_r3"
+      ]
+    ],
+    "layout": {
+      "f2_r0": {
+        "gx": 0,
+        "gy": 0
+      },
+      "f2_r6": {
+        "gx": 0,
+        "gy": -1
+      },
+      "f2_r8": {
+        "gx": 1,
+        "gy": -1
+      },
+      "f2_r7": {
+        "gx": 1,
+        "gy": -2
+      },
+      "f2_r1": {
+        "gx": 0,
+        "gy": 1
+      },
+      "f2_r2": {
+        "gx": 2,
+        "gy": -1
+      },
+      "f2_r4": {
+        "gx": 0,
+        "gy": 2,
+        "adjacentTo": "f2_r1",
+        "dir": "down",
+        "distance": 5
+      },
+      "f2_r5": {
+        "gx": -1,
+        "gy": -1,
+        "adjacentTo": "f2_r6",
+        "dir": "left",
+        "distance": 3
+      },
+      "f2_r3": {
+        "gx": 1,
+        "gy": -3,
+        "adjacentTo": "f2_r7",
+        "dir": "up",
+        "distance": 1
+      }
+    },
+    "startRoomId": "f2_r7",
+    "bossRoomId": "f2_r4",
+    "treasureRoomIds": [
+      "f2_r5"
+    ],
+    "shopRoomIds": [
+      "f2_r3"
+    ]
+  },
+  "3": {
+    "floorNum": 3,
+    "name": "地牢3层",
+    "shopModifier": {
+      "type": "none"
+    },
+    "rooms": [
+      {
+        "id": "f3_r0",
+        "type": "normal",
+        "tplKey": "pillars",
+        "doors": {
+          "up": null,
+          "down": {
+            "targetRoomId": "f3_r4",
+            "open": true
+          },
+          "left": null,
+          "right": {
+            "targetRoomId": "f3_r11",
+            "open": true
+          }
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f3_r1",
+        "type": "treasure",
+        "tplKey": "four_corners",
+        "doors": {
+          "up": null,
+          "down": null,
+          "left": null,
+          "right": {
+            "targetRoomId": "f3_r8",
+            "open": true
+          }
+        },
+        "locked": true,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_treasure"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f3_r2",
+        "type": "start",
+        "tplKey": "open",
+        "doors": {
+          "up": {
+            "targetRoomId": "f3_r3",
+            "open": true
+          },
+          "down": null,
+          "left": {
+            "targetRoomId": "f3_r10",
+            "open": true
+          },
+          "right": null
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f3_r3",
+        "type": "shop",
+        "tplKey": "open",
+        "doors": {
+          "up": null,
+          "down": {
+            "targetRoomId": "f3_r2",
+            "open": true
+          },
+          "left": null,
+          "right": null
+        },
+        "locked": true,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f3_r4",
+        "type": "normal",
+        "tplKey": "corridor_v",
+        "doors": {
+          "up": {
+            "targetRoomId": "f3_r0",
+            "open": true
+          },
+          "down": {
+            "targetRoomId": "f3_r7",
+            "open": true
+          },
+          "left": null,
+          "right": null
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f3_r5",
+        "type": "normal",
+        "tplKey": "corridor",
+        "doors": {
+          "up": {
+            "targetRoomId": "f3_r10",
+            "open": true
+          },
+          "down": null,
+          "left": null,
+          "right": null
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f3_r6",
+        "type": "treasure",
+        "tplKey": "pillars",
+        "doors": {
+          "up": null,
+          "down": {
+            "targetRoomId": "f3_r8",
+            "open": true
+          },
+          "left": null,
+          "right": null
+        },
+        "locked": true,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_treasure"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f3_r7",
+        "type": "boss",
+        "tplKey": "boss_arena",
+        "doors": {
+          "up": {
+            "targetRoomId": "f3_r4",
+            "open": true
+          },
+          "down": null,
+          "left": null,
+          "right": null
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_boss",
+          "itemDropTable": "item_drop_boss_room"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f3_r8",
+        "type": "normal",
+        "tplKey": "corridor",
+        "doors": {
+          "up": {
+            "targetRoomId": "f3_r6",
+            "open": true
+          },
+          "down": {
+            "targetRoomId": "f3_r11",
+            "open": true
+          },
+          "left": {
+            "targetRoomId": "f3_r1",
+            "open": true
+          },
+          "right": {
+            "targetRoomId": "f3_r9",
+            "open": true
+          }
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f3_r9",
+        "type": "normal",
+        "tplKey": "custom_3",
+        "doors": {
+          "up": null,
+          "down": null,
+          "left": {
+            "targetRoomId": "f3_r8",
+            "open": true
+          },
+          "right": {
+            "targetRoomId": "f3_r10",
+            "open": true
+          }
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f3_r10",
+        "type": "normal",
+        "tplKey": "alcoves",
+        "doors": {
+          "up": null,
+          "down": {
+            "targetRoomId": "f3_r5",
+            "open": true
+          },
+          "left": {
+            "targetRoomId": "f3_r9",
+            "open": true
+          },
+          "right": {
+            "targetRoomId": "f3_r2",
+            "open": true
+          }
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        },
+        "bossLadderPlaced": false
+      },
+      {
+        "id": "f3_r11",
+        "type": "normal",
+        "tplKey": "scattered",
+        "doors": {
+          "up": {
+            "targetRoomId": "f3_r8",
+            "open": true
+          },
+          "down": null,
+          "left": {
+            "targetRoomId": "f3_r0",
+            "open": true
+          },
+          "right": null
+        },
+        "locked": false,
+        "roomClearDrop": {
+          "resourceDropTable": "resource_drop_room_clear_default"
+        },
+        "bossLadderPlaced": false
+      }
+    ],
+    "edges": [
+      [
+        "f3_r9",
+        "f3_r8"
+      ],
+      [
+        "f3_r9",
+        "f3_r10"
+      ],
+      [
+        "f3_r10",
+        "f3_r5"
+      ],
+      [
+        "f3_r10",
+        "f3_r2"
+      ],
+      [
+        "f3_r8",
+        "f3_r11"
+      ],
+      [
+        "f3_r11",
+        "f3_r0"
+      ],
+      [
+        "f3_r0",
+        "f3_r4"
+      ],
+      [
+        "f3_r4",
+        "f3_r7"
+      ],
+      [
+        "f3_r8",
+        "f3_r6"
+      ],
+      [
+        "f3_r8",
+        "f3_r1"
+      ],
+      [
+        "f3_r2",
+        "f3_r3"
+      ]
+    ],
+    "layout": {
+      "f3_r9": {
+        "gx": 0,
+        "gy": 0
+      },
+      "f3_r10": {
+        "gx": 1,
+        "gy": 0
+      },
+      "f3_r2": {
+        "gx": 2,
+        "gy": 0
+      },
+      "f3_r8": {
+        "gx": -1,
+        "gy": 0
+      },
+      "f3_r11": {
+        "gx": -1,
+        "gy": 1
+      },
+      "f3_r0": {
+        "gx": -2,
+        "gy": 1
+      },
+      "f3_r5": {
+        "gx": 1,
+        "gy": 1
+      },
+      "f3_r4": {
+        "gx": -2,
+        "gy": 2
+      },
+      "f3_r7": {
+        "gx": -2,
+        "gy": 3,
+        "adjacentTo": "f3_r4",
+        "dir": "down",
+        "distance": 7
+      },
+      "f3_r6": {
+        "gx": -1,
+        "gy": -1,
+        "adjacentTo": "f3_r8",
+        "dir": "up",
+        "distance": 4
+      },
+      "f3_r1": {
+        "gx": -2,
+        "gy": 0,
+        "adjacentTo": "f3_r8",
+        "dir": "left",
+        "distance": 4
+      },
+      "f3_r3": {
+        "gx": 2,
+        "gy": -1,
+        "adjacentTo": "f3_r2",
+        "dir": "up",
+        "distance": 1
+      }
+    },
+    "startRoomId": "f3_r2",
+    "bossRoomId": "f3_r7",
+    "treasureRoomIds": [
+      "f3_r6",
+      "f3_r1"
+    ],
+    "shopRoomIds": [
+      "f3_r3"
+    ]
+  }
+}

@@ -6,6 +6,8 @@
 
 # Part 1: 游戏策划文档
 
+> 数值来源：策划参数以 `Configs/` 对应 JSON 为准；实际读取、默认值与覆盖以 `isaac-turnbased-demo2.html` 为准。未外置的参数查源码定义；历史更新记录仅反映当时状态，不作为当前值。
+
 ## 1. 游戏概述
 
 ### 1.1 游戏定位
@@ -25,14 +27,9 @@
 
 ### 1.3 玩家属性
 
-| 属性 | 值 | 说明 |
-|------|-----|------|
-| 血量 HP | 3/3 (心形) | 3颗红心，支持半心显示。总红心+蓝心上限=**12**（`MAX_TOTAL_HEARTS`），红心上限增加优先于蓝心（满时可替换蓝心） |
-| 移速 | 3 | MP 上限 = 移速 → 默认 3 (下限1) |
-| 射速 | 3 | AP 上限 = 射速 → 默认 3 (下限1) |
-| 攻击力 | 3.5 | 每发子弹对怪物伤害 |
-| 射程 | 6 | 子弹最远飞行距离（格） |
-| 运气 | 0 | 影响掉落/暴击等（未实现，侧边栏已隐藏） |
+基础属性及上下限查主文件 `playerStats`、`recalcAllStats()` 与 `MAX_TOTAL_HEARTS`；道具加成查 `Configs/item-db.json` 的 `items.*.effects` 和 `specials`。
+
+血量使用心形显示并支持半心；移速影响 MP 上限，射速影响 AP 上限，攻击力影响子弹伤害，射程影响飞行距离。运气目前为占位，侧边栏隐藏。
 
 ### 1.4 设计目标
 - 探索将 Roguelike 回合制与 AP 行动点数预操作结合的可行性
@@ -42,14 +39,16 @@
 
 **怪物配置数据库** `MONSTER_DB`（5种基础类型，共14只怪物），数据来源 `Configs/monster-db.json` 外部 JSON 配置文件：
 
-| cfgId | 名称(I/II/III) | HP | 伤害 | actionMode | actions[] (type + 核心参数) | 颜色叠加(tint) | 移动标签 | 角色 | 威胁值 | 体型 |
-|-------|------|-----|------|------------|------|---------------|:--:|:--:|:--:|:--:|
-| `crack_maw` | 裂口尸 | 10/20/30 | 0.5/1/1 | sequence | `chase` steps:[2,2]→[3,3]→[4,4], stepMode:seq, after_effect:attack_adjacent(damage:0.5/1/1,range:1) | 无 | 地面 | melee | 3/5/7 | 1×1 |
-| `flying_eye` | 浮游眼 | 6/12/20 | 0.5/0.5/1 | condition | `random_wander` steps:[2,2,2]→[3,3,3]→[4,4,4], cond:out_of_range + `shoot_fan` range:4→5→6, cond:in_range, after_effect:random_wander | 蓝紫半透 | 飞行 | ranged | 2/4/6 | 1×1 |
-| `charge_golem` | 蓄力魔像 | 30/45/65 | 1/1/1.5 | sequence | `random_wander` steps:2/3/4 ×2 + `charge_up`(蓄力+感叹号) + `charge_line` steps:[3,13], stepMode:rand | 棕半透 | 地面 | tank | 5/8/12 | 1×1 |
-| `boss_jumper` | 跳跃巨兽 | 60/80/105 | 0.5/0.5/1 | sequence | `jump_small` steps:[2/3/3] → `jump_small` steps:[2/3/3], repeatChance:0.5 → `jump_big_land` chargeSteps:1, target:cover_player, after_effect:attack_side(damage:1,range:1) | 紫半透 | 地面,飞行 | boss | 20/22/25 | **2×2** |
-| `duke_fly` | 苍蝇公爵 | 100 | 1 | sequence | `duke_diagonal_move` steps:[3], after_effect:summon(chance:0.3, monsterId:duke_floater, maxCount:3, spawnRange:adjacent) | 橙黄半透 | 飞行 | boss | 30 | **2×2** |
-| `duke_floater` | 公爵浮游眼 | 6 | 0.5 | condition | `random_wander` steps:[2,2,2], cond:out_of_range, range:4 + `shoot_single` range:4, cond:in_range, after_effect:random_wander | 蓝紫半透 | 飞行 | ranged | 2 | 1×1 |
+| 配置 ID 前缀 | 类型 | 行为概要 |
+|---|---|---|
+| `crack_maw` | 裂口尸 | 追踪，随后十字邻格攻击 |
+| `flying_eye` | 浮游眼 | 射程外游走，射程内扇形射击后游走 |
+| `charge_golem` | 蓄力魔像 | 游走、蓄力、冲刺 |
+| `boss_jumper` | 跳跃巨兽 | 小跳与大跳循环 |
+| `duke_fly` | 苍蝇公爵 | 对角移动并可能召唤 |
+| `duke_floater` | 公爵浮游眼 | 射程外游走，射程内单发射击后游走 |
+
+各等级的 `hp`、`damage`、`size`、`actions` 和 `loot` 查 `Configs/monster-db.json` 中的具体 ID；本表仅为行为概览。
 
 **怪物配置字段说明**：
 - `actionMode`：行为选择模式 `{ mode, [weights] }`。`mode: "sequence"` 按索引顺序循环执行 actions；`mode: "random"` 按 `weights[]` 加权随机选一个 action；`mode: "condition"` 按顺序逐条评估 action 的 condition，选中第一个满足条件的 action。权重默认 1（均匀随机）
@@ -95,7 +94,7 @@
 - 所有怪物同时逐步移动 (0.15s/步)，平滑动画插值 170px/s
 - 怪物之间不可重叠（occupied Set排队）；撞玩家 → 伤害由怪物类型决定 + 怪物占格共处（无击退/反弹）
 - 玩家撞怪物 → 按怪物类型计算伤害（`damagePlayer`），可穿过共格。接触伤害走曼哈顿轨迹回溯。BFS不挡怪物格。（2026-07-21重构：移除击退/反弹系统）
-- 尖刺地格：怪物经过 → 受到 5 点伤害；玩家踩上 → 受到 1 心伤害
+- 尖刺地格：怪物经过及玩家踩上会受伤，伤害查 `updateMonsterTurn()` 与 `checkSpikeUnderPlayer()`。
 
 **视觉**：
 - 使用角色精灵+朝向，红色血条 (黑色底槽+百分比填充)，受击白闪+抖动
@@ -129,13 +128,7 @@
 
 ### 2.1 房间与网格
 
-| 属性 | 值 |
-|------|-----|
-| 网格尺寸 | 13 列 × 7 行 |
-| 每格大小 | 22 像素 |
-| 墙壁厚度 | 16 像素 |
-| 画布分辨率 | 318 × 186 (CSS 放大 3 倍 → 954 × 558) |
-| 地板区域 | (16, 16) 到 (302, 170) 世界坐标 |
+网格、墙壁、画布及缩放尺寸查 `isaac-turnbased-demo2.html` 中的 `CFG`、`GAME_W`、`GAME_H` 和 `DISPLAY_SCALE`。
 
 - 墙壁包围地板区域，玩家不可移出网格范围
 - 墙壁用像素石头纹理绘制，带内缘高光线和阴影
@@ -144,14 +137,16 @@
 
 **两种 AP 点数**：
 
-| AP 类型 | 默认上限 | 来源 | 消耗方式 |
-|---------|---------|------|---------|
-| MP (移动) | 3 (= 移速) | 移速属性 | 每移动 1 格消耗 1 点，移动后在原位置留半透明幽灵 |
-| AP (攻击) | 3 (= 射速) | 射速属性 | 每次射击消耗 1 点，即时发射子弹 |
+| 类型 | 来源 | 消耗方式 |
+|---------|------|---------|
+| MP (移动) | 移速属性 | 移动消耗，回合起点留半透明幽灵 |
+| AP (攻击) | 射速属性 | 射击消耗，即时发射子弹 |
+
+初始值与消耗规则查主文件 `playerStats`、`resetTurnAP()` 和按键处理代码。
 
 - 每回合上限固定，可消耗任意点数（不强制用完）
 - 回合结束 → AP 重置为满值
-- **可移动范围**：通过 BFS 从当前位置计算，考虑墙壁/怪物阻挡，浅蓝色呼吸闪烁标示
+- **可移动范围**：通过 BFS 从当前位置计算，考虑不可通行地形，怪物格不阻挡；以浅蓝色呼吸闪烁标示。
 
 ### 2.3 即时操作与 Checkpoint 系统
 
@@ -169,7 +164,7 @@
 - 玩家占据网格坐标 (col, row)，初始位置 (6, 3)
 - **探索模式**：WASD 自由移动（无 AP 限制），按方向键切换房间
 - **战斗模式**：WASD 在可移动范围(浅蓝呼吸)内即时移动本体，每步消耗 1 MP；方向键射击消耗 AP；角色右上角黄色圆点实时显示剩余 AP
-- **走路动画**：移动时播放精灵图集 10 帧走路循环（80ms/帧）
+- **走路动画**：移动时播放精灵图集走路循环；帧序列和速度查 `SPRITE`。
 - 移动受限：网格边界外不可移动，墙壁/怪物格不可通行
 - 朝向跟踪：记录最后移动/射击方向，决定精灵帧方向
 
@@ -179,59 +174,53 @@
 
 | 层级 | 内容 | 说明 |
 |------|------|------|
-| 底层 | 身体走路帧 | 正面 10 帧 / 侧面 10 帧，随移动循环播放 |
-| 上层 | 头部 | 3 方向（正面/侧面/背面）× 2 状态（普通/射击），偏移 body 向上 30% |
+| 底层 | 身体走路帧 | 正面与侧面走路动画，帧序列查 `SPRITE.WALK` |
+| 上层 | 头部 | 按朝向与射击状态选帧，偏移查 `drawCharacterAt()` |
 
 - **方向映射**：↓=正面、↑=复用正面（背面缺失）、→=侧面、←=侧面水平翻转
-- **射击表情**：按方向键射击时头部切换为射击表情，持续 0.4 秒后恢复普通表情
+- **射击表情**：射击时切换表情，持续时间查 `spawnBullet()` 与 `player.shootTimer`。
 - 精灵未加载时降级为色块占位
 
 ### 2.6 子弹系统
 
-| 属性 | 值 |
-|------|-----|
-| 最大飞行距离 | 6.0 格 (对应射程属性) |
-| 飞行速度 | 560 像素/秒 |
-| 提前下落距离 | 0.2 格 |
-| 下落水平速度比例 | 7% |
-| 下落重力加速度 | 1100 像素/秒² |
+射程来源见 `playerStats.range`；飞行速度、下落距离与重力等查主文件 `CFG` 和 `updateBullets()`。
 
 - 即时射击：按方向键立即从角色位置发射子弹
 - 子弹三阶段：飞行（匀速）→ 下落（水平减速+垂直加速）→ 碎裂为粒子
-- 碎裂粒子：10 个，持续 0.25 秒，溅射随机分布
+- 碎裂粒子随机溅射；数量和持续时间查 `CFG`。
 - 子弹像素绘制：光晕（两层半透明方块）+ 发光核心 + 拖尾像素
 
 ### 2.7 TILE 瓷砖系统
 
-房间内部由 13×7 格 TILE 组成，六种类型：
+房间内部由 TILE 网格组成，尺寸查 `CFG`，类型如下：
 
 | TILE | 字符 | 名称 | 可行走 | 说明 |
 |------|------|------|--------|------|
 | FLOOR | `.` | 普通地面 | ✅ | 默认地面 |
 | ROCK | `#` | 岩石 | ❌ | 阻挡通行和子弹 |
-| POOP | `P` | 便便 | ❌ | 可破坏(hp=4,每发子弹1伤害→需4次击破)，挡子弹 |
-| PIT | `_` | 深渊 | ❌ | 踩上即死或掉落 |
-| SPIKE | `^` | 尖刺 | ✅ | 踩上扣 1 心(玩家)/5 HP(怪物) |
-| LADDER | `▼` | 梯子 | ✅ | Boss房踩上进入下一层 |
+| POOP | `P` | 便便 | ❌ | 可破坏，挡子弹 |
+| PIT | `O` | 深渊 | ❌ | 玩家不可通行 |
+| SPIKE | `^` | 尖刺 | ✅ | 踩上造成伤害 |
+| LADDER | `L` | 梯子 | ✅ | Boss房踩上进入下一层或最终结算 |
 
-- **便便(POOP)**：hp=4，每发子弹伤害1，需受击4次后破坏。**岩石(ROCK)**：hp=99（不可破坏）。破坏后地形格变为 FLOOR
+- 便便与岩石的生命值及伤害处理查 `initTileData()`、`hitTile()` 和子弹/炸弹碰撞代码；破坏后地形变为 FLOOR。
 - 可破坏瓷砖在`initTileData()`中预roll掉落（`_loot` = `rollResourceDrop('resource_drop_terrain_poop'/'resource_drop_terrain_rock')`），保证ESC回溯后再次破坏结果一致
 - `hitTile()` 破坏时捕获预roll结果再删除 tileData，调用 `rollTerrainDestroyDrop(col, row, type, preLoot)` 使用预roll掉落，随后 `saveCheckpoint()` 确保BFS回退时地形保持已破坏状态
-- 门位：每边正中（上6,0 / 下6,6 / 左0,3 / 右12,3），这些格必须为可通行地面
+- 门位位于各边中央；坐标查 `DOOR_POS`，门前格须可通行。
 - `drawTiles()`：使用 `cellRect()` 透视坐标渲染六种瓷砖（岩石叠层/便便棕块/深渊/尖刺菱形/梯子深坑）
 - `drawDoors()`：房门渲染（打开=深色通道+门框/关闭=铁栏纹理+横竖铁条），区分上下/左右方向实现
 
 ### 2.8 多房间楼层系统
 
-- **楼层结构**：两步法生成 3 层地牢，每层 8~15 个房间，BFS 全连通验证
-- **生成算法 [2026-07-22 更新]**：①先布局骨架房（起点+普通房），从所有已放房间的相邻空位扩展；②骨架房全连通后，Boss 从边界最远空位挂载，宝箱从剩余边界随机挂载。Boss/宝箱天然只有 1 个连接（始终在集群外围），无需裁边修复。
+- **楼层结构**：游戏启动时加载 `Configs/floor-data.json`；楼层与房间数据以该文件为准，加载失败不会自动生成楼层。当前游戏的楼层遍历及通关边界另由主文件代码控制。
+- **编辑器生成**：房间编辑器提供楼层生成与导出；游戏读取已保存的楼层结构和 grid。
 - **房间类型**：start(起点)/normal(普通)/treasure(宝箱)/boss(Boss)/shop(商店)
 - **模板系统**：每个房间引用 `pool.json` 中的模板(tplKey)，生成时解析 TILE 布局。`BUILTIN_TEMPLATES()` 作为兜底，已与 `pool.json` 对齐
 - **门系统**：每房间最多 4 扇门(每个方向一扇)，房间清怪后门自动打开(`updateDoorsLocked()` 只判断怪物，不判断炸弹)
-- **探索模式** `inCombat=false`：无怪物且无炸弹时 WASD 自由移动，门前格+方向键切换房间(滑动过渡400px/s)
-- **战斗模式** `inCombat=true`：有怪物或有未引爆炸弹时 AP 回合制，炸弹倒计时在每回合怪物行动前执行（最高优先级），清怪+炸弹全爆后门打开
-- **Boss 梯子**：清空 Boss 房后**自动**在 (6,1) 放置 `TILE.LADDER`（无 B 键，原 B 键已移除），踩上触发黑场过渡 `fadeIntoFloor()` → `enterFloor()` 进入下一层起始房
-- **楼层过渡**：`#floor-fade` 全屏黑场，渐隐 0.18s → 切层 → 渐现 0.5s，过渡期间 `floorFadeBusy` 屏蔽按键
+- **探索模式** `inCombat=false`：无怪物且无炸弹时 WASD 自由移动，门前格加方向键切换房间。
+- **战斗模式** `inCombat=true`：有怪物或有未引爆炸弹时进入回合制；炸弹倒计时在怪物行动前执行。门只依据怪物状态控制，无怪但有炸弹时战斗可继续且门可打开。
+- **Boss 梯子**：清空 Boss 房后自动放置，位置查 `updateRoomCombatState()`；踩上后触发楼层切换或最终结算。
+- **楼层过渡**：`#floor-fade` 全屏黑场，渐隐后切层再渐现；时长查 `fadeIntoFloor()`，过渡期间 `floorFadeBusy` 屏蔽按键。
 - **楼层持久化**：`floor-data.json` 保存楼层结构+房间 grid，加载时保留已存 grid（修改关卡池不影响已有楼层）
 - **`cellRect(col,row)`**：返回透视投影后格子中心坐标/尺寸，供 TILE 和门渲染使用
 
@@ -242,11 +231,7 @@
 其中 t = (y - FLOOR_T) / (FLOOR_B - FLOOR_T)，归一化到 [0, 1]
 ```
 
-| 参数 | 值 | 说明 |
-|------|-----|------|
-| VP_SCALE_TOP | 1.00 | 画面上端缩放（已取消透视，为标准矩形） |
-| VP_SCALE_BOT | 1.00 | 画面下端缩放 |
-| VP_CX | 159 | 投影中心 X 坐标 |
+上下缩放和投影中心查 `CFG.VP_SCALE_TOP`、`CFG.VP_SCALE_BOT`、`VP_CX`。
 
 - 投影公式：`screenX = VP_CX + (worldX - VP_CX) * s` → 等同 `screenX = worldX`（恒等映射）
 - 角色、子弹、粒子均等比例渲染（无 Y 轴缩放变形）
@@ -254,11 +239,7 @@
 
 ### 2.10 粒子系统
 
-| 属性 | 值 |
-|------|-----|
-| 重力加速度 | 360 像素/秒² |
-| 碎裂粒子数 | 10 个 |
-| 持续时间 | 0.25 秒 |
+重力、碎裂粒子数与持续时间查 `CFG` 和粒子更新函数。
 
 - 子弹死亡时迸发粒子：随机角度、随机速度、两种颜色（金黄/橙）
 - 粒子有生命周期，随时间淡出
@@ -284,13 +265,9 @@ player_select ──→ monster_turn ──→ player_select
 
 ### 2.12 道具系统
 
-**道具数据库** `ITEMS_DB`（25种被动道具），数据来源 `Configs/item-db.json` 外部 JSON 配置文件，通过 `loadItemDB()` 异步加载。
+**道具数据库** `ITEMS_DB` 数据来源 `Configs/item-db.json`，通过 `loadItemDB()` 异步加载；道具列表和数量以配置为准。
 
-| 品质 | 数量 | 边框颜色 | 示例 |
-|------|------|---------|------|
-| 普通(common) | 15 | 棕色 | 伤心洋葱、皮带、耶稣果汁、铁块、铁丝衣架、早餐、午餐、晚餐、甜点、狂暴针、速度针、螺钉、合成针、五芒星、肉！ |
-| 稀有(rare) | 7 | 蓝色 | 光环、魔法蘑菇、圣痕、生长激素、丘比特之箭、冠军腰带、印记 |
-| 传说(legendary) | 3 | 金色+呼吸光效 | 圣心、蟋蟀的头、死神的镰刀 |
+道具及品质查 `Configs/item-db.json > items`；品质对应的显示方式查游戏源码中的道具栏和绘制逻辑。
 
 **属性效果** `effects`：
 - `maxHp`：HP 上限增加
@@ -304,31 +281,17 @@ player_select ──→ monster_turn ──→ player_select
 | 特效类型 | 效果 | 拥有道具 |
 |---------|------|---------|
 | `piercing` | 子弹穿透敌人（不销毁，不重复伤害同一目标） | 丘比特之箭、死神的镰刀 |
-| `damage_mult` | 伤害倍率（mult 参数） | 蟋蟀的头(×1.5) |
+| `damage_mult` | 伤害倍率（mult 参数） | 查道具配置的 `specials` |
 | `heal_full` | 拾取时回复全部 HP | 早餐/午餐/晚餐/甜点/肉！/魔法蘑菇/圣心 |
 
-**掉落系统** `item-db.json > itemDropTables`（**10 张**品质表，合并原 `item-drop-tables.json`）：
-- 品质权重表控制每个掉落场景的 none/common/rare/legendary 分布，所有表名统一以 `item_drop_` 为前缀
+**掉落系统**：品质权重以 `Configs/item-db.json > itemDropTables` 为准，包括通用、怪物、商店、Boss、宝箱房及普通／金宝箱等场景；表名以 `item_drop_` 开头。怪物掉落入口查 `monster-db.json > 各怪物 ID > loot`，宝箱掉落入口查 `resource-db.json > resources > 各宝箱 ID > loot`。
 
-| 品质表 | none | common | rare | legendary | 适用场景 |
-|--------|------|--------|------|-----------|---------|
-| `item_drop_default` | 0% | 60% | 30% | 10% | 通用兜底 |
-| `item_drop_common` | **90%** | 5% | 3% | 2% | 裂口尸 loot（低概率） |
-| `item_drop_ranged` | **90%** | 5% | 3% | 2% | 浮游眼 loot（低概率） |
-| `item_drop_heavy` | **90%** | 5% | 3% | 2% | 蓄力魔像 loot（低概率） |
-| `item_drop_shop_stock` | 0% | 70% | 25% | 5% | 商店道具库存随机 |
-| `item_drop_boss` | 0% | 20% | 45% | 35% | Boss击杀掉落 |
-| `item_drop_treasure_room` | 0% | 0% | 75% | 25% | 宝箱房 / 宝箱开启 |
-| `item_drop_boss_room` | 0% | 25% | 45% | 30% | Boss房清空奖励 |
-| `item_drop_chest_normal` | 65% | 0% | 25% | 10% | 普通宝箱道具掉落 |
-| `item_drop_chest_golden` | 50% | 0% | 30% | 20% | 金宝箱道具掉落 |
-
-- `none` 值控制"不掉任何道具"的概率。`monster_very_rare` 表已移除（原用途被 monster-db.json 中每怪独立的 `loot.entries` 配置覆盖，common/ranged/heavy 三表统一为高 none 率兜底）
+- `none` 权重表示该品质抽取结果无道具；怪物先按各自 `loot` 的权重和概率决定掉落条目，因此表内品质权重不等于击杀的总体掉落概率。
 - common/ranged/heavy 三表由对应怪物的 `loot.entries.itemDropTable` 引用（2026-10-28 修复了三级怪表名缺前缀导致回退 default 表、几乎必掉道具的问题）
 
 **拾取与叠加**：
 - 走到道具格上**自动拾取**（原 F 键已移除），加入 `playerInventory` 数组；同一道具不会重复入包
-- 角色与地上道具距离 ≤3 格（切比雪夫）时，道具上方弹出半透明说明框（名称 + `desc` 效果描述，商店商品额外显示价格，已拥有标「已拥有」）
+- 角色接近地上道具时显示名称和 `desc`，商店商品额外显示价格；触发距离查 `updateItemTooltip()`。
 - `recalcAllStats()` 遍历背包，累加 `effects` 数值属性 + 遍历 `specials[]` 调用注册表 handler
 - 穿透不叠加（布尔值），伤害倍率可叠加（`damageMultiplier *= mult`）
 - HP 上限提升后当前 HP 等比增加
@@ -337,21 +300,21 @@ player_select ──→ monster_turn ──→ player_select
 
 ### 2.13 Boss Jumper — 2×2跳跃Boss系统
 
-Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），不参与普通移动。行为参数全部配置在 `actions[]` 中（`jump_small` 的小跳步数、`jump_big_land` 的伤害/重复概率/消失步数）。
+Boss 房使用的怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），不参与普通移动。小跳步数和重复概率配置在 `jump_small`，大跳目标和附加伤害配置在 `jump_big_land`。
 
-**行动循环**：`1(小跳) → 2(小跳) → 3(50%重复1+2) → 4(大跳) → 1`
+**行动循环**：小跳后可能重复，再进入大跳；实际行为及概率查 `Configs/monster-db.json > boss_jumper_* > actions` 与 `processJumperAction()`。
 
 | 行动 | 机制 | 伤害 | 动画 |
 |------|------|------|------|
-| **小跳跃** | Boss中心与玩家坐标比较 → 横向/纵向选远的走 N 格（`jump_small.steps[0]`，默认3）→ 落点4格内单位0.5伤害。无视岩石/尖刺/深坑，但不能全深坑 | 0.5心(玩家) | 弧线跳跃(sin弧线+ease-in-out+缩放弹跳) |
-| **大跳跃** | Boss蓄力1回合（`chargeSteps:1`，缩小淡出残影）→ 跳起时判定玩家位置选2×2落点 → 玩家回合结束时落下 → 对12格(目标2×2+8邻格)造成 `after_effect: attack_side` 冲击波伤害（damage:1, range:1） | 1心(12格范围) | 消失:缩小淡出 / 落地:缩放弹出+双圈冲击波 |
+| **小跳跃** | 按玩家相对位置选方向和落点，处理落地碰撞；具体步数、体型及伤害查怪物配置和 `calcJumperSmallJump()` | 查怪物配置及代码 | 弧线跳跃 |
+| **大跳跃** | 蓄力后确定落点，延迟落地并执行 `after_effect`；范围与伤害查怪物配置及落地代码 | 查怪物配置及代码 | 消失与冲击波 |
 
 **关键设计**：
 - `pendingBossLanding`：大跳落点跳起时即确定（不依赖落下时玩家位置），跨回合延迟执行
 - `jumperJustLanded`：落地回合Boss休息不行动，下个怪物回合才循环回phase 1
 - 无需BFS寻路（`predictedPath` 永久为空），跳跃一次性完成
-- 接触伤害0.5心（玩家走入2×2区域），子弹碰撞4格检测
-- 第二个 `jump_small.repeatChance`（默认0.5）控制小跳后50%概率重复小跳而非进入大跳
+- 接触伤害和体型以怪物配置为准；子弹检测怪物占据区域。
+- `jump_small.repeatChance` 控制重复小跳的概率，以怪物配置为准。
 
 **2×2适配**：`monsterCells()` / `isInMonsterFootprint()` / `isValidLandingZone()` 辅助函数。全系统适配（渲染中心偏移 `CELL*(sz-1)/2`、碰撞、快照、占用、DOM标签）。
 
@@ -359,33 +322,27 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
 
 玩家消耗背包中的炸弹资源（`playerResources.bombs`），在当前位置放置炸弹，炸弹爆炸对范围内怪物造成伤害并破坏地形。
 
-| 属性 | 值 |
-|------|-----|
-| 资源 ID | `bomb_single` |
-| 倒计时 | 3 回合（`detonateTurns`） |
-| 爆炸伤害 | 50（对怪物） |
-| 爆炸范围 | 曼哈顿半径 2（菱形） |
-| 爆炸粒子 | 20 个（橙红/橙黄色） |
+炸弹倒计时、伤害与半径查 `Configs/resource-db.json > resources.bomb_single`；实际默认值与行为查 `placeBomb()`、`tickBombCountdown()`、`detonateBomb()`。
 
 **核心流程**：
 - **放置炸弹** `placeBomb(col, row)`：消耗 1 个炸弹 → 在当前位置生成炸弹对象 → 强制进入战斗模式（如在探索模式中）
 - **倒计时** `tickBombCountdown()`：每回合怪物行动前**最高优先级**执行，所有当前房间炸弹的 `timer-1`，计时归零的炸弹立即引爆
-- **引爆** `detonateBomb(bomb)`：读取 `RESOURCE_DB['bomb_single']` 的伤害/半径配置，对曼哈顿距离 ≤2 的所有怪物造成 50 伤害，生成 20 个爆炸粒子。爆炸后可破坏范围内的 POOP/ROCK 地形格
+- **引爆** `detonateBomb(bomb)`：读取炸弹伤害与半径配置，对范围内怪物造成伤害并产生粒子，可破坏范围内的 POOP/ROCK 地形格。
 - **快照支持**：炸弹纳入 `saveTurnSnapshot()` / `restoreTurnSnapshot()`，ESC 回溯可恢复炸弹状态
 - **战斗状态联动**：房间有未引爆的炸弹时 `inCombat=true`（即使怪物已清空），`updateDoorsLocked()` 不判断炸弹只判断怪物
 
 ### 2.15 苍蝇公爵（Duke of Flies）Boss 系统
 
-第 2 层 Boss 房专属怪物，占 2×2=4 格（`size:2`），独立关键帧动画系统 + 召唤机制。
+Boss 房可出现的怪物，使用独立关键帧动画系统和召唤机制；体型查 `monster-db.json > duke_fly.size`，楼层分配查 `spawn-config.json > bossMonsters` 及小队模板。
 
-**行动循环**：`duke_diagonal_move`（对角移动 3 步）→ 移动结束后触发 `after_effect: summon`（30% 概率召唤 `duke_floater`，在场数量上限 3 只）→ 循环
+**行动循环**：`duke_diagonal_move` 对角移动后可触发 `after_effect: summon`。移动步数、召唤概率及上限查 `Configs/monster-db.json > duke_fly > actions`。
 
 **关键帧动画**：Duke 不走逐步移动（`predictedPath` 固定为空），而是通过 `initDukeQuadrant()` 初始化象限方向 → `calcDukePath()` 计算对角移动关键帧 → `updateDukeAnim()` 逐帧插值控制 px/py。关键帧在 `calcAllMonsterPaths()` 中作为第 0 遍优先计算（判定层先于其他小怪），确保 Duke 移动完成后其他怪物再行动。
 
 **召唤机制**（`handleDukeSummon()`）：
-- Duke 对角移动结束后，按 `after_effect.chance`（默认 0.3）判定是否触发召唤
-- 被召唤怪物 `duke_floater`（公爵浮游眼，HP=6，行为类似浮游眼但用 `shoot_single` 单发直射）
-- `maxCount` 限制召唤物在场数量上限（默认 3 只）
+- Duke 对角移动结束后，按 `after_effect.chance` 判定是否触发召唤；默认值查 `handleDukeSummon()`。
+- 被召唤怪物 `duke_floater` 的属性与行为查 `Configs/monster-db.json > duke_floater`。
+- `maxCount` 限制召唤物在场数量上限。
 - `spawnRange: "adjacent"` 在 Duke 相邻空格随机生成
 
 **首回合静止**：Duke 首回合不移动（`_dukeFirstTurn=true`），第二回合起进入正常循环。
@@ -398,27 +355,27 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
 
 | 资源类型 | ID 示例 | 说明 |
 |---------|--------|------|
-| 金币 | `coin_gold`(1元) / `coin_black`(5元) / `coin_silver`(10元) | 货币，碰触自动拾取 |
-| 炸弹 | `bomb_single`(1个) / `bomb_double`(2个) | 收录背包，`playerResources.bombs` |
+| 金币 | `coin_gold` / `coin_black` / `coin_silver` | 货币，碰触自动拾取 |
+| 炸弹 | `bomb_single` / `bomb_double` | 收录背包，`playerResources.bombs` |
 | 红心 | `heart_half`(半心) / `heart_full`(全心) | 碰触回复 HP |
 | 蓝心 | `blue_heart_half` / `blue_heart_full` / `blue_heart_double` | 临时护盾，受伤优先扣除 |
-| 钥匙 | `key_single`(1把) / `key_double`(2把) | 开金宝箱消耗，`playerResources.keys` |
+| 钥匙 | `key_single` / `key_double` | 开锁消耗，`playerResources.keys` |
 | 宝箱 | `chest_normal`(普通) / `chest_golden`(金) | 碰触打开，触发掉落 |
 
 **宝箱类型区分**：
-- **普通宝箱** `chest_normal`：`locked: false`，碰触即开，掉落为 `rounds[0]`(pick_first: 优先掉道具) + `rounds[1]`(roll_all: 额外资源)
-- **上锁金宝箱** `chest_golden`：`locked: true`，需消耗 1 把钥匙才能打开，掉落品质更高（`itemDropTable: item_drop_chest_golden`），必出 1~4 个道具
+- **普通宝箱** `chest_normal`：`locked: false`，碰触即开；单轮 `pick_first` 先判定道具条目，若条目概率未命中则抽取资源。
+- **上锁金宝箱** `chest_golden`：`locked: true`，消耗钥匙；同样先判定道具条目，未命中则抽取资源。两种宝箱的道具分支概率查 `Configs/resource-db.json > resources.<宝箱 ID>.loot`，品质权重查 `Configs/item-db.json > itemDropTables`。代码在道具条目命中后即结束本轮；品质表配置 `none`，抽到它时不会转抽资源。
 
 **拾取与上限**：
 - 资源碰触自动拾取（`autoPickupResources()`），加入 `playerResources`
-- 上限约束（`_limits`）：`coinMax`=99 / `bombMax`=9 / `keyMax`=9
+- 资源上限查 `Configs/resource-db.json > _limits`；拾取与代码兜底查 `handleResourcePickup()`。
 - 资源 UI 实时显示当前数量（`updateResourceUI()`）
 
 ### 2.17 商店与经济
 
 - 商店房由 `floor-data.json > shopRoomIds` 标记，进入时由 `spawnShopGoods()` 生成槽位（2 道具 + 3 资源，坐标固定），记录在 `room._shopSlots`（`type/cfgId/price/sold`）
 - 价格来自道具/资源配置的 `price`；**交互为走到商品格自动结算**：金币足够 → 扣款/获得/标记售出；不足 → 不购买并显示红色「金币不足」（`getShopSlotAt()` 判定槽位）
-- 金币来源：房间清空掉落 / 怪物掉落 / 地形破坏掉落，上限 99；金币唯一出口即商店
+- 金币来源包括房间清空、怪物与地形掉落；上限查 `resource-db.json > _limits`，当前消费出口为商店。
 
 ### 2.18 音效系统（WebAudio 合成）
 
@@ -457,7 +414,7 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
 
 | 面板 | 内容 |
 |------|------|
-| HP | 当前血量/上限 (3心形制，支持.5半心) |
+| HP | 当前血量/上限，以心形显示并支持半心 |
 | AP | 剩余攻击点数/上限 (橙色圆点) |
 | MP | 剩余移动点数/上限 (蓝色圆点) |
 | AP 圆点 | 战斗时角色右上角黄色圆点 + 数字，用尽变灰色空心 |
@@ -485,7 +442,7 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
    - 走到门前格+按方向键 → 滑动过渡切换房间
    - 进入新房间 → `updateRoomCombatState()`：已访问过且清空则不刷怪，有怪则进入战斗
    - 踩到梯子 → `fadeIntoFloor()` 黑场过渡 → `enterFloor()` 进入下一层
-   - 踩到尖刺 → `checkSpikeUnderPlayer()`：非无敌状态掉 1 心并进入无敌；站在尖刺上开始回合同样结算
+   - 踩到尖刺 → `checkSpikeUnderPlayer()`：非无敌状态受伤并进入无敌；站在尖刺上开始回合同样结算
    - AP 面板在探索模式下隐藏
 4. **战斗模式** `player_select`：
    - 进入战斗触发"交叉剑"动画（两剑从左右飞入旋转碰撞）
@@ -550,31 +507,11 @@ Boss房专属怪物，占 2×2=4 格（`size:2`，`col/row` 为左上角），�
 
 ## 2. 渲染配置与常量
 
-```javascript
-GAME_W = 318, GAME_H = 186, DISPLAY_SCALE = 3
-WALL = 16, CELL = 22, COLS = 13, ROWS = 7
-BULLET_MAX_DIST = 6.0, BULLET_SPEED = 560
-MOVE_SPEED = 140, EXEC_MOVE_SPEED = 170, GRAVITY = 360
-SHATTER_PARTICLES = 10, SHATTER_DURATION = 0.25
-VP_SCALE_TOP = 1.00, VP_SCALE_BOT = 1.00
-// 动画常量
-BATTLE_START_DURATION = 0.55, REWIND_DURATION = 0.35
-```
+画布尺寸与缩放查主文件 `GAME_W`、`GAME_H`、`DISPLAY_SCALE`；网格、移动、子弹和粒子参数查 `CFG`；战斗与回溯动画时长查对应动画常量。这些值目前在代码中，不由 JSON 管理。
 
 ## 3. SPRITE 精灵图集配置
 
-```javascript
-SPRITE = {
-  FW: 32, FH: 32,                    // 每帧像素尺寸
-  BASE_SIZE: 24,                     // 角色基础渲染尺寸 (游戏像素)
-  ANIM_SPEED: 0.08,                  // 走路动画帧间隔 (秒)
-  // HEAD: { down/right/left/up: { normal, shooting } }  6个头像帧, 第0行列0-5
-  // WALK.down:  [[0,6],[0,7],[1,0]...[1,7]]  10帧正面走路
-  // WALK.right: [[2,0],[2,1]...[3,1]]        10帧侧面走路
-  // needsFlipX(dir): left 朝向时水平翻转侧面帧
-  // getWalkDir(dir): ↑ 复用 ↓ (背面缺失), ← 复用 → (翻转)
-}
-```
+图集帧尺寸、头像和行走帧映射、缩放与动画速度查主文件 `SPRITE`；方向复用与翻转规则查 `getWalkDir()`、`needsFlipX()`。
 
 ## 4. 投影公式
 
@@ -671,7 +608,7 @@ function project(wx, wy) {
 | `updateUI()` / `updateFloorUI()` | 更新所有 DOM UI 面板（含AP面板显隐、楼层信息栏） |
 | `showFloorBanner(text)` / `playFloorFade()` / `fadeIntoFloor(n)` | 楼层横幅「第 X 层」与黑场过渡（渐隐→切层→渐现） |
 | `updateItemTooltip()` | 地面道具说明弹窗：距道具 ≤3 格时显示名称/效果/商店价格 |
-| `checkSpikeUnderPlayer()` | 站在尖刺格且非无敌 → 掉 1 心并进入无敌（移动后与回合开始各判一次） |
+| `checkSpikeUnderPlayer()` | 站在尖刺格且非无敌时受伤并进入无敌；伤害查函数代码 |
 | `SFX.*`（shoot/hit/kill/hurt/pickupItem/pickupRes/chest/locked/bombPlace/boom/door/battle/rewind/floor/victory/death/buy） | WebAudio 合成音效预设，`SFX.toggle()` 静音开关 |
 | `gameLoop(timestamp)` | 主循环：动画→输入→子弹→粒子→怪物回合→渲染 |
 
