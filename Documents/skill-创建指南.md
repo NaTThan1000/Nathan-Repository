@@ -165,191 +165,31 @@ matches the latest skill and can be used to rebuild the skill on another machine
 
 ## Skill 2: daily-end
 
+当前 Codex 安装位置为 `~/.codex/skills/daily-end/SKILL.md`，仓库副本为 `codex-setup/daily-end/SKILL.md`；下方为完整内容。上文 CodeBuddy 路径为旧环境说明。
+
 ```markdown
 ---
 name: daily-end
-description: >
-  This skill should be used at the end of each daily coding session to wrap up
-  work. It audits code-documentation inconsistencies discovered during the
-  session, syncs all three documentation layers (context.md, memory.md,
-  global-rules.md), commits and pushes changes, then merges the feature branch
-  into main. Trigger phrases include "daily end", "同步文档并合并 main",
-  "今天的收尾流程", "收尾", or any request to finalize the day's work and
-  merge to main.
+description: 使用 daily end 同步本次相关项目文档，提交并推送项目分支，再检查并合并到 main。
 ---
 
-# Daily End - Session Wrap-Up and Merge
+# Daily end
 
-## Purpose
+用户说 daily end 时使用。确定当前项目；不明确时询问。检查工作区、当前分支及相关差异，结合当前可访问会话和项目文档列出决策、待办及代码与文档不一致；无法回溯的内容标记待确认。报告需要同步的内容、文件范围和 Git 状态。
 
-Complete the end-of-day workflow: audit code-documentation inconsistencies,
-sync all three documentation layers, commit and push, and merge the feature
-branch into `main` — all in a single automated flow.
+调用 daily end 即授权同步本次工作涉及的项目 memory、context、已有决策索引，以及已有设计纲要（design）和游戏设计文档（GDD）：核对相关代码及可访问的会话，记录重要决策、原因、否决方案、未决事项及必要的当前状态；没有相关变化的文件不修改。日期记录按新到旧。无法回溯或存在设计意图争议时标记待确认并询问，不虚构或擅自裁决。索引只记录重要决策、否决原因、可重议条件和历史出处；若条件未知则标记待确认。
 
-## When to Use
+同步前先查找本次项目已有的文档，逐项检查上述五类，不因 memory/context 已更新而跳过 design/GDD。memory 保留决策演变，context 维护系统现状，索引指向重要决策，design 维护设计方向与实现／验证状态，GDD 同步受影响的规则、设计分析和待验证事项。保留历史分析并标明已失效结论，区分用户决定、AI 建议、实现事实及测试结论；没有相关变化的文件不为凑齐清单而修改，缺失的文档不自动新建。最终列明各类文档已更新、核对无需更新或不存在，不能笼统声称“文档已同步”。
 
-Trigger when the user says any of:
-- "daily end"
-- "同步文档并合并 main"
-- "今天的收尾流程"
-- "收尾"
-- "提交推送并合并"
-- Or any request that implies finalizing the day's work and merging to main
+检查本次工作是否产生需要更新 AGENTS.md 的跨项目规则；没有则跳过，有则列出具体建议及冲突并取得用户确认后同步。
 
-## Important: Merge Confirmation Policy
+## Git 完整收尾
 
-**Within this `daily-end` workflow**, merging to `main` requires NO additional
-confirmation from the user — it is an expected and automatic part of the flow.
+用户明确调用 daily end 即授权本次完整收尾：同步本次项目文档、暂存并提交范围内改动、推送项目分支、合并到 main 并推送 main。用户另行限定范围时遵从其限定。
 
-**In all other contexts** (e.g., standalone "merge to main" requests), the
-standard confirmation requirement still applies.
-
-## Workflow
-
-### Phase 1: Audit Code-Documentation Inconsistencies
-
-Review the entire current session's conversation history. Identify every
-instance where a code-documentation inconsistency was discovered but not yet
-resolved. Produce a checklist:
-
-1. List each inconsistency found during the session
-2. Mark each as "已修正" (fixed) or "待处理" (pending)
-3. For pending items, ask the user how to resolve before proceeding
-
-If there are unresolved inconsistencies, pause and wait for user input before
-continuing to Phase 2.
-
-### Phase 2: Sync Project Documentation
-
-Perform a full-coverage sync of all three documentation layers:
-
-#### 2a. Sync Project Context (`{project}-context.md`)
-
-Read the context file in full, then systematically cross-check against actual
-code. Verify every section:
-
-- Key bindings / control table
-- Core attributes / player attributes
-- Render constants (verify values are current)
-- Architecture overview (add any new system modules)
-- Core system descriptions (the project's own systems, e.g. TILE/floor for
-  isaac, level/weapon for rockman, etc. — adapt to the active project)
-- Section numbering (no duplicates, no gaps)
-- Function index (add all new functions)
-- Data flow (supplement the project's startup/exploration/level flows)
-- Game flow (supplement the project's actual modes, e.g. exploration + battle
-  for isaac, run-and-gun levels for rockman)
-- UI panels (add new UI panels specific to the project)
-- File inventory (add new config files)
-- Next steps (remove completed items)
-- Expired content cleanup (deprecated features)
-
-Update all outdated sections. Do NOT update only the sections related to today's
-changes — perform a comprehensive cross-check.
-
-#### 2b. Sync Project Memory (`{project}-memory.md`)
-
-Update with:
-- Decisions made during this session
-- Problems solved and their solutions
-- Creative ideas and brainstorms
-- Any changed design directions
-
-#### 2c. Uplift Check to Global Rules (`Documents/global-rules.md`)
-
-For every new rule or convention added to the project-level documentation
-(memory.md / context.md) during this sync, evaluate:
-
-- Is this rule cross-project universal?
-- If yes, sync it to `Documents/global-rules.md` in the appropriate section.
-- If it only applies to the current project, keep it in project-level docs only.
-
-### Phase 3: Review Git Status
-
-Run `git status` and `git diff --stat` to review all pending changes. Present a
-summary to the user:
-- Modified files
-- New untracked files
-- Deleted files
-
-### Phase 4: Commit and Push
-
-Stage all changes (code + documentation) and create a single commit:
-
-```
-git add -A
-git commit -m "收尾：同步文档并提交 [YYYY-MM-DD]"
-```
-
-The commit date should be the current date. Commit messages MUST be written in
-Chinese (中文).
-
-Push the current feature branch:
-
-```
-git push origin {current-branch}
-```
-
-### Phase 5: Merge to Main
-
-Execute the merge flow without additional confirmation:
-
-1. Checkout main:
-   ```
-   git checkout main
-   ```
-
-2. Pull latest main:
-   ```
-   git pull origin main
-   ```
-
-3. Merge the feature branch:
-   ```
-   git merge {feature-branch}
-   ```
-
-4. Push main:
-   ```
-   git push origin main
-   ```
-
-5. Switch back to the feature branch:
-   ```
-   git checkout {feature-branch}
-   ```
-
-### Phase 6: Final Report
-
-Provide a summary report to the user:
-
-- Total inconsistencies audited and resolved
-- Documentation sections updated (with counts)
-- Files committed and pushed
-- Merge status (successful / conflicts)
-- Current branch after wrap-up
-
-### Safety Rules
-
-- Verify the current branch is a feature branch (`dev/*`) before proceeding
-- If `git status` shows no changes, skip Phase 4 and Phase 5
-- If merge conflicts occur in Phase 5, pause and ask the user for resolution guidance
-- Never force-push or skip hooks
-- Never amend commits
-
-## Output Language Rule
-
-This skill's own instructions are written in English for the AI's readability,
-but that does NOT mean the AI should produce English output elsewhere. Whenever
-executing this skill, all outputs directed at the user-facing artifacts — commit
-messages, documentation updates (memory.md / context.md / global-rules.md /
-guides), and any written text — MUST be written in Chinese (中文). The English in
-this skill is for internal instruction only and must not leak into commit
-messages or documents.
-
-## Maintenance Rule
-
-Whenever ANY logic of this skill is updated, you MUST also sync the change to
-`Documents/skill-创建指南.md` (in the workspace root), so that the guide always
-matches the latest skill and can be used to rebuild the skill on another machine.
+1. 确认项目、当前分支、上游、工作区状态与改动归属；不是预期项目分支、存在其他项目或归属不明的改动时暂停并询问。保留用户已有和无关修改。
+2. 审查暂存区和工作区的实际差异，只暂存明确属于本次收尾的文件，不使用无范围的 `git add -A`；已有暂存内容如不属于本次范围，暂停询问，不擅自取消暂存。提交使用中文信息。没有需要提交的变更则跳过新提交。
+3. 核对远程和分支状态后推送项目分支。工作区干净不代表没有待推送或待合并的已有提交，应分别检查。
+4. 合并前检查项目分支相对于 main 的全部待合并提交及文件，并核对远程 main 状态；若包含其他项目、归属不明内容、远程状态异常或无法安全切换，暂停并询问。确认范围符合预期后，更新 main、合并项目分支并推送 main，然后在安全时切回原项目分支。
+5. 不得强推，不擅自重置或覆盖改动。合并冲突或其他异常时停止相关操作，报告当前状态和需要用户决策的内容。最终报告文档更新、提交和推送结果、main 合并状态、当前分支和未处理事项。
 ```
