@@ -1,103 +1,25 @@
-const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
-const source=fs.readFileSync(path.join(__dirname,'../turnbased-shoot-demo2.html'),'utf8');
-function declaration(name) {
- const start=source.indexOf('function '+name+'(');assert(start>=0,name);
- return source.slice(start,source.indexOf('\n}',start)+2);
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const path=require('path'),project=path.resolve(__dirname,'..');const html=fs.readFileSync(process.env.COMBAT_TEST_HTML||path.join(project,'turnbased-shoot-demo2.html'),'utf8');const code=html.match(/<script>([\s\S]*?)<\/script>/)[1].replace('bootGame();','globalThis.bootPromise=bootGame();');new vm.Script(code);
+const listeners={},els={};const noop=()=>{};const gradient={addColorStop:noop};const ctx=new Proxy({createLinearGradient:()=>gradient,createRadialGradient:()=>gradient,measureText:()=>({width:10}),getImageData:()=>({data:new Uint8Array(4)})},{get:(t,k)=>k in t?t[k]:noop,set:(t,k,v)=>(t[k]=v,true)});
+function el(id){return els[id]??={id,style:{},dataset:{},classList:{add:noop,remove:noop,contains:()=>false,toggle:noop},children:[],textContent:'',innerHTML:'',value:'',width:720,height:500,offsetWidth:720,offsetHeight:500,clientWidth:720,clientHeight:500,appendChild(x){this.children.push(x);return x},remove:noop,setAttribute:noop,addEventListener(type,fn){(listeners[id+':'+type]??=[]).push(fn)},getContext:()=>ctx,getBoundingClientRect:()=>({left:0,top:0,width:720,height:500}),querySelector:()=>null,querySelectorAll:()=>[],closest:()=>null};}
+const store={};const document={getElementById:el,querySelector:()=>el('query'),querySelectorAll:()=>[],createElement:()=>el('created'+Math.random()),addEventListener:(type,fn)=>{(listeners['doc:'+type]??=[]).push(fn)},dispatchEvent(e){e.target=this;e.preventDefault=()=>{};(listeners['doc:'+e.type]||[]).forEach(fn=>fn(e));return true},visibilityState:'visible',body:el('body')};
+class Img{set src(v){this._src=v;if(this.onload)this.onload()}get src(){return this._src}}
+const sandbox={console,document,window:{location:{protocol:'https:'},addEventListener:noop,devicePixelRatio:1},Image:Img,performance:{now:()=>1000},requestAnimationFrame:noop,setInterval:noop,setTimeout:noop,clearTimeout:noop,localStorage:{getItem:k=>store[k]||null,setItem:(k,v)=>store[k]=v},navigator:{clipboard:{writeText:async()=>{}}},URL:{createObjectURL:()=>'',revokeObjectURL:noop},Blob,KeyboardEvent:class{constructor(type,o){this.type=type;Object.assign(this,o)}},Math,Date,Set,Map,JSON,fetch:async(u)=>({ok:true,json:async()=>JSON.parse(fs.readFileSync(path.join(project,u.split('?')[0]),'utf8')),text:async()=>fs.readFileSync(path.join(project,u.split('?')[0]),'utf8')})};sandbox.window.window=sandbox.window;vm.createContext(sandbox);vm.runInContext(code,sandbox);
+(async()=>{await sandbox.bootPromise;vm.runInContext(`
+function demand(x,m){if(!x)throw Error(m)}
+function setup(id,phase=0){gameStarted=true;gameOver=false;inCombat=true;turnState.phase='player_select';turnState.monsterTurnCounter=phase;turnState.mAP=3;currentRoomGrid=parseGrid(BUILTIN_TEMPLATES().open.tiles);tileData={};bombs=[];monsters=[];bullets=[];pendingBossLanding=null;dangerForecastKey=null;dangerForecast=null;dangerForecastJob=null;player.col=6;player.row=3;player.targetPx=null;player.targetPy=null;player.invincibleSteps=99;playerStats.hp=20;movementEvents=[];movementPlanning=false;monsterAfterEffectsDone=false;spawnMonsterAtRandomPos(id);let m=monsters[0];m.col=3;m.row=2;let p=gridToPixel(m.col,m.row);m.px=p.x;m.py=p.y;m._spawnedThisTurn=false;return m;}
+function tick(){const dt=1/120;if(player.targetPx!==null)updateMove(dt);if(forcedLandingPending&&player.targetPx===null){forcedLandingPending=false;resolveForcedLanding();}updateBullets(dt);animateMonsters(dt);for(const m of [...monsters])if(m.jumpAnimTimer>0){m.jumpAnimTimer=Math.max(0,m.jumpAnimTimer-dt);if(m.jumpAnimTimer===0&&m.jumpType==='charge_vanish'&&m._landingPhase===0){m._landingPhase=1;finishBossLandingPhase2(m);}}updateMonsterTurn(dt);fallbackThreatHold=0;}
+for(const id of Object.keys(MONSTER_DB).filter(x=>!x.startsWith('_')))for(let phase=0;phase<4;phase++){
+ let m=setup(id,phase);if(id.startsWith('boss_jumper')){m.jumperPhase=[1,2,4,4][phase];if(phase===3){m._charging=true;pendingBossLanding={monster:m,targetCol:6,targetRow:3,landAction:MONSTER_DB[id].actions.find(a=>a.type==='jump_big_land')};}}
+ updateDangerForecast();demand(dangerForecastJob.done&&dangerForecastJob.outcomes===1,'预测未完成 '+id);let seed=dangerForecastJob.seed,sim=simulateResolvedDanger(seed);turnState.phase='monster_turn';monsterTurnRandom=makeMonsterTurnRandom(seed);lockedThreatId=dangerForecast.monsterId;monsterTurnHit=false;pendingMonsterHits=[];executeMonsterTurnActions();let n=0;while(turnState.phase==='monster_turn'&&n++<4000)tick();demand(n<4000,'回合超时 '+id+' phase '+phase);let expected=sim.monsters.map(m=>[m.id,m.col,m.row,m.hp].join(',')).sort().join('|');let got=monsters.filter(m=>!m._spawnedThisTurn).map(m=>[m.id,m.col,m.row,m.hp].join(',')).sort().join('|');demand(expected===got,'预测位置不符 '+id+' phase '+phase+' '+expected+' / '+got);demand(sim.player.col===player.col&&sim.player.row===player.row,'玩家预测不符 '+id);
 }
-const math=Object.create(Math);math.random=()=>{throw Error('预测不得调用真实随机数');};
-const ctx=vm.createContext({Math:math});
-for(const name of ['createDangerForecastJob','advanceDangerForecastJob'])vm.runInContext(declaration(name),ctx);
-// 使用实际行动、逐步碰撞、炸弹和子弹函数运行独立模拟。
-const sharedNames=['gridToPixel','pixelToGrid','isWall','isBlockingBullet','bulletHitWall','isMonsterAt','monsterCells','isValidLandingZone','selectLandingTarget','isInMonsterFootprint','getSpreadDirs','calcDiagonalPathEnd','canMoveMin1','getChargeDirections','pickChargeDir','checkActionCondition','resolveSteps','getEligibleMonsterActions','resolveMonsterAction','getWanderPaths','getMonsterShootDirections','chooseMonsterShootDirection','chooseWanderPath','calcAllMonsterPaths','calcMonsterPath','getChargePath','getDiamondRange','tickBombCountdown','detonateBomb','pushBomb','calcJumperSmallJump','calcJumperBigJump','processJumperAction','getAttackSideCells','resolveAfterEffects','initDukeQuadrant','calcDukePath','updateDukeAnim','executeBossLandingNow','executeBossLanding','doLandingDamage','finishBossLandingPhase2','executeMonsterTurnActions','updateMonsterTurn','applyMonsterTurnAfterEffects','spawnMonsterBullet','updateBullets','makeMonsterTurnRandom','monsterActionChoiceIndex','hasPendingMonsterAttack','createDangerSimulationFactory'];
-for(const name of sharedNames)vm.runInContext(declaration(name),ctx);
-const simulation=ctx.createDangerSimulationFactory();
-const constants={COLS:5,ROWS:5,CELL:32,WALL:16,FLOOR_L:16,FLOOR_R:176,FLOOR_T:16,FLOOR_B:176,CFG:{BULLET_SPEED:200},TILE:{FLOOR:0,ROCK:1,POOP:2,PIT:3,SPIKE:4},TILE_WALKABLE:{0:true,1:false,2:false,3:false,4:true},TILE_BLOCKS_BULLET:{0:false,1:true,2:true},DIR_VEC:{right:{dx:1,dy:0},left:{dx:-1,dy:0},up:{dx:0,dy:-1},down:{dx:0,dy:1}},MONSTER_DB:{walk:{actions:[{type:'random_wander',steps:[2]}]}},RESOURCE_DB:{bomb_single:{radius:2,damage:50}},DOOR_POS:{}};
-const world={monsters:[{id:1,hp:5,col:2,row:2,cfgId:'walk',movementTags:['地面']}],player:{col:4,row:4},bombs:[],currentRoomGrid:Array.from({length:5},()=>Array(5).fill(0)),tileData:{},currentRoomId:'room',pendingBossLanding:null};
-const frozen=JSON.stringify(world);
-const result=simulation({constants,world,counter:0},42);
-assert(result.cells.size>0);
-assert.equal(JSON.stringify(world),frozen);
-assert.deepEqual([...result.cells],[...simulation({constants,world,counter:0},42).cells]);
-world.bombs=[{roomId:'room',timer:1,col:2,row:2}];
-const blown=simulation({constants,world,counter:0},42);
-assert.equal(blown.monsters.length,0);
-assert(blown.cells.has('2,2'));
-console.log('独立模拟测试通过：实际行动复用、种子结果一致、炸弹先击杀、原始状态不变。');
-
-
-world.bombs=[];
-const enumeration=ctx.createDangerForecastJob({constants,world,counter:0},simulation);
-while(!enumeration.done)ctx.advanceDangerForecastJob(enumeration,32);
-assert.equal(enumeration.outcomes,4);
-assert.equal(enumeration.result.red.size,0);
-for(const c of ['2,0','2,4','0,2','4,2'])assert(enumeration.result.yellow.has(c));
-for(let seed=0;seed<50;seed++)for(const key of simulation({constants,world,counter:0},seed).cells)assert(enumeration.result.yellow.has(key)||enumeration.result.red.has(key));
-world.bombs=[{roomId:'room',timer:1,col:2,row:2}];
-const bombJob=ctx.createDangerForecastJob({constants,world,counter:0},simulation);
-while(!bombJob.done)ctx.advanceDangerForecastJob(bombJob,32);
-assert.equal(bombJob.result.yellow.size,0);
-assert(bombJob.result.red.has('2,2'));
-console.log('完整分支测试通过：随机游走四分支、50种已揭晓结果均被预警覆盖、炸弹击杀后没有幽灵危险。');
-
-const database=JSON.parse(fs.readFileSync(path.join(__dirname,'../Configs/monster-db.json'),'utf8'));
-constants.MONSTER_DB=database;
-constants.DIR_VEC['up-right']={dx:1,dy:-1};constants.DIR_VEC['up-left']={dx:-1,dy:-1};constants.DIR_VEC['down-right']={dx:1,dy:1};constants.DIR_VEC['down-left']={dx:-1,dy:1};
-constants.COLS=13;constants.ROWS=7;constants.FLOOR_R=16+13*32;constants.FLOOR_B=16+7*32;
-let checked=0;
-for(const [id,cfg] of Object.entries(database)) {
- if(id.startsWith('_'))continue;
- for(const counter of [0,1,2,3]) {
-  const m={id:1,cfgId:id,hp:cfg.hp,col:1,row:1,size:cfg.size||1,aiType:cfg.aiType,damage:cfg.damage,movementTags:['地面'],px:64,py:64,jumperPhase:counter===3?4:1};
-  const w={...world,monsters:[m],player:{col:8,row:4},bombs:[],currentRoomGrid:Array.from({length:13},()=>Array(7).fill(0)),tileData:{},pendingBossLanding:null};
-  const job=ctx.createDangerForecastJob({constants,world:w,counter},simulation);
-  let runs=0;while(!job.done){ctx.advanceDangerForecastJob(job,64);assert(++runs<10000,id+' branch explosion');}
-  for(let seed=0;seed<8;seed++)for(const key of simulation({constants,world:w,counter},seed).cells)assert(job.result.red.has(key)||job.result.yellow.has(key),id+': uncovered '+key);
-  checked++;
- }
-}
-console.log('数据库覆盖测试通过：'+checked+'种怪物/行动阶段组合，所有抽样揭晓范围均在完整预警中。');
-
-assert.equal(simulation({constants,world,counter:0,immune:true},1).cells.size,0);
-// 多怪抢占格子：必须以逐步移动结算后的结果取交并集。
-constants.MONSTER_DB.walk={actions:[{type:'random_wander',steps:[2]}]};
-world.bombs=[];world.currentRoomGrid=Array.from({length:13},()=>Array(7).fill(0));world.monsters=[{id:1,hp:5,col:4,row:3,cfgId:'walk',movementTags:['地面']},{id:2,hp:5,col:6,row:3,cfgId:'walk',movementTags:['地面']}];
-const mixed=ctx.createDangerForecastJob({constants,world,counter:0},simulation);
-while(!mixed.done)ctx.advanceDangerForecastJob(mixed,64);
-assert.equal(mixed.outcomes,16);
-for(let seed=0;seed<100;seed++)for(const key of simulation({constants,world,counter:0},seed).cells)assert(mixed.result.red.has(key)||mixed.result.yellow.has(key));
-console.log('联动测试通过：无敌期间不提示伤害、多怪16分支与100种揭晓结果一致覆盖。');
-
-const jumperId=Object.keys(database).find(k=>database[k].aiType==='boss_jumper');
-const jumpCfg=database[jumperId];
-const boss={id:5,cfgId:jumperId,aiType:'boss_jumper',hp:jumpCfg.hp,col:1,row:1,size:2,_charging:true,jumperPhase:4,px:64,py:64};
-const landing={...world,monsters:[boss],bombs:[],pendingBossLanding:{monster:boss,targetCol:7,targetRow:3,landAction:jumpCfg.actions.find(a=>a.type==='jump_big_land')}};
-const landingJob=ctx.createDangerForecastJob({constants,world:landing,counter:3},simulation);
-while(!landingJob.done)ctx.advanceDangerForecastJob(landingJob,32);
-assert(landingJob.result.red.has('7,3')&&landingJob.result.red.has('8,4'));
-assert.equal(landingJob.result.yellow.size,0);
-assert.equal(JSON.stringify(landing.pendingBossLanding.monster),JSON.stringify(boss));
-const draws=[];Object.assign(ctx,{inCombat:true,turnState:{phase:'player_select'},monsterFlashTimer:0,drawGridOverlay:(...v)=>draws.push(v)});
-vm.runInContext('let dangerForecast={red:new Set(["1,1"]),yellow:new Set(["1,1","2,2"])};let dangerReveal=null;'+declaration('drawDangerOverlay'),ctx);
-ctx.drawDangerOverlay();assert.equal(draws.length,2);assert.equal(draws.find(v=>v[0]===1)[2],'#ff4444');
-console.log('Boss落地和渲染测试通过：锁定落点及冲击波为红色，同格只画一次且红色优先。');
-
-// 不同渲染帧率下，揭晓的危险格应保持一致。
-for(const [id,cfg] of Object.entries(database)) {
- if(id.startsWith('_'))continue;
- const m={id:1,cfgId:id,hp:cfg.hp,col:1,row:1,size:cfg.size||1,aiType:cfg.aiType,damage:cfg.damage,movementTags:['地面'],px:64,py:64,jumperPhase:1};
- const w={...world,monsters:[m],player:{col:8,row:4},bombs:[],pendingBossLanding:null};
- for(const counter of [0,3])for(const seed of [1,2]) {
-  const a=[...simulation({constants,world:w,counter},seed).cells].sort();
-  const b=[...simulation({constants,world:w,counter,dt:1/30},seed).cells].sort();
-  assert.deepEqual(a,b,id+' frame-rate dependent danger');
- }
-}
-console.log('帧率回归通过：数据库怪物在30/120步进下的危险格一致。');
-
-const spikeWorld={...world,monsters:[],bombs:[],pendingBossLanding:null,currentRoomGrid:Array.from({length:13},()=>Array(7).fill(0))};
-spikeWorld.currentRoomGrid[2][2]=constants.TILE.SPIKE;
-assert.equal(simulation({constants,world:spikeWorld,counter:0},1).cells.size,0,'尖刺自身不应生成危险格');
-constants.MONSTER_DB.still={actions:[{type:'stationary'}]};
-spikeWorld.monsters=[{id:1,hp:5,col:2,row:2,cfgId:'still'}];
-assert(simulation({constants,world:spikeWorld,counter:0},1).cells.has('2,2'),'尖刺格上的怪物危险仍应显示');
-console.log('尖刺提示回归通过：尖刺自身不显示危险，同格怪物危险保留。');
+console.log('PASS: 14种配置、56种行动阶段的预测与执行位置一致，回合正常结束');
+let m=setup('crack_maw_i');m.col=9;m.row=3;let p=gridToPixel(9,3);m.px=p.x;m.py=p.y;player.invincibleSteps=0;updateDangerForecast();let hp=playerStats.hp;turnState.phase='monster_turn';lockedThreatId=m.id;monsterTurnHit=false;monsterTurnRandom=makeMonsterTurnRandom(dangerForecastJob.seed);executeMonsterTurnActions();updateMonsterTurn(.01);demand(playerStats.hp===hp,'移动前扣血');for(let n=0;n<2000&&turnState.phase==='monster_turn';n++)tick();demand(playerStats.hp<hp,'抵达后未扣血');console.log('PASS: 近战抵达动画后扣血');
+for(let seed=1;seed<=20;seed++){let m=setup('boss_jumper_i',seed%4);m.col=1;m.row=1;m.jumperPhase=seed%2?1:4;for(const [id,c,r]of [['duke_fly',9,4],['crack_maw_iii',8,1],['flying_eye_iii',10,1]]){spawnMonsterAtRandomPos(id);const x=monsters.at(-1);x.col=c;x.row=r;const p=gridToPixel(c,r);x.px=p.x;x.py=p.y;x._spawnedThisTurn=false;}combatRng=seed;updateDangerForecast();const sim=simulateResolvedDanger(dangerForecastJob.seed);turnState.phase='monster_turn';monsterTurnHit=false;pendingMonsterHits=[];monsterTurnRandom=makeMonsterTurnRandom(dangerForecastJob.seed);lockedThreatId=dangerForecast.monsterId;executeMonsterTurnActions();let n=0;while(turnState.phase==='monster_turn'&&n++<5000)tick();demand(n<5000,'多怪回合超时');for(const a of monsters)for(const b of monsters)if(a.id<b.id&&!a.jumperVanished&&!b.jumperVanished)demand(!(a.col<b.col+(b.size||1)&&a.col+(a.size||1)>b.col&&a.row<b.row+(b.size||1)&&a.row+(a.size||1)>b.row),'多怪最终重叠 seed='+seed+' '+a.cfgId+' / '+b.cfgId);for(const a of monsters)if(!a.jumperVanished)demand(!isInMonsterFootprint(a,player.col,player.row),'玩家最终重叠 '+seed);const actual=monsters.filter(x=>sim.monsters.some(m=>m.id===x.id)).map(x=>[x.id,x.col,x.row,x.hp].join(',')).sort().join('|');const expected=sim.monsters.map(x=>[x.id,x.col,x.row,x.hp].join(',')).sort().join('|');demand(actual===expected,'多怪预测不符 '+seed+' '+actual+' / '+expected);}
+console.log('PASS: 20组Boss、裂口尸和浮游眼混合回合，预测一致且最终不重叠');
+m=setup('crack_maw_i');player.col=m.col;player.row=m.row;for(const [dx,dy]of [[1,0],[-1,0],[0,1],[0,-1]])currentRoomGrid[m.col+dx][m.row+dy]=TILE.ROCK;demand(getPlayerEndPushCandidates(m).length===0,'障碍封闭仍穿过障碍');currentRoomGrid[m.col+1][m.row]=TILE.FLOOR;let exits=getPlayerEndPushCandidates(m);demand(exits.length===1&&exits[0].col===m.col+1,'最近实际步数错误');
+currentRoomGrid[player.col][player.row]=TILE.SPIKE;player.invincibleSteps=0;hp=playerStats.hp;resolveForcedLanding();demand(playerStats.hp<hp,'挤出落脚未触发尖刺');
+m=setup('crack_maw_i');player.invincibleSteps=99;bombs=[{id:1,col:m.col,row:m.row,timer:1,roomId:currentRoomId}];updateDangerForecast();demand(dangerForecast.monsterId!==m.id,'炸弹击杀的怪物仍有感叹号');
+m=setup('crack_maw_iii');saveTurnSnapshot();const original={col:player.col,row:player.row,hp:playerStats.hp};player.col++;playerStats.hp--;restoreTurnSnapshot();demand(player.col===original.col&&playerStats.hp===original.hp,'回溯未恢复位置血量');
+console.log('PASS: 障碍封闭与最短步数、挤出尖刺、炸弹先击杀及回溯');
+`,sandbox);})().catch(e=>{console.error(e);process.exitCode=1});

@@ -1303,6 +1303,7 @@ function BUILTIN_TEMPLATES(){
 }
 
 function resetGameToFloor1(){
+  pendingPlayerTurnEnd=false;forcedLandingPending=false;movementEvents=[];movementPlanning=false;
   monsters=[];bullets.length=0;particles.length=0;damageNumbers.length=0;transition=null;
   monstersKilled = 0; itemsCollected = []; gameOver = false;
   player.col=6;player.row=3;const p=gridToPixel(6,3);player.px=p.x;player.py=p.y;
@@ -2811,6 +2812,32 @@ function resetTurnAP() {
 
 // ==================== 怪物系统辅助 ====================
 // 返回占用指定格子的怪物（支持2×2怪物）
+// 碰撞挤出辅助：怪物回合使用与预测共用的行动随机数。
+
+// 玩家结束回合仍与怪物重叠时，选择距离怪物轮廓最近的可用格。
+let forcedLandingPending=false;
+function resolveForcedLanding(){checkSpikeUnderPlayer();autoPickupResources();for(let i=itemsOnGround.length-1;i>=0;i--){const item=itemsOnGround[i];if(item.col===player.col&&item.row===player.row){if(isShopSlotCell(item.col,item.row))tryBuyShopItem(item.col,item.row);else if(!playerInventory.includes(item.cfgId)){applyItem(item.cfgId);itemsOnGround.splice(i,1);updateItemBar();}}}updateUI();}
+let pendingPlayerTurnEnd=false;
+function getPlayerEndPushCandidates(monster){const q=[{col:player.col,row:player.row,d:0}],seen=new Set([player.col+','+player.row]),out=[];let best=Infinity;for(let i=0;i<q.length;i++){const p=q[i];if(p.d>best)break;const occupied=monsters.some(m=>m.hp>0&&!m.jumperVanished&&isInMonsterFootprint(m,p.col,p.row));const bomb=bombs.some(b=>b.roomId===currentRoomId&&b.col===p.col&&b.row===p.row);if(p.d>0&&!occupied&&!bomb){best=p.d;out.push({col:p.col,row:p.row});continue;}for(const [dx,dy]of [[1,0],[-1,0],[0,1],[0,-1]]){const c=p.col+dx,r=p.row+dy,k=c+','+r;if(isWall(c,r)||seen.has(k)||bombs.some(b=>b.roomId===currentRoomId&&b.col===c&&b.row===r))continue;seen.add(k);q.push({col:c,row:r,d:p.d+1});}}return out;}
+function preparePlayerTurnEnd(){
+ bullets.length=0;particles.length=0;damageNumbers.length=0;
+ const overlap=monsters.find(m=>m.hp>0&&!m.jumperVanished&&isInMonsterFootprint(m,player.col,player.row));
+ if(overlap){const options=getPlayerEndPushCandidates(overlap);if(!options.length){showFloorBanner('挤出异常：房间内没有可到达的合法空格，请移动或回溯');return false;}
+  const dest=options[Math.floor(Math.random()*options.length)];player.col=dest.col;player.row=dest.row;const pixel=gridToPixel(dest.col,dest.row);player.targetPx=pixel.x;player.targetPy=pixel.y;player.animTime=0;dangerForecastKey=null;dangerForecast=null;dangerForecastJob=null;
+ }
+ pendingPlayerTurnEnd=true;return true;
+}
+
+function getPlayerPushCandidates(m,targetCol,targetRow){
+ const size=m.size||1,out=[];
+ for(const [dx,dy] of [[0,-1],[0,1],[-1,0],[1,0]]){const col=player.col+dx,row=player.row+dy;
+  if(isWall(col,row)||(col>=targetCol&&col<targetCol+size&&row>=targetRow&&row<targetRow+size))continue;
+  if(monsters.some(x=>x.id!==m.id&&x.hp>0&&!x.jumperVanished&&isInMonsterFootprint(x,col,row)))continue;
+  if(bombs.some(b=>b.col===col&&b.row===row&&b.roomId===currentRoomId))continue;out.push({col,row});
+ }return out;
+}
+function pushPlayerFromMonster(m,col,row){const choices=getPlayerPushCandidates(m,col,row);if(!choices.length)return false;const dest=choices[monsterActionChoiceIndex(choices.map(()=>1))];player.col=dest.col;player.row=dest.row;const p=gridToPixel(dest.col,dest.row);if(movementPlanning)scheduleMovementEvent({type:'push',x:p.x,y:p.y});else{player.targetPx=p.x;player.targetPy=p.y;player.animTime=0;forcedLandingPending=true;}return true;}
+
 function isMonsterAt(col, row, excludeId = -1) {
   return monsters.some(m => {
     if (m.id === excludeId) return false;
@@ -3107,6 +3134,20 @@ function getWanderPaths(m, steps) {
   return paths.length ? paths : [[]];
 }
 // 主轴同距时两种方向均有可能；预测列举，执行时才选择。
+function canMonsterShotHitPlayer(m,action){
+  const directions=getMonsterShootDirections(m.col,m.row,player.col,player.row),range=action.range||4;
+  for(const base of directions){
+    const rays=action.type==='shoot_fan'?[base,...getSpreadDirs(base)]:[base];
+    for(const name of rays){const v=DIR_VEC[name];for(let n=1;n<=range;n++){
+      const c=m.col+v.dx*n,r=m.row+v.dy*n;
+      if(c<0||c>=COLS||r<0||r>=ROWS)break;
+      const tile=currentRoomGrid?.[c]?.[r];if((tile!==undefined&&TILE_BLOCKS_BULLET[tile])||bombs.some(b=>b.roomId===currentRoomId&&b.col===c&&b.row===r))break;
+      if(c===player.col&&r===player.row)return true;
+    }}
+  }
+  return false;
+}
+
 function getMonsterShootDirections(mCol, mRow, pCol, pRow) {
   const dx = pCol - mCol, dy = pRow - mRow;
   const h = dx > 0 ? 'right' : 'left', v = dy > 0 ? 'down' : 'up';
@@ -3129,12 +3170,12 @@ function calcAllMonsterPaths() {
   const turnIdx = turnState.monsterTurnCounter;
 
   // ===== 第0遍：Boss Duke 优先计算路径（判定层先于其他小怪） =====
-  const dukes = monsters.filter(m => m.aiType === 'boss_duke' && !m.jumperVanished);
+  const dukes = [];
   for (const m of dukes) {
     calcDukePath(m, turnIdx);
   }
 
-  for (const m of monsters) {
+  for (const m of monsters.slice().sort((a,b)=>monsterActionOrder.indexOf(a.id)-monsterActionOrder.indexOf(b.id))) {
     // Boss Jumper 的移动由 processJumperAction 单独处理，此处只清空路径
     if (m.aiType === 'boss_jumper') {
       m.predictedPath = [];
@@ -3164,6 +3205,15 @@ function calcAllMonsterPaths() {
       continue;
     }
 
+    // 只在射线能够到达玩家时射击；否则保留原有游走行为。
+    if((selectedAction.type==='shoot_fan'||selectedAction.type==='shoot_single')&&!canMonsterShotHitPlayer(m,selectedAction)){
+      const wander=(cfg.actions||[]).find(a=>a.type==='random_wander')||selectedAction.after_effect;
+      if(wander&&wander.type==='random_wander'){
+        const steps=resolveSteps(wander.steps,wander.stepMode,wander.stepWeights,turnIdx);
+        m.moveSpeed=steps;m._turnAction=wander;m._turnAfterAction=null;m.predictedPath=chooseWanderPath(m,steps);
+      }else{m._turnAction=null;m._turnAfterAction=null;m.predictedPath=[];}
+      continue;
+    }
     // 按 actionType 分发执行
     switch (selectedAction.type) {
       case 'chase':
@@ -3181,10 +3231,10 @@ function calcAllMonsterPaths() {
         const range = selectedAction.range || 4;
         const gp = gridToPixel(m.col, m.row);
         if (turnState.phase === 'monster_turn') {
-          spawnMonsterBullet(shootDir, gp.x, gp.y, range);
+          spawnMonsterBullet(shootDir, gp.x, gp.y, range, m.id);
           const spread = getSpreadDirs(shootDir);
           for (const sd of spread) {
-            spawnMonsterBullet(sd, gp.x, gp.y, range);
+            spawnMonsterBullet(sd, gp.x, gp.y, range, m.id);
           }
         }
 
@@ -3205,7 +3255,7 @@ function calcAllMonsterPaths() {
         const range2 = selectedAction.range || 4;
         const gp2 = gridToPixel(m.col, m.row);
         if (turnState.phase === 'monster_turn') {
-          spawnMonsterBullet(shootDir2, gp2.x, gp2.y, range2);
+          spawnMonsterBullet(shootDir2, gp2.x, gp2.y, range2, m.id);
         }
 
         // after_effect: 射击后执行附加行为（如随机移动）
@@ -3225,7 +3275,7 @@ function calcAllMonsterPaths() {
         const dir = pickChargeDir(m.col, m.row, player.col, player.row, cd);
         m.chargeDir = dir;
         m.chargeDistance = dir ? cd : 0;
-        m._showingExclaim = false; // 冲刺时隐藏感叹号
+        m._showingExclaim = false;m._shaking=false; // 冲刺结束蓄力抖动
 
         m.predictedPath = getChargePath(m, dir, m.chargeDistance);
         break;
@@ -3234,7 +3284,7 @@ function calcAllMonsterPaths() {
       case 'charge_up':
         // 蓄力：原地不动，感叹号提示
         m.predictedPath = [];
-        m._showingExclaim = true;
+        m._showingExclaim = false;m._shaking=true;
         break;
 
       case 'stationary':
@@ -3249,101 +3299,18 @@ function calcAllMonsterPaths() {
 }
 
 // BFS自动寻路：从玩家位置扩散距离地图，怪物沿梯度走最短路径（不绕尖刺）
-function calcMonsterPath(monster, targetCol, targetRow) {
-  const path = [];
-  let col = monster.col, row = monster.row;
-  if (monster.moveSpeed <= 0) return path;
-  if (col === targetCol && row === targetRow) return path;
-
-  // 收集其他怪物位置作为障碍（避免穿怪）
-  const monsterBlocks = new Set();
-  for (const m of monsters) {
-    if (m.id === monster.id) continue;
-    if (m.jumperVanished) continue;
-    monsterBlocks.add(`${m.col},${m.row}`);
+function calcMonsterPath(monster,targetCol,targetRow){
+  const dirs=[[1,0],[-1,0],[0,1],[0,-1]], max=Math.max(0,monster.moveSpeed);
+  const dist=Array.from({length:COLS},()=>Array(ROWS).fill(-1)),q=[[targetCol,targetRow]];dist[targetCol][targetRow]=0;
+  for(let i=0;i<q.length;i++){const [c,r]=q[i];for(const [dx,dy] of dirs){const x=c+dx,y=r+dy;if(x<0||x>=COLS||y<0||y>=ROWS||dist[x][y]>=0||isWall(x,y))continue;dist[x][y]=dist[c][r]+1;q.push([x,y]);}}
+  if(Math.abs(monster.col-targetCol)+Math.abs(monster.row-targetRow)===1)return [];
+  let best=null,queue=[{c:monster.col,r:monster.row,path:[]}],seen=new Set([monster.col+','+monster.row]);
+  for(let i=0;i<queue.length;i++){let cur=queue[i],d=dist[cur.c][cur.r];
+    if(cur.path.length&&d>=1&&!isMonsterAt(cur.c,cur.r,monster.id)&&(cur.c!==targetCol||cur.r!==targetRow)&&(!best||d<best.d||(d===best.d&&cur.path.length<best.path.length)))best={d,path:cur.path};
+    if(cur.path.length>=max)continue;
+    for(const [dx,dy] of dirs){let c=cur.c+dx,r=cur.r+dy,k=c+','+r;if(c<0||c>=COLS||r<0||r>=ROWS||seen.has(k)||isWall(c,r))continue;seen.add(k);queue.push({c,r,path:[...cur.path,{fromCol:cur.c,fromRow:cur.r,toCol:c,toRow:r}]});}
   }
-
-  // BFS: 从玩家向外扩散，填充距离地图
-  const dist = new Array(COLS);
-  for (let c = 0; c < COLS; c++) dist[c] = new Array(ROWS).fill(-1);
-
-  const queue = [{ col: targetCol, row: targetRow }];
-  dist[targetCol][targetRow] = 0;
-  let qHead = 0;
-
-  while (qHead < queue.length) {
-    const cur = queue[qHead++];
-    const d = dist[cur.col][cur.row];
-
-    const neighbors = [
-      { col: cur.col + 1, row: cur.row },
-      { col: cur.col - 1, row: cur.row },
-      { col: cur.col, row: cur.row + 1 },
-      { col: cur.col, row: cur.row - 1 },
-    ];
-
-    for (const n of neighbors) {
-      if (n.col < 0 || n.col >= COLS || n.row < 0 || n.row >= ROWS) continue;
-      if (dist[n.col][n.row] !== -1) continue;
-      // 只挡墙壁和岩石，不挡尖刺/深坑（怪物可踩）
-      if (isWall(n.col, n.row)) continue;
-      // 目标格是玩家当前位置？允许通过（玩家会走开）
-      if (monsterBlocks.has(`${n.col},${n.row}`)) continue;
-      dist[n.col][n.row] = d + 1;
-      queue.push(n);
-    }
-  }
-
-  // 沿距离梯度走：每步选距离值最小的邻居
-  for (let step = 0; step < monster.moveSpeed; step++) {
-    if (col === targetCol && row === targetRow) break;
-
-    let bestDc = 0, bestDr = 0;
-    let bestDist = Infinity;
-
-    const candidates = [
-      { dc: 1, dr: 0 }, { dc: -1, dr: 0 },
-      { dc: 0, dr: 1 }, { dc: 0, dr: -1 },
-    ];
-
-    for (const nd of candidates) {
-      const nc = col + nd.dc;
-      const nr = row + nd.dr;
-      if (nc < 0 || nc >= COLS || nr < 0 || nr >= ROWS) continue;
-      if (isWall(nc, nr)) continue;
-      if (isMonsterAt(nc, nr, monster.id)) continue;
-      if (dist[nc][nr] === -1) continue; // 不可达
-      if (dist[nc][nr] < bestDist) {
-        bestDist = dist[nc][nr];
-        bestDc = nd.dc; bestDr = nd.dr;
-      }
-    }
-
-    // 无梯度路径可用 → 贪婪回退（尽量朝玩家走一步）
-    if (bestDc === 0 && bestDr === 0 && path.length === 0) {
-      const gx = Math.sign(targetCol - col);
-      const gy = Math.sign(targetRow - row);
-      const greedy = [
-        { dc: gx, dr: 0 }, { dc: 0, dr: gy },
-        { dc: gx, dr: gy },
-      ];
-      for (const gd of greedy) {
-        if (gd.dc === 0 && gd.dr === 0) continue;
-        const nc = col + gd.dc, nr = row + gd.dr;
-        if (nc >= 0 && nc < COLS && nr >= 0 && nr < ROWS && !isWall(nc, nr) && !isMonsterAt(nc, nr, monster.id)) {
-          bestDc = gd.dc; bestDr = gd.dr; break;
-        }
-      }
-    }
-
-    if (bestDc === 0 && bestDr === 0) break;
-
-    path.push({ fromCol: col, fromRow: row, toCol: col + bestDc, toRow: row + bestDr });
-    col += bestDc;
-    row += bestDr;
-  }
-
-  return path;
+  return best?best.path:[];
 }
 
 // ==================== 血量上限系统 ====================
@@ -3385,7 +3352,22 @@ function checkSpikeUnderPlayer() {
 // ==================== 玩家受伤系统 ====================
 function noteDangerCell(col, row) {}
 
-function damagePlayer(amount) {
+function damagePlayer(amount, attackerId = null) {
+  if(movementPlanning&&turnState.phase==='monster_turn'&&attackerId!==null){scheduleMovementEvent({type:'hit',amount,attackerId});return;}
+  if (player.invincibleSteps > 0) return;
+  if (turnState.phase === 'monster_turn' && attackerId !== null) {
+    if (monsterTurnHit) return;
+    if (attackerId !== lockedThreatId) {
+      if (lockedThreatId !== null && monsters.some(m=>m.id===lockedThreatId&&m.hp>0)) {
+        if (!pendingMonsterHits.some(h=>h.attackerId===attackerId)) pendingMonsterHits.push({amount,attackerId});
+        return;
+      }
+      promoteMonsterThreat(attackerId);
+    }
+    monsterTurnHit=true;
+    pendingMonsterHits=[];
+  }
+
   if (player.invincibleSteps > 0) return; // 无敌中
 
   // 优先扣除蓝心
@@ -3743,7 +3725,7 @@ function detonateBomb(bomb) {
       }
     }
 
-    noteDangerCell(col, row);
+    noteDangerCell(col, row, -1, "environment");
     // 伤害玩家
     if (col === player.col && row === player.row) {
       damagePlayer(1);
@@ -4250,9 +4232,12 @@ function calcJumperSmallJump(m) {
   for (let dc = 0; dc < sz; dc++)
     for (let dr = 0; dr < sz; dr++) {
       const tc = tCol + dc, tr = tRow + dr;
-      noteDangerCell(tc, tr);
-      if (!playerHit && tc === player.col && tr === player.row) { damagePlayer(0.5); playerHit = true; }
+      noteDangerCell(tc, tr, m.id, "move");
+      if (!playerHit && tc === player.col && tr === player.row) { damagePlayer(0.5, m.id); playerHit = true; }
     }
+
+  // 小跳撞到玩家时尝试挤出；四邻无空位则保留原位置。
+  if(playerHit && !pushPlayerFromMonster(m,tCol,tRow))return false;
 
   // 移动Boss
   m.col = tCol; m.row = tRow;
@@ -4382,9 +4367,9 @@ function resolveAfterEffects(action, context) {
       let playerHitInSide = false, monsterHitsInSide = new Set();
       for (const key of sideCells) {
         const [c, r] = key.split(',').map(Number);
-        noteDangerCell(c, r);
+        noteDangerCell(c, r, m.id, "move");
         if (!playerHitInSide && c === player.col && r === player.row) {
-          damagePlayer(damage);
+          damagePlayer(damage, m.id);
           playerHitInSide = true;
         }
         for (const om of monsters) {
@@ -4415,13 +4400,12 @@ function resolveAfterEffects(action, context) {
           const ar = m.row + dir.dy * i;
           if (ac < 0 || ac >= COLS || ar < 0 || ar >= ROWS) break;
           if (isWall(ac, ar)) break;
-          noteDangerCell(ac, ar);
+          noteDangerCell(ac, ar, m.id, "move");
           // 攻击玩家（只扣血一次）
           if (!playerHit && ac === player.col && ar === player.row) {
-            damagePlayer(damage);
+            damagePlayer(damage, m.id);
             playerHit = true;
-            m.meleeFlash = 0.25;
-            m.meleeDir = { dx: dir.dx, dy: dir.dy };
+            if(movementPlanning)scheduleMovementEvent({type:'melee',monsterId:m.id,dx:dir.dx,dy:dir.dy});else{m.meleeFlash=0.25;m.meleeDir={dx:dir.dx,dy:dir.dy};}
           }
           // 攻击其他怪物
           for (const om of monsters) {
@@ -4602,19 +4586,8 @@ function calcDukePath(m, turnIdx) {
       }
     }
 
-    // 检查玩家碰撞
+    // 玩家碰撞在关键帧实际抵达时处理，规划阶段不更改玩家状态。
     let playerHitThisStep = false;
-    for (let ddc = 0; ddc < sz; ddc++) {
-      for (let ddr = 0; ddr < sz; ddr++) {
-        const dukeNewC = finalTargetCol + ddc;
-        const dukeNewR = finalTargetRow + ddr;
-        noteDangerCell(dukeNewC, dukeNewR);
-        if (!playerHitThisStep && dukeNewC === player.col && dukeNewR === player.row) {
-          damagePlayer(m.damage || 1);
-          playerHitThisStep = true;
-        }
-      }
-    }
 
     // 记录关键帧（目标格子坐标）
     keyframes.push({
@@ -4636,7 +4609,8 @@ function calcDukePath(m, turnIdx) {
 // Duke 走独立动画轨道，animateMonsters 跳过 Duke
 const DUKE_ANIM_SPEED = 200; // px/s
 function updateDukeAnim(dt) {
-  if (turnState.phase !== 'monster_turn') return;
+  return; // 关键帧已转换为统一视觉路径。
+  if (turnState.phase !== 'monster_turn' || monsterGroupPhase !== 'move') return;
   for (const m of monsters) {
     if (m.aiType !== 'boss_duke') continue;
     if (!m._dukeKeyframes || m._dukeKeyframes.length === 0) continue;
@@ -4656,6 +4630,12 @@ function updateDukeAnim(dt) {
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     if (dist < 2) {
+      // 按本步实际位置结算碰撞；无法挤出时双方保持原位置。
+      for(let dc=0;dc<sz;dc++)for(let dr=0;dr<sz;dr++)noteDangerCell(kf.targetCol+dc,kf.targetRow+dr,m.id,"move");
+      const overlaps=player.col>=kf.targetCol&&player.col<kf.targetCol+sz&&player.row>=kf.targetRow&&player.row<kf.targetRow+sz;
+      if(overlaps){damagePlayer(m.damage||1,m.id);if(!pushPlayerFromMonster(m,kf.targetCol,kf.targetRow)){
+        const old=gridToPixel(m.col,m.row);m.px=old.x;m.py=old.y;m._dukeKeyframes=[];m._dukeKeyframeIdx=0;continue;
+      }}
       // 到达当前关键帧 → 更新 col/row 和 px/py
       m.col = kf.targetCol;
       m.row = kf.targetRow;
@@ -4733,6 +4713,7 @@ function executeBossLanding() {
   }
   const sz = m.size || 2;
 
+  const oldBossPos={col:m.col,row:m.row};
   // === 第1步：Boss出现在目标位置 ===
   m.col = targetCol; m.row = targetRow;
   const newPix = gridToPixel(m.col, m.row);
@@ -4745,7 +4726,7 @@ function executeBossLanding() {
   m.jumpAnimTimer = 0.55;
   m.jumpType = 'big_land';
 
-  doLandingDamage(m, targetCol, targetRow, sz, landAction);
+  doLandingDamage(m, targetCol, targetRow, sz, landAction, oldBossPos);
 
   inCombat = true;
   updateDoorsLocked();
@@ -4753,16 +4734,16 @@ function executeBossLanding() {
 }
 
 // 落地伤害+效果（抽成共用函数）
-function doLandingDamage(m, targetCol, targetRow, sz, landAction) {
+function doLandingDamage(m, targetCol, targetRow, sz, landAction, oldBossPos = null) {
   // 本体落地碰撞
   let playerDirectHit = false;
   for (let dc = 0; dc < sz; dc++) {
     for (let dr = 0; dr < sz; dr++) {
       const tc = targetCol + dc, tr = targetRow + dr;
-      noteDangerCell(tc, tr);
+      noteDangerCell(tc, tr, m.id, "move");
       if (!playerDirectHit && tc === player.col && tr === player.row) {
         const collisionDmg = m.damage || 0.5;
-        damagePlayer(collisionDmg);
+        damagePlayer(collisionDmg, m.id);
         playerDirectHit = true;
       }
       for (const om of monsters) {
@@ -4776,6 +4757,10 @@ function doLandingDamage(m, targetCol, targetRow, sz, landAction) {
 
   // after_effect（冲击波等）
   resolveAfterEffects(landAction, { monster: m, targetCol, targetRow, sz });
+  // 落点命中先结算原位置的伤害，再平移挤出；无空位则 Boss 返回原位置。
+  if(playerDirectHit&&!pushPlayerFromMonster(m,targetCol,targetRow)&&oldBossPos){
+    m.col=oldBossPos.col;m.row=oldBossPos.row;const oldPixel=gridToPixel(m.col,m.row);m.px=oldPixel.x;m.py=oldPixel.y;
+  }
 }
 
 // 公爵召唤浮游眼（概率判定 + 上限检查 + 相邻格随机空格生成）
@@ -4843,11 +4828,14 @@ function handleDukeSummon(m) {
 }
 
 // 砸下第二阶段：vanish动画结束后在目标位置播 big_land
+function resolveBossLandingPosition(m,c,r){let best=Infinity,out=null;const size=m.size||2;for(let x=0;x<=COLS-size;x++)for(let y=0;y<=ROWS-size;y++){if(!isValidLandingZone(x,y,size)||monsters.some(o=>o.id!==m.id&&o.hp>0&&!o.jumperVanished&&x<o.col+(o.size||1)&&x+size>o.col&&y<o.row+(o.size||1)&&y+size>o.row))continue;const d=Math.abs(x-c)+Math.abs(y-r);if(d<best){best=d;out={col:x,row:y};}}return out||{col:m.col,row:m.row};}
+
 function finishBossLandingPhase2(m) {
-  const targetCol = m._pendingLandCol;
-  const targetRow = m._pendingLandRow;
+  const landing=resolveBossLandingPosition(m,m._pendingLandCol,m._pendingLandRow);
+  const targetCol=landing.col,targetRow=landing.row;
   const landAction = m._pendingLandAction;
   const sz = m.size || 2;
+  const oldBossPos={col:m.col,row:m.row};
 
   m.col = targetCol; m.row = targetRow;
   const newPix = gridToPixel(m.col, m.row);
@@ -4860,7 +4848,7 @@ function finishBossLandingPhase2(m) {
   m.jumpAnimTimer = 0.55;
   m.jumpType = 'big_land';
 
-  doLandingDamage(m, targetCol, targetRow, sz, landAction);
+  doLandingDamage(m, targetCol, targetRow, sz, landAction, oldBossPos);
 
   inCombat = true;
   updateDoorsLocked();
@@ -4902,14 +4890,28 @@ function monsterActionRandom() {
 // 怪物回合执行
 let monsterExecTimer = 0;
 let monsterExecStepIdx = 0;
+const SEQUENTIAL_ACTION={betweenSeconds:0.12};let combatRng=123456789;
+let movementPlanning=false,movementEventMonsterId=null,movementEventStep=0,movementEvents=[];
+function scheduleMovementEvent(event){movementEvents.push({...event,actorId:movementEventMonsterId,step:movementEventStep,ready:false});}
+function releaseMovementEvents(actorId,step){
+ for(const event of movementEvents)if(event.actorId===actorId&&event.step<=step)event.ready=true;
+ while(movementEvents.length&&movementEvents[0].ready){const event=movementEvents.shift();
+  if(event.type==='hit')damagePlayer(event.amount,event.attackerId);
+  else if(event.type==='push'){player.targetPx=event.x;player.targetPy=event.y;player.animTime=0;forcedLandingPending=true;}
+  else if(event.type==='melee'){const m=monsters.find(x=>x.id===event.monsterId);if(m){m.meleeFlash=0.25;m.meleeDir={dx:event.dx,dy:event.dy};}}
+ }
+}
+let monsterGroupPhase='idle',monsterActionOrder=[];
+let monsterTurnHit=false,lockedThreatId=null,pendingMonsterHits=[],fallbackThreatHold=0,monsterAfterEffectsDone=false;
 
 let dangerRevealRemaining = 0;
 let dangerExecutionSeed = null;
 function startMonsterTurn() {
+ movementPlanning=false;movementEvents=[];
+  monsterTurnHit=false;pendingMonsterHits=[];fallbackThreatHold=0;monsterAfterEffectsDone=false;lockedThreatId=dangerForecast?.monsterId??null;
   // 只在玩家正式结束回合时确定随机结果；模拟与执行使用相同的行动种子。
-  dangerExecutionSeed = Math.floor(Math.random()*4294967296)>>>0;
-  const resolved = simulateResolvedDanger(dangerExecutionSeed);
-  dangerReveal = {red:resolved.cells,yellow:new Set()};
+  dangerExecutionSeed = (combatRng=(Math.imul(combatRng,1664525)+1013904223)>>>0);
+  dangerReveal = {red:new Set(dangerForecast?.red||[]),yellow:new Set(dangerForecast?.yellow||[]),monsterId:dangerForecast?.monsterId??null};
   dangerRevealRemaining = 0.65;
 }
 function updateDangerReveal(dt) {
@@ -4918,9 +4920,7 @@ function updateDangerReveal(dt) {
   monsterFlashTimer+=dt;
   if(dangerRevealRemaining===0) {
     monsterTurnRandom=makeMonsterTurnRandom(dangerExecutionSeed);
-    executeBossLanding();
     executeMonsterTurnActions();
-    dangerReveal=null;
   }
   return true;
 }
@@ -4932,12 +4932,12 @@ function executeMonsterTurnActions() {
   // === 炸弹行动（最高优先级，先于所有怪物） ===
   tickBombCountdown();
 
-  // 先处理跳跃Boss行动（一次性完成，不参与逐步移动）
-  for (const m of monsters) {
-    if (m.aiType === 'boss_jumper' && !m.jumperVanished) {
-      processJumperAction(m);
-    }
-  }
+  // 统一射击阶段先于跳跃与移动；顺序在怪物回合起点固定。
+  monsterGroupPhase='shoot';
+  monsterActionOrder=monsters.filter(m=>m.hp>0&&!m.jumperVanished).slice().sort((a,b)=>{
+    const da=Math.max(Math.abs(player.col-a.col),Math.abs(player.row-a.row));
+    const db=Math.max(Math.abs(player.col-b.col),Math.abs(player.row-b.row));return da-db||a.id-b.id;
+  }).map(m=>m.id);
 
   // 初始化 Boss Duke 象限方向（战斗开始时执行一次）
   for (const m of monsters) {
@@ -4950,126 +4950,63 @@ function executeMonsterTurnActions() {
 }
 
 function updateMonsterTurn(dt) {
-  // vanished boss不算活跃怪物
-  const activeMonsters = monsters.filter(m => !m.jumperVanished);
-  if (activeMonsters.length === 0 && !pendingBossLanding) { finishMonsterTurn(); return; }
-  // 如果有pendingBossLanding，等待下个回合处理（大跳落地后继续怪物回合）
-
-  monsterExecTimer += dt;
-  if (monsterExecTimer < 0.15) return; // 加速: 0.25→0.15
-  monsterExecTimer = 0;
-
-  // ===== 所有怪物同时执行当前步骤 =====
-  // 第一遍：计算所有怪物拟移动的目标位置，检测冲突
-  const planned = []; // [{monster, toCol, toRow}]
-  let anyStepLeft = false;
-
-  // 检查 Duke 是否还在动画中（关键帧未播完则保持回合不结束）
-  let dukeAnimating = false;
-  for (const m of monsters) {
-    if (m.aiType !== 'boss_duke') continue;
-    if (m._dukeKeyframes && m._dukeKeyframeIdx < m._dukeKeyframes.length) {
-      dukeAnimating = true;
-      break;
+  if(monsterGroupPhase==='shoot'){
+    if(bullets.some(b=>b.source==='monster'&&b.phase==='flying'))return;
+    // 先按顺序确定位置与命中，再在动画到达时播放碰撞和受伤。
+    movementPlanning=true;movementEvents=[];
+    for(const id of monsterActionOrder){
+      const m=monsters.find(x=>x.id===id&&x.hp>0&&!x.jumperVanished);if(!m)continue;
+      movementEventMonsterId=m.id;movementEventStep=0;
+      if(m.aiType==='boss_jumper'){const x=m.px,y=m.py;processJumperAction(m);m.px=x;m.py=y;continue;}
+      if(m.aiType==='boss_duke'){
+       calcDukePath(m,turnState.monsterTurnCounter);m._visualPath=[];m._visualProgress=0;
+       for(const k of m._dukeKeyframes||[]){movementEventStep++;let blocked=false;
+        if(player.col>=k.targetCol&&player.col<k.targetCol+(m.size||2)&&player.row>=k.targetRow&&player.row<k.targetRow+(m.size||2)){damagePlayer(m.damage||1,m.id);if(!pushPlayerFromMonster(m,k.targetCol,k.targetRow))blocked=true;}
+        if(!blocked){for(const other of monsters){if(other.id===m.id||other.hp<=0||other.jumperVanished)continue;const pos=k.pushedFloaters?.get(other.id)||other,sz=other.size||1;if(k.targetCol<pos.col+sz&&k.targetCol+(m.size||2)>pos.col&&k.targetRow<pos.row+sz&&k.targetRow+(m.size||2)>pos.row){blocked=true;break;}}}
+        if(blocked)break;m.col=k.targetCol;m.row=k.targetRow;m._visualPath.push({col:m.col,row:m.row});
+        for(const [id,pos]of k.pushedFloaters||[]){const f=monsters.find(v=>v.id===id);if(f&&!monsters.some(v=>v.id!==f.id&&!v.jumperVanished&&isInMonsterFootprint(v,pos.col,pos.row))&&(pos.col!==player.col||pos.row!==player.row)){f.col=pos.col;f.row=pos.row;}}
+       }m._dukeKeyframes=[];continue;
+      }
+      if(m._turnAction?.type==='chase')m.predictedPath=calcMonsterPath(m,player.col,player.row);
+      const path=m.predictedPath||[];
+      while(path.length){const end=path[path.length-1];if(!isMonsterAt(end.toCol,end.toRow,m.id))break;path.pop();}
+      let safe={col:m.col,row:m.row};m._visualPath=[];m._visualProgress=0;movementEventMonsterId=m.id;movementEventStep=0;
+      for(const step of path){
+        movementEventStep++;
+        noteDangerCell(step.toCol,step.toRow,m.id,'move');
+        if(step.toCol===player.col&&step.toRow===player.row){damagePlayer(m.damage||1,m.id);if(!pushPlayerFromMonster(m,step.toCol,step.toRow)){m._visualPath.push({col:step.toCol,row:step.toRow});m.col=safe.col;m.row=safe.row;m._visualPath.push({col:m.col,row:m.row});break;}}
+        const bomb=bombs.find(b=>b.roomId===currentRoomId&&b.col===step.toCol&&b.row===step.toRow);if(bomb)pushBomb(bomb,Math.sign(step.toCol-step.fromCol),Math.sign(step.toRow-step.fromRow));
+        m.col=step.toCol;m.row=step.toRow;m._visualPath.push({col:m.col,row:m.row});if(!isMonsterAt(m.col,m.row,m.id))safe={col:m.col,row:m.row};
+        if(currentRoomGrid?.[m.col]?.[m.row]===TILE.SPIKE){damageMonster(m,5);if(m.hp<=0)break;}
+      }
+      if(m.hp>0&&m._turnAction?.type==='chase')resolveAfterEffects(m._turnAction,{monster:m});
     }
+    movementPlanning=false;monsterGroupPhase='move';monsterExecTimer=0;
+    for(const id of monsterActionOrder){const m=monsters.find(x=>x.id===id);if(m?.aiType!=='boss_jumper')releaseMovementEvents(id,0);}
+    return;
   }
-
-  for (const m of monsters) {
-    if (m.jumperVanished) continue; // 跳跃Boss已消失
-    // Boss Duke 走关键帧动画，不参与逐帧移动
-    if (m.aiType === 'boss_duke') continue;
-    if (!m.predictedPath || monsterExecStepIdx >= m.predictedPath.length) continue;
-
-    anyStepLeft = true;
-    const step = m.predictedPath[monsterExecStepIdx];
-    planned.push({ monster: m, fromCol: step.fromCol, fromRow: step.fromRow, toCol: step.toCol, toRow: step.toRow });
+  if(monsterGroupPhase==='move'){
+    monsterExecTimer+=dt;
+    for(const m of monsters)if(m.aiType==='boss_jumper'&&!(m.jumpAnimTimer>0))releaseMovementEvents(m.id,Infinity);
+    const moving=monsters.some(m=>(m._visualPath?.length||0)>0||m.jumpAnimTimer>0);
+    if(moving||(forcedLandingPending&&player.targetPx!==null))return;
+    for(const id of monsterActionOrder)releaseMovementEvents(id,Infinity);
+    monsterGroupPhase='settle';monsterExecTimer=0;return;
   }
-
-  if (!anyStepLeft && !dukeAnimating) { finishMonsterTurn(); return; }
-
-  // 第二遍：应用移动 (已占用的格子不能再被其他怪物占据)
-  // 只把"本步不移动"的怪物当前格视为障碍：本步要走的怪物会腾出自己的格子，
-  // 否则后排怪物会被前排永远挡住（顺带让结算顺序确定，不依赖 monsters 数组生成顺序）
-  const movingIds = new Set(planned.map(p => p.monster.id));
-  const occupied = new Set();
-  for (const m of monsters) {
-    if (m.jumperVanished || movingIds.has(m.id)) continue;
-    for (const mc of monsterCells(m)) occupied.add(`${mc.col},${mc.row}`);
+  if(monsterGroupPhase==='settle'){
+    monsterExecTimer+=dt;if(monsterExecTimer<SEQUENTIAL_ACTION.betweenSeconds)return;
+    finishMonsterTurn();
   }
-
-  // 移动顺序：离玩家越近越先（前排先占位），同距离按 id 稳定排序
-  planned.sort((a, b) => {
-    const da = Math.max(Math.abs(player.col - a.toCol), Math.abs(player.row - a.toRow));
-    const db = Math.max(Math.abs(player.col - b.toCol), Math.abs(player.row - b.toRow));
-    return da - db || a.monster.id - b.monster.id;
-  });
-
-  for (const p of planned) {
-    const m = p.monster;
-    const sz = m.size || 1;
-
-    // === 普通怪物 (1×1) ===
-    const key = `${p.toCol},${p.toRow}`;
-
-    // 检查目标格是否有其他怪物(也在本步移动中)早到
-    if (occupied.has(key)) {
-      continue; // 被挡住, 不动
-    }
-
-    noteDangerCell(p.toCol, p.toRow);
-    // 检查玩家位置：受伤后共格子，无敌时直接通行
-    if (p.toCol === player.col && p.toRow === player.row) {
-      damagePlayer(m.damage || 1); // 无敌中自动跳过伤害
-      // 无论是否受伤，怪物都占据该格（与玩家共格）
-      m.col = p.toCol;
-      m.row = p.toRow;
-      for (const mc of monsterCells(m)) occupied.add(`${mc.col},${mc.row}`);
-      continue;
-    }
-
-    // 碰撞炸弹：推移炸弹
-    const mbBomb = bombs.find(b => b.col === p.toCol && b.row === p.toRow && b.roomId === currentRoomId);
-    if (mbBomb) {
-      const mdx = Math.sign(p.toCol - p.fromCol);
-      const mdy = Math.sign(p.toRow - p.fromRow);
-      pushBomb(mbBomb, mdx || 0, mdy || 0);
-    }
-
-    // 可以移动
-    m.col = p.toCol;
-    m.row = p.toRow;
-    // 尖刺地格：怪物受到5点伤害
-    if (currentRoomGrid && currentRoomGrid[p.toCol][p.toRow] === TILE.SPIKE) {
-      damageMonster(m, 5);
-    }
-    for (const mc of monsterCells(m)) occupied.add(`${mc.col},${mc.row}`);
-  }
-
-  monsterExecStepIdx++;
-
-  // 检查是否全部完成（含 Duke 动画）
-  let maxSteps = 0;
-  for (const m of monsters) {
-    if (m.predictedPath) maxSteps = Math.max(maxSteps, m.predictedPath.length);
-  }
-  // 检查 Duke 是否还在动画中
-  let dukeStillAnimating = false;
-  for (const m of monsters) {
-    if (m.aiType === 'boss_duke' && m._dukeKeyframes && m._dukeKeyframeIdx < m._dukeKeyframes.length) {
-      dukeStillAnimating = true; break;
-    }
-  }
-  if (monsterExecStepIdx >= maxSteps && !dukeStillAnimating) finishMonsterTurn();
 }
 
 function applyMonsterTurnAfterEffects() {
-  // chase 行动完成后，触发 after_effect（攻击所有相邻格）
-  for (const m of monsters) {
+  // 同一阶段按回合开始时距离及 ID 稳定结算。
+  for (const m of monsters.slice().sort((a,b)=>monsterActionOrder.indexOf(a.id)-monsterActionOrder.indexOf(b.id))) {
     if (m.jumperVanished) continue;
     const mCfg = MONSTER_DB[m.cfgId];
     const chaseAction = mCfg && mCfg.actions ? mCfg.actions.find(a => a.type === 'chase') : null;
     if (!chaseAction || !chaseAction.after_effect || chaseAction.after_effect.length === 0) continue;
-    if (!m.predictedPath || m.predictedPath.length === 0) continue;
+    if (!m._turnAction || m._turnAction.type !== 'chase') continue;
     resolveAfterEffects(chaseAction, { monster: m });
   }
 
@@ -5085,12 +5022,14 @@ function applyMonsterTurnAfterEffects() {
 
 // 攻击尚未结算完时保持怪物回合，避免揭晓后玩家提前进入下一回合。
 function hasPendingMonsterAttack() {
-  return bullets.some(b=>b.source==='monster'&&b.phase==='flying') || monsters.some(m=>m.jumpType==='charge_vanish'&&m.jumpAnimTimer>0);
+  return bullets.some(b=>b.source==='monster'&&b.phase==='flying') || monsters.some(m=>m.jumpAnimTimer>0);
 }
 
 function finishMonsterTurn() {
   if (hasPendingMonsterAttack()) return;
-  applyMonsterTurnAfterEffects();
+  if(!monsterAfterEffectsDone){monsterAfterEffectsDone=true;for(const m of [...monsters])if(m.hp>0&&m.aiType==='boss_duke'&&m._turnAfterAction?.type==='summon')handleDukeSummon(m);}
+  flushMonsterHits();
+  if(fallbackThreatHold>0)return;
   monsterTurnRandom = null;
   dangerReveal = null;
   // 清除所有怪物的 _spawnedThisTurn 标记（下回合正常移动）
@@ -5868,13 +5807,13 @@ function render() {
 const MONSTER_ANIM_SPEED = 170; // px/s
 function animateMonsters(dt) {
   for (const m of monsters) {
-    // Boss Duke 走独立关键帧动画（updateDukeAnim 直接控制 px/py）
-    if (m.aiType === 'boss_duke') continue;
-    const target = gridToPixel(m.col, m.row);
+    // 公爵也复用已确定路径的统一动画。
+    const waypoint=m._visualPath?.[0];
+    const target = waypoint?gridToPixel(waypoint.col,waypoint.row):gridToPixel(m.col, m.row);
     const dx = target.x - m.px, dy = target.y - m.py;
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < 1) {
-      m.px = target.x; m.py = target.y;
+      m.px = target.x; m.py = target.y;if(waypoint){m._visualPath.shift();m._visualProgress=(m._visualProgress||0)+1;releaseMovementEvents(m.id,m._visualProgress);}
     } else {
       const step = MONSTER_ANIM_SPEED * dt;
       const r = Math.min(step / dist, 1);
@@ -6211,8 +6150,8 @@ function traceBulletCells(originCol, originRow, dir, breath) {
 // 在独立闭包中运行共享规则，预测不会触碰真实游戏对象、DOM、音效或掉落。
 let dangerSimulationFactory = null;
 function createDangerSimulationFactory() {
-  const shared = [gridToPixel,pixelToGrid,isWall,isBlockingBullet,bulletHitWall,isMonsterAt,monsterCells,isValidLandingZone,selectLandingTarget,isInMonsterFootprint,getSpreadDirs,calcDiagonalPathEnd,canMoveMin1,getChargeDirections,pickChargeDir,checkActionCondition,resolveSteps,getEligibleMonsterActions,resolveMonsterAction,getWanderPaths,getMonsterShootDirections,chooseMonsterShootDirection,chooseWanderPath,calcAllMonsterPaths,calcMonsterPath,getChargePath,getDiamondRange,tickBombCountdown,detonateBomb,pushBomb,calcJumperSmallJump,calcJumperBigJump,processJumperAction,getAttackSideCells,resolveAfterEffects,initDukeQuadrant,calcDukePath,updateDukeAnim,executeBossLandingNow,executeBossLanding,doLandingDamage,finishBossLandingPhase2,executeMonsterTurnActions,updateMonsterTurn,applyMonsterTurnAfterEffects,spawnMonsterBullet,updateBullets,makeMonsterTurnRandom,monsterActionChoiceIndex,hasPendingMonsterAttack];
-  const body = shared.map(fn=>fn.toString()).join('\n');
+  const shared = [gridToPixel,pixelToGrid,isWall,isBlockingBullet,bulletHitWall,isMonsterAt,monsterCells,isValidLandingZone,selectLandingTarget,isInMonsterFootprint,getSpreadDirs,getPlayerPushCandidates,pushPlayerFromMonster,calcDiagonalPathEnd,canMoveMin1,getChargeDirections,pickChargeDir,checkActionCondition,resolveSteps,getEligibleMonsterActions,resolveMonsterAction,getWanderPaths,canMonsterShotHitPlayer,getMonsterShootDirections,chooseMonsterShootDirection,chooseWanderPath,calcAllMonsterPaths,calcMonsterPath,getChargePath,getDiamondRange,tickBombCountdown,detonateBomb,pushBomb,calcJumperSmallJump,calcJumperBigJump,processJumperAction,getAttackSideCells,resolveAfterEffects,initDukeQuadrant,calcDukePath,updateDukeAnim,executeBossLandingNow,executeBossLanding,doLandingDamage,resolveBossLandingPosition,finishBossLandingPhase2,executeMonsterTurnActions,updateMonsterTurn,applyMonsterTurnAfterEffects,spawnMonsterBullet,updateBullets,makeMonsterTurnRandom,monsterActionChoiceIndex,hasPendingMonsterAttack];
+  const body = shared.map(fn=>fn===updateBullets?fn.toString().replace('if (mBg.col === player.col && mBg.row === player.row)','if (false)'):fn.toString()).join('\n');
   return new Function('input','seed','decisions',
     '"use strict";'+
     'const Math=Object.create(globalThis.Math);Math.random=()=>0.5;'+
@@ -6222,26 +6161,26 @@ function createDangerSimulationFactory() {
     'if(pendingBossLanding)pendingBossLanding.monster=monsters.find(m=>m.id===pendingBossLanding.monster.id);'+
     'let turnState={phase:"monster_turn",monsterTurnCounter:input.counter};'+
     'let currentFloor={rooms:[]},particles=[],damageNumbers=[],bullets=[],inCombat=true;'+
-    'let monsterExecTimer=0,monsterExecStepIdx=0,finished=false;const DUKE_ANIM_SPEED=200;'+
-    'const cells=new Set(),random=makeMonsterTurnRandom(seed);let choiceCursor=0;'+
+    'const SEQUENTIAL_ACTION={betweenSeconds:0.12};let forcedLandingPending=false;let movementPlanning=false,movementEventMonsterId=null,movementEventStep=0,movementEvents=[];function scheduleMovementEvent(){}function releaseMovementEvents(){}let monsterExecTimer=0,monsterExecStepIdx=0,finished=false,monsterGroupPhase="idle",monsterActionOrder=[];const DUKE_ANIM_SPEED=200;'+
+    'const cells=new Set(),bySource=new Map(),byPhase=new Map(),random=makeMonsterTurnRandom(seed);let choiceCursor=0;'+
     'const monsterChoiceOverride=decisions ? weights=>{const n=choiceCursor++;if(n>=decisions.length)throw {dangerBranch:true,weights};return decisions[n];}:null;'+
     'const SFX={boom(){}};'+
     'function monsterActionRandom(){return random();}'+
-    'function noteDangerCell(c,r){if(!input.immune&&c>=0&&c<COLS&&r>=0&&r<ROWS)cells.add(c+","+r);}'+
+    'function noteDangerCell(c,r,id=-1,phase="move"){if(c<0||r<0||c>=COLS||r>=ROWS)return;const k=c+","+r;cells.add(k);if(!bySource.has(id))bySource.set(id,new Set());bySource.get(id).add(k);if(!byPhase.has(id))byPhase.set(id,{shoot:new Set(),move:new Set(),environment:new Set()});if(c===player.col&&r===player.row)byPhase.get(id)[phase].add(k);}'+
     'function damagePlayer(){}'+
     'function damageMonster(m,n){m.hp-=n;if(m.hp<=0){const i=monsters.indexOf(m);if(i>=0)monsters.splice(i,1);}}'+
     'function hitTile(c,r,n){const k=c+","+r,t=tileData[k];if(!t)return false;t.hp-=n;if(t.hp<=0){delete tileData[k];currentRoomGrid[c][r]=TILE.FLOOR;return true;}return false;}'+
     'function handleDukeSummon(){}function updateDoorsLocked(){}'+
     'function shatterBullet(b){b.phase="dying";b.shatterTimer=0;}'+
     'function bulletHitMonster(){return null;}'+
-    'function finishMonsterTurn(){if(hasPendingMonsterAttack())return;applyMonsterTurnAfterEffects();for(const m of monsters)if(!m.jumperVanished)for(const c of monsterCells(m))noteDangerCell(c.col,c.row);finished=true;}'+
+    'function finishMonsterTurn(){if(hasPendingMonsterAttack())return;finished=true;}'+
     body+
-    '\nexecuteBossLanding();executeMonsterTurnActions();'+
-    'for(let frame=0;frame<2400;frame++){const dt=input.dt||1/120;updateBullets(dt);updateDukeAnim(dt);if(!finished)updateMonsterTurn(dt);'+
+    '\nexecuteMonsterTurnActions();'+
+    'for(let frame=0;frame<2400;frame++){const dt=input.dt||1/120;updateBullets(dt);updateDukeAnim(dt);player.targetPx=null;player.targetPy=null;forcedLandingPending=false;if(!finished)updateMonsterTurn(dt);for(const m of monsters){const p=gridToPixel(m.col,m.row);m.px=p.x;m.py=p.y;m._visualPath=[];}'+
     'for(const m of [...monsters])if(m.jumpAnimTimer>0){m.jumpAnimTimer=Math.max(0,m.jumpAnimTimer-dt);if(m.jumpAnimTimer===0&&m.jumpType==="charge_vanish"&&m._landingPhase===0){m._landingPhase=1;finishBossLandingPhase2(m);}}'+
     'if(finished&&!bullets.some(b=>b.phase==="flying")&&!monsters.some(m=>m.jumpType==="charge_vanish"&&m.jumpAnimTimer>0))break;'+
     'if(frame===2399)throw Error("危险模拟未结束");}'+
-    'return {cells,monsters,bombs,currentRoomGrid};');
+    'return {cells,bySource,byPhase,monsters,player,bombs,currentRoomGrid};');
 }
 function getDangerSimulationInput() {
   return {constants:{COLS,ROWS,CELL,WALL,FLOOR_L,FLOOR_R,FLOOR_T,FLOOR_B,CFG,TILE,TILE_WALKABLE,TILE_BLOCKS_BULLET,DIR_VEC,MONSTER_DB,RESOURCE_DB,DOOR_POS},world:{monsters,player,bombs,currentRoomGrid,tileData,currentRoomId,pendingBossLanding},counter:turnState.monsterTurnCounter,immune:player.invincibleSteps>(turnState.phase==='player_select'?turnState.mAP:0)};
@@ -6252,37 +6191,60 @@ function simulateResolvedDanger(seed) {
 }
 
 // 穷举独立模拟中的有效随机分支；并集为可能危险，交集为确定危险。
-function createDangerForecastJob(input, simulation) {
-  return {input,simulation,pending:[[]],union:new Set(),intersection:null,outcomes:0,done:false};
-}
-function advanceDangerForecastJob(job, maxRuns = 64) {
-  let runs=0;
-  while(job.pending.length&&runs++<maxRuns) {
-    const decisions=job.pending.pop();
-    try {
-      const {cells}=job.simulation(job.input,0,decisions);
-      for(const key of cells)job.union.add(key);
-      if(job.intersection===null)job.intersection=new Set(cells);
-      else for(const key of job.intersection)if(!cells.has(key))job.intersection.delete(key);
-      job.outcomes++;
-    } catch(error) {
-      if(!error?.dangerBranch)throw error;
-      error.weights.forEach((weight,i)=>{if(weight>0)job.pending.push([...decisions,i]);});
-    }
-  }
-  if(!job.pending.length) {
-    job.done=true;
-    const red=job.intersection||new Set(),yellow=new Set(job.union);
-    for(const key of red)yellow.delete(key);
-    job.result={red,yellow};
-  }
-  return job.done;
+function createDangerForecastJob(input,simulation){return {input,simulation,seed:(Math.imul(combatRng,1664525)+1013904223)>>>0,done:false,outcomes:0};}
+function advanceDangerForecastJob(job){
+ if(job.done)return true;const result=job.simulation(job.input,job.seed),byMonster=new Map();
+ for(const m of job.input.world.monsters){const cells=new Set(result.bySource.get(m.id)||[]);byMonster.set(m.id,{red:cells,yellow:new Set()});}
+ job.result={red:new Set(result.cells),yellow:new Set(),byMonster,byPhase:result.byPhase};job.outcomes=1;job.done=true;return true;
 }
 let dangerForecastJob=null;
 let dangerForecastKey=null;
 function getDangerForecastKey() {
   return JSON.stringify({room:currentRoomId,counter:turnState.monsterTurnCounter,p:[player.col,player.row,player.invincibleSteps,turnState.mAP],monsters:monsters.map(m=>[m.id,m.cfgId,m.col,m.row,m.hp,m.size,m.movementTags,m._diagDir,m._spawnedThisTurn,m.jumperVanished,m.jumperPhase,m.jumperJustLanded,m._charging,m.jumperCheckRepeated]),bombs:bombs.map(b=>[b.id,b.col,b.row,b.timer,b.roomId]),grid:currentRoomGrid,tiles:tileData,landing:pendingBossLanding&&[pendingBossLanding.monster.id,pendingBossLanding.targetCol,pendingBossLanding.targetRow,pendingBossLanding.landAction]});
 }
+// 危险来源优先级与完整范围（炸弹环境提示单独保留）。
+function getMonsterDisplayArea(m,threat){
+ const cfg=MONSTER_DB[m.cfgId]||{},actions=cfg.actions||[],cells=new Set([...threat.red,...threat.yellow]);
+ if((cfg.aiType==='chase')&&actions.some(a=>a.type==='chase')){
+  const a=actions.find(x=>x.type==='chase'),movement=Math.max(0,...(a.steps||[0])),attack=Math.max(0,...(Array.isArray(a.after_effect)?a.after_effect:[]).filter(e=>e.type==='attack_adjacent').map(e=>e.range??1)),radius=movement+attack;
+  for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++)if(Math.abs(c-m.col)+Math.abs(r-m.row)<=radius)cells.add(c+','+r);
+  return cells;
+ }
+ const shots=actions.filter(a=>a.type==='shoot_fan'||a.type==='shoot_single');
+ if(shots.length){for(const a of shots){const dirs=a.type==='shoot_fan'?['up','down','left','right','up-left','up-right','down-left','down-right']:['up','down','left','right'];for(const d of dirs){const v=DIR_VEC[d];for(let n=1;n<=(a.range||4);n++){let c=m.col+v.dx*n,r=m.row+v.dy*n;if(c<0||c>=COLS||r<0||r>=ROWS)break;const tile=currentRoomGrid?.[c]?.[r];if(tile!==undefined&&TILE_BLOCKS_BULLET[tile])break;cells.add(c+','+r);}}}return cells;}
+ if(cfg.aiType==='charge'){
+  const a=actions.find(x=>x.type==='charge_line'),range=Math.max(0,...(a?.steps||[]));
+  for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){let c=m.col,r=m.row;for(let n=0;n<range;n++){const nc=c+dx,nr=r+dy;if(isWall(nc,nr)||(dx&&dy&&(isWall(nc,r)||isWall(c,nr))))break;cells.add(nc+','+nr);c=nc;r=nr;}}return cells;
+ }
+ if(cfg.aiType==='boss_jumper'){
+  const sz=m.size||2;
+  if(m._charging&&pendingBossLanding?.monster?.id===m.id){const target=pendingBossLanding,land=target.landAction||actions.find(a=>a.type==='jump_big_land'),range=Math.max(0,...(Array.isArray(land?.after_effect)?land.after_effect:[]).filter(e=>e.type==='attack_side').map(e=>e.range??1));for(let c=target.targetCol-range;c<target.targetCol+sz+range;c++)for(let r=target.targetRow-range;r<target.targetRow+sz+range;r++)if(c>=0&&c<COLS&&r>=0&&r<ROWS)cells.add(c+','+r);return cells;}
+  const steps=Math.max(0,...actions.filter(a=>a.type==='jump_small').flatMap(a=>a.steps||[]));
+  for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++){const dc=Math.max(m.col-c,0,c-(m.col+sz-1)),dr=Math.max(m.row-r,0,r-(m.row+sz-1));if(dc+dr<=steps)cells.add(c+','+r);}return cells;
+ }
+ for(const k of threat.red)cells.add(k);for(const k of threat.yellow)cells.add(k);return cells;
+}
+function selectMonsterThreat(result,forcedId=null){
+ const at=player.col+','+player.row,env=result.byMonster.get(-1),envRed=new Set(env?.red||[]),envYellow=new Set(env?.yellow||[]);
+ const ordered=monsters.filter(m=>m.hp>0&&!m.jumperVanished).slice().sort((a,b)=>Math.max(Math.abs(player.col-a.col),Math.abs(player.row-a.row))-Math.max(Math.abs(player.col-b.col),Math.abs(player.row-b.row))||a.id-b.id);
+ for(const phase of ['shoot','move'])for(const m of ordered){if(forcedId!==null&&forcedId!==m.id)continue;const threat=result.byMonster.get(m.id),by=result.byPhase.get(m.id);if(!threat||!by||!by[phase].size)continue;
+  const red=getMonsterDisplayArea(m,threat);for(const k of envRed)red.add(k);for(const k of red)envYellow.delete(k);return {red,yellow:envYellow,monsterId:m.id};}
+ for(const k of envRed)envYellow.delete(k);return {red:envRed,yellow:envYellow,monsterId:null};
+}
+function promoteMonsterThreat(id){
+ if(lockedThreatId!==id)fallbackThreatHold=0.65;lockedThreatId=id;
+ const result=dangerForecastJob?.result,display=result?selectMonsterThreat(result,id):null;
+ if(dangerReveal)dangerReveal=display&&display.monsterId===id?display:{red:new Set(),yellow:new Set(),monsterId:id};
+}
+function flushMonsterHits(){if(monsterTurnHit||!pendingMonsterHits.length)return;const hit=pendingMonsterHits.shift();promoteMonsterThreat(hit.attackerId);damagePlayer(hit.amount,hit.attackerId);}
+function reselectMonsterAfterDeath(){
+ if(monsterTurnHit)return;flushMonsterHits();if(monsterTurnHit)return;
+ const next=dangerForecastJob?.result?selectMonsterThreat(dangerForecastJob.result):null;
+ if(next&&next.monsterId!==null)promoteMonsterThreat(next.monsterId);else{lockedThreatId=null;if(dangerReveal)dangerReveal={red:new Set(next?.red||[]),yellow:new Set(next?.yellow||[]),monsterId:null};}
+}
+
+function currentThreatId(){if(!inCombat)return null;const layer=dangerReveal||(turnState.phase==='player_select'?dangerForecast:null);return layer?.monsterId??null;}
+
 function updateDangerForecast() {
   if(!inCombat||turnState.phase!=='player_select')return;
   const key=getDangerForecastKey();
@@ -6297,7 +6259,7 @@ function updateDangerForecast() {
   if(dangerForecastJob&&!dangerForecastJob.done) {
     const deadline=performance.now()+8;
     do {advanceDangerForecastJob(dangerForecastJob,1);} while(!dangerForecastJob.done&&performance.now()<deadline);
-    if(dangerForecastJob.done) {dangerForecast=dangerForecastJob.result;updateUI();}
+    if(dangerForecastJob.done) {dangerForecast=selectMonsterThreat(dangerForecastJob.result);updateUI();}
   }
 }
 
@@ -6865,7 +6827,7 @@ function updateTextOverlay() {
   let exclaimIdx = 0;
   const existingExclaims = overlay.querySelectorAll('.txt-exclaim');
   for (const m of monsters) {
-    if (m.hp <= 0 || m.jumperVanished || !m._showingExclaim) continue;
+    if (m.hp <= 0 || m.jumperVanished || m.id!==currentThreatId()) continue;
     const sz = m.size || 1;
     const centerPx = sz > 1 ? m.px + CELL * (sz - 1) / 2 : m.px;
     const centerPy = sz > 1 ? m.py + CELL * (sz - 1) / 2 : m.py;
@@ -7014,7 +6976,7 @@ function spawnBullet(dir, fromPx, fromPy) {
 }
 
 // 怪物发射子弹（射程可指定，默认=4格）
-function spawnMonsterBullet(dir, fromPx, fromPy, rangeTiles = 4) {
+function spawnMonsterBullet(dir, fromPx, fromPy, rangeTiles = 4, ownerId = null) {
   const vec = DIR_VEC[dir];
   bullets.push({
     x: fromPx, y: fromPy,
@@ -7024,7 +6986,7 @@ function spawnMonsterBullet(dir, fromPx, fromPy, rangeTiles = 4) {
     phase: 'flying',
     decayTimer: 0, vOff: 0, vVel: 0,
     maxDist: rangeTiles * CELL,       // 可自定义射程
-    source: 'monster',
+    source: 'monster', ownerId,
   });
 }
 
@@ -7071,6 +7033,7 @@ function damageMonster(m, dmg) {
     if (turnState.phase === 'player_select') pendingReachableRefresh = true;
     const idx = monsters.indexOf(m);
     if (idx !== -1) monsters.splice(idx, 1);
+    if(turnState.phase==='monster_turn'&&m.id===lockedThreatId)reselectMonsterAfterDeath();
     // 玩家回合中击杀怪物 → 保存 checkpoint（含掉落物）
     // 放在 updateRoomCombatState 之前，避免最后一只怪死后 inCombat 变 false 导致跳过
     if (turnState.phase === 'player_select') {
@@ -7305,6 +7268,8 @@ function spawnBloodParticles(cx, cy, count) {
 }
 
 function updateBullets(dt) {
+  if(dt>0.012){const count=Math.ceil(dt/0.012);for(let i=0;i<count;i++)updateBullets(dt/count);return;}
+  if(turnState.phase==='monster_turn'&&monsterActionOrder.length){const rank=id=>{const i=monsterActionOrder.indexOf(id);return i<0?Number.MAX_SAFE_INTEGER:i;};bullets.sort((a,b)=>rank(b.ownerId)-rank(a.ownerId));}
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     // --- 怪物子弹处理 ---
@@ -7321,10 +7286,10 @@ function updateBullets(dt) {
           pushBomb(mHitBomb, b.dirX, b.dirY);
           shatterBullet(b); continue;
         }
-        noteDangerCell(mBg.col, mBg.row);
+        noteDangerCell(mBg.col, mBg.row, b.ownerId, "shoot");
         // 击中玩家
         if (mBg.col === player.col && mBg.row === player.row) {
-          damagePlayer(0.5);
+          damagePlayer(0.5, b.ownerId);
           shatterBullet(b); continue;
         }
         // 到达最大射程消失（无衰减）
@@ -7511,8 +7476,8 @@ document.addEventListener('keydown', (e) => {
   if(transition&&transition.active)return;
   if(floorFadeBusy)return;
 
-  // ---- 阶段：怪物回合禁止操作 ----
-  if (turnState.phase === 'monster_turn') return;
+  // ---- 阶段：怪物回合或等待挤出完成时禁止操作 ----
+  if (turnState.phase === 'monster_turn' || pendingPlayerTurnEnd) return;
 
   // ---- 阶段：行为选择 ----
   if (turnState.phase === 'player_select') {
@@ -7674,19 +7639,8 @@ document.addEventListener('keydown', (e) => {
       }
 
       case 'Space': {
-        if(!inCombat) return;
-
-        bullets = [];
-        particles = [];
-        damageNumbers = [];
-        turnState.phase = 'monster_turn';
-        document.getElementById('action-bar').innerHTML = '<span class="action-bar-placeholder">-</span>';
-        if (player.invincibleSteps > 0 && turnState.mAP > 0) {
-          player.invincibleSteps = Math.max(0, player.invincibleSteps - turnState.mAP);
-        }
-        // 处理大跳Boss延迟落地
-        startMonsterTurn();
-        updateUI();
+        if(!inCombat)return;
+        preparePlayerTurnEnd();
         return;
       }
 
@@ -7798,6 +7752,8 @@ function gameLoop(timestamp) {
     return;
   }
 
+  if(fallbackThreatHold>0){fallbackThreatHold=Math.max(0,fallbackThreatHold-dt);render();requestAnimationFrame(gameLoop);return;}
+
   if (updateDangerReveal(dt)) {
     render();
     requestAnimationFrame(gameLoop);
@@ -7839,6 +7795,8 @@ function gameLoop(timestamp) {
   if (player.targetPx !== null) {
     updateMove(dt);
   }
+
+  if(forcedLandingPending&&player.targetPx===null){forcedLandingPending=false;resolveForcedLanding();}
 
   // 更新子弹 & 粒子
   updateBullets(dt);
@@ -7914,6 +7872,9 @@ function gameLoop(timestamp) {
   if (pickupHintTimer > 0) pickupHintTimer -= dt;
 
   updateDangerForecast();
+  if(pendingPlayerTurnEnd&&player.targetPx===null&&dangerForecastJob?.done&&dangerForecastKey===getDangerForecastKey()){
+    pendingPlayerTurnEnd=false;checkSpikeUnderPlayer();autoPickupResources();for(let i=itemsOnGround.length-1;i>=0;i--){const item=itemsOnGround[i];if(item.col===player.col&&item.row===player.row){if(isShopSlotCell(item.col,item.row))tryBuyShopItem(item.col,item.row);else if(!playerInventory.includes(item.cfgId)){applyItem(item.cfgId);itemsOnGround.splice(i,1);updateItemBar();}}}updateRoomCombatState();if(inCombat&&!gameOver){updateDangerForecast();if(dangerForecastJob?.done)finishPlayerTurn();}
+  }
 
   // DOM 文字覆盖层 (绕过 canvas pixelated 缩放)
   updateTextOverlay();
