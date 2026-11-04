@@ -10,14 +10,34 @@ const actor={id:7,cfgId:'boss_duke',col:3,row:2,px:999,py:999,hp:10,maxHp:20,
  _dukeKeyframeIdx:1,_charging:true,_landingPhase:1,jumperVanished:true};
 const saved=capture(actor);
 assert.equal(saved.px,93);assert.equal(saved.py,71);
-assert.deepEqual(Array.from(saved._dukeKeyframes[0].pushedFloaters.keys()),[0]);
+assert.equal(saved._dukeKeyframes[0].pushedFloaters[0][0],9);
 actor.predictedPath[0].toCol=10;actor._killLoot.push('bomb');actor._diagDir.dCol=-1;
 assert.equal(saved.predictedPath[0].toCol,4);assert.equal(saved._killLoot.length,1);assert.equal(saved._diagDir.dCol,1);
+actor._dukeKeyframes[0].pushedFloaters.get(9).col=12;
+assert.equal(saved._dukeKeyframes[0].pushedFloaters[0][1].col,5,'运行位置对象不能污染快照');
 const recovered=restore(saved);
 assert.equal(recovered.hp,10);assert.equal(recovered.hitFlash,0);assert.equal(recovered.shakeX,0);assert.equal(recovered.shakeY,0);
-assert.equal(recovered._dukeKeyframes[0].pushedFloaters[0][1][0],9); // 保留既有中间编码，Map由恢复路径后处理。
+assert.equal(recovered._dukeKeyframes[0].pushedFloaters.get(9).col,5);
+assert.deepEqual(Array.from(recovered._dukeKeyframes[0].pushedFloaters.keys()),[9]);
+recovered._dukeKeyframes[0].pushedFloaters.get(9).col=8;
+assert.equal(saved._dukeKeyframes[0].pushedFloaters[0][1].col,5,'恢复后位置对象不能污染快照');
 assert.equal(recovered._dukeKeyframeIdx,1);assert.equal(recovered._charging,true);
 assert.equal(recovered._landingPhase,1);assert.equal(recovered.jumperVanished,true);
 recovered.predictedPath[0].toRow=6;recovered._killLoot.push('key');
 assert.equal(saved.predictedPath[0].toRow,2);assert.equal(saved._killLoot.length,1);
-console.log('PASS: 快照坐标对齐、路径/掉落/方向隔离、公爵关键帧编码复制与瞬时受击状态重置');
+let repeated={...actor,_dukeKeyframes:[
+ {targetCol:4,targetRow:2,pushedFloaters:new Map([[9,{col:5,row:2}],[27,{col:8,row:4}]]),playerHit:true},
+ {targetCol:5,targetRow:3,pushedFloaters:new Map(),playerHit:false},
+]};
+for(let i=0;i<10;i++){
+ const data=JSON.parse(JSON.stringify(capture(repeated)));
+ assert.ok(Array.isArray(data._dukeKeyframes[0].pushedFloaters),'存档必须是可JSON保存的条目数组');
+ repeated=restore(data);
+ assert.deepEqual(Array.from(repeated._dukeKeyframes[0].pushedFloaters.keys()),[9,27]);
+ assert.equal(repeated._dukeKeyframes[0].pushedFloaters.get(9).col,5);
+ assert.equal(repeated._dukeKeyframes[0].pushedFloaters.get(27).row,4);
+ assert.equal(repeated._dukeKeyframes[1].pushedFloaters.size,0);
+ assert.equal(repeated._dukeKeyframes[1].playerHit,false);
+}
+assert.equal(restore({...actor,_dukeKeyframes:undefined})._dukeKeyframes.length,0);
+console.log('PASS: 快照坐标/对象隔离、多个怪物ID、空Map、缺省帧、10轮JSON往返及受击状态重置');

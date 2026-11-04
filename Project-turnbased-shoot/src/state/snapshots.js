@@ -1,3 +1,15 @@
+// 存档只保存条目数组，运行时恢复为Map；两侧的位置对象都独立复制。
+function copyDukePushEntries(pushes) {
+  return Array.from(pushes || [], ([id, pos]) => [id, {col: pos.col, row: pos.row}]);
+}
+function captureDukeKeyframes(frames) {
+  return (frames || []).map(k => ({targetCol:k.targetCol,targetRow:k.targetRow,
+    pushedFloaters:copyDukePushEntries(k.pushedFloaters),playerHit:k.playerHit}));
+}
+function restoreDukeKeyframes(frames) {
+  return (frames || []).map(k => ({targetCol:k.targetCol,targetRow:k.targetRow,
+    pushedFloaters:new Map(copyDukePushEntries(k.pushedFloaters)),playerHit:k.playerHit}));
+}
 // 四条恢复路径共用怪物恢复格式；保留原有瞬时受击状态重置。
 function restoreMonsterSnapshot(m) {return {
     id: m.id, cfgId: m.cfgId, name: m.name,
@@ -19,7 +31,7 @@ function restoreMonsterSnapshot(m) {return {
     _diagDir: m._diagDir ? { dCol: m._diagDir.dCol, dRow: m._diagDir.dRow } : undefined,
     _dukeFirstTurn: m._dukeFirstTurn,
     _spawnedThisTurn: m._spawnedThisTurn || false,
-    _dukeKeyframes: m._dukeKeyframes ? m._dukeKeyframes.map(k => ({ targetCol: k.targetCol, targetRow: k.targetRow, pushedFloaters: k.pushedFloaters ? Array.from(k.pushedFloaters.entries()) : [], playerHit: k.playerHit })) : [],
+    _dukeKeyframes: restoreDukeKeyframes(m._dukeKeyframes),
     _dukeKeyframeIdx: m._dukeKeyframeIdx || 0,
   };}
 // 回合快照与Checkpoint共用怪物保存格式；坐标仍按网格对齐。
@@ -46,7 +58,7 @@ function captureMonsterSnapshot(m) {
         _diagDir: m._diagDir ? { dCol: m._diagDir.dCol, dRow: m._diagDir.dRow } : undefined,
         _dukeFirstTurn: m._dukeFirstTurn,
         _spawnedThisTurn: m._spawnedThisTurn || false,
-        _dukeKeyframes: m._dukeKeyframes ? m._dukeKeyframes.map(k => ({ targetCol: k.targetCol, targetRow: k.targetRow, pushedFloaters: k.pushedFloaters ? Array.from(k.pushedFloaters.entries()) : [], playerHit: k.playerHit })) : [],
+        _dukeKeyframes: captureDukeKeyframes(m._dukeKeyframes),
         _dukeKeyframeIdx: m._dukeKeyframeIdx || 0,
       };
 }
@@ -192,16 +204,6 @@ function restoreCheckpoint() {
     updateResourceUI();
   }
   monsters = s.monsters.map(restoreMonsterSnapshot);
-  // 恢复 Duke 关键帧中的 Map（快照序列化为数组）
-  for (const rm of monsters) {
-    if (rm._dukeKeyframes && rm._dukeKeyframes.length > 0) {
-      rm._dukeKeyframes = rm._dukeKeyframes.map(k => ({
-        targetCol: k.targetCol, targetRow: k.targetRow,
-        pushedFloaters: new Map(k.pushedFloaters || []),
-        playerHit: k.playerHit,
-      }));
-    }
-  }
   if (s.pendingBossLanding && s.pendingBossLanding.monsterId) {
     const landingMonster = monsters.find(m2 => m2.id === s.pendingBossLanding.monsterId);
     let landAction = null;
@@ -276,15 +278,6 @@ function restoreCheckpointWithoutBullets() {
     updateResourceUI();
   }
   monsters = s.monsters.map(restoreMonsterSnapshot);
-  for (const rm of monsters) {
-    if (rm._dukeKeyframes && rm._dukeKeyframes.length > 0) {
-      rm._dukeKeyframes = rm._dukeKeyframes.map(k => ({
-        targetCol: k.targetCol, targetRow: k.targetRow,
-        pushedFloaters: new Map(k.pushedFloaters || []),
-        playerHit: k.playerHit,
-      }));
-    }
-  }
   if (s.pendingBossLanding && s.pendingBossLanding.monsterId) {
     const landingMonster = monsters.find(m2 => m2.id === s.pendingBossLanding.monsterId);
     let landAction = null;
@@ -357,15 +350,6 @@ function restoreTurnSnapshot() {
     updateResourceUI();
   }
   monsters = s.monsters.map(restoreMonsterSnapshot);
-  for (const rm of monsters) {
-    if (rm._dukeKeyframes && rm._dukeKeyframes.length > 0) {
-      rm._dukeKeyframes = rm._dukeKeyframes.map(k => ({
-        targetCol: k.targetCol, targetRow: k.targetRow,
-        pushedFloaters: new Map(k.pushedFloaters || []),
-        playerHit: k.playerHit,
-      }));
-    }
-  }
   // 恢复pendingBossLanding
   if (s.pendingBossLanding && s.pendingBossLanding.monsterId) {
     const landingMonster = monsters.find(m2 => m2.id === s.pendingBossLanding.monsterId);

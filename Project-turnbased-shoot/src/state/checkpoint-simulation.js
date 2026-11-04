@@ -42,15 +42,6 @@ function simulateFromCheckpoint(path) {
     liftY: it.liftY, liftDir: it.liftDir, sparkTimer: it.sparkTimer,
   }));
   monsters = s.monsters.map(restoreMonsterSnapshot);
-  for (const rm of monsters) {
-    if (rm._dukeKeyframes && rm._dukeKeyframes.length > 0) {
-      rm._dukeKeyframes = rm._dukeKeyframes.map(k => ({
-        targetCol: k.targetCol, targetRow: k.targetRow,
-        pushedFloaters: new Map(k.pushedFloaters || []),
-        playerHit: k.playerHit,
-      }));
-    }
-  }
   if (s.pendingBossLanding && s.pendingBossLanding.monsterId) {
     const landingMonster = monsters.find(m2 => m2.id === s.pendingBossLanding.monsterId);
     let landAction = null;

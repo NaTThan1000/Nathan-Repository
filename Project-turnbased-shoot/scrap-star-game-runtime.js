@@ -11,8 +11,6 @@ function scrapSetupGameHUD(){
  const column=document.getElementById('main-column'),footer=document.getElementById('scrap-footer'),items=footer.querySelector('.scrap-items');if(items)items.appendChild(document.getElementById('item-bar'));
  const tools=document.createElement('div');tools.id='scrap-tools';tools.appendChild(document.getElementById('top-right'));column.appendChild(tools);
 }
-const scrapBaseHUD=scrapUpdateHUD;
-scrapUpdateHUD=function(){scrapBaseHUD();const blue=Math.min(playerResources.blueHearts||0,12-Math.ceil(playerStats.maxHp));if(blue>0){const row=document.getElementById('scrap-hearts');let content=Array.from({length:Math.ceil(playerStats.maxHp)},(_,i)=>scrapIcon(playerStats.hp>=i+1?'heart':playerStats.hp>i?'halfHeart':'emptyHeart',22)).join('');for(let i=0;i<Math.ceil(blue);i++){const im=RES_IMAGES[blue-i>=1?'ui_blue_heart':'ui_half_blue_heart'];if(im)content+='<img src="'+im.src+'" width="22" height="22" alt="蓝心">'}row.innerHTML=content}};
 let scrapLastRoom=null,scrapLastFloor=null;
 const scrapBaseDrawTiles=drawTiles;
 drawTiles=function(){if(scrapLastRoom!==currentRoomId||scrapLastFloor!==currentFloor){scrapEffects.reset();scrapLastRoom=currentRoomId;scrapLastFloor=currentFloor}scrapBaseDrawTiles()};
