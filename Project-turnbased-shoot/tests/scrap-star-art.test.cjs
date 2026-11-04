@@ -1,6 +1,6 @@
 // 正式版真实图片解码/Canvas检查；DOM为模拟，不替代浏览器试玩。
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
-const native=require('C:/Users/Fishy/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/@napi-rs/canvas');
+const native=require('../tools/runtime-deps.cjs').runtimeDependency('@napi-rs/canvas');
 const surface=native.createCanvas(954,558),real=surface.getContext('2d'),pending=[],renderedImages=new Set();let time=1000;
 let harness=fs.readFileSync(__dirname+'/danger-forecast.test.js','utf8').split('(async()=>{await sandbox.bootPromise;')[0];
 harness=harness.replace("const fs=require('fs'),vm=require('vm'),assert=require('assert');",'').replace('const ctx=new Proxy(','const mockCtx=new Proxy(');

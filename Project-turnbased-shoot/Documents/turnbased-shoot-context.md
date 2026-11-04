@@ -1,10 +1,19 @@
 # Project-turnbased-shoot — 项目总览
 
-> 主文件：`turnbased-shoot-demo2.html`；房间编辑器：`turnbased-shoot-map-viewer.html`；打包脚本：`build-pack.js`。楼层、房间、怪物、小队、道具、资源和刷怪配置位于 `Configs/`；文件索引见 Part 2。设计与技术概览见本文，历史决策见 `turnbased-shoot-memory.md`。
+> 当前源文件：src/；源码清单：src/modules.cjs；正式入口：dist/turnbased-shoot-demo-pack.html；固定测试：dist/combat-playtest.html；构建／检查：build.cjs、verify.cjs。配置在 Configs，美术在 Assets。当前维护说明见项目 README.md 和 src/README.md。
 
 ---
 
-## 2026-11-03 当前状态与维护入口
+## 2026-11-04 当前结构与维护入口
+
+- 用户已授权完成本轮代码组织和文件精简。正式源码按 runtime、world、state、data、combat、items、presentation、input 分层，固定测试仅追加 playtest/scenarios.js。所有模块仍保留同一经典脚本作用域和既有启动顺序，不是完全消除全局状态的重写。
+- node build.cjs 直接生成 dist 内正式包和固定测试包；node verify.cjs 覆盖两包、表现状态、快照以及测试场景。无需 demo2 中间文件。旧根目录 HTML／构建脚本与 core-playtest 已退出维护，不再按下方历史命令构建。历史原型仅 history/core-playtest-legacy.html。
+- 正式／测试共用源码、配置和美术，测试入口保留真实掉落、炸弹、碰撞、挤出和回溯规则，仅固定房间和控制面板。新增内容以源文件为准，修改生成HTML会被下次构建覆盖。
+- 临时效果接线及生命周期独立，动画抵达节点释放伤害的桥在 combat/movement-events.js；预测规则清单在 combat/prediction-rules.js。怪物保存两处／恢复四处已集中，其他状态字段仍需人工审查快照需求。
+- Configs 七份JSON及现役工具／测试保留；过时测试和浏览器临时产物已删除。package.json 已声明开发依赖，未生成锁文件，跨机器安装待验证。运行打包游戏不需Node。
+- 最终两包规则和真实Canvas检查通过，场景包脚本与正式包除场景模块外逐字节一致。完整浏览器交互、布局、连续闯关和平衡仍未验收。本次未改变设计目标、关卡与数值。
+
+## 2026-11-03 状态与维护记录（历史，路径及构建命令已被上节取代）
 
 - 当前方向：回合制地牢射击，玩家回合内即时操作并可回溯；低学习／操作门槛、轻至中等策略、偏轻松爽玩。展示 demo 继续 HTML，Godot 试验待评估美术后决定。当前三层，六层为后续目标，六层单局 30～40 分钟、单战 1～5 分钟；局外成长仅为目标。最新设计以 design 和 memory 2026-11-03 为准，后文继承内容不代表全部最终承诺。
 - 正式入口 `turnbased-shoot-demo-pack.html` 可双击；开发源 `turnbased-shoot-demo2.html`。Scrap Star 美术覆盖主角、裂口尸 I／浮游眼 I、普通房间模块、设施／箱子、UI、红蓝格、玩家与对应机器人的子弹和特效。未覆盖怪物／Boss、特殊地形、道具与地面资源沿用原表现，正式流程、掉落、门锁与小地图保留。
@@ -17,7 +26,7 @@
 
 > 本文同时记录设计目标与继承的原型现状。标注「目标设计／待实现」的内容尚未实现；其余原型描述供开发核对，实际行为以代码为准。
 
-> **数值来源**：已外置的策划数值以 `Configs/` 对应 JSON 为准；字段是否生效、默认值及覆盖行为以游戏代码为准。未外置的运行常量以 `turnbased-shoot-demo2.html` 的对应定义为准。本文保留规则和索引，不维护数值副本；历史记录仅反映当时状态。
+> **数值来源**：已外置的策划数值以 `Configs/` 对应 JSON 为准；字段是否生效、默认值及覆盖行为以游戏代码为准。未外置的运行常量以 src 对应职责模块的定义为准。本文保留规则和索引，不维护数值副本；历史记录仅反映当时状态。
 
 ## 1. 游戏概述
 

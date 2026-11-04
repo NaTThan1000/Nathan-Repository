@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Turnbased Shoot — 游戏 Demo</title>
+<!-- Google Fonts removed for standalone build; using system fallback fonts -->
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --font-cn: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+    --font-mono: 'Courier New', 'Consolas', monospace;
+  }
+
+  body {
+    background: #0a0a0f;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 100vh;
+    font-family: var(--font-cn);
+    overflow-y: auto;
+    padding: 16px 16px 24px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    color: #d4b87a;
+  }
+
+  /* ===== 顶部内容行: 资源列 + 主内容列 ===== */
+  #top-content-row {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 12px;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  /* 资源侧边栏：独立占据左边一列，顶部与棋盘上边对齐 */
+  #resources-sidebar {
+    width: 120px;
+    flex-shrink: 0;
+    padding-top: 90px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+  }
+  .res-stack-row {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    font-family: var(--font-mono);
+  }
+  .res-stack-row .stack-icon-img {
+    width: 36px; height: 36px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+  .res-stack-row .stack-num {
+    font-weight: bold; font-size: 24px; min-width: 32px; text-align: left;
+  }
+  .res-stack-row.coins .stack-num  { color: #ffcc44; }
+  .res-stack-row.bombs .stack-num  { color: #ff8855; }
+  .res-stack-row.keys  .stack-num  { color: #dddd55; }
+
+  /* 角色属性区域 */
+  #stats-divider {
+    width: 80%; height: 1px;
+    background: #3a3020;
+    margin: 8px 0 6px;
+  }
+  .stats-row {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    font-family: var(--font-mono);
+    color: #6b5e44;
+  }
+  .stats-row .stat-label {
+    font-size: 18px; min-width: 46px; text-align: right; line-height: 1;
+    font-weight: bold; color: #c4a878;
+  }
+  .stats-row .stat-value {
+    font-weight: bold; font-size: 22px; min-width: 28px; text-align: left; line-height: 1;
+  }
+  .stats-row.atk .stat-value { color: #ff8866; }
+  .stats-row.rng .stat-value { color: #66aadd; }
+  .stats-row.lck .stat-value { color: #aacc66; }
+
+  /* 主内容列：top-bar + canvas + 下方UI */
+  #main-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 0 0 auto;
+  }
+
+  /* ===== 顶部标题栏 ===== */
+  #top-bar {
+    width: 100%;
+    max-width: 1000px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  #top-resource-bar {
+    display: flex;
+    align-items: flex-start;
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+
+  /* ==== HP + AP 区 (flex流中，左侧对齐棋盘) ==== */
+  #res-hp-ap {
+    display: flex; flex-direction: row; gap: 30px; align-items: center;
+  }
+  #res-hp-block { display: flex; flex-direction: column; gap: 8px; min-width: 260px; }
+  #res-ap-block { display: flex; flex-direction: column; gap: 8px; }
+
+  /* 血量心形 - 红心蓝心，紧挨排列，一行最多6心，超出自换第二行 */
+  .hearts-row {
+    display: flex; gap: 0px; align-items: center;
+    flex-wrap: wrap;
+    max-width: 240px;
+  }
+  .heart-img {
+    width: 40px; height: 35px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+  .heart-img.empty {
+    opacity: 0.25;
+    filter: brightness(0.5) drop-shadow(0 0 2px rgba(180,80,80,0.4));
+  }
+
+  /* AP 圆点 */
+  .ap-dots-row { display: flex; gap: 6px; align-items: center; height: 36px; }
+  .ap-dot-compact {
+    width: 24px; height: 24px;
+    border: 3px solid #3a2a1a;
+    background: #1a1410;
+    border-radius: 50%;
+  }
+  .ap-dot-compact.full-aap {
+    background: #ff8833; border-color: #ffaa55;
+    box-shadow: 0 0 8px rgba(255,136,51,0.6);
+  }
+  .ap-dot-compact.full-map {
+    background: #4488cc; border-color: #66aadd;
+    box-shadow: 0 0 8px rgba(68,136,204,0.6);
+  }
+  .ap-dot-compact.empty { background: #1a1410; border-color: #2a1e14; }
+  .ap-label {
+    font-family: var(--font-mono); font-size: 28px; font-weight: bold;
+    width: 40px; text-align: center; line-height: 1;
+  }
+  .ap-label.map { color: #55aadd; }
+  .ap-label.aap { color: #ff9966; }
+
+  /* ===== 右侧组合：状态pills + 操作按钮 ===== */
+  #top-right-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  #top-status {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .status-pill {
+    background: #15151a;
+    border: 2px solid #3a3020;
+    padding: 6px 14px;
+    font-size: 16px;
+    color: #998866;
+    letter-spacing: 1px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .status-pill .pill-label {
+    color: #6b5e44;
+    font-size: 13px;
+  }
+  .status-pill .pill-value { color: #d4b87a; font-size: 16px; }
+  #status-phase .pill-value { width: 4em; white-space: nowrap; }
+  #ui-rewind-info {
+    display: inline-flex; align-items: center; justify-content: flex-end;
+    width: 140px; flex: 0 0 140px; white-space: nowrap;
+    font-size: 14px; color: #88ccff;
+  }
+  #status-phase .pill-value.phase-player  { color: #88ccff; }
+  #status-phase .pill-value.phase-shoot   { color: #ff8866; }
+  #status-phase .pill-value.phase-exec    { color: #ffcc44; }
+  #status-phase .pill-value.phase-monster { color: #ff4444; }
+  #status-phase .pill-value.phase-bomb    { color: #ff6622; }
+
+  /* ===== 右上角按钮区 ===== */
+  #top-right {
+    display: flex;
+    gap: 8px;
+  }
+  .corner-btn {
+    background: #15151a;
+    border: 2px solid #3a3020;
+    color: #998866;
+    font-family: var(--font-cn);
+    font-size: 14px;
+    padding: 6px 12px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.15s;
+  }
+  .corner-btn:hover { border-color: #6b5e44; color: #d4b87a; }
+  #debug-btn.active {
+    border-color: #ee6644;
+    color: #ff8866;
+    box-shadow: 0 0 10px rgba(255,100,60,0.25);
+  }
+  #help-btn:hover { border-color: #88aaff; color: #aaccff; }
+
+  /* ===== 小地图 ===== */
+  #minimap {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    width: 100px;
+    height: 80px;
+    border: 2px solid #3a3020;
+    background: rgba(10,10,15,0.85);
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  #game-container {
+    position: relative;
+    border: 4px solid #3a3020;
+    border-radius: 0;
+    box-shadow: 0 0 40px rgba(0,0,0,0.8), inset 0 0 2px rgba(255,200,100,0.15);
+    background: #111;
+    line-height: 0;
+    width: 954px;
+    height: 558px;
+  }
+
+  canvas { display: block; }
+
+  /* DOM 文字覆盖层 — 绕过 canvas pixelated 缩放 */
+  #text-overlay {
+    position: absolute; top: 0; left: 0;
+    width: 954px; height: 558px;
+    pointer-events: none;
+    z-index: 5;
+    overflow: hidden;
+  }
+  .txt-monster-name {
+    position: absolute;
+    font: bold 12px 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    color: #ccaa88; text-align: center;
+    text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+    white-space: nowrap; transform: translate(-50%, -50%);
+  }
+  .txt-monster-name.boss { color: #ff6644; font-size: 13px; }
+  .txt-damage {
+    position: absolute;
+    font: bold 28px 'Arial', sans-serif;
+    color: #ffdd44; text-align: center;
+    text-shadow: 1px 1px 0 #000, -1px -1px 0 #000;
+    white-space: nowrap; transform: translate(-50%, -50%);
+    transition: none;
+  }
+  .txt-aap {
+    position: absolute;
+    width: 18px; height: 18px;
+    border-radius: 50%; background: #ffcc44;
+    font: bold 11px 'Arial', sans-serif;
+    color: #332200; text-align: center; line-height: 18px;
+    text-shadow: none;
+    transform: translate(-50%, -50%);
+  }
+  .txt-aap.empty {
+    background: transparent;
+    border: 2px solid #555544;
+  }
+  .txt-exclaim {
+    position: absolute;
+    font: bold 56px 'Courier New', monospace;
+    color: #ff2222; text-align: center;
+    text-shadow:
+      -3px -3px 0 #000,  3px -3px 0 #000, -3px 3px 0 #000,  3px 3px 0 #000,
+       0px -3px 0 #000,  0px  3px 0 #000, -3px 0px 0 #000,  3px 0px 0 #000,
+       -2px -2px 0 #880000, 2px -2px 0 #880000, -2px 2px 0 #880000, 2px 2px 0 #880000,
+       0 0 8px #ff0000, 0 0 16px #ff0000, 0 0 24px #ff4400;
+    white-space: nowrap; transform: translate(-50%, -50%);
+    animation: exclaim-pulse 0.5s ease-in-out infinite alternate;
+    z-index: 10;
+  }
+  @keyframes exclaim-pulse {
+    from { transform: translate(-50%, -50%) scale(0.85); opacity: 0.8; }
+    to   { transform: translate(-50%, -50%) scale(1.25); opacity: 1; }
+  }
+
+  /* ===== 调试信息 ===== */
+  #debug-info {
+    margin-top: 6px;
+    min-height: 18px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 16px;
+    color: #ffcc44;
+    opacity: 0;
+    pointer-events: none;
+    letter-spacing: 1px;
+  }
+  #debug-info.visible { opacity: 1; }
+
+  /* ===== 行为序列栏 ===== */
+  #action-bar {
+    margin-top: 10px;
+    min-height: 32px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    max-width: 1000px;
+  }
+  .action-block {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 10px;
+    border: 2px solid #2a2520;
+    background: #15151a;
+    min-width: 32px;
+    height: 30px;
+    font-size: 14px;
+    font-family: var(--font-cn);
+  }
+  .action-block.move { border-color: #337799; color: #55aacc; background: #0f1618; }
+  .action-block.shoot { border-color: #993333; color: #ee6655; background: #180f0f; }
+  .action-bar-placeholder {
+    color: #332211;
+    font-size: 13px;
+    padding: 6px 12px;
+  }
+
+  /* ===== 操作弹窗 ===== */
+  #help-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+  #help-modal.open { display: flex; }
+  #help-box {
+    background: #1a1410;
+    border: 4px solid #5a3a18;
+    border-radius: 6px;
+    padding: 24px 32px;
+    max-width: 520px;
+    width: 100%;
+    color: #d4b87a;
+    font-family: var(--font-cn);
+    box-shadow: 0 0 30px rgba(0,0,0,0.8);
+  }
+  #help-box h2 {
+    color: #ffcc44;
+    font-size: 22px;
+    margin-bottom: 16px;
+    text-align: center;
+    letter-spacing: 2px;
+  }
+  .help-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 4px;
+    border-bottom: 1px dashed #2a2520;
+    font-size: 16px;
+  }
+  .help-row:last-child { border-bottom: none; }
+  .help-keys {
+    display: flex;
+    gap: 4px;
+    min-width: 120px;
+  }
+  .help-key {
+    display: inline-block;
+    background: #0a0a0f;
+    border: 2px solid #5a3a18;
+    color: #ffcc44;
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 18px;
+    line-height: 1;
+    min-width: 28px;
+    text-align: center;
+  }
+  .help-desc { color: #998866; }
+  .help-note {
+    margin-top: 14px;
+    padding: 10px 12px;
+    background: #0a0a0f;
+    border-left: 3px solid #ee6644;
+    font-size: 13px;
+    color: #998866;
+    line-height: 1.6;
+  }
+  #help-close {
+    margin-top: 16px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    background: #5a3a18;
+    color: #ffcc44;
+    border: 2px solid #ffcc44;
+    padding: 6px 22px;
+    font-size: 16px;
+    font-family: var(--font-cn);
+    cursor: pointer;
+    letter-spacing: 2px;
+  }
+  #help-close:hover { background: #ffcc44; color: #1a1410; }
+
+  #spawn-monster-btn { border-color: #aa4444; color: #ff7766; }
+  #spawn-monster-btn:hover { border-color: #ff6644; color: #ffaa88; background: #1a1010; }
+
+  /* ===== 道具栏 (底部) ===== */
+  #item-bar {
+    margin-top: 8px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+    min-height: 36px;
+    max-width: 1000px;
+    align-items: center;
+  }
+  #item-bar-label {
+    color: #887755;
+    font-size: 14px;
+    letter-spacing: 1px;
+    margin-right: 4px;
+  }
+  .item-slot {
+    width: 32px; height: 32px;
+    background: #1a1410;
+    border: 2px solid #3a2a14;
+    border-radius: 3px;
+    display: flex;
+    align-items: center; justify-content: center;
+    font-size: 18px;
+    position: relative;
+    cursor: default;
+  }
+  .item-slot.rare { border-color: #886633; box-shadow: 0 0 6px rgba(200,160,80,0.3); }
+  .item-slot.legendary { border-color: #cc8833; box-shadow: 0 0 10px rgba(255,180,40,0.4); animation: item-glow 1.5s ease-in-out infinite; }
+  @keyframes item-glow {
+    0%, 100% { box-shadow: 0 0 6px rgba(255,180,40,0.3); }
+    50% { box-shadow: 0 0 14px rgba(255,180,40,0.6); }
+  }
+  .item-slot .item-tooltip {
+    display: none;
+    position: absolute;
+    bottom: 38px; left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    background: #0a0a0f;
+    border: 2px solid #5a3a18;
+    color: #d4b87a;
+    font-size: 12px;
+    padding: 6px 10px;
+    z-index: 50;
+    pointer-events: none;
+  }
+  .item-slot:hover .item-tooltip { display: block; }
+  .item-slot .item-pickup-hint {
+    display: none;
+    position: absolute;
+    bottom: -14px;
+    font-size: 9px;
+    color: #ffcc44;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+  .item-hint-bar {
+    text-align: center;
+    margin-top: 4px;
+    font-size: 11px;
+    color: #ffcc44;
+    animation: hint-pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes hint-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+
+  /* ===== 炸弹倒计时 ===== */
+  .bomb-countdown {
+    position: absolute;
+    font: bold 12px 'Arial', sans-serif;
+    color: #ff4422;
+    text-align: center;
+    text-shadow: 0 0 6px rgba(255,60,0,0.8);
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  /* ===== 游戏菜单弹窗 (开始/死亡/通关 通用) ===== */
+  .game-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: rgba(0, 0, 0, 0.78);
+    z-index: 200;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+  }
+  .game-overlay.show { display: flex; }
+
+  .overlay-box {
+    background: #14100f;
+    border: 3px solid #5a3a18;
+    border-radius: 8px;
+    padding: 28px 36px;
+    text-align: center;
+    max-width: 480px;
+    width: 90%;
+    box-shadow: 0 0 40px rgba(0,0,0,0.6);
+  }
+  .overlay-box h2 {
+    font-family: var(--font-cn);
+    color: #ffcc44;
+    font-size: 28px;
+    margin: 0 0 16px;
+    text-shadow: 0 0 10px rgba(255,180,50,0.5);
+  }
+  .overlay-box .overlay-subtitle {
+    color: #886644;
+    font-size: 14px;
+    margin: -8px 0 18px;
+  }
+
+  /* 操作说明列表 */
+  .overlay-controls {
+    text-align: left;
+    margin: 0 auto 20px;
+    display: inline-block;
+  }
+  .overlay-controls .ctrl-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0;
+    font-size: 15px;
+  }
+  .overlay-controls .ctrl-key {
+    display: inline-block;
+    background: #0a0a0f;
+    border: 2px solid #5a3a18;
+    color: #ffcc44;
+    padding: 3px 10px;
+    font-family: var(--font-mono);
+    font-size: 16px;
+    min-width: 36px;
+    text-align: center;
+  }
+  .overlay-controls .ctrl-desc {
+    color: #aa9977;
+    font-size: 14px;
+  }
+
+  /* 结算统计 */
+  .overlay-stats {
+    margin: 16px 0;
+    color: #c4a878;
+    font-size: 15px;
+    line-height: 1.8;
+  }
+  .overlay-stats .stat-line {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+  }
+  .overlay-stats .stat-val {
+    color: #ffcc44;
+    font-weight: bold;
+  }
+
+  .overlay-btn {
+    display: inline-block;
+    margin-top: 14px;
+    padding: 10px 36px;
+    background: #2a1a0a;
+    border: 2px solid #8a6a38;
+    color: #ffcc44;
+    font-family: var(--font-cn);
+    font-size: 18px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.15s, border-color 0.15s;
+    letter-spacing: 2px;
+  }
+  .overlay-btn:hover {
+    background: #3a2810;
+    border-color: #cc9944;
+  }
+  .overlay-btn:active {
+    background: #4a3020;
+    transform: scale(0.97);
+  }
+  .overlay-hint {
+    color: #665544;
+    font-size: 12px;
+    margin-top: 8px;
+  }
+
+  /* 通关特殊样式 */
+  #victory-modal .overlay-box h2 {
+    color: #66ff88;
+    text-shadow: 0 0 14px rgba(80,255,100,0.5);
+  }
+
+  /* ===== 楼层进入横幅 ===== */
+  #floor-banner {
+    position: fixed;
+    top: 36%; left: 50%;
+    transform: translate(-50%, -50%) scale(0.92);
+    padding: 12px 52px;
+    background: rgba(10, 8, 6, 0.86);
+    border-top: 2px solid #8a6a30;
+    border-bottom: 2px solid #8a6a30;
+    color: #ffcc44;
+    font-family: var(--font-cn);
+    font-size: 34px;
+    font-weight: bold;
+    letter-spacing: 8px;
+    text-shadow: 0 0 16px rgba(255,180,50,0.55);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 170;
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+  #floor-banner.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  /* ===== 进入新楼层的黑场过渡 ===== */
+  #floor-fade {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: #000;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 160;
+  }
+
+  /* ===== 地面道具说明弹窗 ===== */
+  #item-tooltip {
+    position: absolute;
+    transform: translate(-50%, -100%) translateY(-8px);
+    min-width: 84px;
+    max-width: 210px;
+    padding: 5px 9px;
+    background: rgba(12, 10, 8, 0.78);
+    border: 1px solid rgba(200, 170, 110, 0.55);
+    border-radius: 4px;
+    color: #e8ddc8;
+    font: 12px/1.45 var(--font-cn);
+    text-align: center;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+    z-index: 6;
+  }
+  #item-tooltip.show { opacity: 1; }
+  #item-tooltip.rare { border-color: rgba(90, 160, 255, 0.7); }
+  #item-tooltip.legendary { border-color: rgba(255, 170, 50, 0.8); }
+  #item-tooltip .tt-name { font-weight: bold; color: #ffdd88; }
+  #item-tooltip .tt-desc { color: #cbbfa8; }
+  #item-tooltip .tt-price { color: #ffcc44; }
+
+</style>
+<!-- GAME_PRESENTATION_STYLE --></head>
+<body>
+
+<div id="top-content-row">
+  <!-- 资源侧边栏：独立占左边一列 -->
+  <div id="resources-sidebar">
+    <div class="res-stack-row coins" title="金币">
+      <img class="stack-icon-img" src="Assets/usable_assets/one_coin.png" alt="金币">
+      <span class="stack-num" id="ui-res-coins">0</span>
+    </div>
+    <div class="res-stack-row bombs" title="炸弹">
+      <img class="stack-icon-img" src="Assets/usable_assets/one_bomb.png" alt="炸弹">
+      <span class="stack-num" id="ui-res-bombs">0</span>
+    </div>
+    <div class="res-stack-row keys" title="钥匙">
+      <img class="stack-icon-img" src="Assets/usable_assets/one_key.png" alt="钥匙">
+      <span class="stack-num" id="ui-res-keys">0</span>
+    </div>
+    <div id="stats-divider"></div>
+    <div class="stats-row atk" title="攻击力">
+      <span class="stat-label">攻击</span>
+      <span class="stat-value" id="ui-stat-atk">3.5</span>
+    </div>
+    <div class="stats-row rng" title="射程">
+      <span class="stat-label">射程</span>
+      <span class="stat-value" id="ui-stat-rng">6</span>
+    </div>
+    <div class="stats-row lck" title="运气" style="display:none">
+      <span class="stat-label">运气</span>
+      <span class="stat-value" id="ui-stat-lck">0</span>
+    </div>
+  </div>
+
+  <!-- 主内容列：top-bar + canvas + 下方面板 -->
+  <div id="main-column">
+    <div id="top-bar">
+      <div id="top-resource-bar">
+        <!-- HP + AP 区 -->
+        <div id="res-hp-ap">
+          <div id="res-hp-block">
+            <div class="hearts-row" id="ui-hearts-row"></div>
+          </div>
+          <div id="res-ap-block">
+            <div style="display:flex;align-items:center;gap:5px;">
+              <span class="ap-label map">MP</span>
+              <span class="ap-dots-row" id="ui-map-row"></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:5px;">
+              <span class="ap-label aap">AP</span>
+              <span class="ap-dots-row" id="ui-aap-row"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="top-right-group">
+        <div id="top-status">
+          <div class="status-pill" id="status-floor" style="border-color:#448866;">
+            <span class="pill-label" style="color:#66cc88;">楼层</span>
+            <span class="pill-value" style="color:#88eebb;" id="ui-floor-info">加载中...</span>
+          </div>
+          <div class="status-pill" id="status-phase">
+            <span class="pill-label">阶段</span>
+            <span class="pill-value phase-player" id="ui-phase">行为选择</span>
+          </div>
+          <div class="status-pill" id="status-turn">
+            <span class="pill-label">回合</span>
+            <span class="pill-value" id="ui-turn">1</span>
+          </div>
+        </div>
+        <div id="top-right">
+          <span id="ui-rewind-info">回溯 2/2</span>
+          <button class="corner-btn" id="sound-btn" title="音效开关">🔊</button>
+          <button class="corner-btn" id="debug-btn" title="切换调试模式">调试:关</button>
+          <button class="corner-btn" id="help-btn" title="查看操作说明">操作?</button>
+          <button class="corner-btn" id="spawn-monster-btn" title="随机生成怪物">生怪</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="game-container">
+      <canvas id="game"></canvas>
+      <div id="text-overlay"></div>
+      <div id="item-tooltip"></div>
+      <canvas id="minimap" width="100" height="80"></canvas>
+    </div>
+
+    <div id="debug-info">
+      像素: (<span id="debug-px">0</span>, <span id="debug-py">0</span>)
+      &nbsp;网格: (<span id="debug-col">0</span>, <span id="debug-row">0</span>)
+    </div>
+
+    <div id="action-bar">
+      <span class="action-bar-placeholder">行为序列</span>
+    </div>
+
+    <div id="item-bar">
+      <span id="item-bar-label">道具:</span>
+      <span id="item-bar-empty" style="color:#443322;font-size:13px;">空</span>
+    </div>
+  </div><!-- #main-column -->
+</div><!-- #top-content-row -->
+
+<!-- ===== 楼层进入横幅 ===== -->
+<div id="floor-banner"></div>
+<div id="floor-fade"></div>
+
+<div id="help-modal">
+  <div id="help-box">
+    <h2>操作说明</h2>
+    <div class="help-row">
+      <div class="help-keys"><span class="help-key">W</span><span class="help-key">A</span><span class="help-key">S</span><span class="help-key">D</span></div>
+      <div class="help-desc">在可移动范围(浅蓝)内移动本体</div>
+    </div>
+    <div class="help-row">
+      <div class="help-keys"><span class="help-key">↑</span><span class="help-key">↓</span><span class="help-key">←</span><span class="help-key">→</span></div>
+      <div class="help-desc">立即射击 (消耗 1 AP)</div>
+    </div>
+    <div class="help-row">
+      <div class="help-keys"><span class="help-key">Space</span></div>
+      <div class="help-desc">结束回合, 切换到怪物回合</div>
+    </div>
+    <div class="help-row">
+      <div class="help-keys"><span class="help-key">Esc</span></div>
+      <div class="help-desc">重置本回合所有操作, 回到回合开始时</div>
+    </div>
+    <div class="help-row">
+      <div class="help-keys"><span class="help-key">E</span></div>
+      <div class="help-desc">在当前位置放置炸弹 (需要拥有炸弹, 3 回合后引爆)</div>
+    </div>
+    <div class="help-row">
+      <div class="help-keys"><span class="help-key">C</span></div>
+      <div class="help-desc">随机位置生成随机怪物 (调试用)</div>
+    </div>
+    <div class="help-row">
+      <div class="help-keys"><span class="help-key">R</span></div>
+      <div class="help-desc">重置游戏 (回到第1层起点)</div>
+    </div>
+      <div class="help-note">
+        浅蓝色方格 = 可移动范围.<br>
+        道具 / 资源 / 商店商品: 走到上面自动拾取，商店金币足够时自动购买.<br>
+        走到门前格 + 方向键 → 切换房间 (带滑动过渡).<br>
+        清空 Boss 房后自动出现梯子▼, 踩上进入下一层.<br>
+        金色宝箱需要消耗 1 把钥匙.<br>
+        站在尖刺上且未处于无敌状态会扣血.
+      </div>
+    <button id="help-close">关闭</button>
+  </div>
+</div>
+
+<!-- ===== 开始菜单弹窗 ===== -->
+<div id="start-menu-modal" class="game-overlay show">
+  <div class="overlay-box">
+    <h2>Turnbased Shoot</h2>
+    <div class="overlay-subtitle">v3 — 道具系统 | 目标：通关 3 层地牢</div>
+    <div class="overlay-controls">
+      <div class="ctrl-row"><span class="ctrl-key">W A S D</span><span class="ctrl-desc">在可移动范围内移动本体</span></div>
+      <div class="ctrl-row"><span class="ctrl-key">↑ ↓ ← →</span><span class="ctrl-desc">立即射击 (消耗行动力)</span></div>
+      <div class="ctrl-row"><span class="ctrl-key">Space</span><span class="ctrl-desc">结束回合, 切换到怪物回合</span></div>
+      <div class="ctrl-row"><span class="ctrl-key">Esc</span><span class="ctrl-desc">回溯本回合所有操作（每回合 2 次）</span></div>
+      <div class="ctrl-row"><span class="ctrl-key" style="color:#ff4444">红格</span><span class="ctrl-desc">结束回合后确定危险</span></div>
+      <div class="ctrl-row"><span class="ctrl-key" style="color:#ffcc44">黄格</span><span class="ctrl-desc">可能危险；结束回合后揭晓结果</span></div>
+      <div class="ctrl-row"><span class="ctrl-key">E</span><span class="ctrl-desc">放置炸弹（有炸弹时，3 回合后引爆）</span></div>
+      <div class="ctrl-row"><span class="ctrl-key">R</span><span class="ctrl-desc">快速重玩</span></div>
+    </div>
+    <button id="btn-start-game" class="overlay-btn">开始游戏</button>
+    <div class="overlay-hint">点击按钮 或 按空格键 开始</div>
+  </div>
+</div>
+
+<!-- ===== 死亡结算弹窗 ===== -->
+<div id="death-modal" class="game-overlay">
+  <div class="overlay-box">
+    <h2>你死了...</h2>
+    <div class="overlay-stats" id="death-stats">
+      <div class="stat-line">击杀怪物: <span class="stat-val" id="stat-kills">0</span></div>
+      <div class="stat-line">拾取道具: <span class="stat-val" id="stat-items">无</span></div>
+      <div class="stat-line">剩余金币: <span class="stat-val" id="stat-coins">0</span></div>
+      <div class="stat-line">剩余炸弹: <span class="stat-val" id="stat-bombs">0</span></div>
+      <div class="stat-line">剩余钥匙: <span class="stat-val" id="stat-keys">0</span></div>
+      <div class="stat-line">剩余蓝心: <span class="stat-val" id="stat-blue">0</span></div>
+    </div>
+    <button id="btn-retry-death" class="overlay-btn">重试</button>
+    <div class="overlay-hint">点击按钮 或 按空格键 重新开始</div>
+  </div>
+</div>
+
+<!-- ===== 通关结算弹窗 ===== -->
+<div id="victory-modal" class="game-overlay">
+  <div class="overlay-box">
+    <h2>恭喜你已通关~</h2>
+    <div class="overlay-stats" id="victory-stats">
+      <div class="stat-line">击杀怪物: <span class="stat-val" id="vstat-kills">0</span></div>
+      <div class="stat-line">拾取道具: <span class="stat-val" id="vstat-items">无</span></div>
+      <div class="stat-line">剩余金币: <span class="stat-val" id="vstat-coins">0</span></div>
+      <div class="stat-line">剩余炸弹: <span class="stat-val" id="vstat-bombs">0</span></div>
+      <div class="stat-line">剩余钥匙: <span class="stat-val" id="vstat-keys">0</span></div>
+      <div class="stat-line">剩余蓝心: <span class="stat-val" id="vstat-blue">0</span></div>
+    </div>
+    <button id="btn-retry-victory" class="overlay-btn">重试</button>
+    <div class="overlay-hint">点击按钮 或 按空格键 重新开始</div>
+  </div>
+</div>
+
+
+<script>/* GAME_SCRIPT */</script>
+</body>
+</html>
