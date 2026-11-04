@@ -35,12 +35,6 @@ function isMonsterAt(col, row, excludeId = -1) {
 }
 
 // 返回指定格子上的怪物对象（支持2×2）
-function getMonsterAt(col, row) {
-  return monsters.find(m => {
-    const sz = m.size || 1;
-    return col >= m.col && col < m.col + sz && row >= m.row && row < m.row + sz;
-  });
-}
 
 // 获取怪物占据的所有格子坐标
 function monsterCells(m) {
@@ -171,20 +165,6 @@ function canMoveMin1(col, row, dx, dy, steps) {
 }
 
 // 从8个方向中随机选一个能移动 ≥1 格的方向
-function randomMovableDir(col, row, steps, exclude) {
-  const all = [
-    { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
-    { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
-    { dx: 1, dy: 1 }, { dx: 1, dy: -1 },
-    { dx: -1, dy: 1 }, { dx: -1, dy: -1 },
-  ];
-  const viable = all.filter(d => {
-    if (exclude && d.dx === exclude.dx && d.dy === exclude.dy) return false;
-    return canMoveMin1(col, row, d.dx, d.dy, steps);
-  });
-  if (viable.length === 0) return null;
-  return viable[Math.floor(Math.random() * viable.length)];
-}
 
 // 蓄力魔像方向选择（5步规则）
 // 列举冲刺方向；执行和危险预测共用，随机只在调用方选择时发生。

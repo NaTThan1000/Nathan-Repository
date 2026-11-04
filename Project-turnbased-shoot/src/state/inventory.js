@@ -5,13 +5,6 @@ let itemIdCounter = 0;
 let pickupHintTimer = 0;    // 拾取提示计时器
 
 // Fisher-Yates 洗牌
-function shuffleArray(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
 
 // ==================== 资源系统状态 ====================
 let resourcesOnGround = [];  // 地面资源实体 [{id, cfgId, type, col, row, ...}]

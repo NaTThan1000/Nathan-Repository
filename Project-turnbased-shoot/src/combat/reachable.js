@@ -27,9 +27,6 @@ function calcReachableTiles(fromCol, fromRow, maxSteps) {
 }
 
 // 刷新可移动范围: 从指定位置以指定步数计算
-function refreshReachableTiles() {
-  turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
-}
 
 // BFS 最短路径：从 (fromCol,fromRow) 到 (toCol,toRow)，尊重墙壁
 // 返回路径数组 [{col,row},...] 从起点到终点，或 null
@@ -70,6 +67,3 @@ function bfsShortestPath(fromCol, fromRow, toCol, toRow) {
 }
 
 // 曼哈顿距离
-function manhattanDist(c1, r1, c2, r2) {
-  return Math.abs(c1 - c2) + Math.abs(r1 - r2);
-}

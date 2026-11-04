@@ -1165,7 +1165,6 @@ function parseGrid(tiles){const g=[];for(let c=0;c<COLS;c++){g[c]=[];for(let r=0
 // 将 row-major grid[row][col] 转置为 col-major grid[col][row] (JSON 存储格式 → 运行时格式)
 function transposeGridRowToCol(rowGrid){const g=[];for(let c=0;c<COLS;c++){g[c]=[];for(let r=0;r<ROWS;r++)g[c][r]=rowGrid[r][c];}return g;}
 // 将 col-major grid[col][row] 转置为 row-major grid[row][col] (运行时格式 → JSON 存储格式)
-function transposeGridColToRow(colGrid){const g=[];for(let r=0;r<ROWS;r++){g[r]=[];for(let c=0;c<COLS;c++)g[r][c]=colGrid[c][r];}return g;}
 // ==================== 房间/楼层系统 ====================
 const FLOOR_CONFIG = {1:{name:'地牢1层',roomCount:[8,10],bossCount:[1,1],treasureCount:[1,1],shopCount:[0,0]},2:{name:'地牢2层',roomCount:[10,12],bossCount:[1,1],treasureCount:[1,2],shopCount:[0,1]},3:{name:'地牢3层',roomCount:[12,15],bossCount:[1,1],treasureCount:[2,2],shopCount:[1,1]}};
 const DOOR_POS = {up:{col:6,row:0},down:{col:6,row:6},left:{col:0,row:3},right:{col:12,row:3}};
@@ -1657,10 +1656,7 @@ function bulletHitWall(bx, by) {
 }
 
 // ==================== 像素绘制辅助 ====================
-function pset(x, y, c) {
-  ctx.fillStyle = c;
-  ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
-}
+
 function prect(x, y, w, h, c) {
   ctx.fillStyle = c;
   ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
@@ -2071,13 +2067,6 @@ let itemIdCounter = 0;
 let pickupHintTimer = 0;    // 拾取提示计时器
 
 // Fisher-Yates 洗牌
-function shuffleArray(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
 
 // ==================== 资源系统状态 ====================
 let resourcesOnGround = [];  // 地面资源实体 [{id, cfgId, type, col, row, ...}]
@@ -2532,9 +2521,6 @@ function calcReachableTiles(fromCol, fromRow, maxSteps) {
 }
 
 // 刷新可移动范围: 从指定位置以指定步数计算
-function refreshReachableTiles() {
-  turnState.reachableTiles = calcReachableTiles(player.col, player.row, turnState.mAP);
-}
 
 // BFS 最短路径：从 (fromCol,fromRow) 到 (toCol,toRow)，尊重墙壁
 // 返回路径数组 [{col,row},...] 从起点到终点，或 null
@@ -2575,9 +2561,6 @@ function bfsShortestPath(fromCol, fromRow, toCol, toRow) {
 }
 
 // 曼哈顿距离
-function manhattanDist(c1, r1, c2, r2) {
-  return Math.abs(c1 - c2) + Math.abs(r1 - r2);
-}
 // ==================== 从 Checkpoint 模拟系统 ====================
 // 从 currentCheckpoint 还原状态 → 沿路径重放 → 拾取经过的资源/道具
 // 返回 { pickedUp: bool } 表示是否在路径中拾取了资源或道具
@@ -2762,12 +2745,6 @@ function isMonsterAt(col, row, excludeId = -1) {
 }
 
 // 返回指定格子上的怪物对象（支持2×2）
-function getMonsterAt(col, row) {
-  return monsters.find(m => {
-    const sz = m.size || 1;
-    return col >= m.col && col < m.col + sz && row >= m.row && row < m.row + sz;
-  });
-}
 
 // 获取怪物占据的所有格子坐标
 function monsterCells(m) {
@@ -2898,20 +2875,6 @@ function canMoveMin1(col, row, dx, dy, steps) {
 }
 
 // 从8个方向中随机选一个能移动 ≥1 格的方向
-function randomMovableDir(col, row, steps, exclude) {
-  const all = [
-    { dx: 1, dy: 0 }, { dx: -1, dy: 0 },
-    { dx: 0, dy: 1 }, { dx: 0, dy: -1 },
-    { dx: 1, dy: 1 }, { dx: 1, dy: -1 },
-    { dx: -1, dy: 1 }, { dx: -1, dy: -1 },
-  ];
-  const viable = all.filter(d => {
-    if (exclude && d.dx === exclude.dx && d.dy === exclude.dy) return false;
-    return canMoveMin1(col, row, d.dx, d.dy, steps);
-  });
-  if (viable.length === 0) return null;
-  return viable[Math.floor(Math.random() * viable.length)];
-}
 
 // 蓄力魔像方向选择（5步规则）
 // 列举冲刺方向；执行和危险预测共用，随机只在调用方选择时发生。
@@ -4357,7 +4320,7 @@ function initDukeQuadrant(m) {
 }
 
 // 计算公爵本回合的完整路径（含对角移动、碰壁反弹、浮游眼推移、玩家碰撞）
-// 使用关键帧动画系统：路径存储在 _dukeKeyframes，由 updateDukeAnim 逐帧驱动 px/py
+// 生成 _dukeKeyframes 供回合执行器结算，再转换为统一视觉路径。
 function calcDukePath(m, turnIdx) {
   const cfg = MONSTER_DB[m.cfgId];
   if (!cfg) { m.predictedPath = []; m._dukeKeyframes = []; return; }
@@ -4511,66 +4474,10 @@ function calcDukePath(m, turnIdx) {
   m.predictedPath = []; // Duke 不走逐帧机制
 }
 
-// 每帧更新 Duke 关键帧动画（在 animateMonsters 之后调用，直接控制 px/py）
-// Duke 走独立动画轨道，animateMonsters 跳过 Duke
+// 旧独立轨道已退休；现役 animateMonsters 统一处理公爵的视觉路径。
 const DUKE_ANIM_SPEED = 200; // px/s
-function updateDukeAnim(dt) {
-  return; // 关键帧已转换为统一视觉路径。
-  if (turnState.phase !== 'monster_turn' || monsterGroupPhase !== 'move') return;
-  for (const m of monsters) {
-    if (m.aiType !== 'boss_duke') continue;
-    if (!m._dukeKeyframes || m._dukeKeyframes.length === 0) continue;
-    if (m._dukeKeyframeIdx >= m._dukeKeyframes.length) continue;
-
-    const kf = m._dukeKeyframes[m._dukeKeyframeIdx];
-    const targetPix = gridToPixel(kf.targetCol, kf.targetRow);
-    const sz = m.size || 2;
-    // 用 4 格体积中心点计算距离
-    const centerTargetX = targetPix.x + CELL * (sz - 1) / 2;
-    const centerTargetY = targetPix.y + CELL * (sz - 1) / 2;
-    const centerCurX = m.px + CELL * (sz - 1) / 2;
-    const centerCurY = m.py + CELL * (sz - 1) / 2;
-
-    const dx = centerTargetX - centerCurX;
-    const dy = centerTargetY - centerCurY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    if (dist < 2) {
-      // 按本步实际位置结算碰撞；无法挤出时双方保持原位置。
-      for(let dc=0;dc<sz;dc++)for(let dr=0;dr<sz;dr++)noteDangerCell(kf.targetCol+dc,kf.targetRow+dr,m.id,"move");
-      const overlaps=player.col>=kf.targetCol&&player.col<kf.targetCol+sz&&player.row>=kf.targetRow&&player.row<kf.targetRow+sz;
-      if(overlaps){damagePlayer(m.damage||1,m.id);if(!pushPlayerFromMonster(m,kf.targetCol,kf.targetRow)){
-        const old=gridToPixel(m.col,m.row);m.px=old.x;m.py=old.y;m._dukeKeyframes=[];m._dukeKeyframeIdx=0;continue;
-      }}
-      // 到达当前关键帧 → 更新 col/row 和 px/py
-      m.col = kf.targetCol;
-      m.row = kf.targetRow;
-      m.px = targetPix.x;
-      m.py = targetPix.y;
-
-      // 执行浮游眼推移（同步更新 col/row 和 px/py）
-      if (kf.pushedFloaters) {
-        for (const [fId, newPos] of kf.pushedFloaters) {
-          const floater = monsters.find(om => om.id === fId);
-          if (floater) {
-            floater.col = newPos.col;
-            floater.row = newPos.row;
-            const fpix = gridToPixel(newPos.col, newPos.row);
-            floater.px = fpix.x; floater.py = fpix.y;
-          }
-        }
-      }
-
-      m._dukeKeyframeIdx++;
-    } else {
-      // 沿对角线方向平滑移动 px/py（只移 px/py，col/row 不变直到到达）
-      const step = DUKE_ANIM_SPEED * dt;
-      const r = Math.min(step / dist, 1);
-      m.px += dx * r;
-      m.py += dy * r;
-    }
-  }
-}
+// 统一路径动画已接管公爵；保留空入口供旧调用和预测序列化兼容。
+function updateDukeAnim(dt) {}
 
 // 回合2砸下：怪物回合中调用，先播跳起消失动画 → 然后落地
 function executeBossLandingNow(m) {
@@ -5090,131 +4997,10 @@ function drawGridHighlight() {
 }
 
 // --- 地面移动箭头 (40%透明度) ---
-function drawMoveArrows() {
-  if (turnState.phase !== 'player_select' && turnState.phase !== 'player_shoot_dir') return;
-  const arrows = calcMoveArrows();
-  if (arrows.length === 0) return;
-  ctx.save();
-  ctx.globalAlpha = CFG.GHOST_ALPHA;
-
-  for (const arr of arrows) {
-    const fromPx = gridToPixel(arr.fromCol, arr.fromRow);
-    const toPx   = gridToPixel(arr.toCol, arr.toRow);
-    const fp = project(fromPx.x, fromPx.y);
-    const tp = project(toPx.x, toPx.y);
-    const dx = tp.x - fp.x;
-    const dy = tp.y - fp.y;
-    const len = Math.sqrt(dx * dx + dy * dy);
-    if (len < 1) continue;
-    const ux = dx / len, uy = dy / len;
-
-    // 画箭头线 (粗像素)
-    const s = fp.s;
-    const thick = Math.max(2, Math.round(3 * s));
-    const headLen = Math.max(4, Math.round(5 * s));
-
-    // 主线
-    const startX = fp.x + ux * (CELL * 0.18 * fp.s);
-    const endX = tp.x - ux * (headLen);
-    const startY = fp.y + uy * (CELL * 0.18 * fp.s);
-    const endY = tp.y - uy * (headLen);
-
-    // 粗线
-    for (let i = -Math.floor(thick / 2); i <= Math.floor(thick / 2); i++) {
-      const px = uy * i;
-      const py = -ux * i;
-      ctx.strokeStyle = '#ffcc44';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(Math.round(startX + px), Math.round(startY + py));
-      ctx.lineTo(Math.round(endX + px), Math.round(endY + py));
-      ctx.stroke();
-    }
-
-    // 箭头尖端 (三角)
-    ctx.fillStyle = '#ffcc44';
-    const tipX = tp.x - ux * (CELL * 0.06 * fp.s);
-    const tipY = tp.y - uy * (CELL * 0.06 * fp.s);
-    ctx.beginPath();
-    ctx.moveTo(Math.round(tipX), Math.round(tipY));
-    ctx.lineTo(Math.round(endX + uy * headLen * 0.5), Math.round(endY - ux * headLen * 0.5));
-    ctx.lineTo(Math.round(endX - uy * headLen * 0.5), Math.round(endY + ux * headLen * 0.5));
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  ctx.restore();
-}
 
 // --- 射击预览 (队列所有射击 + 当前方向选择) ---
-function drawShootPreview() {
-  // 执行阶段不显示预览线
-  if (turnState.phase === 'player_execute' || turnState.phase === 'monster_turn') return;
-  turnState.previewHits = [];
-  // 累计：先算队列中所有射击的命中
-  const previews = getShootPreviews();
-  for (const pv of previews) {
-    drawShootLine(pv.origin.col, pv.origin.row, pv.dir, 0.3);
-    accumulateHits(pv.origin.col, pv.origin.row, pv.dir);
-  }
-
-  // 当前方向选择
-  if (turnState.phase === 'player_shoot_dir' && turnState.pendingShootDir) {
-    const ghost = calcGhostPos();
-    drawShootLine(ghost.col, ghost.row, turnState.pendingShootDir, 0.5);
-    accumulateHits(ghost.col, ghost.row, turnState.pendingShootDir);
-  }
-}
 
 // 累加子弹命中结果到 turnState.previewHits
-function accumulateHits(originCol, originRow, dir) {
-  const vec = DIR_VEC[dir];
-  let cx = originCol, cy = originRow;
-  for (let step = 0; step < CFG.BULLET_MAX_DIST; step++) {
-    cx += vec.dx; cy += vec.dy;
-    if (isWall(cx, cy)) break;
-    for (const m of monsters) {
-      if (m.col === cx && m.row === cy) {
-        const existing = turnState.previewHits.find(h => h.monster.id === m.id);
-        const dmg = playerStats.attack;
-        if (existing) {
-          existing.dmg += dmg;
-          existing.lethal = m.hp <= existing.dmg;
-        } else {
-          turnState.previewHits.push({ monster: m, dmg, lethal: m.hp <= dmg });
-        }
-        return; // 子弹被怪物阻挡
-      }
-    }
-  }
-}
-
-function drawShootLine(originCol, originRow, dir, alpha) {
-  const vec = DIR_VEC[dir];
-  const gp = gridToPixel(originCol, originRow);
-  const pp = project(gp.x, gp.y);
-  const s = pp.s;
-  const lineLen = CFG.BULLET_MAX_DIST * CELL * s;
-
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.strokeStyle = '#ff6644';
-  ctx.lineWidth = Math.max(1, Math.round(1.5 * s));
-  ctx.setLineDash([4 * s, 3 * s]);
-  ctx.beginPath();
-  ctx.moveTo(Math.round(pp.x), Math.round(pp.y));
-  ctx.lineTo(Math.round(pp.x + vec.dx * lineLen), Math.round(pp.y + vec.dy * lineLen));
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // 终点碎裂光点 (半透明)
-  const endPx = pp.x + vec.dx * lineLen;
-  const endPy = pp.y + vec.dy * lineLen;
-  ctx.fillStyle = '#ff6644';
-  prect(Math.round(endPx) - 2, Math.round(endPy) - 2, 5, 5, 'rgba(255,100,60,0.5)');
-  prect(Math.round(endPx) - 1, Math.round(endPy) - 1, 3, 3, 'rgba(255,180,100,0.7)');
-  ctx.restore();
-}
 
 // --- 角色渲染 (通用，支持透明度参数和色彩叠加) ---
 function drawCharacterAt(px, py, facing, walkFrame, shootTimer, alpha, tint) {
@@ -5290,28 +5076,6 @@ function drawCharacterAt(px, py, facing, walkFrame, shootTimer, alpha, tint) {
 }
 
 // --- 幽灵复制体 (40%透明度) ---
-function drawGhost() {
-  if (turnState.phase !== 'player_select' && turnState.phase !== 'player_shoot_dir') return;
-  const ghost = calcGhostPos();
-  if (ghost.col === player.col && ghost.row === player.row) return;
-  const gp = gridToPixel(ghost.col, ghost.row);
-  // 幽灵朝向：队列最后一个移动的方向
-  let ghostFacing = player.facing;
-  const lastMove = [...turnState.actionQueue].reverse().find(a => a.type === 'move');
-  if (lastMove) ghostFacing = lastMove.dir;
-  drawCharacterAt(gp.x, gp.y, ghostFacing, 0, 0, CFG.GHOST_ALPHA);
-
-  // 幽灵坐标标签
-  const gpp = project(gp.x, gp.y);
-  const s = gpp.s;
-  ctx.save();
-  ctx.globalAlpha = CFG.GHOST_ALPHA;
-  ctx.fillStyle = '#ffcc88';
-  ctx.font = `${Math.max(5, Math.round(6 * s))}px sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.fillText(`(${ghost.col},${ghost.row})`, Math.round(gpp.x), Math.round(gpp.y - SPRITE.BASE_SIZE * s * 0.5 - 6 * s));
-  ctx.restore();
-}
 
 // --- 玩家渲染 ---
 function drawPlayer() {
@@ -6030,28 +5794,6 @@ function drawGridOverlay(col, row, innerColor, innerAlpha, borderAlpha) {
 }
 
 // --- 射击弹道方格 (蓝色呼吸) ---
-function drawShootGridHighlights() {
-  if (turnState.phase === 'player_execute' || turnState.phase === 'monster_turn') return;
-  const breath = 0.12 + 0.08 * Math.sin(monsterFlashTimer * 5);
-  // 队列中所有射击
-  const previews = getShootPreviews();
-  for (const pv of previews) traceBulletCells(pv.origin.col, pv.origin.row, pv.dir, breath);
-  // 当前方向选择
-  if (turnState.phase === 'player_shoot_dir' && turnState.pendingShootDir) {
-    const ghost = calcGhostPos();
-    traceBulletCells(ghost.col, ghost.row, turnState.pendingShootDir, breath);
-  }
-}
-function traceBulletCells(originCol, originRow, dir, breath) {
-  const vec = DIR_VEC[dir];
-  let cx = originCol, cy = originRow;
-  for (let step = 0; step < CFG.BULLET_MAX_DIST; step++) {
-    cx += vec.dx; cy += vec.dy;
-    if (isWall(cx, cy)) break;
-    drawGridOverlay(cx, cy, '#4488ff', breath * 1.3, breath * 0.6);
-    if (monsters.some(m => !m.jumperVanished && isInMonsterFootprint(m, cx, cy))) break; // 命中怪物停止
-  }
-}
 // 预测序列化的规则入口；必须引用原规则函数，不引入显示包装。
 function getDangerSharedRules(){return [gridToPixel,pixelToGrid,isWall,isBlockingBullet,bulletHitWall,isMonsterAt,monsterCells,isValidLandingZone,selectLandingTarget,isInMonsterFootprint,getSpreadDirs,getPlayerPushCandidates,pushPlayerFromMonster,calcDiagonalPathEnd,canMoveMin1,getChargeDirections,pickChargeDir,checkActionCondition,resolveSteps,getEligibleMonsterActions,resolveMonsterAction,getWanderPaths,canMonsterShotHitPlayer,getMonsterShootDirections,chooseMonsterShootDirection,chooseWanderPath,calcAllMonsterPaths,calcMonsterPath,getChargePath,getDiamondRange,tickBombCountdown,detonateBomb,pushBomb,calcJumperSmallJump,calcJumperBigJump,processJumperAction,getAttackSideCells,scrapOriginalResolve,initDukeQuadrant,calcDukePath,updateDukeAnim,executeBossLandingNow,executeBossLanding,doLandingDamage,resolveBossLandingPosition,finishBossLandingPhase2,executeMonsterTurnActions,updateMonsterTurn,applyMonsterTurnAfterEffects,scrapOriginalMonsterBullet,updateBullets,makeMonsterTurnRandom,monsterActionChoiceIndex,hasPendingMonsterAttack];}
 // 在独立闭包中运行共享规则，预测不会触碰真实游戏对象、DOM、音效或掉落。
@@ -6819,21 +6561,6 @@ function updateItemBar() {
   }
 }
 // ==================== 移动系统 ====================
-function startMove(dir, speedOverride) {
-  const spd = speedOverride || CFG.MOVE_SPEED;
-  player.facing = dir;
-  const vec = DIR_VEC[dir];
-  const nc = player.col + vec.dx;
-  const nr = player.row + vec.dy;
-  if (isWall(nc, nr)) return false;
-  player.col = nc;
-  player.row = nr;
-  const t = gridToPixel(nc, nr);
-  player.targetPx = t.x;
-  player.targetPy = t.y;
-  player.animTime = 0;
-  return true;
-}
 
 function updateMove(dt) {
   if (player.targetPx === null) return;
@@ -7290,40 +7017,6 @@ function updateParticles(dt) {
   }
 }
 // ==================== 空格执行系统 ====================
-function startExecuteQueue() {
-  if (turnState.actionQueue.length === 0) return;
-  turnState.phase = 'player_execute';
-  turnState.execIndex = 0;
-  executeNextAction();
-}
-
-function executeNextAction() {
-  if (turnState.execIndex >= turnState.actionQueue.length) return; // 等待游戏循环检测完成
-
-  const act = turnState.actionQueue[turnState.execIndex];
-  if (act.type === 'move') {
-    player.facing = act.dir;
-    const vec = DIR_VEC[act.dir];
-    const nc = player.col + vec.dx, nr = player.row + vec.dy;
-    if (isWall(nc, nr)) { turnState.execIndex++; return; }
-    // 移动
-    player.col = nc; player.row = nr;
-    const t = gridToPixel(nc, nr);
-    player.targetPx = t.x; player.targetPy = t.y;
-    player.animTime = 0;
-    // 接触伤害（执行阶段不可回溯，直接结算）
-    if (player.invincibleSteps <= 0) {
-      const onMonster = monsters.find(m => !m.jumperVanished && isInMonsterFootprint(m, nc, nr) && m.hp > 0);
-      if (onMonster) damagePlayer(onMonster.damage || 1);
-    }
-    if (player.invincibleSteps > 0) player.invincibleSteps--;
-  } else if (act.type === 'shoot') {
-    player.facing = act.dir;
-    player.shootTimer = 0.4;
-    spawnBullet(act.dir, player.px, player.py);
-    turnState.execIndex++; // 射击即增量 → 等子弹特效结束后处理下一个
-  }
-}
 
 // ==================== 回合结束 ====================
 function finishPlayerTurn() {

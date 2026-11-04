@@ -53,4 +53,3 @@ function parseGrid(tiles){const g=[];for(let c=0;c<COLS;c++){g[c]=[];for(let r=0
 // 将 row-major grid[row][col] 转置为 col-major grid[col][row] (JSON 存储格式 → 运行时格式)
 function transposeGridRowToCol(rowGrid){const g=[];for(let c=0;c<COLS;c++){g[c]=[];for(let r=0;r<ROWS;r++)g[c][r]=rowGrid[r][c];}return g;}
 // 将 col-major grid[col][row] 转置为 row-major grid[row][col] (运行时格式 → JSON 存储格式)
-function transposeGridColToRow(colGrid){const g=[];for(let r=0;r<ROWS;r++){g[r]=[];for(let c=0;c<COLS;c++)g[r][c]=colGrid[c][r];}return g;}

@@ -43,10 +43,7 @@ function bulletHitWall(bx, by) {
 }
 
 // ==================== 像素绘制辅助 ====================
-function pset(x, y, c) {
-  ctx.fillStyle = c;
-  ctx.fillRect(Math.round(x), Math.round(y), 1, 1);
-}
+
 function prect(x, y, w, h, c) {
   ctx.fillStyle = c;
   ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
