@@ -1,5 +1,5 @@
 // ==================== 输入处理 ====================
-document.addEventListener('keydown', (e) => {
+function handlePlayerKey(e) {
   const actionKeys = ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','Escape','KeyC','KeyR','KeyE'];
   if (actionKeys.includes(e.code)) e.preventDefault();
 
@@ -28,6 +28,8 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
+  if(e.code==='KeyM'&&gameStarted&&!gameOver){e.preventDefault();if(!e.repeat)toggleWorldMap();return;}
+  if(worldMapOpen){e.preventDefault();if(e.code==='Escape')toggleWorldMap(false);return;}
   // ---- 场景过渡/楼层黑场中禁止操作 ----
   if(transition&&transition.active)return;
   if(floorFadeBusy)return;
@@ -43,47 +45,24 @@ document.addEventListener('keydown', (e) => {
         const dir = dirMap[e.code];
         if (!dir) return;
         // 先检测门触发：站在门前格+朝门方向按=切换房间（不执行移动）
-        if(tryWalkIntoDoor(player.col,player.row,dir))return;
+        if(!actionHistoryActive()&&tryWalkIntoDoor(player.col,player.row,dir))return;
 
         const vec = DIR_VEC[dir];
         const nc = player.col + vec.dx;
         const nr = player.row + vec.dy;
+        if(inCombat&&turnState.mAP<=0){if(!e.repeat)rewindHistoryTo(nc,nr);return;}
         if(isWall(nc,nr))return;
+
+
+        if(inCombat){
+          if (turnState.mAP <= 0) { if(!e.repeat)rewindHistoryTo(nc,nr); return; }
+          turnState.mAP--;
+
+        }
 
         // 碰撞炸弹：推移炸弹
         const pushB = bombs.find(b => b.col === nc && b.row === nr && b.roomId === currentRoomId);
         if (pushB) pushBomb(pushB, vec.dx, vec.dy);
-
-        if(inCombat){
-          const key=`${nc},${nr}`;
-          if(!turnState.reachableTiles.has(key))return;
-
-          if (turnState.mAP > 0) {
-            // 正常移动：仅扣 MP，不碰 checkpoint
-            turnState.mAP--;
-          } else {
-            // MP 耗尽兜底：从 checkpoint BFS 最短路径
-            const cp = currentCheckpoint;
-            if (!cp) return;
-            const path = bfsShortestPath(cp.playerCol, cp.playerRow, nc, nr);
-            if (!path || path.length - 1 > checkpointMAP) return;
-
-            const result = simulateFromCheckpoint(path);
-            turnState.mAP = checkpointMAP - (path.length - 1);
-            if (result.pickedUp) {
-              saveCheckpoint();
-              const newCp = currentCheckpoint;
-              turnState.reachableTiles = calcReachableTiles(newCp.playerCol, newCp.playerRow, checkpointMAP);
-            }
-
-            // simulateFromCheckpoint 已更新玩家地图坐标
-            player.facing=dir;player.col=nc;player.row=nr;
-            const tt=gridToPixel(nc,nr);player.targetPx=tt.x;player.targetPy=tt.y;player.animTime=0;
-            updateActionBar();updateUI();
-            updateFlyingEyeExclaim();
-            return;
-          }
-        }
 
         player.facing=dir;player.col=nc;player.row=nr;
         const t=gridToPixel(nc,nr);player.targetPx=t.x;player.targetPy=t.y;player.animTime=0;
@@ -202,8 +181,8 @@ document.addEventListener('keydown', (e) => {
 
       case 'Escape': {
         if(!inCombat)return; // 探索状态下 Esc 无效
-        if (turnSnapshot && rewindsRemaining > 0) {
-          rewindsRemaining--;
+        if(actionHistoryActive()){resetActionHistory();return;}
+        if (turnSnapshot) {
           restoreTurnSnapshot();
           // 从恢复的属性重算AP上限（避免拾取+移速/射速道具后ESC上限不还原）
           turnState.maxMAP = Math.floor(playerStats.moveSpeed);
@@ -243,7 +222,8 @@ document.addEventListener('keydown', (e) => {
     }
     return;
   }
-});
+}
+document.addEventListener('keydown', processHistoryKey);
 canvas.addEventListener('mousemove', (e) => {
   const rect = canvas.getBoundingClientRect();
   const cssX = e.clientX - rect.left;

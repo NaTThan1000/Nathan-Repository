@@ -16,8 +16,7 @@ function drawMonsters() {
         ctx.save();
         ctx.globalAlpha = 1 - vanishT; // 渐渐透明
         // 缩小的紫色块
-        prect(vcx - vhalf, vcy - vhalf, scaledSize, scaledSize, '#6a3093');
-        prect(vcx - vhalf + 2, vcy - vhalf + 2, scaledSize - 4, scaledSize - 4, '#8e44ad');
+        drawStaticWorldMonster(m,vcx,vcy,scaledSize);
         ctx.restore();
       }
       continue;
@@ -68,7 +67,7 @@ function drawMonsters() {
       // 半透明紫色底色表示占地区域
       ctx.save();
       ctx.globalAlpha = 0.2 + 0.08 * Math.sin(Date.now() / 400);
-      prect(Math.round(tl.x), Math.round(tl.y), Math.round(bw), Math.round(bh), 'rgba(180,60,220,0.4)');
+      prect(Math.round(tl.x), Math.round(tl.y), Math.round(bw), Math.round(bh), 'rgba(70,162,172,0.3)');
       ctx.restore();
     }
 
@@ -132,61 +131,15 @@ function drawMonsters() {
     const barX = cx - Math.floor(barW / 2);
     const displayRatio = Math.max(0, m.displayHp / m.maxHp);
     const realRatio = Math.max(0, m.hp / m.maxHp);
-    // 黑色槽
-    prect(barX, barY, barW, barH, '#111');
-    prect(barX + 1, barY + 1, barW - 2, barH - 2, '#222');
-    // 红色填充 (displayHp)
-    const fillW = Math.max(0, Math.round((barW - 2) * displayRatio));
-    if (fillW > 0) {
-      prect(barX + 1, barY + 1, fillW, barH - 2, '#cc3333');
-      prect(barX + 1, barY + 1, fillW, Math.max(1, Math.floor(barH * 0.35)), 'rgba(255,150,150,0.4)');
-    }
-    // 白色延迟扣除段 (displayHp > hp 时)
-    const realFill = Math.round((barW - 2) * realRatio);
-    if (fillW > realFill) {
-      prect(barX + 1 + realFill, barY + 1, fillW - realFill, barH - 2, 'rgba(255,255,255,0.7)');
-    }
+    const fillW = Math.max(0, Math.round((barW - 2) * realRatio));
+    drawMonsterHealthPreview(m,barX,barY,barW,barH);
 
     // 阴影
     const shadowW = Math.round(size * 0.9);
     const shadowH = Math.max(1, Math.round(4 * s));
-    prect(cx - Math.floor(shadowW / 2), cy + half - 1, shadowW, shadowH, 'rgba(0,0,0,0.5)');
+    ctx.save();ctx.fillStyle='rgba(0,0,0,.28)';ctx.beginPath();ctx.ellipse(cx,cy+half,shadowW/2,shadowH/2,0,0,Math.PI*2);ctx.fill();ctx.restore();
 
-    // --- 角色精灵(浅黄色版) ---
-    let facing = 'down';
-    if (m.predictedPath && m.predictedPath.length > 0) {
-      const last = m.predictedPath[m.predictedPath.length - 1];
-      const ldx = last.toCol - last.fromCol, ldy = last.toRow - last.fromRow;
-      if (ldy > 0) facing = 'down'; else if (ldy < 0) facing = 'up';
-      else if (ldx > 0) facing = 'right'; else if (ldx < 0) facing = 'left';
-    }
-    const sx2 = m.hitFlash > 0 ? m.shakeX : 0;
-    const sy2 = m.hitFlash > 0 ? m.shakeY : 0;
-
-    if (szRender > 1) {
-      // 2×2怪物：渲染大型方块Boss（支持缩放动画）
-      ctx.save();
-      if (jumpScale !== 1.0) {
-        ctx.translate(cx, cy);
-        ctx.scale(jumpScale, jumpScale);
-        ctx.translate(-cx, -cy);
-      }
-      const bossRectX = cx - half + 2, bossRectY = cy - half + 2;
-      const bossRectW = size - 4, bossRectH = size - 4;
-      prect(bossRectX, bossRectY, bossRectW, bossRectH, '#6a3093');
-      prect(bossRectX + 2, bossRectY + 2, bossRectW - 4, bossRectH - 4, '#8e44ad');
-      // 边框
-      ctx.strokeStyle = '#c060e0'; ctx.lineWidth = 2;
-      ctx.strokeRect(bossRectX, bossRectY, bossRectW, bossRectH);
-      // 眼睛（两个大白点）
-      const eyeY = bossRectY + Math.round(bossRectH * 0.35);
-      const eyeR = Math.max(3, Math.round(size * 0.08));
-      prect(Math.round(bossRectX + bossRectW * 0.28) - eyeR, eyeY - eyeR, eyeR * 2, eyeR * 2, '#ffffff');
-      prect(Math.round(bossRectX + bossRectW * 0.72) - eyeR, eyeY - eyeR, eyeR * 2, eyeR * 2, '#ffffff');
-      ctx.restore();
-    } else {
-      drawCharacterAt(renderPx + sx2, renderPy + sy2, facing, 0, 0, 1, m.tint);
-    }
+    drawStaticWorldMonster(m,cx,cy,size,jumpScale);
 
     // 白闪覆盖 (受击瞬间)
     if (m.hitFlash > 0) {

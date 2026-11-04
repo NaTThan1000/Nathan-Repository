@@ -776,7 +776,7 @@
           </div>
         </div>
         <div id="top-right">
-          <span id="ui-rewind-info">回溯 2/2</span>
+          <span id="ui-rewind-info">回溯 ∞</span>
           <button class="corner-btn" id="sound-btn" title="音效开关">🔊</button>
           <button class="corner-btn" id="debug-btn" title="切换调试模式">调试:关</button>
           <button class="corner-btn" id="help-btn" title="查看操作说明">操作?</button>
@@ -812,6 +812,10 @@
 <div id="floor-banner"></div>
 <div id="floor-fade"></div>
 
+<div id="world-map-modal" role="dialog" aria-modal="true" aria-label="楼层地图" aria-hidden="true">
+ <section class="world-map-card"><header><div><small>SCRAP STAR · NAVIGATION</small><h2 id="world-map-title">楼层地图</h2></div><button id="world-map-close" type="button">关闭 · M / Esc</button></header>
+ <canvas id="world-map" width="900" height="500"></canvas><footer><span>青色边框：当前位置</span><span>已探索房间显示类型 · 未探索区域保持暗色</span></footer></section>
+</div>
 <div id="help-modal">
   <div id="help-box">
     <h2>操作说明</h2>
@@ -864,7 +868,8 @@
       <div class="ctrl-row"><span class="ctrl-key">W A S D</span><span class="ctrl-desc">在可移动范围内移动本体</span></div>
       <div class="ctrl-row"><span class="ctrl-key">↑ ↓ ← →</span><span class="ctrl-desc">立即射击 (消耗行动力)</span></div>
       <div class="ctrl-row"><span class="ctrl-key">Space</span><span class="ctrl-desc">结束回合, 切换到怪物回合</span></div>
-      <div class="ctrl-row"><span class="ctrl-key">Esc</span><span class="ctrl-desc">回溯本回合所有操作（每回合 2 次）</span></div>
+      <div class="ctrl-row"><span class="ctrl-key">M</span><span class="ctrl-desc">打开／关闭楼层地图</span></div>
+      <div class="ctrl-row"><span class="ctrl-key">Esc</span><span class="ctrl-desc">重置本玩家回合（不限次数）；MP 耗尽后方向键可撤销历史行动</span></div>
       <div class="ctrl-row"><span class="ctrl-key" style="color:#ff4444">红格</span><span class="ctrl-desc">结束回合后确定危险</span></div>
       <div class="ctrl-row"><span class="ctrl-key" style="color:#ffcc44">黄格</span><span class="ctrl-desc">可能危险；结束回合后揭晓结果</span></div>
       <div class="ctrl-row"><span class="ctrl-key">E</span><span class="ctrl-desc">放置炸弹（有炸弹时，3 回合后引爆）</span></div>

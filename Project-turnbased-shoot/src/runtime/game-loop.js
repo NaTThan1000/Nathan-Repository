@@ -6,6 +6,7 @@ function gameLoop(timestamp) {
   lastTime = timestamp;
   if (dt > 0.1) dt = 0.1;
 
+  if(worldMapOpen){render();requestAnimationFrame(gameLoop);return;}
   // 游戏未开始或已结束：只渲染不更新逻辑
   if (!gameStarted || gameOver) {
     render();
@@ -69,6 +70,7 @@ function gameLoop(timestamp) {
     pendingReachableRefresh = false;
   }
 
+  syncActionHistory();
   // 射击表情倒计时
   player.shootTimer = Math.max(0, player.shootTimer - dt);
   // 玩家受击效果衰减

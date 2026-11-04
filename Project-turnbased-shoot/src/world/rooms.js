@@ -49,6 +49,7 @@ function hitTile(col,row,dmg){
 
 function hasMonstersAlive(){return monsters.length>0&&monsters.some(m=>m.hp>0);}
 function updateRoomCombatState(){
+  if(actionHistoryActive()&&!hasMonstersAlive())return;
   const wasInCombat=inCombat;
   inCombat=hasMonstersAlive();
   if(!inCombat&&wasInCombat){// 房间清空：结束战斗

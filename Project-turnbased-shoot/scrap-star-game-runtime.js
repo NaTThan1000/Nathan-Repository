@@ -4,10 +4,11 @@ drawDoors=function(){
  for(const dir of ['up','down','left','right']){const door=room.doors[dir];if(!door)continue;const p=DOOR_POS[dir],q=cellRect(p.col,p.row),key=dir+(door.open?'Open':'Closed'),im=scrapImages[key];if(!im.complete)continue;
   if(dir==='up'||dir==='down'){const w=CELL*1.32,h=w*im.naturalHeight/im.naturalWidth;scrapDraw(key,q.cx-w/2,dir==='up'?0:GAME_H-h,w,h)}
   else scrapDraw(key,dir==='left'?0:FLOOR_R-5,q.cy-CELL*.66,WALL+5,CELL*1.32);
-  const target=currentFloor.rooms.find(r=>r.id===door.targetRoomId);if(target?.locked){ctx.save();ctx.font='7px sans-serif';ctx.textAlign='center';ctx.fillText('🔒',q.cx,q.cy);ctx.restore()}
+  const target=currentFloor.rooms.find(r=>r.id===door.targetRoomId);if(target?.locked){ctx.save();ctx.font='7px Microsoft YaHei UI';ctx.textAlign='center';ctx.fillText('🔒',q.cx,q.cy);ctx.restore()}
  }
 };
 function scrapSetupGameHUD(){
+ if(typeof ResizeObserver!=='undefined'){const observer=new ResizeObserver(()=>{const layer=document.getElementById('text-overlay');layer.style.width=GAME_W*DISPLAY_SCALE+'px';layer.style.height=GAME_H*DISPLAY_SCALE+'px';layer.style.transform='scale('+(canvas.getBoundingClientRect().width/(GAME_W*DISPLAY_SCALE))+')';});observer.observe(canvas);}
  const column=document.getElementById('main-column'),footer=document.getElementById('scrap-footer'),items=footer.querySelector('.scrap-items');if(items)items.appendChild(document.getElementById('item-bar'));
  const tools=document.createElement('div');tools.id='scrap-tools';tools.appendChild(document.getElementById('top-right'));column.appendChild(tools);
 }

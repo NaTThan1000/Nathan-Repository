@@ -8,6 +8,7 @@ async function assembleGame(options={}){
  for(const [marker,file] of [
   ['// SCRAP_COMBAT_EFFECTS_STATE','src/presentation/combat-effects-state.js'],
   ['// SCRAP_COMBAT_EFFECTS_HOOKS','src/presentation/combat-effects-hooks.js'],
+  ['// SCRAP_WORLD_ART','src/presentation/world-art.js'],
  ]){
   if(runtime.split(marker).length!==2)throw Error('表现模块插入点必须唯一：'+marker);
   runtime=runtime.replace(marker,()=>read(file).trimEnd());

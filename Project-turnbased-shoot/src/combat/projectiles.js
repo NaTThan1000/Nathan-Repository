@@ -66,10 +66,11 @@ function damageMonster(m, dmg) {
   if (m.hp <= 0) {
     // 累计击杀计数（不受Esc回溯影响）
     monstersKilled++;
-    // 死亡爆浆
-    spawnBloodParticles(m.px, m.py, 18);
+    // 玩家回合保留失能残影，空格确认后退场。
+    if(actionHistoryActive())provisionalDefeats.push(cloneHistoryValue(m));
+    else spawnBloodParticles(m.px, m.py, 18);
     // 怪物击杀掉落
-    rollMonsterKillDrop(m);
+    if(!actionHistoryActive())rollMonsterKillDrop(m);
     if (turnState.phase === 'player_select') pendingReachableRefresh = true;
     const idx = monsters.indexOf(m);
     if (idx !== -1) monsters.splice(idx, 1);

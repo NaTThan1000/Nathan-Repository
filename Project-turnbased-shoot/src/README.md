@@ -17,6 +17,9 @@
 | `runtime/` | 初始化、主循环、启动与刷怪组装 |
 | `world/` | 地格常量、坐标、房间和楼层 |
 | `data/` | 数据库加载与特殊效果注册 |
+| `state/action-history.js` | 玩家输入历史、完整状态恢复、暂时死亡及累计伤害预览；MP耗尽回退和无限Esc |
+| `presentation/world-art.js` | 静态怪物／Boss／地刺、资源与机械拾取效果 |
+| `presentation/minimap.js` | M地图弹窗、探索可见性与暂停开关 |
 | `state/` | 运行状态、存档点、回合快照与路线回退模拟 |
 | `combat/` | 行动解析、寻路、Boss、子弹、回合调度与危险预测 |
 | `combat/movement-events.js` | 按动画实际抵达节点释放既定伤害与推移的同步桥 |
@@ -43,3 +46,5 @@
 `tools/assemble-game.cjs` 在内存中组合源码，`tools/inline-resources.cjs` 内嵌配置与图片，`build.cjs` 只写出 dist 最终成品。已取消 demo2 中间文件及旧的两阶段根目录脚本。`src/playtest/scenarios.js` 只增加场景和面板；自动检查要求去掉该模块后测试包脚本与正式包逐字节相同。
 
 历史原型、测试结果与浏览器临时配置已退出当前构建。Documents 里的历史路径不自动改写，当前入口以项目根 README 为准。
+
+新增静态素材原图和生成提示见 `Assets/scrap-star-extension/README.md`。真实Chrome界面检查可运行 `node tests/world-ui.browser.cjs`（需Playwright和Chrome），与模拟DOM／Canvas检查分开报告；不能替代完整闯关。

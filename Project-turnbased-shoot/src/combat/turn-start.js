@@ -1,9 +1,9 @@
 // ==================== 回合AP初始化 ====================
-let rewindsRemaining = 2;
+let rewindsRemaining = Infinity;
 function resetTurnAP() {
   dangerRevealRemaining = 0; dangerReveal = null; dangerExecutionSeed = null;
   monsterTurnRandom = null; dangerForecastKey = null; dangerForecastJob = null; dangerForecast = null;
-  rewindsRemaining = 2;
+  rewindsRemaining = Infinity;
   turnState.maxMAP = Math.floor(playerStats.moveSpeed);
   turnState.maxAAP = Math.floor(playerStats.fireRate);
   turnState.mAP = turnState.maxMAP;
@@ -22,5 +22,6 @@ function resetTurnAP() {
   }
   checkSpikeUnderPlayer();   // 回合开始时站在尖刺上也要结算
   updateFlyingEyeExclaim();  // 回合开始时更新浮游眼感叹号
+  beginActionHistory();
   updateActionBar();
 }

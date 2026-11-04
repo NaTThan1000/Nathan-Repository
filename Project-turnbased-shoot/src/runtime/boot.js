@@ -2,7 +2,7 @@
 async function bootGame(){
   // 检测 file:// 协议 — fetch 在 file:// 下被浏览器 CORS 策略阻止
   if (window.location.protocol === 'file:') {
-    document.body.innerHTML = `<div style="background:#1a0a0a;color:#e44;font-family:sans-serif;padding:40px;text-align:center;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+    document.body.innerHTML = `<div style="background:#1a0a0a;color:#e44;font-family:Microsoft YaHei UI;padding:40px;text-align:center;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;">
       <h2 style="font-size:24px;">⚠️ 无法直接打开此文件</h2>
       <p style="color:#a88;max-width:500px;line-height:1.6;margin:16px 0;">
         浏览器安全策略阻止了 <code style="background:#333;padding:2px 6px;border-radius:3px;">file://</code> 协议下的数据加载。<br>

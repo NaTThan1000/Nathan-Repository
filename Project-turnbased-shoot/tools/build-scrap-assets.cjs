@@ -36,6 +36,18 @@ async function buildScrapAssets(){
  // 仅截取发光方框本身，排除外部光晕留白，使可见边界与地格重合。
  await add(assets,'blueGrid','objects-effects-draft.png',[1043,100,136,136]);await add(assets,'redGrid','objects-effects-draft.png',[1231,100,136,136]);
  for(let f=0;f<6;f++)await add(assets,'rewind'+f,'objects-effects-draft.png',[[50,290,510,750,980,1240][f],810,240,210]);
+ // 新静态资源只做透明边界裁切与等比缩放，保留原图供追溯。
+ for(const name of ['golem','jumper','duke','floater','spikes']){
+  const file=path.resolve(root,'../scrap-star-extension/source',name+'.png');
+  const {data,info}=await sharp(file).ensureAlpha().raw().toBuffer({resolveWithObject:true});
+  let left=info.width,top=info.height,right=0,bottom=0;
+  for(let y=0;y<info.height;y++)for(let x=0;x<info.width;x++)if(data[(y*info.width+x)*4+3]>100){left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y);}
+  const pad=12;left=Math.max(0,left-pad);top=Math.max(0,top-pad);right=Math.min(info.width-1,right+pad);bottom=Math.min(info.height-1,bottom+pad);
+  assets['static-'+name]='data:image/png;base64,'+(await sharp(file).extract({left,top,width:right-left+1,height:bottom-top+1}).resize(256,256,{fit:'contain',background:'#00000000'}).png().toBuffer()).toString('base64');
+ }
+ for(const [name,base,color]of [['coin-silver','coin','#d8e6e8'],['coin-black','coin','#68747d'],['blueHeart','heart','#56bce7'],['halfBlueHeart','halfHeart','#56bce7']]){
+  const raw=Buffer.from(assets[base].split(',')[1],'base64');assets[name]='data:image/png;base64,'+(await sharp(raw).tint(color).png().toBuffer()).toString('base64');
+ }
  return assets;
 }
 module.exports={buildScrapAssets};

@@ -79,7 +79,7 @@ function damagePlayer(amount, attackerId = null) {
 
   // 死亡检测
   if (playerStats.hp <= 0) {
-    triggerDeathScreen();
+    if(!actionHistoryActive())triggerDeathScreen();
   }
 }
 

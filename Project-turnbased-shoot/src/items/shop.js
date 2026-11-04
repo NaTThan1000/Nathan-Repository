@@ -160,7 +160,7 @@ function drawShopPrices() {
     ctx.save();
     ctx.globalAlpha = 0.85;
     const fontSize = Math.max(3, Math.round(6 * s));
-    ctx.font = `bold ${fontSize}px var(--font-mono)`;
+    ctx.font = `bold ${fontSize}px Microsoft YaHei UI`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 

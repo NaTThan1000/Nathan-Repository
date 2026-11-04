@@ -17,7 +17,16 @@ drawWalls=function(){
  for(let y=WALL;y<FLOOR_B;y+=44){scrapDraw('wallV',0,y,WALL,44);scrapDraw('wallV',FLOOR_R,y,WALL,44)}
  for(const [n,x,y]of [['TL',0,0],['TR',FLOOR_R,0],['BL',0,FLOOR_B],['BR',FLOOR_R,FLOOR_B]])scrapDraw('corner'+n,x,y,WALL,WALL);
 };
-drawFloor=function(){for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++){const q=cellRect(c,r);scrapDraw('floor',q.xL,q.yT,q.w,q.h)}};
+// 在内存中重着色现有地板纹理，保留原像素细节与格线，不修改审核素材。
+let scrapWarmFloor=null;
+function scrapWarmFloorImage(){
+ if(scrapWarmFloor)return scrapWarmFloor;const im=scrapImages.floor;if(!im?.complete)return null;
+ const surface=document.createElement('canvas');surface.width=im.naturalWidth;surface.height=im.naturalHeight;
+ const paint=surface.getContext('2d');paint.drawImage(im,0,0);const pixels=paint.getImageData(0,0,surface.width,surface.height);
+ for(let i=0;i<pixels.data.length;i+=4){const y=pixels.data[i]*.2126+pixels.data[i+1]*.7152+pixels.data[i+2]*.0722;pixels.data[i]=y*.95+12;pixels.data[i+1]=y*.80+9;pixels.data[i+2]=y*.64+8;}
+ paint.putImageData(pixels,0,0);scrapWarmFloor=surface;return surface;
+}
+drawFloor=function(){const floor=scrapWarmFloorImage();for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++){const q=cellRect(c,r);if(floor)ctx.drawImage(floor,q.xL,q.yT,q.w,q.h);else scrapDraw('floor',q.xL,q.yT,q.w,q.h)}};
 function scrapCrateFrame(hp){return hp>=4?0:hp>=2?1:2;}
 function scrapCrate(c,r,f){const q=cellRect(c,r),im=scrapImages['crate'+f];if(!im||!im.complete)return;
  // 统一等比缩放，以格子底边对齐；破裂碎片也留在本格内。
@@ -42,10 +51,10 @@ drawCharacterAt=function(px,py,facing,walkFrame,shootTimer,alpha=1){let action='
 let scrapDefeatStarted=null;
 drawPlayer=function(){if(playerStats.hp<=0){if(scrapDefeatStarted===null)scrapDefeatStarted=performance.now();scrapSprite('defeat'+Math.min(5,Math.floor((performance.now()-scrapDefeatStarted)/100)),player.px,player.py);return}scrapDefeatStarted=null;const alpha=player.invincibleSteps>0?.45+.35*Math.sin(performance.now()*.015):1;drawCharacterAt(player.px,player.py,player.facing,player.walkFrame,player.shootTimer,alpha)};
 
-drawMonsters=function(){scrapDrawLegacyMonsters();const now=performance.now();for(const m of monsters){if(!scrapCoveredMonster(m)||m.jumperVanished)continue;const type=m.cfgId==='flying_eye_i'?'ranged':'melee';let f=Math.floor(now/180)%3;const action=scrapMonsterActions.get(m.id);
+drawMonsters=function(){drawProvisionalDefeats();scrapDrawLegacyMonsters();const now=performance.now();for(const m of monsters){if(!scrapCoveredMonster(m)||m.jumperVanished)continue;const type=m.cfgId==='flying_eye_i'?'ranged':'melee';let f=Math.floor(now/180)%3;const action=scrapMonsterActions.get(m.id);
  if(action&&now-action<240)f=3+Math.min(1,Math.floor((now-action)/120));if(m.hitFlash>0)f=5;
  const p=project(m.px,m.py);scrapDraw(type+f,p.x-30,p.y-38,60,68);
- ctx.save();ctx.fillStyle='#0a151a';ctx.fillRect(p.x-8,p.y+10,16,1.5);ctx.fillStyle='#f18d59';ctx.fillRect(p.x-8,p.y+10,16*Math.max(0,m.hp/m.maxHp),1.5);ctx.restore();
+ drawMonsterHealthPreview(m,p.x-10,p.y+10,20,3);
  if((dangerReveal||dangerForecast)?.monsterId===m.id)scrapDraw('alert',p.x+3.2,p.y-10.4,5.6,8.8);
 }for(const e of scrapTransient)if(e.kind==='death'){const t=now-e.start;if(t<360){const p=project(e.x,e.y);scrapDraw(e.type+(t<180?6:7),p.x-30,p.y-38,60,68)}}};
 drawBullets=function(){scrapFallbackBullets();const now=performance.now();for(const b of bullets){if(!scrapCoveredBullet(b))continue;const p=project(b.x,b.y+b.vOff);
@@ -54,7 +63,11 @@ drawBullets=function(){scrapFallbackBullets();const now=performance.now();for(co
  else{const dir=Math.abs(b.dirX)>Math.abs(b.dirY)?(b.dirX<0?'left':'right'):(b.dirY<0?'up':'down');scrapDraw('bullet-'+dir+(Math.floor(now/70)%3),p.x-12,p.y-10.6,24,21.2)}
 }};
 drawGridOverlay=function(c,r,color,inside,border){if(!['#ff4444','#4488ff'].includes(color))return scrapFallbackGrid(c,r,color,inside,border);const q=cellRect(c,r);scrapDraw(color==='#ff4444'?'redGrid':'blueGrid',q.xL,q.yT,q.w,q.h,Math.min(.8,.38+border))};
-drawReachableOverlay=function(){if(turnState.phase!=='player_select')return;for(const key of turnState.reachableTiles){const [c,r]=key.split(',').map(Number);if(c===player.col&&r===player.row)continue;const q=cellRect(c,r);scrapDraw('blueGrid',q.xL,q.yT,q.w,q.h,.28)}};
+drawReachableOverlay=function(){
+ if(turnState.phase!=='player_select')return;
+ for(const key of historyMaximumRange()){if(turnState.reachableTiles.has(key))continue;const [c,r]=key.split(',').map(Number),q=cellRect(c,r);ctx.save();ctx.fillStyle='rgba(30,32,36,.88)';ctx.fillRect(q.xL,q.yT,q.w,q.h);ctx.strokeStyle='rgba(116,120,126,.65)';ctx.lineWidth=.6;ctx.strokeRect(q.xL+.3,q.yT+.3,q.w-.6,q.h-.6);ctx.restore();}
+ for(const key of turnState.reachableTiles){const [c,r]=key.split(',').map(Number);const q=cellRect(c,r);scrapDraw('blueGrid',q.xL,q.yT,q.w,q.h,.28)}
+};
 
 // SCRAP_COMBAT_EFFECTS_HOOKS
 drawRewindEffect=function(){if(!rewindAnim.active)return;scrapEffects.clearTransient();const t=Math.min(.999,rewindAnim.timer/rewindAnim.duration),p=project(player.px,player.py);scrapDraw('rewind'+Math.floor(t*6),p.x-25,p.y-25,50,50,1-t*.5)};
@@ -66,6 +79,8 @@ function scrapSetupHUD(){
  footer.innerHTML='<div class="scrap-panel scrap-items" title="拾取道具显示预留"></div><button id="scrap-help" title="操作说明">操作说明</button><button id="scrap-end">结束回合 · 空格</button>';column.appendChild(footer);
  column.style.setProperty('--scrap-panel','url("'+SCRAP_ASSETS.panel+'")');
  document.getElementById('scrap-end').style.backgroundImage='url("'+SCRAP_ASSETS.button+'")';document.getElementById('scrap-help').style.backgroundImage='url("'+SCRAP_ASSETS.help+'")';
+ document.getElementById('world-map-close').onclick=()=>toggleWorldMap(false);
+ document.getElementById('scrap-floor').onclick=()=>{if(gameStarted&&!gameOver)toggleWorldMap()};
  document.getElementById('scrap-end').onclick=()=>document.dispatchEvent(new KeyboardEvent('keydown',{code:'Space',key:' ',bubbles:true,cancelable:true}));document.getElementById('scrap-help').onclick=()=>document.getElementById('help-modal').classList.add('open');
 }
 let scrapHudKey='';
@@ -73,15 +88,16 @@ function scrapUpdateHUD(){const el=id=>document.getElementById(id);if(!el('scrap
  const key=JSON.stringify([playerStats,turnState.mAP,turnState.aAP,turnState.maxMAP,turnState.maxAAP,turnState.phase,turnState.turnNumber,playerResources,currentFloor?.floorNum]);if(key===scrapHudKey)return;scrapHudKey=key;
  let hearts=Array.from({length:Math.min(12,Math.ceil(playerStats.maxHp))},(_,i)=>scrapIcon(playerStats.hp>=i+1?'heart':playerStats.hp>i?'halfHeart':'emptyHeart',22)).join('');
  const blue=Math.max(0,Math.min(playerResources.blueHearts||0,12-Math.ceil(playerStats.maxHp)));
- for(let i=0;i<Math.ceil(blue);i++){const im=RES_IMAGES[blue-i>=1?'ui_blue_heart':'ui_half_blue_heart'];if(im)hearts+='<img src="'+im.src+'" width="22" height="22" alt="蓝心">'}
+ for(let i=0;i<Math.ceil(blue);i++){const src=SCRAP_ASSETS[blue-i>=1?'blueHeart':'halfBlueHeart'];if(src)hearts+='<img src="'+src+'" width="22" height="22" alt="蓝心">'}
  el('scrap-hearts').innerHTML=hearts;
- el('scrap-floor').textContent='楼层 B'+(currentFloor?.floorNum||1);el('scrap-atk').textContent=playerStats.attack;el('scrap-range').textContent=playerStats.range;
+ el('scrap-floor').innerHTML='<span>楼层 B'+(currentFloor?.floorNum||1)+'</span><small>地图 [M]</small>';el('scrap-atk').textContent=playerStats.attack;el('scrap-range').textContent=playerStats.range;
  for(const [id,name,value,max]of [['scrap-mp','MP',turnState.mAP,turnState.maxMAP],['scrap-ap','AP',turnState.aAP,turnState.maxAAP]])el(id).innerHTML='<span>'+name+'</span>'+Array.from({length:Math.max(0,max)},(_,i)=>scrapIcon(i<value?(name==='MP'?'mp':'ap'):(name==='MP'?'mpEmpty':'apEmpty'),17,20)).join('');
  el('scrap-turn').textContent=turnState.turnNumber;el('scrap-phase').textContent=turnState.phase==='monster_turn'?'怪物行动':'你的回合';el('scrap-phase').style.color=turnState.phase==='monster_turn'?'#ff7e72':'#65def6';
  el('scrap-res').innerHTML=[['coin',playerResources.coins??0],['bomb',playerResources.bombs??0],['key',playerResources.keys??0]].map(([k,n])=>'<span class="scrap-panel">'+scrapIcon(k,22,25)+' '+String(n).padStart(2,'0')+'</span>').join('');
 }
 // SCRAP_GAME_ADAPTER
 
+// SCRAP_WORLD_ART
 const scrapOriginalRender=render;
 render=function(){scrapOriginalRender();scrapUpdateHUD();scrapEffects.prune()};
 

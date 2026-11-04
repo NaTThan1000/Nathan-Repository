@@ -158,7 +158,7 @@ function drawDebugOverlay() {
 
   // --- 坐标数字标注 (每 20px) ---
   ctx.fillStyle = 'rgba(255,255,255,0.12)';
-  ctx.font = '4px monospace';
+  ctx.font = '4px Microsoft YaHei UI';
   ctx.textBaseline = 'top';
   for (let x = 0; x < GAME_W; x += 20) {
     ctx.fillText(x, x + 1, 1);

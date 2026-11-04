@@ -10,11 +10,11 @@ eval(harness.replace('vm.createContext(sandbox);vm.runInContext(code,sandbox);',
  for(let i=0;i<100;i++)scrapUpdateHUD();
  demand(heartWrites===1,'蓝心静止100次更新应仅重建一次，实际 '+heartWrites);
  demand((heartHTML.match(/<img /g)||[]).length===5,'3红心加1.5蓝心应有5格');
- demand(heartHTML.includes(RES_IMAGES.ui_half_blue_heart.src),'半蓝心未显示');
+ demand(heartHTML.includes(SCRAP_ASSETS.halfBlueHeart),'半蓝心未显示');
  let writes=heartWrites;playerStats.hp=2.5;scrapUpdateHUD();demand(heartWrites===writes+1&&heartHTML.includes(SCRAP_ASSETS.halfHeart),'红心受伤未刷新半心');
- writes=heartWrites;playerResources.blueHearts=1;scrapUpdateHUD();demand(heartWrites===writes+1&&!heartHTML.includes(RES_IMAGES.ui_half_blue_heart.src),'半蓝心扣除未刷新');
+ writes=heartWrites;playerResources.blueHearts=1;scrapUpdateHUD();demand(heartWrites===writes+1&&!heartHTML.includes(SCRAP_ASSETS.halfBlueHeart),'半蓝心扣除未刷新');
  playerResources.blueHearts=0;scrapUpdateHUD();demand((heartHTML.match(/<img /g)||[]).length===3&&!heartHTML.includes('蓝心'),'蓝心耗尽未清除');
- playerResources.blueHearts=.5;scrapUpdateHUD();demand(heartHTML.includes(RES_IMAGES.ui_half_blue_heart.src),'拾取半蓝心未刷新');
+ playerResources.blueHearts=.5;scrapUpdateHUD();demand(heartHTML.includes(SCRAP_ASSETS.halfBlueHeart),'拾取半蓝心未刷新');
  playerStats.hp=3;scrapUpdateHUD();demand(!heartHTML.includes(SCRAP_ASSETS.halfHeart),'红心治疗未刷新');
  playerStats.maxHp=12;playerStats.hp=12;playerResources.blueHearts=2;scrapUpdateHUD();demand((heartHTML.match(/<img /g)||[]).length===12&&!heartHTML.includes('蓝心'),'总上限12心');
  writes=heartWrites;for(let i=0;i<100;i++)scrapUpdateHUD();demand(heartWrites===writes,'全满血静止重复更新');
@@ -31,7 +31,7 @@ eval(harness.replace('vm.createContext(sandbox);vm.runInContext(code,sandbox);',
   for(const [id,c,r]of [['duke_fly',1,1],['duke_floater',3,2]]){demand(spawnMonsterAtRandomPos(id),'生成公爵夹具');const m=monsters.at(-1),q=gridToPixel(c,r);m.col=c;m.row=r;m.px=q.x;m.py=q.y;m._spawnedThisTurn=false;m._killLoot=[];}
   const duke=monsters[0];duke._diagDir={dCol:1,dRow:1};duke._dukeFirstTurn=false;inCombat=true;calcDukePath(duke,2);
   demand(duke._dukeKeyframes.some(k=>k.pushedFloaters.size>0),'必须生成非空真实推移关键帧');
-  saveTurnSnapshot();saveCheckpoint();return JSON.stringify(captureDukeKeyframes(duke._dukeKeyframes));
+  saveTurnSnapshot();saveCheckpoint();beginActionHistory();return JSON.stringify(captureDukeKeyframes(duke._dukeKeyframes));
  }
  function checkDukeFrames(expected){const duke=monsters.find(m=>m.cfgId==='duke_fly');demand(JSON.stringify(captureDukeKeyframes(duke._dukeKeyframes))===expected,'关键帧未恢复原编号与坐标');for(const k of duke._dukeKeyframes)for(const [id,pos]of k.pushedFloaters){demand(monsters.some(m=>m.id===id),'恢复后的键不是怪物ID');demand(Number.isFinite(pos.col)&&Number.isFinite(pos.row),'推移坐标无效')}}
  function damageDukeFrames(){const k=monsters[0]._dukeKeyframes.find(k=>k.pushedFloaters.size);k.pushedFloaters.values().next().value.col=12;k.pushedFloaters.set(99999,{col:0,row:0})}
@@ -43,9 +43,9 @@ eval(harness.replace('vm.createContext(sandbox);vm.runInContext(code,sandbox);',
  function pressEsc(){document.dispatchEvent(new KeyboardEvent('keydown',{code:'Escape',key:'Escape',bubbles:true,cancelable:true}))}
  function positions(ms,p){return JSON.stringify({monsters:ms.map(m=>[m.id,m.col,m.row,m.hp]).sort((a,b)=>a[0]-b[0]),player:[p.col,p.row]})}
  for(const seed of [1,42,123456789]){
-  const expectedFrames=dukeFixture();rewindsRemaining=2;
+  const expectedFrames=dukeFixture();rewindsRemaining=Infinity;
   const predicted=simulateResolvedDanger(seed),expectedPositions=positions(predicted.monsters,predicted.player);
-  for(let i=0;i<2;i++){damageDukeFrames();pressEsc();checkDukeFrames(expectedFrames);demand(rewindsRemaining===1-i,'Esc次数处理变化')}
+  for(let i=0;i<2;i++){damageDukeFrames();pressEsc();checkDukeFrames(expectedFrames);demand(rewindsRemaining===Infinity,'Esc应不限次数')}
   const initialHp=playerStats.hp;turnState.phase='monster_turn';monsterTurnRandom=makeMonsterTurnRandom(seed);lockedThreatId=null;monsterTurnHit=false;pendingMonsterHits=[];monsterAfterEffectsDone=false;
   executeMonsterTurnActions();let n=0;
   while(turnState.phase==='monster_turn'&&n++<4000){updateBullets(1/120);animateMonsters(1/120);updateMonsterTurn(1/120);fallbackThreatHold=0;}

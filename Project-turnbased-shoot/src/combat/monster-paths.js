@@ -7,12 +7,18 @@ let forcedLandingPending=false;
 function resolveForcedLanding(){checkSpikeUnderPlayer();autoPickupResources();for(let i=itemsOnGround.length-1;i>=0;i--){const item=itemsOnGround[i];if(item.col===player.col&&item.row===player.row){if(isShopSlotCell(item.col,item.row))tryBuyShopItem(item.col,item.row);else if(!playerInventory.includes(item.cfgId)){applyItem(item.cfgId);itemsOnGround.splice(i,1);updateItemBar();}}}updateUI();}
 let pendingPlayerTurnEnd=false;
 function getPlayerEndPushCandidates(monster){const q=[{col:player.col,row:player.row,d:0}],seen=new Set([player.col+','+player.row]),out=[];let best=Infinity;for(let i=0;i<q.length;i++){const p=q[i];if(p.d>best)break;const occupied=monsters.some(m=>m.hp>0&&!m.jumperVanished&&isInMonsterFootprint(m,p.col,p.row));const bomb=bombs.some(b=>b.roomId===currentRoomId&&b.col===p.col&&b.row===p.row);if(p.d>0&&!occupied&&!bomb){best=p.d;out.push({col:p.col,row:p.row});continue;}for(const [dx,dy]of [[1,0],[-1,0],[0,1],[0,-1]]){const c=p.col+dx,r=p.row+dy,k=c+','+r;if(isWall(c,r)||seen.has(k)||bombs.some(b=>b.roomId===currentRoomId&&b.col===c&&b.row===r))continue;seen.add(k);q.push({col:c,row:r,d:p.d+1});}}return out;}
-function preparePlayerTurnEnd(){
+function preparePlayerTurnEnd(autoLastKill=false){
+ if(actionHistoryActive()){
+  if(!autoLastKill&&bullets.some(b=>b.source==='player'&&b.phase!=='dying')){historyConfirmRequested=true;showFloorBanner('正在结算子弹，随后结束回合');return false;}
+  if(playerStats.hp<=0){commitActionHistory();triggerDeathScreen();return false;}
+ }
  bullets.length=0;particles.length=0;damageNumbers.length=0;
  const overlap=monsters.find(m=>m.hp>0&&!m.jumperVanished&&isInMonsterFootprint(m,player.col,player.row));
  if(overlap){const options=getPlayerEndPushCandidates(overlap);if(!options.length){showFloorBanner('挤出异常：房间内没有可到达的合法空格，请移动或回溯');return false;}
   const dest=options[Math.floor(Math.random()*options.length)];player.col=dest.col;player.row=dest.row;const pixel=gridToPixel(dest.col,dest.row);player.targetPx=pixel.x;player.targetPy=pixel.y;player.animTime=0;dangerForecastKey=null;dangerForecast=null;dangerForecastJob=null;
  }
+ commitActionHistory();updateRoomCombatState();
+ if(!inCombat)return true;
  pendingPlayerTurnEnd=true;return true;
 }
 

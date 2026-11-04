@@ -11,6 +11,7 @@ module.exports=[
   "state/inventory.js",
   "state/snapshots.js",
   "combat/reachable.js",
+  "state/action-history.js",
   "state/checkpoint-simulation.js",
   "combat/turn-start.js",
   "combat/monster-paths.js",

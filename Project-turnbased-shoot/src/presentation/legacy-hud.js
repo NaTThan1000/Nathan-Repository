@@ -6,7 +6,7 @@ function updateActionBar() {
     // 非战斗模式不显示 AP 信息
     bar.innerHTML = '<span class="action-bar-placeholder"></span>';
   } else if (turnState.phase === 'player_select') {
-    const lockedTag = turnState.hasShot ? '<span style="color:#ee6644;">[已锁定]</span>' : '<span style="color:#88ccff;">[自由]</span>';
+    const lockedTag = turnState.mAP>0 ? '<span style="color:#88ccff;">[正常行动]</span>' : '<span style="color:#b4c2d0;">[方向键回退]</span>';
     const bombInfo = bombs.filter(b => b.roomId === currentRoomId).map(b => `💣${b.timer}`).join(' ');
     const bombPart = bombInfo ? `<span style="color:#ff8844;"> ${bombInfo}</span>` : '';
     bar.innerHTML = `<span class="action-bar-placeholder">${lockedTag} MP:${turnState.mAP}/${turnState.maxMAP} AP:${turnState.aAP}/${turnState.maxAAP}${bombPart}</span>`;
@@ -113,7 +113,7 @@ function updateUI() {
   const phaseEl = document.getElementById('ui-phase');
   phaseEl.className = 'pill-value';
   const rewindInfo = document.getElementById('ui-rewind-info');
-  rewindInfo.textContent = `回溯 ${rewindsRemaining}/2${turnState.phase === 'player_select' && dangerForecastJob && !dangerForecastJob.done ? ' · 计算中' : ''}`;
+  rewindInfo.textContent = `回溯 ∞${turnState.phase === 'player_select' && dangerForecastJob && !dangerForecastJob.done ? ' · 计算中' : ''}`;
   switch (turnState.phase) {
     case 'player_select':
       phaseEl.textContent = '行为选择';

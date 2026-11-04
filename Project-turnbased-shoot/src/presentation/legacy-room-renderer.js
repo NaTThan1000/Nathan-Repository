@@ -315,7 +315,7 @@ function drawResourcesOnGround() {
       ctx.globalAlpha = 1;
       ctx.fillStyle = '#ffffff';
       const fontSize = Math.max(4, Math.round(7 * s));
-      ctx.font = `${fontSize}px 'Arial', sans-serif`;
+      ctx.font = `${fontSize}px Microsoft YaHei UI`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       if (res.icon.length <= 2) {
@@ -362,7 +362,7 @@ function drawBombs() {
     const pulse = 1 + 0.15 * Math.sin(bomb.timer * 2 + performance.now() * 0.005);
     ctx.fillStyle = bomb.timer <= 1 ? '#ff2222' : '#ffdd44';
     const fontSize = Math.max(5, Math.round(8 * s * pulse));
-    ctx.font = `bold ${fontSize}px 'Arial', sans-serif`;
+    ctx.font = `bold ${fontSize}px Microsoft YaHei UI`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(bomb.timer, cx, cy + 1);
@@ -431,7 +431,7 @@ function drawItemsOnGround() {
 
     // 图标文字
     ctx.fillStyle = '#ffcc44';
-    ctx.font = `${Math.max(6, Math.round(7 * s))}px sans-serif`;
+    ctx.font = `${Math.max(6, Math.round(7 * s))}px Microsoft YaHei UI`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(it.icon, cx, cy - Math.round(3 * s));
@@ -454,7 +454,7 @@ function drawItemsOnGround() {
         const blink = 0.5 + 0.5 * Math.sin(performance.now() * 0.006);
         ctx.globalAlpha = 0.5 + blink * 0.5;
         ctx.fillStyle = '#ee6644';
-        ctx.font = `${Math.max(5, Math.round(6 * s))}px sans-serif`;
+        ctx.font = `${Math.max(5, Math.round(6 * s))}px Microsoft YaHei UI`;
         ctx.fillText('金币不足', cx, cy - size - Math.round(16 * s));
         ctx.globalAlpha = 1;
       }
@@ -492,18 +492,14 @@ function drawTiles(){
       prect(cx-cw*0.44,cy-ch*0.44,cw*0.88,ch*0.88,'#120d18');
       prect(cx-cw*0.36,cy-ch*0.36,cw*0.72,ch*0.72,'#0a0610');
     }else if(t===TILE.SPIKE){
-      ctx.fillStyle='#8a3030';ctx.beginPath();const hw=cw*0.35,hh=ch*0.40;
-      ctx.moveTo(cx,cy+hh);ctx.lineTo(cx-hw,cy);ctx.lineTo(cx,cy-hh);ctx.lineTo(cx+hw,cy);ctx.closePath();ctx.fill();
-      ctx.fillStyle='#aa4040';ctx.beginPath();const hw2=cw*0.28,hh2=ch*0.32;
-      ctx.moveTo(cx,cy+hh2);ctx.lineTo(cx-hw2,cy);ctx.lineTo(cx,cy-hh2);ctx.lineTo(cx+hw2,cy);ctx.closePath();ctx.fill();
-      prect(cx+cw*0.15,cy-ch*0.30,2,2,'#ff4444');prect(cx-cw*0.20,cy-ch*0.30,2,2,'#ff4444');
+      // 统一由正式静态美术层绘制地刺。
     }else if(t===TILE.LADDER){
       prect(cx-cw*0.48,cy-ch*0.48,cw*0.96,ch*0.96,'#1a1520');
       prect(cx-cw*0.44,cy-ch*0.44,cw*0.88,ch*0.88,'#120d18');
       ctx.fillStyle='#6b5a3e';ctx.fillRect(cx-cw*0.20,cy-ch*0.30,3,ch*0.55);
       ctx.fillRect(cx+cw*0.12,cy-ch*0.30,3,ch*0.55);
       for(let ly=cy-ch*0.25;ly<cy+ch*0.32;ly+=4){ctx.fillStyle='#4a3a2e';ctx.fillRect(cx-cw*0.15,ly,cw*0.30,2);}
-      ctx.fillStyle='#ffcc44';ctx.font='8px sans-serif';ctx.textAlign='center';ctx.fillText('▼',cx,cy+ch*0.38);
+      ctx.fillStyle='#ffcc44';ctx.font='8px Microsoft YaHei UI';ctx.textAlign='center';ctx.fillText('▼',cx,cy+ch*0.38);
     }
   }
 }
@@ -538,7 +534,7 @@ function drawDoors(){
         ctx.strokeRect(dx-m*0.5,dy-m*0.5,dw+m,dh+m);
         // 锁标记
         if(isLocked){
-          ctx.fillStyle='#ffcc44';ctx.font=`bold ${Math.round(cw*0.4)}px sans-serif`;
+          ctx.fillStyle='#ffcc44';ctx.font=`bold ${Math.round(cw*0.4)}px Microsoft YaHei UI`;
           ctx.textAlign='center';ctx.textBaseline='middle';
           ctx.fillText('🔒',cx,dir==='up'?dy+dh*0.5:dy+dh*0.5);
         }
@@ -562,7 +558,7 @@ function drawDoors(){
         ctx.strokeRect(dx-m*0.5,dy-m*0.5,dw+m,dh+m);
         // 锁标记
         if(isLocked){
-          ctx.fillStyle='#ffcc44';ctx.font=`bold ${Math.round(cw*0.4)}px sans-serif`;
+          ctx.fillStyle='#ffcc44';ctx.font=`bold ${Math.round(cw*0.4)}px Microsoft YaHei UI`;
           ctx.textAlign='center';ctx.textBaseline='middle';
           ctx.fillText('🔒',dir==='left'?dx+dw*0.5:dx+dw*0.5,cy);
         }
@@ -585,9 +581,10 @@ function render() {
   drawFloor();
   drawTiles();
   drawDoors();
-  drawGridHighlight();
+  // 移除玩家实际位置的黄色方框。
   if(inCombat)drawReachableOverlay(); // 战斗模式显示可移动范围
   drawDangerOverlay();
+  drawActionHistory();
   drawItemsOnGround(); // 地上道具
   drawResourcesOnGround(); // 地上资源
   drawShopPrices(); // 商店价格标签
