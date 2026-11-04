@@ -1,7 +1,8 @@
 // 正式版真实图片解码/Canvas检查；DOM为模拟，不替代浏览器试玩。
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const native=require('../tools/runtime-deps.cjs').runtimeDependency('@napi-rs/canvas');
-const surface=native.createCanvas(954,558),real=surface.getContext('2d'),pending=[],renderedImages=new Set();let time=1000;
+const artHtml=fs.readFileSync(process.env.COMBAT_TEST_HTML||require('path').join(__dirname,'../dist/turnbased-shoot-demo-pack.html'),'utf8');
+const surface=native.createCanvas(954,artHtml.includes('const COMBAT_PLAYTEST_PROFILE=')?690:558),real=surface.getContext('2d'),pending=[],renderedImages=new Set();let time=1000;
 let harness=fs.readFileSync(__dirname+'/danger-forecast.test.js','utf8').split('(async()=>{await sandbox.bootPromise;')[0];
 harness=harness.replace("const fs=require('fs'),vm=require('vm'),assert=require('assert');",'').replace('const ctx=new Proxy(','const mockCtx=new Proxy(');
 harness=harness.replace('class Img{set src(v){this._src=v;if(this.onload)this.onload()}get src(){return this._src}}',`class Img{set src(v){this._src=v;pending.push(native.loadImage(v.startsWith('data:')?v:path.join(project,v)).then(im=>{this.native=im;this.complete=true;this.naturalWidth=im.width;this.naturalHeight=im.height;if(this.onload)this.onload()}))}get src(){return this._src}}`);

@@ -2,7 +2,7 @@
 console.log('✅ Turnbased Shoot 已加载 - 门在门前格+方向键触发');
 // ==================== 渲染配置 ====================
 const GAME_W  = 318;
-const GAME_H  = 186;
+const GAME_H  = typeof COMBAT_PLAYTEST_PROFILE==='undefined'?186:230;
 const DISPLAY_SCALE = 3;
 
 // ==================== 画布初始化 ====================

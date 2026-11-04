@@ -252,6 +252,7 @@
 <div id="list-view">
   <div id="list-toolbar">
     <button class="tool-btn" id="btn-pick-file">📂 选择 pool.json</button>
+    <label>生成用途 <select id="generation-profile"><option value="combat">普通战斗</option><option value="exploration">探索侧区</option><option value="legacy">原图案</option></select></label>
     <button class="tool-btn gen" id="btn-autogen">+ 自动生成模板</button>
     <button class="tool-btn" id="btn-sync" title="生成 pool.json 内容供复制">📄 生成json</button>
     <span class="tool-status" id="tool-status"></span>
@@ -469,7 +470,9 @@ async function storeHandle(handle) {
 async function readPoolFromHandle(handle) {
   const file = await handle.getFile();
   const text = await file.text();
-  return JSON.parse(text);
+  const data=JSON.parse(text);
+  validatePoolData(data);
+  return data;
 }
 
 async function writePoolToHandle(handle, data) {
@@ -501,6 +504,7 @@ fileInput.addEventListener('change', async () => {
   try {
     const text = await file.text();
     const loaded = JSON.parse(text);
+    validatePoolData(loaded);
     // 过滤掉 _schema 等元数据 key，只保留模板数据
     delete loaded._schema;
     // 文件是权威数据源 → 覆盖 poolFromJson 并清空 localStorage
@@ -572,7 +576,7 @@ async function autoLoadPool() {
     try {
       poolFromJson = JSON.parse(cached);
       delete poolFromJson._schema;  // 过滤元数据
-      localStorage.removeItem(STORAGE_KEY);
+      /* 保留未导出的本地草稿 */
       btnSync.textContent = '📄 生成json';
       console.log('📂 从缓存加载关卡池: ' + Object.keys(poolFromJson).length + ' 个模板');
       return;
@@ -590,7 +594,7 @@ async function autoLoadPool() {
           fileHandle = handle;
           poolFromJson = await readPoolFromHandle(handle);
           delete poolFromJson._schema;  // 过滤元数据
-          localStorage.removeItem(STORAGE_KEY);
+          /* 保留未导出的本地草稿 */
           btnSync.textContent = '📄 生成json';
           return;
         }
@@ -707,7 +711,48 @@ function bfsReachable(grid, sc, sr, targets) {
   return { reachable: unreachable.length === 0, unreachable };
 }
 
+// 几何诊断，不模拟怪物、飞行、炸弹和实际伤害。
+function analyzeTiles(tiles) {
+  if (!validateTiles(tiles).pass) return null;
+  const grid=parseGrid(tiles), doors=Object.values(DOOR_POS);
+  function distances(start) {
+    const d=new Map([[start.col+','+start.row,0]]),q=[start];
+    for(let i=0;i<q.length;i++) {
+      const p=q[i];
+      for(const [dc,dr] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const col=p.col+dc,row=p.row+dr,k=col+','+row;
+        if(!d.has(k)&&isWalkable(grid,col,row)) {d.set(k,d.get(p.col+','+p.row)+1);q.push({col,row});}
+      }
+    }
+    return d;
+  }
+  let blocked=0,spikes=0,walkable=0,deadEnds=0,maxDoorDistance=0;
+  for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++) {
+    if(!isWalkable(grid,c,r)){blocked++;continue;}
+    walkable++;if(grid[c][r]===TILE.SPIKE)spikes++;
+    if(!isDoorPos(c,r)&&[[1,0],[-1,0],[0,1],[0,-1]].filter(([dc,dr])=>isWalkable(grid,c+dc,r+dr)).length===1)deadEnds++;
+  }
+  for(const door of doors){const d=distances(door);for(const t of doors)maxDoorDistance=Math.max(maxDoorDistance,d.get(t.col+','+t.row)||0);}
+  return {blocked,spikes,deadEnds,isolated:walkable-distances(doors[0]).size,maxDoorDistance};
+}
+function describeTiles(tiles) {
+  const a=analyzeTiles(tiles);if(!a)return '';
+  return ' | 障碍 '+Math.round(a.blocked/(COLS*ROWS)*100)+'% · 尖刺 '+a.spikes+' · 不可达地面 '+a.isolated+' · 死端 '+a.deadEnds+' · 最远门距 '+a.maxDoorDistance+'步（MP3约'+Math.ceil(a.maxDoorDistance/3)+'回合 / MP4约'+Math.ceil(a.maxDoorDistance/4)+'回合，仅移动估算）';
+}
+
+function validatePoolData(data) {
+  if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('模板池必须是对象');
+  for(const [key,tpl] of Object.entries(data)) {
+    if(key.startsWith('_'))continue;
+    const v=validateTiles(tpl&&tpl.tiles);
+    if(!v.pass)throw new Error(key+': '+v.errors.join('; '));
+  }
+}
+
 function validateTiles(tiles) {
+  if (!Array.isArray(tiles) || tiles.length !== ROWS || tiles.some(row => typeof row !== 'string' || row.length !== COLS || /[^.#PO^]/.test(row))) {
+    return { pass:false, errors:[`地图必须为${ROWS}行、每行${COLS}格，且只能使用 . # P O ^`], blockedDoors:[] };
+  }
   const grid = parseGrid(tiles);
   const errors = [];
   const blockedDoors = [];
@@ -1121,6 +1166,7 @@ const PATTERNS = [
 ];
 
 function autoGenerate() {
+  const profile=document.getElementById('generation-profile').value;
   // 最多尝试200次
   for (let attempt = 0; attempt < 200; attempt++) {
     let tiles = makeEmptyTiles();
@@ -1132,7 +1178,7 @@ function autoGenerate() {
     const avail = [...PATTERNS];
 
     for (let i = 0; i < patternCount && avail.length > 0; i++) {
-      let rndW = Math.random() * totalW;
+      let rndW = Math.random() * avail.reduce((sum, p) => sum + p.weight, 0);
       let picked = 0;
       for (let j = 0; j < avail.length; j++) {
         rndW -= avail[j].weight;
@@ -1164,6 +1210,8 @@ function autoGenerate() {
           if (tiles[r][c] !== '.') rockCount++;
         }
       }
+      const metrics=analyzeTiles(tiles);
+      if(profile!=='legacy'&&(metrics.isolated>0||metrics.spikes>4||metrics.blocked<8||metrics.blocked>23||metrics.maxDoorDistance>20||(profile==='combat'&&metrics.deadEnds>2)))continue;
       if (rockCount < 3) continue; // 太空洞，重新生成
 
       const custom = loadCustomTemplates();
@@ -1181,7 +1229,7 @@ function autoGenerate() {
       return;
     }
   }
-  alert('自动生成失败：200次未通过连通性检查，请手动编辑');
+  alert('自动生成失败：200次未通过所选用途的几何筛选，请切换用途或手动编辑');
 }
 
 // ================================================================
@@ -1239,11 +1287,7 @@ function closeEditor(save) {
     tpl.tiles = editorTiles.map(r => r);
 
     const custom = loadCustomTemplates();
-    custom[editingKey] = {
-      name: tpl.name,
-      types: tpl.types,
-      tiles: tpl.tiles,
-    };
+    custom[editingKey] = JSON.parse(JSON.stringify(tpl)); // 保留 allowedMovement 等配置
     saveCustomTemplates(custom);
     refreshTemplates();
   }
@@ -1285,14 +1329,14 @@ function clearAll() {
 
 function checkConnectivity() {
   const v = validateTiles(editorTiles);
-  document.getElementById('editor-status').textContent = v.pass ? '✓ 全部门位连通' : '✗ ' + v.errors.join('; ');
+  document.getElementById('editor-status').textContent = v.pass ? '✓ 门位连通'+describeTiles(editorTiles) : '✗ ' + v.errors.join('; ');
   document.getElementById('editor-status').className = v.pass ? 'pass' : 'fail';
   renderEditorCanvas();
 }
 
 function updateEditorStatus() {
   const v = validateTiles(editorTiles);
-  document.getElementById('editor-status').textContent = v.pass ? '✓ 全部门位连通' : '✗ ' + v.errors.join('; ');
+  document.getElementById('editor-status').textContent = v.pass ? '✓ 门位连通'+describeTiles(editorTiles) : '✗ ' + v.errors.join('; ');
   document.getElementById('editor-status').className = v.pass ? 'pass' : 'fail';
 }
 
@@ -1548,8 +1592,8 @@ function generateAllFloors(){for(let f=1;f<=3;f++)allFloors[f]=generateFloor(f);
 
 async function saveFloorToFile(){
   try{
-    const data={};for(let f=1;f<=3;f++){const fl=allFloors[f];if(!fl)continue;const rooms=JSON.parse(JSON.stringify(fl.rooms));rooms.forEach(r=>{delete r.grid;delete r.connections;delete r.spawnConfig;});data[f]={floorNum:fl.floorNum,name:fl.name,shopModifier:fl.shopModifier||{type:'none'},rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds,shopRoomIds:fl.shopRoomIds||[]};}
-    // grid 不再持久化到 JSON（运行时从 pool tiles parse 生成），connections 从 doors 推导
+    const data={};for(let f=1;f<=3;f++){const fl=allFloors[f];if(!fl)continue;const rooms=JSON.parse(JSON.stringify(fl.rooms));rooms.forEach(r=>{r.grid=transposeGridColToRow(r.grid);delete r.connections;});data[f]={floorNum:fl.floorNum,name:fl.name,shopModifier:fl.shopModifier||{type:'none'},rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds,shopRoomIds:fl.shopRoomIds||[]};}
+    // 保存预览格子快照，游戏优先使用快照；connections 从 doors 推导
     let json=JSON.stringify(data, null, 2);
     // 写入 localStorage 缓存
     localStorage.setItem(FLOOR_CACHE_KEY, json);
@@ -1561,10 +1605,10 @@ async function saveFloorToFile(){
         await writable.close();
         console.log('💾 floor-data.json 已更新 (含门锁信息)');
       }catch(writeErr){
-        console.warn('⚠ 文件写入失败 (锁状态仅在内存中):', writeErr);
+        showStatus('⚠ 文件写入失败；仅缓存已保存，请生成楼层 JSON 导出：'+writeErr.message,true);return;
       }
     }
-    showStatus('✅ 楼层已更新并保存（锁状态已持久化）');
+    showStatus(floorFileHandle?'✅ 已写入 floor-data.json':'⚠ 仅保存到浏览器缓存；请生成楼层 JSON 并覆盖 Configs/floor-data.json');
   }catch(e){showStatus('❌ '+e.message, true);console.error(e);}
 }
 
@@ -1591,7 +1635,8 @@ floorFileInput.addEventListener('change',async()=>{
   try{
     const text=await f.text();
     const data=JSON.parse(text);
-    for(let i=1;i<=6;i++){allFloors[i]=data[i];allFloors[i].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);else if(r.grid.length>0&&Array.isArray(r.grid[0])&&r.grid.length===ROWS)r.grid=transposeGridRowToCol(r.grid);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;});}
+    for(let i=1;i<=3;i++){if(!data[i]||!Array.isArray(data[i].rooms))throw new Error("缺少楼层 rooms");}
+    for(let i=1;i<=3;i++){allFloors[i]=data[i];allFloors[i].rooms.forEach(r=>{if(!r.grid||r.grid.length===0)r.grid=parseGrid(allTemplates[r.tplKey]?allTemplates[r.tplKey].tiles:BUILTIN_TEMPLATES['open'].tiles);else if(r.grid.length>0&&Array.isArray(r.grid[0])&&r.grid.length===ROWS)r.grid=transposeGridRowToCol(r.grid);r.doors=r.doors||{up:null,down:null,left:null,right:null};r.bossLadderPlaced=r.bossLadderPlaced||false;r.locked=r.locked||false;});}
     localStorage.setItem(FLOOR_CACHE_KEY,text);
     buildFloorNav();renderFloor(allFloors[currentFloorNum]);
     showStatus('✅ 已加载 floor-data.json');
@@ -1657,8 +1702,8 @@ async function tryLoadFloorData(){
 
 document.getElementById('btn-pick-floor').addEventListener('click',pickFloorFile);
 document.getElementById('btn-floor-json').addEventListener('click',()=>{
-  const data={};for(let f=1;f<=3;f++){const fl=allFloors[f];if(!fl)continue;const rooms=JSON.parse(JSON.stringify(fl.rooms));rooms.forEach(r=>{delete r.grid;delete r.connections;});data[f]={floorNum:fl.floorNum,name:fl.name,shopModifier:fl.shopModifier||{type:'none'},rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds,shopRoomIds:fl.shopRoomIds||[]};}
-  // grid 不再持久化到 JSON（运行时从 pool tiles parse 生成），connections 从 doors 推导
+  const data={};for(let f=1;f<=3;f++){const fl=allFloors[f];if(!fl)continue;const rooms=JSON.parse(JSON.stringify(fl.rooms));rooms.forEach(r=>{r.grid=transposeGridColToRow(r.grid);delete r.connections;});data[f]={floorNum:fl.floorNum,name:fl.name,shopModifier:fl.shopModifier||{type:'none'},rooms,edges:fl.edges,layout:fl.layout,startRoomId:fl.startRoomId,bossRoomId:fl.bossRoomId,treasureRoomIds:fl.treasureRoomIds,shopRoomIds:fl.shopRoomIds||[]};}
+  // 保存预览格子快照，游戏优先使用快照；connections 从 doors 推导
   let json=JSON.stringify(data, null, 2);
   document.getElementById('download-textarea').value=json;
   document.querySelector('#download-modal h3').textContent='📄 floor-data.json（请复制后覆盖到 Configs/floor-data.json）';

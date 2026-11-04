@@ -17,7 +17,7 @@ async function assembleGame(options={}){
  const block='// SCRAP_STAR_GAME_START\nconst SCRAP_ASSETS='+JSON.stringify(assets)+';\n'+runtime+'// SCRAP_STAR_GAME_END';
  const modules=require('../src/modules.cjs');
  if(new Set(modules).size!==modules.length||modules.filter(p=>p==='@presentation').length!==1)throw Error('模块清单重复或显示入口不唯一');
- const script=modules.map(file=>{
+ const script=(options.playtest?read('src/playtest/profile.js'):'')+modules.map(file=>{
   if(file==='@presentation')return block+'\n';
   if(file.includes('..')||path.isAbsolute(file)||!file.endsWith('.js'))throw Error('模块路径非法：'+file);
   if(options.playtest&&file==='runtime/start.js')return read('src/playtest/scenarios.js')+read('src/'+file);

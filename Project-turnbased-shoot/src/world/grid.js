@@ -3,7 +3,7 @@ const CFG = {
   WALL: 16,
   CELL: 22,
   COLS: 13,
-  ROWS: 7,
+  ROWS: typeof COMBAT_PLAYTEST_PROFILE==='undefined'?7:9,
   BULLET_MAX_DIST: 6.0,    // 射程=6
   BULLET_SPEED: 560,       // 翻倍: 280→560
   DECAY_START_BEFORE: 0.2,
@@ -49,7 +49,7 @@ const TILE_CHAR = { '.':0, '#':1, 'P':2, 'O':3, '^':4, 'L':5 };
 const TILE_COLORS = { 0:'#4a4038', 1:'#6b6058', 2:'#8b7355', 3:'#1a1520', 4:'#8a3030', 5:'#1a1520' };
 const TILE_WALKABLE = { 0:true, 1:false, 2:false, 3:false, 4:true, 5:true };
 const TILE_BLOCKS_BULLET = { 0:false, 1:true, 2:true, 3:false, 4:false, 5:false };
-function parseGrid(tiles){const g=[];for(let c=0;c<COLS;c++){g[c]=[];for(let r=0;r<ROWS;r++)g[c][r]=TILE_CHAR[tiles[r][c]]||0;}return g;}
+function parseGrid(tiles){const g=[];for(let c=0;c<COLS;c++){g[c]=[];for(let r=0;r<ROWS;r++)g[c][r]=TILE_CHAR[tiles[r]?.[c]]||0;}return g;}
 // 将 row-major grid[row][col] 转置为 col-major grid[col][row] (JSON 存储格式 → 运行时格式)
 function transposeGridRowToCol(rowGrid){const g=[];for(let c=0;c<COLS;c++){g[c]=[];for(let r=0;r<ROWS;r++)g[c][r]=rowGrid[r][c];}return g;}
 // 将 col-major grid[col][row] 转置为 row-major grid[row][col] (运行时格式 → JSON 存储格式)
