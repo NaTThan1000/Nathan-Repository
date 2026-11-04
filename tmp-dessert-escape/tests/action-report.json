@@ -1,0 +1,72 @@
+{
+  "passed": true,
+  "version": "manual-melee-2",
+  "checks": [
+    "离线单文件与图集加载",
+    "完全手动：静止不出招、不造成接触伤害",
+    "真实鼠标轻击命中与面向判定",
+    "三段轻击与轻轻重衔接",
+    "普通近战前摇可被打断并进入硬直",
+    "敌人攻击实际碰撞：不躲会受伤，及时闪避可穿过攻击",
+    "橙色霸体攻击承受命中仍继续，无法招架",
+    "闪避穿过攻击触发精准回避与手动反击",
+    "六种餐具组合全部可装备，具备不同命中与效果",
+    "三种双人合体由玩家选择；不输入就不释放攻击",
+    "盾反合体具有招架窗口和反击",
+    "领悟只解锁机制；没有伤害、攻速、生命倍率选项",
+    "暂停、图鉴和餐具工坊恢复状态",
+    "Boss 破势可硬直，三关圣物与胜利流程",
+    "真实键盘移动、死亡与重开",
+    "80 敌人前摇 / 硬直 / 手动组合战斗渲染"
+  ],
+  "crowdedSnapshot": {
+    "version": "manual-melee-2",
+    "state": "playing",
+    "stage": 0,
+    "time": 3.0021999999999944,
+    "total": 3.0021999999999944,
+    "hp": 100,
+    "stamina": 87.0099999999999,
+    "level": 1,
+    "kills": 0,
+    "enemies": 80,
+    "weapons": [
+      1,
+      1,
+      1,
+      1
+    ],
+    "form": "halberd",
+    "mods": [],
+    "action": {
+      "kind": "heavy",
+      "chain": 1,
+      "dodge": false,
+      "counter": false,
+      "fired": true
+    },
+    "chain": 0,
+    "allies": [
+      0,
+      1,
+      2
+    ],
+    "hostages": [],
+    "fusionKey": "01",
+    "fusion": "白瓷圣卫",
+    "resonance": 100,
+    "ult": 0,
+    "boss": null,
+    "metrics": {
+      "peak": 80,
+      "attacks": 5,
+      "interrupts": 2,
+      "armorResists": 1,
+      "perfectDodges": 0,
+      "parries": 0
+    },
+    "fps": 59.94828378087636,
+    "atlas": 1254
+  },
+  "errors": []
+}
