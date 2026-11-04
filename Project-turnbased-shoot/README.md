@@ -16,7 +16,7 @@ node build.cjs
 node verify.cjs
 ```
 
-构建直接在内存中组装并内嵌资源，生成 `dist/` 内的两个最终文件，不再生成 `demo2.html`。只更新测试入口可运行 `npm run build:prototype`。依赖通过 `npm install` 安装，当前环境也兼容已有缓存依赖。
+构建直接在内存中组装并内嵌资源，生成 `dist/` 内的两个最终文件，不再生成 `demo2.html`。只更新测试入口可运行 `npm run build:prototype`。开发依赖通过 `npm ci` 按锁文件安装，当前环境也兼容已有缓存依赖。
 
 `Configs` 和 `tools` 是仍在使用的源数据和构建工具；`tests` 是现役检查，不按文件名删除。完整职责表见 `src/README.md`。生成的HTML不要直接修改。
 

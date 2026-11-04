@@ -69,8 +69,9 @@ function collectImageFiles(dir, basePath = '') {
 }
 
 const imageFiles = collectImageFiles(ASSETS_DIR);
+const referencedImages = imageFiles.filter(({relPath}) => html.includes(`Assets/${relPath}`));
 
-for (const { fullPath, relPath } of imageFiles) {
+for (const { fullPath, relPath } of referencedImages) {
   const imgBuffer = fs.readFileSync(fullPath);
   const ext = path.extname(fullPath).toLowerCase();
   const mimeMap = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.svg': 'image/svg+xml', '.webp': 'image/webp' };
@@ -82,7 +83,7 @@ for (const { fullPath, relPath } of imageFiles) {
   html = html.replace(new RegExp(escapedPath, 'g'), ()=>dataUri);
 }
 
-console.log(`  ✅ 已内联 ${imageFiles.length} 个图片文件`);
+console.log(`  ✅ 已内联 ${referencedImages.length} 个实际引用图片（扫描 ${imageFiles.length} 个文件）`);
 
 // ============ 5. 移除 file:// 协议检测代码（打包后不需要） ============
 console.log('🔧 移除 file:// 协议检测代码...');

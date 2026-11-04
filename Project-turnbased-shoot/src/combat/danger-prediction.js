@@ -1,8 +1,26 @@
 // 在独立闭包中运行共享规则，预测不会触碰真实游戏对象、DOM、音效或掉落。
 let dangerSimulationFactory = null;
+function buildDangerRuleBody(shared) {
+  const names = new Set();
+  if (!Array.isArray(shared) || shared.filter(fn => fn === updateBullets).length !== 1) {
+    throw Error('危险预测规则清单必须包含且仅包含一次 updateBullets');
+  }
+  return shared.map(fn => {
+    if (typeof fn !== 'function' || !fn.name || names.has(fn.name)) {
+      throw Error('危险预测规则必须是有唯一名称的函数');
+    }
+    names.add(fn.name);
+    const source = Function.prototype.toString.call(fn);
+    if (fn !== updateBullets) return source;
+    const target = 'if (mBg.col === player.col && mBg.row === player.row)';
+    const count = source.split(target).length - 1;
+    if (count !== 1) throw Error('危险预测子弹规则匹配失败：预期1处，实际'+count+'处，请同步检查模拟适配');
+    return source.replace(target, 'if (false)');
+  }).join('\n');
+}
 function createDangerSimulationFactory() {
   const shared = getDangerSharedRules();
-  const body = shared.map(fn=>fn===updateBullets?fn.toString().replace('if (mBg.col === player.col && mBg.row === player.row)','if (false)'):fn.toString()).join('\n');
+  const body = buildDangerRuleBody(shared);
   return new Function('input','seed','decisions',
     '"use strict";'+
     'const Math=Object.create(globalThis.Math);Math.random=()=>0.5;'+

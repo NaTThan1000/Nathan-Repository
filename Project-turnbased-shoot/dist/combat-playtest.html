@@ -2155,6 +2155,7 @@ function saveTurnSnapshot() {
     playerFacing: player.facing,
     playerHp: playerStats.hp,
     playerInvincibleSteps: player.invincibleSteps,
+    playerHasPiercing: !!player.hasPiercing,
     // 道具/属性状态快照（用于 ESC 回溯）
     playerInventory: [...playerInventory],
     playerMaxHp: playerStats.maxHp,
@@ -2203,6 +2204,7 @@ function saveCheckpoint() {
     playerFacing: player.facing,
     playerHp: playerStats.hp,
     playerInvincibleSteps: player.invincibleSteps,
+    playerHasPiercing: !!player.hasPiercing,
     playerInventory: [...playerInventory],
     playerMaxHp: playerStats.maxHp,
     playerAttack: playerStats.attack,
@@ -2251,6 +2253,7 @@ function restoreCheckpoint() {
   player.shootTimer = 0;
   playerStats.hp = s.playerHp;
   player.invincibleSteps = s.playerInvincibleSteps || 0;
+  player.hasPiercing = !!s.playerHasPiercing;
   if (s.playerInventory !== undefined) {
     playerInventory = [...s.playerInventory];
     playerStats.maxHp = s.playerMaxHp;
@@ -2325,6 +2328,7 @@ function restoreCheckpointWithoutBullets() {
   player.shootTimer = 0;
   playerStats.hp = s.playerHp;
   player.invincibleSteps = s.playerInvincibleSteps || 0;
+  player.hasPiercing = !!s.playerHasPiercing;
   if (s.playerInventory !== undefined) {
     playerInventory = [...s.playerInventory];
     playerStats.maxHp = s.playerMaxHp;
@@ -2396,6 +2400,7 @@ function restoreTurnSnapshot() {
   player.shootTimer = 0;
   playerStats.hp = s.playerHp;
   player.invincibleSteps = s.playerInvincibleSteps || 0;
+  player.hasPiercing = !!s.playerHasPiercing;
   // 恢复道具/属性状态
   if (s.playerInventory !== undefined) {
     playerInventory = [...s.playerInventory];
@@ -2558,6 +2563,7 @@ function simulateFromCheckpoint(path) {
   player.shootTimer = 0;
   playerStats.hp = s.playerHp;
   player.invincibleSteps = s.playerInvincibleSteps || 0;
+  player.hasPiercing = !!s.playerHasPiercing;
   playerInventory = [...s.playerInventory];
   playerStats.maxHp    = s.playerMaxHp;
   playerStats.attack   = s.playerAttack;
@@ -5773,9 +5779,27 @@ function drawGridOverlay(col, row, innerColor, innerAlpha, borderAlpha) {
 function getDangerSharedRules(){return [gridToPixel,pixelToGrid,isWall,isBlockingBullet,bulletHitWall,isMonsterAt,monsterCells,isValidLandingZone,selectLandingTarget,isInMonsterFootprint,getSpreadDirs,getPlayerPushCandidates,pushPlayerFromMonster,calcDiagonalPathEnd,canMoveMin1,getChargeDirections,pickChargeDir,checkActionCondition,resolveSteps,getEligibleMonsterActions,resolveMonsterAction,getWanderPaths,canMonsterShotHitPlayer,getMonsterShootDirections,chooseMonsterShootDirection,chooseWanderPath,calcAllMonsterPaths,calcMonsterPath,getChargePath,getDiamondRange,tickBombCountdown,detonateBomb,pushBomb,calcJumperSmallJump,calcJumperBigJump,processJumperAction,getAttackSideCells,scrapOriginalResolve,initDukeQuadrant,calcDukePath,updateDukeAnim,executeBossLandingNow,executeBossLanding,doLandingDamage,resolveBossLandingPosition,finishBossLandingPhase2,executeMonsterTurnActions,updateMonsterTurn,applyMonsterTurnAfterEffects,scrapOriginalMonsterBullet,updateBullets,makeMonsterTurnRandom,monsterActionChoiceIndex,hasPendingMonsterAttack];}
 // 在独立闭包中运行共享规则，预测不会触碰真实游戏对象、DOM、音效或掉落。
 let dangerSimulationFactory = null;
+function buildDangerRuleBody(shared) {
+  const names = new Set();
+  if (!Array.isArray(shared) || shared.filter(fn => fn === updateBullets).length !== 1) {
+    throw Error('危险预测规则清单必须包含且仅包含一次 updateBullets');
+  }
+  return shared.map(fn => {
+    if (typeof fn !== 'function' || !fn.name || names.has(fn.name)) {
+      throw Error('危险预测规则必须是有唯一名称的函数');
+    }
+    names.add(fn.name);
+    const source = Function.prototype.toString.call(fn);
+    if (fn !== updateBullets) return source;
+    const target = 'if (mBg.col === player.col && mBg.row === player.row)';
+    const count = source.split(target).length - 1;
+    if (count !== 1) throw Error('危险预测子弹规则匹配失败：预期1处，实际'+count+'处，请同步检查模拟适配');
+    return source.replace(target, 'if (false)');
+  }).join('\n');
+}
 function createDangerSimulationFactory() {
   const shared = getDangerSharedRules();
-  const body = shared.map(fn=>fn===updateBullets?fn.toString().replace('if (mBg.col === player.col && mBg.row === player.row)','if (false)'):fn.toString()).join('\n');
+  const body = buildDangerRuleBody(shared);
   return new Function('input','seed','decisions',
     '"use strict";'+
     'const Math=Object.create(globalThis.Math);Math.random=()=>0.5;'+

@@ -71,6 +71,7 @@ function saveTurnSnapshot() {
     playerFacing: player.facing,
     playerHp: playerStats.hp,
     playerInvincibleSteps: player.invincibleSteps,
+    playerHasPiercing: !!player.hasPiercing,
     // 道具/属性状态快照（用于 ESC 回溯）
     playerInventory: [...playerInventory],
     playerMaxHp: playerStats.maxHp,
@@ -119,6 +120,7 @@ function saveCheckpoint() {
     playerFacing: player.facing,
     playerHp: playerStats.hp,
     playerInvincibleSteps: player.invincibleSteps,
+    playerHasPiercing: !!player.hasPiercing,
     playerInventory: [...playerInventory],
     playerMaxHp: playerStats.maxHp,
     playerAttack: playerStats.attack,
@@ -167,6 +169,7 @@ function restoreCheckpoint() {
   player.shootTimer = 0;
   playerStats.hp = s.playerHp;
   player.invincibleSteps = s.playerInvincibleSteps || 0;
+  player.hasPiercing = !!s.playerHasPiercing;
   if (s.playerInventory !== undefined) {
     playerInventory = [...s.playerInventory];
     playerStats.maxHp = s.playerMaxHp;
@@ -241,6 +244,7 @@ function restoreCheckpointWithoutBullets() {
   player.shootTimer = 0;
   playerStats.hp = s.playerHp;
   player.invincibleSteps = s.playerInvincibleSteps || 0;
+  player.hasPiercing = !!s.playerHasPiercing;
   if (s.playerInventory !== undefined) {
     playerInventory = [...s.playerInventory];
     playerStats.maxHp = s.playerMaxHp;
@@ -312,6 +316,7 @@ function restoreTurnSnapshot() {
   player.shootTimer = 0;
   playerStats.hp = s.playerHp;
   player.invincibleSteps = s.playerInvincibleSteps || 0;
+  player.hasPiercing = !!s.playerHasPiercing;
   // 恢复道具/属性状态
   if (s.playerInventory !== undefined) {
     playerInventory = [...s.playerInventory];

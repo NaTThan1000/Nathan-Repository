@@ -11,6 +11,7 @@ function simulateFromCheckpoint(path) {
   player.shootTimer = 0;
   playerStats.hp = s.playerHp;
   player.invincibleSteps = s.playerInvincibleSteps || 0;
+  player.hasPiercing = !!s.playerHasPiercing;
   playerInventory = [...s.playerInventory];
   playerStats.maxHp    = s.playerMaxHp;
   playerStats.attack   = s.playerAttack;
