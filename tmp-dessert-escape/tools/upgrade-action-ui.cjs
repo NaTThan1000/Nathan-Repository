@@ -1,0 +1,28 @@
+const fs=require('node:fs'),path=require('node:path'),root=path.resolve(__dirname,'..');
+const file=path.join(root,'src/index.html');let h=fs.readFileSync(file,'utf8');
+h=h.replace('<title>甜界逃生 · SUGAR BREAK</title>','<title>甜界逃生 · 手动近战版</title>');
+h=h.replace('</style>',`
+.stamina{margin-top:8px}.stamina label{font-size:10px}.stamina .bar{height:5px}.stamina .bar i{background:#b2e4ac}.objective{top:139px;font-size:11px}.slot{pointer-events:auto}.slot.equipped{border-color:#a9f2d3;box-shadow:inset 0 0 12px #99f5cb22}.loadout{pointer-events:auto}.stance-panel{position:absolute;bottom:126px;left:28px;max-width:390px;padding:13px 17px;background:#231f30eb;border:1px solid #6d796e;border-radius:12px;pointer-events:auto}.stance-panel strong{font-size:16px;color:var(--mint)}.stance-panel p{font-size:11px;color:#dccdcd;line-height:1.85;margin:6px 0}.stance-panel small{font-size:11px;color:#ffe0a3}.stance-panel button,.crew-button{background:#3d3442;border:1px solid #776572;color:#e3e6d7;border-radius:5px;padding:4px 8px;font-size:10px;cursor:pointer}.stance-panel button{float:right;margin-left:20px}.crew-button{pointer-events:auto;margin-top:6px}.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-height:65vh;overflow:auto;margin:20px 0}.form-card{text-align:left;background:#362c3b;border:1px solid #73616d;border-radius:10px;padding:16px}.form-card:hover,.form-card.selected{border-color:var(--mint)}.form-card:disabled{opacity:.3;cursor:default}.form-card span,.form-card small{font-size:10px}.form-card h3{font-size:18px;margin:8px 0}.form-card p{font-size:11px;line-height:1.8;margin:0 0 10px}.form-card small{color:var(--mint)}#mobile{flex-wrap:wrap;width:160px;bottom:125px}#mobile button{width:65px;height:55px;border-radius:12px}.utility{top:88px}.controls{max-width:470px;font-size:10px}.health{width:230px}.ult{width:280px}.bottom{align-items:flex-end}.edition{letter-spacing:1px}@media(max-width:1000px){.controls{display:none}.stance-panel{bottom:129px;max-width:300px}.stats{gap:10px}.brand{font-size:16px}}@media(max-width:760px){.form-grid{grid-template-columns:1fr 1fr}.stance-panel{left:14px;max-width:260px;padding:9px 12px}.stance-panel p{font-size:10px}.ult{width:210px}.stats .pill{max-width:110px;font-size:11px}.stats{font-size:11px;gap:7px}.stats b{font-size:19px}.health{width:170px}.objective{left:14px;top:135px}.crew{max-width:270px;flex-wrap:wrap}.crew span{font-size:9px;padding:3px 5px}#mobile{right:15px;bottom:175px}}
+</style>`);
+h=h.replace('<div class="bar"><i id="hpfill"></i></div></div>','<div class="bar"><i id="hpfill"></i></div><div class="stamina"><label><span>体力 / 轻击 5 · 重击 24 · 闪避 22</span><span id="staminatext">100</span></label><div class="bar"><i id="staminafill"></i></div></div></div>');
+h=h.replace('<div class="objective" id="objective"></div>','<div class="objective" id="objective"></div><div class="stance-panel"><button id="openArmory">R 招式 / 装备</button><strong id="stanceName">银叉刺剑</strong><p>轻：<span id="stanceLight"></span><br>重：<span id="stanceHeavy"></span></p><small id="comboState">点按出招</small></div>');
+h=h.replace('<div class="crew" id="crew"></div>','<div class="crew" id="crew"></div><button class="crew-button" id="cycleFusion">C 切换合体搭档</button>');
+h=h.replace('<kbd>W A S D</kbd> / <kbd>↑ ↓ ← →</kbd> 移动 · 自动攻击<br><kbd>空格</kbd> 闪避 · <kbd>Q</kbd> 合体 · <kbd>Esc</kbd> 暂停 · <kbd>H</kbd> 图鉴','<kbd>WASD</kbd> 移动 · 鼠标瞄准<br><kbd>左键 / J</kbd> 轻击 · <kbd>右键 / K</kbd> 重击 · <kbd>空格</kbd> 闪避<br><kbd>X</kbd> 餐具搭配 · <kbd>Q</kbd> 合体 · <kbd>C</kbd> 搭档 · <kbd>H</kbd> 手册');
+h=h.replace('<div id="mobile">','<div id="mobile"><button id="lightTouch">轻击</button><button id="heavyTouch">重击</button>');
+h=h.replace('A DELICIOUSLY DANGEROUS ROGUELITE','MANUAL MELEE / EVERY STRIKE IS YOURS');
+h=h.replace('捡起餐具，找回同伴，把整张餐桌掀翻。','亲手砍杀，读懂前摇，用餐具接出你的连招。');
+h=h.replace('04 餐具 · 04 组合技','04 餐具 · 06 双持变体').replace('03 同伴 · 共鸣合体','03 同伴 · 03 双人合体');
+h=h.replace('可离线试玩 DEMO','手动近战版 DEMO · 左轻 / 右重 / 空格闪避');
+const helpStart=h.indexOf('<div class="info-grid">'),helpEnd=h.indexOf('</div><button class="button" id="closeHelp">',helpStart);
+h=h.slice(0,helpStart)+`<div class="info-grid">
+<article><h3>亲手出招 / 轻重连段</h3><p>WASD 移动，鼠标指定攻击方向。点左键 / J 轻击，连续点按可接三段；右键 / K 重击。攻击有前摇、命中与收招，收招末段可缓冲下一击。按住按键不会连续自动攻击。无鼠标时向移动方向出招。</p></article>
+<article><h3>打断、霸体与破势</h3><p>薄荷色前摇可被近战打断，受击敌人会硬直和后退。橙色 ◆ 霸体攻击无法直接打断，需闪避或走出范围；Boss 架势被重击削空后才会失衡。怪物靠近本身不会造成接触伤害。</p></article>
+<article><h3>闪避、派生与招架</h3><p>空格闪避；闪避后 0.65 秒内点轻击或重击会使出武器的派生招式。擦过攻击可精准闪避，开启反击窗口并积攒共鸣。白瓷合体或迎击领悟可用重击前摇招架普通近战；橙色霸体与地面落点不能招架。</p></article>
+<article><h3>餐具改变整个招式组</h3><p>餐具拾取一次即解锁，无需升级到某个等级。X 循环切换双餐具搭配，R 打开十套招式。叉刀切痕处刑、叉勺长戟勾砸、叉管虹吸、刀勺碎甲震地、刀管链刃、勺管气压拳。一次使用一套，不会同时叠加自动释放。</p></article>
+<article><h3>选择人类合体打法</h3><p>手动打破糖笼后接近救援。C 选择搭档，共鸣满后 Q 变身 12 秒，仍使用轻重攻击。主厨＋工程师是重锤灼烧机甲；医师＋工程师是牵引定身游侠；主厨＋医师是盾反治疗圣卫。合体仅入场短暂无敌，出招仍须躲避。</p></article>
+<article><h3>横向成长与三关逃生</h3><p>经验三选一主要解锁餐具或招式规则：余震、重击招架、闪避回钩、终段地裂等，不叠加伤害、攻速或生命倍率。每关三波，72 秒领主出现；击败后选机制圣物，第三关结束逃生。体力会自动恢复，先观察再出招。</p></article>
+`+h.slice(helpEnd);
+h=h.replace('<section id="end"',`<section id="armory" class="overlay"><div class="panel"><div class="eyebrow">CUTLERY WORKSHOP / 选择一套招式</div><h2>搭配变了，打法就变。</h2><p>单持与双餐具互斥装备 · X 快速轮换搭配 · 战斗已暂停</p><div class="form-grid" id="formCards"></div><button class="button" id="closeArmory">返回战斗</button></div></section><section id="end"`);
+fs.writeFileSync(file,h);
+const build=path.join(root,'build.cjs');let b=fs.readFileSync(build,'utf8');b=b.replace("html.replace('/*__GAME__*/', fs.readFileSync(path.join(root, 'src/game.js'), 'utf8'))","html.replace('/*__GAME__*/', () => fs.readFileSync(path.join(root, 'src/action-game.js'), 'utf8'))");fs.writeFileSync(build,b);
+console.log('已更新手动近战界面与打包入口');

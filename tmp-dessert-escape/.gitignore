@@ -1,0 +1,10 @@
+# 独立测试浏览器的本地配置与缓存，不上传用户环境数据
+tests/*chrome-profile/
+node_modules/
+*.log
+
+# 测试自动生成截图，仅保留当前版代表画面
+tests/*.png
+!tests/v3-10-skirmish.png
+!tests/v3-skill-halberd.png
+!tests/v3-fusion-02.png

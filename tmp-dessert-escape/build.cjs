@@ -1,0 +1,10 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const root = __dirname;
+let html = fs.readFileSync(path.join(root, 'src/index.html'), 'utf8');
+html = html.replace('/*__GAME__*/', () => fs.readFileSync(path.join(root, 'src/action-game.js'), 'utf8').replace('/*__PRESENTATION_V3__*/', () => fs.readFileSync(path.join(root, 'src/presentation-v3.js'), 'utf8')));
+const art = path.join(root, 'assets/characters.png');
+html = html.replace('__ATLAS_DATA__', fs.existsSync(art) ? 'data:image/png;base64,' + fs.readFileSync(art).toString('base64') : '');
+for (const [token, name] of [['__HERO_DATA__','hero-motion-v3.png'],['__STAGE_DATA__','promenade-v3.png']]) html=html.replace(token,()=> 'data:image/png;base64,'+fs.readFileSync(path.join(root,'assets',name)).toString('base64'));
+fs.writeFileSync(path.join(root, '甜界逃生.html'), html);
+console.log('已构建：' + path.join(root, '甜界逃生.html') + ' (' + (Buffer.byteLength(html) / 1048576).toFixed(2) + ' MB)');
