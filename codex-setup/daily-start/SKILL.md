@@ -9,9 +9,13 @@ description: 使用 daily start 初始化项目会话，读取项目记忆和上
 
 | 项目 | 分支 | 文档 |
 |---|---|---|
-| match3-rpg-project | dev/match3 | match3-rpg-context.md（项目根目录） |
-| tarot-battle-project | dev/tarot-update | tarot-battle-context.md（项目根目录） |
-| Project-Issac-turnbase | dev/issac | Documents/isaac-decision-index.md、isaac-memory.md、isaac-turnbase-context.md |
-| Project-rockman | dev/rockman | Documents/rockman-decision-index.md、rockman-memory.md、rockman-context.md |
+| match3-rpg-project | main | match3-rpg-context.md（项目根目录） |
+| tarot-battle-project | main | tarot-battle-context.md（项目根目录） |
+| Project-Issac-turnbase | main | Documents/isaac-decision-index.md、isaac-memory.md、isaac-turnbase-context.md |
+| Project-rockman | main | Documents/rockman-decision-index.md、rockman-memory.md、rockman-context.md |
+| Project-turnbased-shoot | main | Documents/turnbased-shoot-decision-index.md、turnbased-shoot-memory.md、turnbased-shoot-context.md |
+| tmp-dessert-escape | main | README.md、试玩说明.md；无独立 memory/context/决策索引 |
+
+Nathan-Repository 已由用户确认统一在 main 日常开发，项目通过目录区分，不按旧 dev/* 映射自动切换或重建分支。main 下根据请求和上下文确定项目，不靠分支名判断。临时分支用于实验、重构、并行开发或旧版本维护。
 
 只读检查当前分支、工作区和 upstream；若不匹配，报告并征求切换或设置的明确授权，不自动更改。发现文档排序或内容冲突时报告，不自动重排。简述项目、分支、未提交变更、关键决策、缺失文档和待处理事项。不能读取的信息明确说明。

@@ -1,176 +1,41 @@
 # Skill 创建指南（跨电脑复用）
 
-本文档用于在另一台电脑上重建 `daily-start` 和 `daily-end` 两个 skill。
+当前使用 Codex，安装目录为 ~/.codex/skills/。仓库副本在 codex-setup/；下方完整内容必须与仓库及本机安装版本保持一致，技能修改时同步本指南。旧 CodeBuddy 路径及按项目切换长期分支的流程已退役。
 
-> **维护规则**：每次更新 skill 的任何逻辑，都必须同步更新本文档中对应的 Skill 完整内容，保证本文档始终与实际 skill 一致，可在任何电脑上重建出最新形式的相同 skill。
+另一台电脑可将仓库 daily-start 和 daily-end 目录复制到 ~/.codex/skills/，或分别保存下方内容为对应目录的 SKILL.md。保留无关技能和用户修改，让新会话重新加载。全局协作模板为 codex-setup/AGENTS.md，应用前核对本机既有规则。
 
-## 创建步骤
-
-1. 进入 skill 存放目录：
-   - Windows：`C:\Users\<用户名>\.codebuddy\skills\`
-   - macOS / Linux：`~/.codebuddy/skills/`
-
-2. 新建 `daily-start/SKILL.md`，粘贴下方「Skill 1」的完整内容。
-
-3. 新建 `daily-end/SKILL.md`，粘贴下方「Skill 2」的完整内容。
-
-4. 重启 CodeBuddy，使 skill 生效。
-
-> 注意：文件名必须为 `SKILL.md`（大写）。
-
----
-
-## Skill 1: daily-start
+## daily-start 完整内容
 
 ```markdown
 ---
 name: daily-start
-description: >
-  This skill should be used at the start of each daily coding session.
-  It loads the project memory by reading the three-layer documentation system
-  (global-rules.md, project-memory.md, project-context.md), identifies the
-  active project, switches to the correct feature branch, and verifies the
-  working tree status. Trigger phrases include "daily start", "加载项目记忆",
-  "读取项目文档", "开始今天的工作", or any request to initialize a session
-  with project documentation.
+description: 使用 daily start 初始化项目会话，读取项目记忆和上下文并检查 Git 状态。
 ---
 
-# Daily Start - Session Initialization
+# Daily start
 
-## Purpose
+用户说 daily start 时使用。根据用户当前请求确定项目；无法确定时询问。优先读取项目决策索引及 context，再按当前任务检索 memory 中相关历史，涉及已否决方案时检查原因及适用条件。索引并非完整历史，缺失索引时读取可用 memory；缺失文档则报告，不虚构内容。对 Nathan-Repository 的映射：
 
-Load the full project context at the start of each daily session by reading the
-three-layer documentation system, switching to the correct feature branch, and
-summarizing the current project state.
+| 项目 | 分支 | 文档 |
+|---|---|---|
+| match3-rpg-project | main | match3-rpg-context.md（项目根目录） |
+| tarot-battle-project | main | tarot-battle-context.md（项目根目录） |
+| Project-Issac-turnbase | main | Documents/isaac-decision-index.md、isaac-memory.md、isaac-turnbase-context.md |
+| Project-rockman | main | Documents/rockman-decision-index.md、rockman-memory.md、rockman-context.md |
+| Project-turnbased-shoot | main | Documents/turnbased-shoot-decision-index.md、turnbased-shoot-memory.md、turnbased-shoot-context.md |
+| tmp-dessert-escape | main | README.md、试玩说明.md；无独立 memory/context/决策索引 |
 
-## When to Use
+Nathan-Repository 已由用户确认统一在 main 日常开发，项目通过目录区分，不按旧 dev/* 映射自动切换或重建分支。main 下根据请求和上下文确定项目，不靠分支名判断。临时分支用于实验、重构、并行开发或旧版本维护。
 
-Trigger when the user says any of:
-- "daily start"
-- "加载项目记忆"
-- "读取项目文档"
-- "开始今天的工作"
-- "初始化会话"
-- Or any request that implies starting a new session and loading project docs
-
-## Workflow
-
-### Step 1: Ask the User to Select the Active Project
-
-Do NOT attempt to auto-detect the active project. Instead, always ask the user
-directly using an interactive selection (the `ask_followup_question` tool) with
-clickable options. The options are the four project directory names:
-
-| Project | Directory | Feature Branch |
-|---------|-----------|----------------|
-| match3-rpg-project | `match3-rpg-project/` | `dev/match3` |
-| tarot-battle-project | `tarot-battle-project/` | `dev/tarot-update` |
-| Project-Issac-turnbase | `Project-Issac-turnbase/` | `dev/issac` |
-| Project-rockman | `Project-rockman/` | `dev/rockman` |
-
-The option labels shown to the user must be the actual project directory names
-exactly as listed above. Wait for the user to click a selection before
-proceeding. Do not guess or default to any project.
-
-### Step 2: Read the Three Documentation Layers
-
-Read all three documentation files in parallel:
-
-1. **Global Rules** — `Documents/global-rules.md`
-   - Cross-project universal conventions (Git workflow, documentation process, file management, session conventions)
-
-2. **Project Memory** — `{project}/Documents/{project}-memory.md`
-   - Project-specific decision history, problem-solving records, creative brainstorms
-
-3. **Project Context** — `{project}/Documents/{project}-context.md`
-   - Design document + technical quick-reference (game mechanics, architecture, constants, file inventory)
-
-File path mapping (verify with `list_dir` when a path does not exist — some
-projects keep context docs in the project root and have no memory doc yet):
-- match3-rpg: `match3-rpg-project/match3-rpg-context.md`（暂无 memory 文档，目录下也没有 Documents/）
-- tarot-battle: `tarot-battle-project/tarot-battle-context.md`（暂无 memory 文档，目录下也没有 Documents/）
-- isaac-turnbase: `Project-Issac-turnbase/Documents/isaac-memory.md` 和 `Project-Issac-turnbase/Documents/isaac-turnbase-context.md`
-- rockman: `Project-rockman/Documents/rockman-memory.md` 和 `Project-rockman/Documents/rockman-context.md`
-
-4. **Ordering check (mandatory, per `global-rules §2.8`)**
-   - After reading memory + context, confirm the date sections/tables are ordered
-     **new → old** (newest at the top)
-   - If a doc is ordered old → new, or its header still says "append at the end",
-     report it to the user and reorder it (do not silently follow the stale header
-     text)
-   - Never trust a project doc's own header ordering instruction over `global-rules §2.8`
-
-### Step 3: Verify the Branch (switch only when actually needed)
-
-Do NOT blindly run `git checkout`. First verify the current branch **read-only**:
-
-```
-git branch --show-current
+只读检查当前分支、工作区和 upstream；若不匹配，报告并征求切换或设置的明确授权，不自动更改。发现文档排序或内容冲突时报告，不自动重排。简述项目、分支、未提交变更、关键决策、缺失文档和待处理事项。不能读取的信息明确说明。
 ```
 
-(If command execution is unavailable/rejected, read `.git/HEAD` instead — it
-contains `ref: refs/heads/<branch>`.)
-
-- If the current branch already **is** the project's feature branch → skip
-  switching entirely and just report it. Running `git checkout` on the branch you
-  are already on is pointless and counts as an unnecessary write operation.
-- Only when the current branch differs → switch:
-  `git checkout dev/{branch}` (branch names per the Step 1 table, e.g. `dev/tarot-update`)
-
-Then verify upstream tracking (`global-rules §1.7`):
-
-```
-git branch -vv
-```
-
-If the current branch shows no `[origin/...]`, run
-`git branch --set-upstream-to=origin/dev/{branch} dev/{branch}`, otherwise
-`git pull` silently does nothing.
-
-### Step 4: Check Working Tree Status
-
-Run `git status` to verify the working tree is clean and note any pending changes
-or untracked files.
-
-### Step 5: Summarize
-
-Provide a brief summary to the user covering:
-- Which project is active
-- Which branch is checked out
-- Working tree status (clean / has changes)
-- Key highlights from the documentation (any critical rules or recent decisions
-  the user should be aware of)
-
-Conclude with a ready signal so the user knows the session is initialized and
-ready for work.
-
-## Output Language Rule
-
-This skill's own instructions are written in English for the AI's readability,
-but that does NOT mean the AI should produce English output elsewhere. Whenever
-executing this skill, all outputs directed at the user-facing artifacts — commit
-messages, documentation updates (memory.md / context.md / global-rules.md /
-guides), and any written text — MUST be written in Chinese (中文). The English in
-this skill is for internal instruction only and must not leak into commit
-messages or documents.
-
-## Maintenance Rule
-
-Whenever ANY logic of this skill is updated, you MUST also sync the change to
-`Documents/skill-创建指南.md` (in the workspace root), so that the guide always
-matches the latest skill and can be used to rebuild the skill on another machine.
-```
-
----
-
-## Skill 2: daily-end
-
-当前 Codex 安装位置为 `~/.codex/skills/daily-end/SKILL.md`，仓库副本为 `codex-setup/daily-end/SKILL.md`；下方为完整内容。上文 CodeBuddy 路径为旧环境说明。
+## daily-end 完整内容
 
 ```markdown
 ---
 name: daily-end
-description: 使用 daily end 同步本次相关项目文档，提交并推送项目分支，再检查并合并到 main。
+description: 使用 daily end 同步本次相关项目文档，提交并推送；默认在 main 收尾，临时分支按授权合并。
 ---
 
 # Daily end
@@ -185,11 +50,11 @@ description: 使用 daily end 同步本次相关项目文档，提交并推送�
 
 ## Git 完整收尾
 
-用户明确调用 daily end 即授权本次完整收尾：同步本次项目文档、暂存并提交范围内改动、推送项目分支、合并到 main 并推送 main。用户另行限定范围时遵从其限定。
+用户明确调用 daily end 即授权本次完整收尾：同步本次项目文档、暂存并提交范围内改动、在 main 提交并推送；确有临时分支时核对范围后合并到 main 并推送。用户另行限定范围时遵从其限定。
 
-1. 确认项目、当前分支、上游、工作区状态与改动归属；不是预期项目分支、存在其他项目或归属不明的改动时暂停并询问。保留用户已有和无关修改。
+1. 确认项目、当前分支、上游、工作区状态与改动归属；Nathan-Repository 默认 main，按目录确定项目，不要求恢复旧项目分支；存在其他项目或归属不明的改动时暂停并询问。保留用户已有和无关修改。
 2. 审查暂存区和工作区的实际差异，只暂存明确属于本次收尾的文件，不使用无范围的 `git add -A`；已有暂存内容如不属于本次范围，暂停询问，不擅自取消暂存。提交使用中文信息。没有需要提交的变更则跳过新提交。
-3. 核对远程和分支状态后推送项目分支。工作区干净不代表没有待推送或待合并的已有提交，应分别检查。
-4. 合并前检查项目分支相对于 main 的全部待合并提交及文件，并核对远程 main 状态；若包含其他项目、归属不明内容、远程状态异常或无法安全切换，暂停并询问。确认范围符合预期后，更新 main、合并项目分支并推送 main，然后在安全时切回原项目分支。
+3. 核对远程和分支状态。当前为 main 时直接提交并正常推送 main，不新建项目分支或重复合并；无文件变更时仍检查待推送提交。
+4. 仅当实际使用临时分支时，检查相对 main 的全部待合并提交及文件并核对远端状态；范围符合授权且安全时更新 main、合并并推送。无关内容、冲突或远端异常时停止相关操作并报告。默认最终留在 main，不自动重建或切回退役项目分支。
 5. 不得强推，不擅自重置或覆盖改动。合并冲突或其他异常时停止相关操作，报告当前状态和需要用户决策的内容。最终报告文档更新、提交和推送结果、main 合并状态、当前分支和未处理事项。
 ```
