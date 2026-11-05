@@ -1,0 +1,39 @@
+{
+  "_schema": {
+    "_description": "楼层刷怪配置 — 每层 squad 预算 + 地形修正，squad 从 squad-templates.json 选取",
+    "_fields": {
+      "floorBudgets.*.budget": { "_desc": "该楼层 squad 预算总值，贪心选取 squad 直到超预算" },
+      "terrainModifiers.*.budget": { "_desc": "该地形模板的预算偏移量（加到楼层 budget 上）" }
+    }
+  },
+
+  "floorBudgets": {
+    "1": { "budget": 12 },
+    "2": { "budget": 16 },
+    "3": { "budget": 20 }
+  },
+
+  "bossMonsters": {
+    "1": ["boss_jumper_i"],
+    "2": ["boss_duke"],
+    "3": ["boss_duke_and_jumper_iii"]
+  },
+
+  "terrainModifiers": {
+    "open":          { "budget": 0 },
+    "cross_rocks":   { "budget": -1 },
+    "four_corners":  { "budget": 1 },
+    "pillars":       { "budget": 0 },
+    "corridor":      { "budget": -3 },
+    "corridor_v":    { "budget": -3 },
+    "scattered":     { "budget": -2 },
+    "ring":          { "budget": 0 },
+    "room_split":    { "budget": 1 },
+    "alcoves":       { "budget": 0 },
+    "diagonal":      { "budget": -1 },
+    "boss_arena":    { "budget": 0 },
+    "custom_1":      { "budget": -1 },
+    "custom_2":      { "budget": 0 },
+    "custom_3":      { "budget": 0 }
+  }
+}

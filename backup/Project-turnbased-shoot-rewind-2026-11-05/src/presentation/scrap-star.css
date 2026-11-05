@@ -1,0 +1,36 @@
+body{background:#07151b!important;color:#d6edf0!important;font-family:'Microsoft YaHei',sans-serif!important;padding:14px!important;margin:0!important}
+h1,#resources-sidebar,#top-bar,#action-bar{display:none!important}
+#main-column{width:954px;max-width:100%;gap:0!important}#top-content-row{width:100%;justify-content:center;gap:0!important}
+#game-container{border:0!important;box-shadow:0 10px 45px #0008!important}#game{image-rendering:auto!important;max-width:100%;height:auto!important}
+#scrap-hud,#scrap-footer{box-sizing:border-box;width:100%;background:#071b22;color:#d9f2f0;padding:7px 8px;border:0}
+#scrap-hud{display:grid;grid-template-columns:158px 68px 244px 86px 84px minmax(0,1fr);gap:6px;min-height:72px;align-items:center;border-bottom:2px solid #34515b}
+.scrap-panel{box-sizing:border-box;border:0 solid transparent;border-image:var(--scrap-panel) 35 fill / 10px / 0 stretch;min-height:46px}
+#scrap-hud img{object-fit:contain;vertical-align:middle}#scrap-hearts{display:grid;grid-template-columns:repeat(6,22px);grid-template-rows:repeat(2,22px);gap:2px;padding:4px 6px;min-height:56px;align-content:center}
+.scrap-stats{padding:3px 6px;min-height:56px}.scrap-stat{display:flex;align-items:center;gap:7px;font-weight:bold;font-size:18px;line-height:25px}.scrap-stat img{width:22px;height:22px}
+.scrap-point-panel{padding:3px 7px;min-height:56px}.scrap-points{display:flex;align-items:center;gap:3px;min-height:25px;font:700 15px monospace;flex-wrap:wrap}.scrap-points img{width:17px;height:20px}.scrap-points span{width:25px;flex-shrink:0;color:#50e6f4}#scrap-ap span{color:#ffcf54}
+.scrap-state{text-align:center;font-size:17px;font-weight:bold;line-height:23px;padding:3px;white-space:nowrap}.scrap-phase{font-size:10px;font-weight:normal;color:#65def6;display:block}.scrap-floor{text-align:center;font-size:17px;font-weight:bold;line-height:46px;color:#5de2ee;white-space:nowrap}
+.scrap-res{display:flex;gap:5px;align-items:center;justify-content:flex-end}.scrap-res>span{display:flex;align-items:center;justify-content:center;gap:2px;min-width:61px;min-height:46px;font:700 17px monospace;padding:4px}.scrap-res img{width:22px;height:25px}
+#scrap-footer{display:flex;align-items:center;gap:14px;min-height:69px;border-top:2px solid #34515b}.scrap-items{flex:1;align-self:stretch;min-width:0;min-height:53px}#scrap-help,#scrap-end{border:0;color:#fff3cd;font:700 15px 'Microsoft YaHei';cursor:pointer;background-size:100% 100%;background-color:transparent;flex-shrink:0}#scrap-end{width:164px;height:51px}#scrap-help{width:38px;height:38px;color:transparent}
+#playtest-panel{position:relative!important;right:auto!important;top:auto!important;width:924px!important;max-width:calc(100% - 28px)!important;max-height:none!important;margin:16px auto!important;background:#10242b!important;border-color:#34515b!important;color:#c9e3e8!important;box-shadow:none!important}#playtest-panel button,#playtest-panel select,#playtest-panel input,#playtest-panel textarea{background:#19333c;color:#d8edf0;border:1px solid #47616a;border-radius:4px;padding:5px}#playtest-panel fieldset{border-color:#34515b!important}#playtest-panel summary{color:#92b8c2}#playtest-panel p{color:#92aeb6}
+@media(max-width:900px){#scrap-hud{grid-template-columns:158px 68px minmax(244px,1fr);gap:6px}#scrap-footer{gap:8px}.scrap-res{justify-content:flex-start}.scrap-state,.scrap-floor{min-height:46px}}
+
+#scrap-footer #item-bar{display:flex!important;flex-wrap:wrap;width:auto;min-height:0;margin:0;padding:4px 8px;border:0;background:none}#scrap-footer .scrap-items{overflow:visible}#scrap-tools{width:100%;display:flex;justify-content:flex-end;padding:8px;box-sizing:border-box}#scrap-tools #top-right{display:flex;gap:8px}#scrap-tools #help-btn{display:none}/* 统一科幻工业界面字体；中英与数字使用同一字体族。 */
+:root{--game-font:'Microsoft YaHei UI','Microsoft YaHei','Noto Sans CJK SC',sans-serif;--font-cn:var(--game-font);--font-mono:var(--game-font)}
+body,body *,button,input,select,textarea{font-family:var(--game-font)!important}
+#scrap-hud{grid-template-columns:166px 84px 238px 92px 104px minmax(0,1fr);gap:6px;padding:10px 8px;min-height:102px;align-items:stretch}
+.scrap-panel{min-height:74px;border-image-width:10px}
+#scrap-hearts{grid-template-columns:repeat(6,20px);grid-template-rows:repeat(2,20px);gap:3px 2px;padding:13px 12px;min-height:74px}
+#scrap-hearts img{width:20px;height:20px}
+.scrap-stats,.scrap-point-panel{padding:12px;min-height:74px}.scrap-stat{gap:4px;font-size:15px;line-height:25px;white-space:nowrap}
+.scrap-stat span{min-width:0}.scrap-points{gap:2px;font-size:13px;min-height:25px;flex-wrap:wrap}.scrap-points img{width:15px;height:18px}.scrap-points span{width:24px}
+.scrap-state{padding:14px 10px;font-size:14px;line-height:22px}.scrap-phase{font-size:12px}
+.scrap-floor{display:flex;flex-direction:column;justify-content:center;gap:3px;padding:12px 9px;line-height:22px;font-size:15px;cursor:pointer}.scrap-floor small{font-size:12px;color:#e4c485;line-height:18px}
+.scrap-res{gap:4px;align-items:stretch;min-width:0}.scrap-res>span{min-width:0;flex:1;min-height:74px;gap:2px;font-size:15px;padding:12px 8px}.scrap-res img{width:19px;height:23px;flex-shrink:0}
+#minimap{display:none!important}
+#world-map-modal{display:none;position:fixed;inset:0;z-index:5000;background:#020c12cc;align-items:center;justify-content:center;padding:24px;box-sizing:border-box}
+#world-map-modal.open{display:flex}.world-map-card{width:min(960px,100%);max-height:calc(100vh - 48px);overflow:auto;background:#10272f;border:3px solid #48656a;box-shadow:inset 0 0 0 3px #122027,0 24px 80px #000b;color:#dce9e6;padding:18px;box-sizing:border-box}
+.world-map-card header{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid #36555d;padding-bottom:14px}.world-map-card h2{margin:5px 0 0;font-size:22px;letter-spacing:2px}.world-map-card small{font-size:11px;letter-spacing:2px;color:#d6a762}.world-map-card button{background:#24424c;border:2px solid #68868a;color:#f2dfb4;padding:10px 16px;cursor:pointer}.world-map-card canvas{display:block;width:100%;height:auto;margin:14px 0;background:#0a1b22}.world-map-card footer{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#91b3b9}
+@media(max-width:950px){#scrap-hud{grid-template-columns:minmax(166px,1fr) 100px minmax(238px,1.5fr)}.scrap-res{min-width:210px}.scrap-res>span{min-width:60px}}
+@media(max-width:580px){#scrap-hud{grid-template-columns:minmax(166px,1fr) minmax(100px,1fr)}.scrap-point-panel{grid-column:1/-1}.scrap-res{grid-column:1/-1}.world-map-card{padding:10px}#world-map-modal{padding:12px}.world-map-card header{align-items:flex-start}.world-map-card button{padding:7px;font-size:12px}}
+#game-container{width:954px!important;max-width:100%!important;height:auto!important}#game{width:100%!important;height:auto!important}#text-overlay{transform-origin:top left}
+#scrap-footer .scrap-items{display:flex;align-items:center;padding:12px}#scrap-footer #item-bar{align-items:center;gap:6px;padding:0}#item-bar-label,#item-bar-empty{color:#a7bec0!important;line-height:24px}

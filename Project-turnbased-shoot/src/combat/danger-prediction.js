@@ -31,11 +31,11 @@ function createDangerSimulationFactory() {
     'let turnState={phase:"monster_turn",monsterTurnCounter:input.counter};'+
     'let currentFloor={rooms:[]},particles=[],damageNumbers=[],bullets=[],inCombat=true;'+
     'const SEQUENTIAL_ACTION={betweenSeconds:0.12};let forcedLandingPending=false;let movementPlanning=false,movementEventMonsterId=null,movementEventStep=0,movementEvents=[];function scheduleMovementEvent(){}function releaseMovementEvents(){}let monsterExecTimer=0,monsterExecStepIdx=0,finished=false,monsterGroupPhase="idle",monsterActionOrder=[];const DUKE_ANIM_SPEED=200;'+
-    'const cells=new Set(),bySource=new Map(),byPhase=new Map(),random=makeMonsterTurnRandom(seed);let choiceCursor=0;'+
+    'const cells=new Set(),bySource=new Map(),byPhase=new Map(),areasByPhase=new Map(),trace=new Map(),dukeFrames=new Map(),random=makeMonsterTurnRandom(seed);let choiceCursor=0;'+
     'const monsterChoiceOverride=decisions ? weights=>{const n=choiceCursor++;if(n>=decisions.length)throw {dangerBranch:true,weights};return decisions[n];}:null;'+
     'const SFX={boom(){}};'+
     'function monsterActionRandom(){return random();}'+
-    'function noteDangerCell(c,r,id=-1,phase="move"){if(c<0||r<0||c>=COLS||r>=ROWS)return;const k=c+","+r;cells.add(k);if(!bySource.has(id))bySource.set(id,new Set());bySource.get(id).add(k);if(!byPhase.has(id))byPhase.set(id,{shoot:new Set(),move:new Set(),environment:new Set()});if(c===player.col&&r===player.row)byPhase.get(id)[phase].add(k);}'+
+    'function noteDangerCell(c,r,id=-1,phase="move"){if(c<0||r<0||c>=COLS||r>=ROWS)return;const k=c+","+r;cells.add(k);if(!bySource.has(id))bySource.set(id,new Set());bySource.get(id).add(k);if(!byPhase.has(id))byPhase.set(id,{shoot:new Set(),move:new Set(),environment:new Set()});if(!areasByPhase.has(id))areasByPhase.set(id,{shoot:new Set(),move:new Set(),environment:new Set()});areasByPhase.get(id)[phase].add(k);if(c===player.col&&r===player.row)byPhase.get(id)[phase].add(k);}'+
     'function damagePlayer(){}'+
     'function damageMonster(m,n){m.hp-=n;if(m.hp<=0){const i=monsters.indexOf(m);if(i>=0)monsters.splice(i,1);}}'+
     'function hitTile(c,r,n){const k=c+","+r,t=tileData[k];if(!t)return false;t.hp-=n;if(t.hp<=0){delete tileData[k];currentRoomGrid[c][r]=TILE.FLOOR;return true;}return false;}'+
@@ -44,12 +44,12 @@ function createDangerSimulationFactory() {
     'function bulletHitMonster(){return null;}'+
     'function finishMonsterTurn(){if(hasPendingMonsterAttack())return;finished=true;}'+
     body+
-    '\nexecuteMonsterTurnActions();'+
-    'for(let frame=0;frame<2400;frame++){const dt=input.dt||1/120;updateBullets(dt);updateDukeAnim(dt);player.targetPx=null;player.targetPy=null;forcedLandingPending=false;if(!finished)updateMonsterTurn(dt);for(const m of monsters){const p=gridToPixel(m.col,m.row);m.px=p.x;m.py=p.y;m._visualPath=[];}'+
+    '\nconst traceDukePath=calcDukePath;calcDukePath=function(m,n){traceDukePath(m,n);dukeFrames.set(m.id,(m._dukeKeyframes||[]).map(k=>({col:k.targetCol,row:k.targetRow,pushed:[...(k.pushedFloaters||[])].map(([id,p])=>({id,...p}))})));};executeMonsterTurnActions();'+
+    'for(let frame=0;frame<2400;frame++){const dt=input.dt||1/120;updateBullets(dt);updateDukeAnim(dt);player.targetPx=null;player.targetPy=null;forcedLandingPending=false;if(!finished)updateMonsterTurn(dt);for(const m of monsters){if(m._visualPath?.length&&!trace.has(m.id))trace.set(m.id,m._visualPath.map(p=>({...p})));const p=gridToPixel(m.col,m.row);m.px=p.x;m.py=p.y;m._visualPath=[];}'+
     'for(const m of [...monsters])if(m.jumpAnimTimer>0){m.jumpAnimTimer=Math.max(0,m.jumpAnimTimer-dt);if(m.jumpAnimTimer===0&&m.jumpType==="charge_vanish"&&m._landingPhase===0){m._landingPhase=1;finishBossLandingPhase2(m);}}'+
     'if(finished&&!bullets.some(b=>b.phase==="flying")&&!monsters.some(m=>m.jumpType==="charge_vanish"&&m.jumpAnimTimer>0))break;'+
     'if(frame===2399)throw Error("危险模拟未结束");}'+
-    'return {cells,bySource,byPhase,monsters,player,bombs,currentRoomGrid};');
+    'return {cells,bySource,byPhase,areasByPhase,trace,dukeFrames,monsters,player,bombs,currentRoomGrid,pendingBossLanding};');
 }
 function getDangerSimulationInput() {
   return {constants:{COLS,ROWS,CELL,WALL,FLOOR_L,FLOOR_R,FLOOR_T,FLOOR_B,CFG,TILE,TILE_WALKABLE,TILE_BLOCKS_BULLET,DIR_VEC,MONSTER_DB,RESOURCE_DB,DOOR_POS},world:{monsters,player,bombs,currentRoomGrid,tileData,currentRoomId,pendingBossLanding},counter:turnState.monsterTurnCounter,immune:player.invincibleSteps>(turnState.phase==='player_select'?turnState.mAP:0)};

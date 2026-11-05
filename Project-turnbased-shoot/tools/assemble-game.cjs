@@ -23,7 +23,7 @@ async function assembleGame(options={}){
   if(file.includes('..')||path.isAbsolute(file)||!file.endsWith('.js'))throw Error('模块路径非法：'+file);
   if(options.playtest&&file==='runtime/start.js')return read('src/playtest/scenarios.js')+read('src/'+file);
   return read('src/'+file);
- }).join('');
+ }).join('')+(!options.playtest&&!options.legacy?'\n// SINGLE_STEP_FORMAL_START\n'+read('src/combat/single-step-mode.js')+'\n// SINGLE_STEP_FORMAL_END\n':'');
  let html=read('src/game.html');
  if(html.split('/* GAME_SCRIPT */').length!==2||html.split('<!-- GAME_PRESENTATION_STYLE -->').length!==2)throw Error('页面模板插入点必须唯一');
  html=html.replace('/* GAME_SCRIPT */',()=>script).replace('<!-- GAME_PRESENTATION_STYLE -->',()=>'<style id="scrap-star-game-style">'+read('src/presentation/scrap-star.css')+'</style>');

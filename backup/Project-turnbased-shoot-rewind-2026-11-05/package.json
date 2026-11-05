@@ -1,0 +1,13 @@
+{
+  "name": "turnbased-shoot-demo",
+  "private": true,
+  "scripts": {
+    "build": "node build.cjs",
+    "test": "node verify.cjs",
+    "build:prototype": "node build.cjs --playtest-only"
+  },
+  "devDependencies": {
+    "sharp": "0.35.5",
+    "@napi-rs/canvas": "0.1.100"
+  }
+}

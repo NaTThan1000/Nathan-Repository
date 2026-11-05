@@ -11,7 +11,7 @@ harness=harness.replace("const fs=require('fs'),vm=require('vm'),assert=require(
 eval(harness.replace('vm.createContext(sandbox);vm.runInContext(code,sandbox);','vm.createContext(sandbox);vm.runInContext(code,sandbox);globalThis.sceneSandbox=sandbox;'));
 (async()=>{
  const {assembleGame}=require('../tools/assemble-game.cjs');
- const regular=script(await assembleGame());
+ const regular=script(await assembleGame({legacy:true}));
  const prototype=script(await assembleGame({playtest:true}));
  assert.equal(prototype.replace(profile,'').replace(scenes,''),regular,'原型除配置和场景外复用正式源码');
  await sceneSandbox.bootPromise;vm.runInContext(`

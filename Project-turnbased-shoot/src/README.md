@@ -1,5 +1,9 @@
 # 项目源码与构建
 
+当前正式包在共享源码末尾追加 `combat/single-step-mode.js`，采用单格移动／瞬发射击和固定2次额外行动的子弹时间规则。它保留房间、楼层、道具、掉落和资源系统；旧MP/AP调度不在正式版执行。`playtest/scenarios.js`对应的旧测试包仍使用回溯规则；`playtest/bullet-time*.js/html`维护12组新机制场景与独立表现播放。以下历史整理说明中的“两个输出”“两包规则相同”不再适用于当前版本。
+
+构建现在输出三个HTML；`verify.cjs`分别检查新正式版、子弹时间原型和旧规则测试包。完整回溯版已冻结在仓库根 `backup/Project-turnbased-shoot-rewind-2026-11-05/`，不要在新规则开发中覆盖。
+
 正式游戏改动在 `src/` 对应职责模块中完成，`dist/turnbased-shoot-demo-pack.html` 与 `dist/combat-playtest.html` 都是最终构建产物；不要直接修改生成 HTML。`src/game.html` 维护页面结构及旧样式，`src/modules.cjs` 明确运行顺序，`src/presentation/scrap-star.css` 维护新界面样式。
 
 ## 日常命令

@@ -1,0 +1,115 @@
+{
+  "reason": "停用的预排队功能和无条件return后的旧动画实现",
+  "removedFunctions": 17,
+  "estimatedRemovedLines": 304,
+  "entries": [
+    {
+      "name": "startExecuteQueue",
+      "source": "src/combat/turn-end.js",
+      "originalLine": 2,
+      "sha256": "5f75d4b11fc773514c663bfc586a102b110a415a09db23834e50d1b0e5ba3420"
+    },
+    {
+      "name": "executeNextAction",
+      "source": "src/combat/turn-end.js",
+      "originalLine": 9,
+      "sha256": "b4939ae956bb04271ad1a3bcf39c1d89c3703227eef264662c37841115c4f512"
+    },
+    {
+      "name": "drawMoveArrows",
+      "source": "src/presentation/legacy-room-renderer.js",
+      "originalLine": 131,
+      "sha256": "08f8a4765ae6d75ae0d9ea0d1939deab9aea50da12898d3f5cbf056b830d671c"
+    },
+    {
+      "name": "drawShootPreview",
+      "source": "src/presentation/legacy-room-renderer.js",
+      "originalLine": 188,
+      "sha256": "42752cd655f10f49d842ed68e23f914264f18dcc8e072fcfc35d0a417da4213e"
+    },
+    {
+      "name": "accumulateHits",
+      "source": "src/presentation/legacy-room-renderer.js",
+      "originalLine": 208,
+      "sha256": "163e4c8d92252d70c9caaa899ec06f4e5d93c9edacba44c7e7b9a576da97fe58"
+    },
+    {
+      "name": "drawShootLine",
+      "source": "src/presentation/legacy-room-renderer.js",
+      "originalLine": 230,
+      "sha256": "e25a3f39cc227da21f67b5ab338d69fccbf845074e2bae31ccafba12cece0d05"
+    },
+    {
+      "name": "drawGhost",
+      "source": "src/presentation/legacy-room-renderer.js",
+      "originalLine": 331,
+      "sha256": "51ca9b36b8ebc2ac5f4e7cb26241c7388db5b50ca8e17a1d0388dc911e7f027e"
+    },
+    {
+      "name": "drawShootGridHighlights",
+      "source": "src/presentation/trajectory-overlay.js",
+      "originalLine": 22,
+      "sha256": "31a3c15559bea14b6026314265129b3256151b3b837b3cd58479f797783329f6"
+    },
+    {
+      "name": "traceBulletCells",
+      "source": "src/presentation/trajectory-overlay.js",
+      "originalLine": 34,
+      "sha256": "7f6a9d72560eb9518bd6a5b1a7a87c39ee485ea47971cfd6c82b620e5f193bb1"
+    },
+    {
+      "name": "updateDukeAnim:disabled-body",
+      "source": "src/combat/boss-duke.js",
+      "sha256": "fd4dd2fd2b69734cac0ec77415e279d4053be77cb67b39faf2e12a384a198987",
+      "originalLine": 189
+    },
+    {
+      "name": "getMonsterAt",
+      "source": "src/combat/monster-paths.js",
+      "originalLine": 38,
+      "sha256": "db189d96fe05195da39afdb7357b9a736e5d205032fc67a5ef1e9bfec05b31d4"
+    },
+    {
+      "name": "randomMovableDir",
+      "source": "src/combat/monster-paths.js",
+      "originalLine": 174,
+      "sha256": "89b7c650664204434c2700c6894179f44bcea681bfc1b1f7b4979589dc048dd5"
+    },
+    {
+      "name": "startMove",
+      "source": "src/combat/player-movement.js",
+      "originalLine": 2,
+      "sha256": "32dd6091b88dc6fa8d5077a550fa05d6ff4bf32ec75aee0aae9276411502d380"
+    },
+    {
+      "name": "refreshReachableTiles",
+      "source": "src/combat/reachable.js",
+      "originalLine": 30,
+      "sha256": "b4d8cca3acc3fb8ade8851a3e5b8f3c7b586ab6e56eb86f36eaddd3d1892dfef"
+    },
+    {
+      "name": "manhattanDist",
+      "source": "src/combat/reachable.js",
+      "originalLine": 73,
+      "sha256": "27d22c5807f73f456b793bce436c192098aa48369bf014039c80a560dd0e1a45"
+    },
+    {
+      "name": "shuffleArray",
+      "source": "src/state/inventory.js",
+      "originalLine": 8,
+      "sha256": "3d0a30132b83caf0b1310254a4593f91ff32cf693440a049edc8027dad4779fd"
+    },
+    {
+      "name": "pset",
+      "source": "src/world/coordinates.js",
+      "originalLine": 46,
+      "sha256": "04250f6cccacb95dd05fa7da6427427bc30ea088b63410fa62b05cb3bb6c28cd"
+    },
+    {
+      "name": "transposeGridColToRow",
+      "source": "src/world/grid.js",
+      "originalLine": 56,
+      "sha256": "d115d4b5356808900a36b30cdd5a5872d7faedc8921b4b9712406d28a346f1cc"
+    }
+  ]
+}
