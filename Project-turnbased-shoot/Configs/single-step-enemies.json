@@ -1,0 +1,382 @@
+{
+  "_description": "正式版普通怪物与小队；HP按基础攻击3.5换算原型击杀次数。Boss使用原配置。",
+  "monsters": {
+    "fixed": {
+      "id": "step_fixed",
+      "name": "固定射手",
+      "hp": 7,
+      "damage": 1,
+      "chase": 0,
+      "range": 3,
+      "mode": "shot",
+      "recover": true,
+      "jump": false,
+      "diagonal": false,
+      "aiType": "stationary",
+      "size": 1,
+      "tint": "#88cbd4",
+      "actions": [
+        {
+          "type": "stationary"
+        }
+      ],
+      "actionMode": {
+        "mode": "sequence"
+      }
+    },
+    "mobile": {
+      "id": "step_mobile",
+      "name": "移动射手",
+      "hp": 7,
+      "damage": 1,
+      "chase": 5,
+      "range": 3,
+      "mode": "shot",
+      "recover": true,
+      "jump": false,
+      "diagonal": false,
+      "aiType": "stationary",
+      "size": 1,
+      "tint": "#88cbd4",
+      "actions": [
+        {
+          "type": "stationary"
+        }
+      ],
+      "actionMode": {
+        "mode": "sequence"
+      }
+    },
+    "big": {
+      "id": "step_big",
+      "name": "大史莱姆",
+      "hp": 10.5,
+      "damage": 1,
+      "chase": 3,
+      "range": 1,
+      "mode": "charge",
+      "recover": false,
+      "jump": false,
+      "diagonal": false,
+      "aiType": "stationary",
+      "size": 1,
+      "tint": "#88cbd4",
+      "actions": [
+        {
+          "type": "stationary"
+        }
+      ],
+      "actionMode": {
+        "mode": "sequence"
+      }
+    },
+    "small": {
+      "id": "step_small",
+      "name": "小史莱姆",
+      "hp": 3.5,
+      "damage": 1,
+      "chase": 3,
+      "range": 1,
+      "mode": "charge",
+      "recover": false,
+      "jump": false,
+      "diagonal": false,
+      "aiType": "stationary",
+      "size": 1,
+      "tint": "#88cbd4",
+      "actions": [
+        {
+          "type": "stationary"
+        }
+      ],
+      "actionMode": {
+        "mode": "sequence"
+      }
+    },
+    "fighter": {
+      "id": "step_fighter",
+      "name": "近战者",
+      "hp": 10.5,
+      "damage": 1,
+      "chase": 4,
+      "range": 2,
+      "mode": "strike",
+      "recover": true,
+      "jump": false,
+      "diagonal": false,
+      "aiType": "stationary",
+      "size": 1,
+      "tint": "#88cbd4",
+      "actions": [
+        {
+          "type": "stationary"
+        }
+      ],
+      "actionMode": {
+        "mode": "sequence"
+      }
+    },
+    "bomber": {
+      "id": "step_bomber",
+      "name": "自爆者",
+      "hp": 3.5,
+      "damage": 1,
+      "chase": 3,
+      "range": 1,
+      "mode": "blast",
+      "recover": false,
+      "jump": false,
+      "diagonal": false,
+      "aiType": "stationary",
+      "size": 1,
+      "tint": "#88cbd4",
+      "actions": [
+        {
+          "type": "stationary"
+        }
+      ],
+      "actionMode": {
+        "mode": "sequence"
+      }
+    },
+    "charger": {
+      "id": "step_charger",
+      "name": "冲锋者",
+      "hp": 10.5,
+      "damage": 1,
+      "chase": 5,
+      "range": 4,
+      "mode": "charge",
+      "recover": true,
+      "jump": false,
+      "diagonal": false,
+      "aiType": "stationary",
+      "size": 1,
+      "tint": "#88cbd4",
+      "actions": [
+        {
+          "type": "stationary"
+        }
+      ],
+      "actionMode": {
+        "mode": "sequence"
+      }
+    },
+    "x": {
+      "id": "step_x",
+      "name": "X射手",
+      "hp": 7,
+      "damage": 1,
+      "chase": 5,
+      "range": 5,
+      "mode": "fan",
+      "recover": true,
+      "jump": true,
+      "diagonal": true,
+      "aiType": "stationary",
+      "size": 1,
+      "tint": "#88cbd4",
+      "actions": [
+        {
+          "type": "stationary"
+        }
+      ],
+      "actionMode": {
+        "mode": "sequence"
+      }
+    },
+    "cross": {
+      "id": "step_cross",
+      "name": "十字射手",
+      "hp": 7,
+      "damage": 1,
+      "chase": 5,
+      "range": 5,
+      "mode": "fan",
+      "recover": true,
+      "jump": true,
+      "diagonal": false,
+      "aiType": "stationary",
+      "size": 1,
+      "tint": "#88cbd4",
+      "actions": [
+        {
+          "type": "stationary"
+        }
+      ],
+      "actionMode": {
+        "mode": "sequence"
+      }
+    }
+  },
+  "squads": {
+    "step_turret_mobile": {
+      "monsters": [
+        "step_fixed",
+        "step_mobile"
+      ],
+      "budget": 6,
+      "minFloor": 1,
+      "roomTypes": [
+        "normal"
+      ],
+      "movementTags": [
+        "地面"
+      ],
+      "role": "mixed"
+    },
+    "step_slime_pair": {
+      "monsters": [
+        "step_big",
+        "step_small"
+      ],
+      "budget": 6,
+      "minFloor": 1,
+      "roomTypes": [
+        "normal"
+      ],
+      "movementTags": [
+        "地面"
+      ],
+      "role": "mixed"
+    },
+    "step_fighter_pair": {
+      "monsters": [
+        "step_fighter",
+        "step_fighter"
+      ],
+      "budget": 6,
+      "minFloor": 1,
+      "roomTypes": [
+        "normal"
+      ],
+      "movementTags": [
+        "地面"
+      ],
+      "role": "mixed"
+    },
+    "step_mobile_pair": {
+      "monsters": [
+        "step_mobile",
+        "step_mobile"
+      ],
+      "budget": 5,
+      "minFloor": 1,
+      "roomTypes": [
+        "normal"
+      ],
+      "movementTags": [
+        "地面"
+      ],
+      "role": "mixed"
+    },
+    "step_bomber_escort": {
+      "monsters": [
+        "step_fighter",
+        "step_bomber"
+      ],
+      "budget": 5,
+      "minFloor": 1,
+      "roomTypes": [
+        "normal"
+      ],
+      "movementTags": [
+        "地面"
+      ],
+      "role": "mixed"
+    },
+    "step_charge_escort": {
+      "monsters": [
+        "step_charger",
+        "step_mobile"
+      ],
+      "budget": 7,
+      "minFloor": 2,
+      "roomTypes": [
+        "normal"
+      ],
+      "movementTags": [
+        "地面"
+      ],
+      "role": "mixed"
+    },
+    "step_jump_pair": {
+      "monsters": [
+        "step_x",
+        "step_cross"
+      ],
+      "budget": 7,
+      "minFloor": 2,
+      "roomTypes": [
+        "normal"
+      ],
+      "movementTags": [
+        "地面"
+      ],
+      "role": "mixed"
+    },
+    "step_split_escort": {
+      "monsters": [
+        "step_big",
+        "step_fighter"
+      ],
+      "budget": 7,
+      "minFloor": 2,
+      "roomTypes": [
+        "normal"
+      ],
+      "movementTags": [
+        "地面"
+      ],
+      "role": "mixed"
+    },
+    "step_charge_blast": {
+      "monsters": [
+        "step_charger",
+        "step_bomber",
+        "step_bomber"
+      ],
+      "budget": 8,
+      "minFloor": 3,
+      "roomTypes": [
+        "normal"
+      ],
+      "movementTags": [
+        "地面"
+      ],
+      "role": "mixed"
+    },
+    "step_cross_escort": {
+      "monsters": [
+        "step_cross",
+        "step_fighter",
+        "step_mobile"
+      ],
+      "budget": 9,
+      "minFloor": 3,
+      "roomTypes": [
+        "normal"
+      ],
+      "movementTags": [
+        "地面"
+      ],
+      "role": "mixed"
+    },
+    "step_x_escort": {
+      "monsters": [
+        "step_x",
+        "step_big",
+        "step_mobile"
+      ],
+      "budget": 9,
+      "minFloor": 3,
+      "roomTypes": [
+        "normal"
+      ],
+      "movementTags": [
+        "地面"
+      ],
+      "role": "mixed"
+    }
+  }
+}

@@ -1,8 +1,7 @@
 // 正式版单步调度：保留楼层、配置、掉落与道具；不再进入旧 MP/AP 与回溯循环。
-// 基础两怪用已确认规则，其他怪物通过旧规则独立模拟获得锁定行动与状态演进。
+// 普通怪物由 single-step-enemies 接入新规则；Boss通过旧规则模拟获得锁定行动。
 const SINGLE_STEP={bonus:0,step:0,room:null,plans:new Map(),legacy:new Map(),damaged:false,busy:false,shots:[],error:null};
 const stepOldLoadMonsterDB=loadMonsterDB;
-loadMonsterDB=async function(){await stepOldLoadMonsterDB();Object.assign(MONSTER_DB.crack_maw_i,{hp:10.5,damage:1});Object.assign(MONSTER_DB.flying_eye_i,{hp:7,damage:1});};
 function singleStepBasic(m){return m.cfgId==='crack_maw_i'?'melee':m.cfgId==='flying_eye_i'?'ranged':null;}
 function singleStepBlocksBullet(col,row){return col<0||row<0||col>=COLS||row>=ROWS||!!TILE_BLOCKS_BULLET[currentRoomGrid?.[col]?.[row]];}
 function singleStepFootprint(m,col=m.col,row=m.row){const out=[];for(let x=0;x<(m.size||1);x++)for(let y=0;y<(m.size||1);y++)out.push({col:col+x,row:row+y});return out;}
@@ -90,7 +89,7 @@ function singleStepApplyPlan(m,p){
  if(p.type==='legacy-jump'&&(origin.col!==m.col||origin.row!==m.row)){m.jumpFrom=origin;m.jumpTo={col:m.col,row:m.row};m.jumpType=p.commit?.jumpType||'small';m.jumpAnimTimer=m.jumpType==='big_land'?.55:.4;m._visualPath=[];}
  return before;
 }
-function singleStepVisualShot(source,to,playerShot,dir){if(!to)return;const a=gridToPixel(source.col,source.row),b=gridToPixel(to.col,to.row);SINGLE_STEP.shots.push({from:a,to:b,start:performance.now(),player:playerShot,dir,travel:Math.hypot(b.x-a.x,b.y-a.y)/(CFG.BULLET_SPEED*(playerShot?1:.6))*1000});}
+function singleStepVisualShot(source,to,playerShot,dir,hitIds=[]){if(!to)return;const a=gridToPixel(source.col,source.row),b=gridToPixel(to.col,to.row);SINGLE_STEP.shots.push({from:a,to:b,start:performance.now(),player:playerShot,owner:playerShot?null:source.id,dir,hitIds,travel:Math.hypot(b.x-a.x,b.y-a.y)/(CFG.BULLET_SPEED*(playerShot?1:.6))*1000});}
 function singleStepPickup(){autoPickupResources();for(let i=itemsOnGround.length-1;i>=0;i--){const item=itemsOnGround[i];if(item.col!==player.col||item.row!==player.row)continue;if(isShopSlotCell(item.col,item.row)){tryBuyShopItem(item.col,item.row);continue;}if(!playerInventory.includes(item.cfgId)){applyItem(item.cfgId);itemsOnGround.splice(i,1);updateItemBar();}}}
 function singleStepAct(type,dir){
  if(!gameStarted||gameOver||worldMapOpen||transition?.active||floorFadeBusy||SINGLE_STEP.busy)return false;
@@ -100,13 +99,13 @@ function singleStepAct(type,dir){
   if(tryWalkIntoDoor(player.col,player.row,dir))return true;
   const col=player.col+v.dx,row=player.row+v.dy;if(isWall(col,row)||monsters.some(m=>isInMonsterFootprint(m,col,row)))return false;
   const bomb=bombs.find(b=>b.roomId===currentRoomId&&b.col===col&&b.row===row);if(bomb)pushBomb(bomb,v.dx,v.dy);
-  player.col=col;player.row=row;const q=gridToPixel(col,row);player.targetPx=q.x;player.targetPy=q.y;player.animTime=0;
+  player.col=col;player.row=row;const q=gridToPixel(col,row);player.targetPx=q.x;player.targetPy=q.y;player.animTime=0;player.shootTimer=0;
  }else if(type==='shoot'){
   SFX.shoot();totalShots++;let end=old;const hit=new Set();
   for(let n=1;n<=Math.floor(playerStats.range);n++){const col=old.col+v.dx*n,row=old.row+v.dy*n;if(col<0||row<0||col>=COLS||row>=ROWS)break;end={col,row};
    if(singleStepBlocksBullet(col,row)){if(tileData[col+','+row])hitTile(col,row,playerStats.attack);break;}
    const m=monsters.find(m=>!m.jumperVanished&&!hit.has(m.id)&&isInMonsterFootprint(m,col,row));if(m){hit.add(m.id);damageMonster(m,playerStats.attack);if(!player.hasPiercing)break;}
-  }singleStepVisualShot(old,end,true,{dx:v.dx,dy:v.dy});player.shootTimer=.4;
+  }singleStepVisualShot(old,end,true,{dx:v.dx,dy:v.dy},[...hit]);player.shootTimer=.4;
  }else if(type==='bomb'){if(playerResources.bombs<=0)return false;placeBomb(player.col,player.row);}
  else return false;
  player.facing=dir||player.facing;
@@ -116,17 +115,17 @@ function singleStepAct(type,dir){
   checkSpikeUnderPlayer();let dodged=false;
   if(!frozen){
    tickBombCountdown();
-   for(const m of [...monsters]){if(!monsters.includes(m))continue;const plan=SINGLE_STEP.plans.get(m.id);if(!plan)continue;
+   for(const m of [...monsters]){if(!monsters.includes(m))continue;const saved=SINGLE_STEP.plans.get(m.id);if(!saved)continue;const plan=singleStepResolvePlan(m,saved);
     const wasHit=plan.cells.some(p=>p.col===old.col&&p.row===old.row),nowHit=plan.cells.some(p=>p.col===player.col&&p.row===player.row);
     if(type==='move'&&wasHit&&!nowHit)dodged=true;
     singleStepApplyPlan(m,plan);SINGLE_STEP.plans.delete(m.id);
-    if(singleStepBasic(m)&&(plan.type==='shot'||plan.type==='charge'))SINGLE_STEP.plans.set(m.id,{type:'recover',cells:[]});
+    if(singleStepRecovery(m,plan))SINGLE_STEP.plans.set(m.id,{type:'recover',cells:[]});
    }
   }
   singleStepPickup();updateRoomCombatState();SINGLE_STEP.step++;turnState.turnNumber=SINGLE_STEP.step;
   if(frozen)SINGLE_STEP.bonus=SINGLE_STEP.damaged?0:SINGLE_STEP.bonus-1;
   else if(dodged&&!SINGLE_STEP.damaged&&!gameOver)SINGLE_STEP.bonus=2;
-  if(!frozen)singleStepPlan();
+  singleStepPlan();
   if(currentRoomGrid[player.col]?.[player.row]===TILE.LADDER){const next=currentFloor.floorNum+1;if(next>Object.keys(FLOOR_CONFIG).length)triggerVictoryScreen();else enterFloor(next);}
   updateDoorsLocked();updateUI();updateActionBar();return true;
  }finally{SINGLE_STEP.busy=false;}
@@ -136,7 +135,7 @@ resetTurnAP=function(){historyOpen=false;turnState.phase='player_select';turnSta
 actionHistoryActive=function(){return false;};syncActionHistory=function(){};saveCheckpoint=function(){currentCheckpoint={playerCol:player.col,playerRow:player.row};checkpointMAP=1;checkpointAAP=1;};
 updateDangerForecast=function(){};updateFlyingEyeExclaim=function(){};
 const stepOldDamage=damagePlayer;
-damagePlayer=function(amount,id=null){const hp=playerStats.hp+(playerResources.blueHearts||0);if(inCombat)player.invincibleSteps=0;stepOldDamage(amount,id);if(inCombat)player.invincibleSteps=0;if(playerStats.hp+(playerResources.blueHearts||0)<hp){SINGLE_STEP.damaged=true;SINGLE_STEP.bonus=0;}};
+damagePlayer=function(amount,id=null){const hp=playerStats.hp+(playerResources.blueHearts||0);stepOldDamage(amount,id);if(playerStats.hp+(playerResources.blueHearts||0)<hp){SINGLE_STEP.damaged=true;SINGLE_STEP.bonus=0;}};
 const stepOldRoomUpdate=updateRoomCombatState;
 updateRoomCombatState=function(){stepOldRoomUpdate();if(!SINGLE_STEP.busy&&SINGLE_STEP.room!==currentRoomId)singleStepReset();};
 const stepOldFinishTransition=finishTransition;
@@ -151,8 +150,8 @@ document.addEventListener('keydown',e=>{
  if(worldMapOpen){if(e.code==='Escape')toggleWorldMap(false);return;}
  const dirs={KeyW:'up',KeyS:'down',KeyA:'left',KeyD:'right',ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right'};
  if(dirs[e.code]||['Space','Escape','KeyE','KeyR'].includes(e.code))e.preventDefault();if(e.repeat)return;
- if(dirs[e.code])singleStepAct(e.code.startsWith('Arrow')?'shoot':'move',dirs[e.code]);
- else if(e.code==='KeyE')singleStepAct('bomb',player.facing);
+ if(dirs[e.code])singleStepInputAction(e.code.startsWith('Arrow')?'shoot':'move',dirs[e.code]);
+ else if(e.code==='KeyE')singleStepInputAction('bomb',player.facing);
    else if(e.code==='KeyR'){resetGameToFloor1();showStartMenu();}
 });
 drawReachableOverlay=function(){};

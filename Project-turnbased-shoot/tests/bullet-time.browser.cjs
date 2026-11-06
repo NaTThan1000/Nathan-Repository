@@ -1,3 +1,4 @@
+// 浏览器回归只验证功能，不生成PNG预览文件。
 const assert=require('assert'),path=require('path');
 const {pathToFileURL}=require('url');
 const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwright');
@@ -53,7 +54,7 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   // 将所有可能挤出位置设为伤害格，验证挤出落脚也结算环境伤害。
   btReset(1);bt.player.x=4;bt.hazards=[{x:4,y:2},{x:4,y:4},{x:3,y:3},{x:5,y:3}];btAct('shoot','up');check(bt.player.hp<=3&&bt.bonus===0,'挤出落点受伤不得提供子弹时间');
   btReset(1);bt.player.x=4;bt.walls.push({x:4,y:2},{x:4,y:4},{x:3,y:3},{x:5,y:3});btAct('shoot','up');check(bt.player.hp===4&&bt.pushBlocked&&!btAt(bt.enemies[0],bt.player.x,bt.player.y),'无合法挤出格不共格、不穿墙');
-  check(btScenes.length===12,'12组固定场景');
+  check(btScenes.length===20,'旧12场景及新8房间');
   for(let s=0;s<btScenes.length;s++){
    btReset(s);const scene=btScenes[s],occupied=[scene.player,...scene.enemies.map(([,x,y])=>[x,y])];
    check(new Set(occupied.map(p=>p.join(','))).size===occupied.length,'出生点不能重叠');
@@ -77,7 +78,7 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   const shot=clip.effects.find(f=>f.kind==='shot'),hit=btVisualView(1000+shot.at+20).world.enemies[0];check(hit.visualFrame===6&&hit.hp===0,'视觉命中后播放死亡前帧');
   check(btVisualView(1000+shot.at+200).world.enemies[0].visualFrame===7,'死亡后帧');
   check(btVisualView(1000+shot.at+361).world.enemies.length===0,'死亡动画完成才移除画面');
-  btReset(0);btAct('move','up');btAct('shoot','left');check(btPlayback.queue.length===2,'连续输入不截断前一动画');
+  btReset(0);check(btInputAction('move','up'),'空闲时接受输入');check(!btInputAction('shoot','left')&&bt.step===1&&bt.shots===0&&btPlayback.queue.length===1,'动画期间直接丢弃新操作、不缓冲');
   clip=btPlayback.queue[0];clip.start=1000;const mid=btVisualView(1000+22/170*500).world.player;check(mid.y<3&&mid.y>2,'正式移速连续插值');
   const logic=JSON.stringify([bt.player,bt.enemies,bt.bonus,bt.rng]);btVisualView(99999);check(JSON.stringify([bt.player,bt.enemies,bt.bonus,bt.rng])===logic,'动画只读规则状态');
   btReset(0);check(btPlayback.queue.length===0,'重置清空旧动画');
@@ -86,14 +87,81 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
  await page.keyboard.press('Space');assert.equal(await page.evaluate(()=>bt.step),0,'空格不执行等待');
  await page.keyboard.press('w');assert.equal(await page.evaluate(()=>bt.bonus),2,'真实键盘触发奖励');
  await page.waitForTimeout(200);
- if(process.argv[2])await page.screenshot({path:path.resolve(process.argv[2]),fullPage:true});
  await page.keyboard.press('Escape');assert.equal(await page.evaluate(()=>bt.bonus),2,'Esc不回溯');
  await page.keyboard.press('r');assert.equal(await page.evaluate(()=>bt.step),0);
  await page.setViewportSize({width:700,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
- await page.selectOption('#scene','10');assert.match(await page.locator('#scene-info').innerText(),/8只.*近战4.*远程4/);
+ await page.selectOption('#scene','10');assert.match(await page.locator('#scene-info').innerText(),/8只.*4近战.*4远程/);
  assert.equal(await page.evaluate(()=>bt.enemies.length),8,'下拉框选择八怪场景');
  await page.click('#reset');assert.equal(await page.evaluate(()=>bt.scene),10,'重置保持选中场景');
+ await page.evaluate(()=>{
+  const check=(v,msg)=>{if(!v)throw Error(msg);};
+  const fixture=(kind,x=5,y=3)=>{btReset(btRoomStart);bt.walls=[];bt.enemies=[btMakeEnemy(kind,x,y,0)];bt.nextId=1;Object.assign(bt.player,{x:2,y:3,hp:5});btPlan();return bt.enemies[0];};
+  let e=fixture('fixed');check(e.phase==='locked','固定射手四向3格锁定');
+  e=fixture('fixed',5,4);check(e.phase==='default'&&e.next===null,'固定射手不追击且不斜射');
+  e=fixture('mobile',5,4);check(e.phase==='chase'&&e.next,'移动射手五格内追击');
+  e=fixture('mobile',5,5);check(JSON.stringify(btChase(e))===JSON.stringify({x:4,y:5}),'横向距离更大时先横向靠近');
+  e=fixture('mobile',3,6);check(JSON.stringify(btChase(e))===JSON.stringify({x:3,y:5}),'纵向距离更大时先纵向靠近');
+  e=fixture('mobile',2,2);Object.assign(bt.player,{x:5,y:4});check(JSON.stringify(btChase(e))===JSON.stringify({x:3,y:2}),'正方向同样优先较长轴');
+  Object.assign(bt.player,{x:4,y:4});const tieDirs=new Set();for(const seed of [0,1]){bt.rng=seed;tieDirs.add(JSON.stringify(btChase(e)));}check(tieDirs.size===2&&tieDirs.has(JSON.stringify({x:3,y:2}))&&tieDirs.has(JSON.stringify({x:2,y:3})),'距离相等时两条靠近轴均可随机选中');
+  e=fixture('mobile',5,5);bt.walls=[{x:4,y:5}];check(JSON.stringify(btChase(e))===JSON.stringify({x:5,y:4}),'较长轴被挡时改走另一条靠近轴');
+  e=fixture('mobile',4,4);bt.walls=[{x:3,y:4},{x:4,y:3}];check(JSON.stringify(btChase(e))===JSON.stringify({x:4,y:5}),'两条靠近轴被挡时先远离绕路');
+  const visited=new Set([e.x+','+e.y]);for(let i=0;i<8&&Math.abs(e.x-bt.player.x)+Math.abs(e.y-bt.player.y)>1;i++){const next=btChase(e);check(next&&!visited.has(next.x+','+next.y),'绕路不得来回折返');Object.assign(e,next);visited.add(e.x+','+e.y);}check(Math.abs(e.x-bt.player.x)+Math.abs(e.y-bt.player.y)===1,'连续绕路最终到达玩家邻格');
+  e=fixture('mobile',6,3);bt.walls=[{x:1,y:3},{x:3,y:3},{x:2,y:2},{x:2,y:4}];check(JSON.stringify(btChase(e))===JSON.stringify({x:5,y:3}),'玩家邻格全堵仍向最近可达格靠近');e.x=4;check(btChase(e)===null,'已到最近可达位置才等待');
+  e=fixture('mobile',4,4);bt.walls=[{x:3,y:4},{x:5,y:4},{x:4,y:3},{x:4,y:5}];check(btChase(e)===null,'真正被围住时不能穿墙');
+  e=fixture('fighter',4,3);btAct('shoot','up');check(e.x===4&&e.y===3&&e.phase==='recover'&&bt.player.hp===4,'近战者攻击2格但不位移并恢复');
+  e=fixture('small',3,3);btAct('move','up');check(e.x===2&&e.phase==='locked'&&bt.bonus===2,'史莱姆冲锋1格、无恢复、下步可立即准备攻击');
+  e=fixture('charger',6,3);btAct('move','up');check(e.x===2&&e.phase==='recover','冲锋者冲锋4格');
+  fixture('bomber',3,3);btAct('shoot','up');check(bt.player.hp===4&&!bt.enemies.length,'自爆攻击八邻格并自杀');
+  fixture('bomber',3,3);btAct('shoot','right');check(bt.player.hp===5&&!bt.fx.some(f=>f.kind==='attack'),'提前击杀自爆者不爆炸');
+  e=fixture('big',4,3);e.hp=1;bt.bonus=2;btAct('shoot','right');check(bt.enemies.length===2&&bt.enemies.every(e=>e.kind==='small'),'大史莱姆分裂两只');
+  const babies=JSON.stringify(bt.enemies);btAct('shoot','left');check(JSON.stringify(bt.enemies)===babies,'奖励期出生的孩子继续冻结');
+  e=fixture('big',4,3);bt.enemies=[];bt.walls=[{x:4,y:2},{x:5,y:3},{x:4,y:4},{x:3,y:3}];const children=btSplit(e);check(children.length===2&&children.every(e=>Math.abs(e.x-4)+Math.abs(e.y-3)>=2),'邻格堵住继续向外搜索分裂位置');
+  e=fixture('x',4,3);check(e.next&&btTypes[e.kind].jump&&!btAt(bt.player,e.next.x,e.next.y),'追击跳跃选择合法射程落点');btAct('shoot','up');check(e.phase==='locked'&&bt.player.hp===5,'跳跃后预告下步攻击，不同时射击');
+  for(const kind of ['x','cross'])for(let seed=0;seed<50;seed++){
+   e=fixture(kind,7,1);bt.rng=seed;e.phase='idle';btPlan();check(e.phase==='chase'&&e.next,'斜向五格内应进入追击而非随机跳跃');
+   const probe={...e,...e.next};check(btAttackCells(probe).some(c=>btAt(c,bt.player.x,bt.player.y)),'每个追击落点都有通往玩家的真实射线');
+  }
+  e=fixture('x',4,3);const probe={...e,x:3,y:2};check(!btEnemyBlocked(probe,e.x,e.y),'候选位置模拟不把本体旧位置当另一只怪');
+  e=fixture('x',4,3);for(let y=0;y<BT_ROWS;y++)for(let x=0;x<BT_COLS;x++)if(Math.abs(x-bt.player.x)===Math.abs(y-bt.player.y)&&!btAt(bt.player,x,y))bt.walls.push({x,y});e.phase='idle';btChooseNewPlan(e);check(e.phase==='chase'&&e.next===null,'没有合法射击落点时不退回随机跳跃');
+  e=fixture('cross',5,3);check(e.cells.some(c=>c.x===5&&c.y===0)&&e.cells.some(c=>c.x===0&&c.y===3),'十字射手四条5格射线');
+  // 每房一次清场后进出，返回不重新刷怪；保留生命与可选恢复。
+  btReset(btRoomStart);bt.enemies=[];bt.cleared=true;Object.assign(bt.player,{x:8,y:3,hp:3});check(btAct('move','right')&&bt.scene===btRoomStart+1&&bt.player.hp===3,'穿门保留生命');
+  bt.enemies=[];bt.player.x=0;check(btAct('move','left')&&bt.scene===btRoomStart&&!bt.enemies.length,'返回已清房间不刷怪');
+  document.getElementById('room-heal').checked=true;bt.player.x=8;btAct('move','right');check(bt.player.hp===5,'每房恢复选项');document.getElementById('room-heal').checked=false;
+  btReset(btRoomStart+7);check(bt.scene===btRoomStart+7&&btTrip.rooms.size===0,'直接切换重置路线进度');
+ });
+ await page.selectOption('#scene','19');await page.waitForTimeout(100);
+ await page.evaluate(()=>{btReset(btRoomStart);bt.enemies=[];bt.walls=[];Object.assign(bt.player,{x:4,y:3});btVisualReset();});
+ await page.keyboard.press('w');await page.keyboard.press('w');await page.keyboard.press('ArrowUp');
+ assert.deepEqual(await page.evaluate(()=>[bt.step,bt.player.x,bt.player.y,bt.shots,btPlayback.queue.length]),[1,4,2,0,1],'快速连按移动和射击只执行第一个动作');
+ await page.waitForFunction(()=>!btPlayback.queue.length);await page.waitForTimeout(250);
+ assert.deepEqual(await page.evaluate(()=>[bt.step,bt.player.y]),[1,2],'停止输入后不继续自动执行历史');
+ await page.keyboard.press('w');assert.equal(await page.evaluate(()=>bt.step),2,'动画结束后新按键正常接受');await page.waitForFunction(()=>!btPlayback.queue.length);
+ await page.click('#shoot button[data-dir="right"]');await page.click('#shoot button[data-dir="left"]');assert.equal(await page.evaluate(()=>bt.shots),1,'鼠标按钮同样不缓存');await page.waitForFunction(()=>!btPlayback.queue.length);
+ await page.evaluate(()=>{
+  const check=(v,msg)=>{if(!v)throw Error(msg);};
+  check(Object.keys(BT_ASSETS).filter(k=>k.startsWith('unit-')).length===17,'17张新固定状态帧');
+  for(const kind of ['fixed','big','small','bomber','charger','x','cross']){
+   const e=btMakeEnemy(kind,4,3,88);e.phase='locked';const before={...e},after={...e,x:5};
+   const view={elapsed:100,world:{enemies:[e]},clip:null};check(BT_ASSETS[btArtState(e,view)],kind+'准备态资源存在');
+   e.hp=0;check(btArtState(e,view)==='unit-effects-destroy',kind+'使用同一摧毁资源');e.hp=1;
+   if(kind==='x'||kind==='cross'){view.clip={before:{enemies:[before]},after:{enemies:[after]},effects:[]};check(btArtState(e,view)==='unit-'+kind+'-jump','空中切换固定腾空帧');}
+  }
+  btReset(btRoomStart+2);bt.walls=[];bt.enemies=[btMakeEnemy('big',4,3,0)];bt.enemies[0].hp=1;bt.nextId=1;Object.assign(bt.player,{x:2,y:3});btPlan();btVisualReset();btAct('shoot','right');const clip=btPlayback.queue[0];clip.start=1000;const hit=clip.effects.find(f=>f.kind==='shot').at;
+  const mid=btVisualView(1000+hit+150);const child=mid.world.enemies.find(e=>e.kind==='small');check(child&&child.birthOrigin&&child.y!==bt.enemies.find(e=>e.id===child.id).y,'分裂小史莱姆从死亡点跳向目标');
+  const world=structuredClone(bt),view={world:{...bt,bonus:2}};btSetTimeState(true);btDrawTimeField(view);check(btTimeArt.active,'冻结棋盘覆盖层');btSetTimeState(false);btDrawTimeField({world:{...bt,bonus:0}});check(btTimeArt.release,'解除触发向外渐隐');check(JSON.stringify(bt)===JSON.stringify(world),'棋盘效果不改变规则状态');
+  btReset(0);check(btInputAction('move','up'),'接受闪避操作');check(btTimeArt.active&&btTimeArt.enter&&btVisualView().world.bonus===0,'输入接受时立即展开冻结效果，不等视觉行动结束');
+  const finish=()=>{const clip=btPlayback.queue[0],now=performance.now();clip.start=now-clip.actionDuration-1;btAdvancePlayback(now);};
+  finish();check(btInputAction('shoot','left'),'接受额外行动');finish();check(btInputAction('shoot','left'),'接受最后额外行动');check(!btTimeArt.active&&btTimeArt.release&&btVisualView().world.bonus===1,'最后额外行动键入时立即解除效果');
+  btDraw();check(btCanvas.style.boxShadow==='none'&&btCanvas.style.borderColor==='rgb(71, 97, 108)','取消子弹时间棋盘外蓝框');
+  btReset(btRoomStart);bt.enemies=[];bt.walls=[];Object.assign(bt.player,{x:4,y:3});btVisualReset();btInputAction('shoot','left');
+  check(btPlayback.queue[0].actionDuration<btPlayback.queue[0].duration,'命中与装饰余效分开计时');finish();check(!btPlayback.queue.length&&btPlayback.tails.length===1,'余效播放时已解除输入锁定');
+  check(btInputAction('move','up')&&bt.step===2,'无需等待上一动作余效结束即可执行下一动作');check(!btInputAction('move','up')&&bt.step===2,'动作未到位前仍丢弃连按、不累积');
+  btReset(btRoomStart);bt.walls=[];bt.enemies=[btMakeEnemy('fixed',4,3,0),btMakeEnemy('bomber',2,4,1)];bt.nextId=2;Object.assign(bt.player,{x:2,y:3});btPlan();btVisualReset();
+  const draw=btImage,calls=[];btImage=function(...args){calls.push(args);return draw(...args);};try{btDraw();}finally{btImage=draw;}
+  check(calls.filter(c=>c[0]==='alert').length===2,'两个准备攻击怪物都显示红色感叹号');
+  btReset(btRoomStart+7);
+ });
  await page.setViewportSize({width:1200,height:1000});await page.waitForTimeout(100);
- if(process.argv[2])await page.screenshot({path:path.resolve(process.argv[2]).replace(/\.png$/, '-crowd.png'),fullPage:true});
  assert.deepEqual(errors,[]);console.log('PASS: 单步原型真实Chrome规则、优先级、冻结、输入、重置与窄屏检查');
  }finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1});
