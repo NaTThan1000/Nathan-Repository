@@ -1,0 +1,4 @@
+interface:
+  display_name: "游戏设计协作方法"
+  short_description: "从目标体验和试玩现象出发，协助澄清设计需求、比较机制方案并确定验证方法"
+  default_prompt: "使用 $game-design-reasoning，结合当前项目先澄清我的目标，再判断应该调整或增加什么。"
