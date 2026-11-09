@@ -2,7 +2,8 @@
   "_schema": {
     "_description": "道具数据库 — 所有可拾取道具的属性与效果定义 + 道具掉落表",
     "_structure": {
-      "items": "所有道具定义 (key=cgId, value=道具属性)",
+      "items": "已退出当前道具池的旧配置，仅供回溯回归包使用",
+      "singleStepItems": "当前单步版正式掉落与商店的道具定义 (key=cgId, value=道具属性)",
       "itemDropTables": "道具掉落表，每张表结构 { mode, table }。mode 当前统一为 pick_one(权重抽1个品质，再从品质池均匀随机具体道具)。table 中 key=品质(none/common/rare/legendary)，value=权重(整数)。"
     },
     "_fields": {
@@ -37,6 +38,49 @@
     }
   },
 
+  "singleStepItems": {
+    "single_step_attack": {
+      "id": "single_step_attack",
+      "name": "攻击力+",
+      "icon": "⚔",
+      "desc": "攻击力 +0.5",
+      "quality": "common",
+      "effects": { "attack": 0.5 },
+      "specials": [],
+      "price": 15
+    },
+    "single_step_range": {
+      "id": "single_step_range",
+      "name": "射程+",
+      "icon": "➜",
+      "desc": "射程 +1 格",
+      "quality": "common",
+      "effects": { "range": 1 },
+      "specials": [],
+      "price": 15
+    },
+    "single_step_health": {
+      "id": "single_step_health",
+      "name": "生命+",
+      "icon": "♥",
+      "desc": "最大生命 +1，当前生命随上限提升",
+      "quality": "common",
+      "effects": { "maxHp": 1 },
+      "specials": [],
+      "price": 15
+    },
+    "single_step_pierce": {
+      "id": "single_step_pierce",
+      "name": "穿透子弹",
+      "icon": "➤",
+      "desc": "穿透怪物，仍会被地形挡住",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": { "effect": "pierce", "slot": "shell" },
+      "price": 20
+    }
+  },
   "items": {
     "sad_onion": {
       "id": "sad_onion",

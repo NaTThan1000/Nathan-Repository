@@ -5,7 +5,7 @@
  * @param {string} cfgId - 怪物配置ID
  * @returns {boolean} 是否成功生成
  */
-function spawnMonsterAtRandomPos(cfgId, overrideMovementTags, anchorPos) {
+function spawnMonsterAtRandomPos(cfgId, overrideMovementTags, anchorPos, exactPosition) {
   const cfg = MONSTER_DB[cfgId];
   if (!cfg) return false;
 
@@ -35,7 +35,10 @@ function spawnMonsterAtRandomPos(cfgId, overrideMovementTags, anchorPos) {
 
   // 有锚点时，只选距离=1的候选（上下左右相邻），没有则返回false让调用方换锚点
   let pos;
-  if (anchorPos) {
+  if (exactPosition) {
+    pos = candidates.find(p => p.col === exactPosition.col && p.row === exactPosition.row);
+    if (!pos) return false;
+  } else if (anchorPos) {
     const adjacent = candidates.filter(c => Math.abs(c.col - anchorPos.col) + Math.abs(c.row - anchorPos.row) === 1);
     if (adjacent.length === 0) return false;
     pos = adjacent[Math.floor(Math.random() * adjacent.length)];

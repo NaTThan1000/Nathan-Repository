@@ -3,6 +3,7 @@
 ## 试玩入口
 
 - 正式版：双击 `dist/turnbased-shoot-demo-pack.html`。
+- 自定义战斗场：双击 `dist/custom-arena.html`。右侧操作台可摆放道具、地形、怪物、补给、玩家起点和无限生命木桩。开始测试后按 R 恢复原布置，窄屏操作台位于棋盘下方。
 - 子弹时间机制测试：双击 `dist/bullet-time-playtest.html`，旧12组对照＋8间可连战房间，也可直接切换场景。
 - 固定战斗测试：双击 `dist/combat-playtest.html`，可选场景、重置、换种子、测试指定怪物组合。
 
@@ -23,7 +24,7 @@ node build.cjs
 node verify.cjs
 ```
 
-构建直接在内存中组装并内嵌资源，生成 `dist/` 内的三个最终HTML，不再生成 `demo2.html`。只更新测试入口可运行 `npm run build:prototype`。正式包独有模块为 `src/combat/single-step-mode.js`、`src/combat/single-step-enemies.js`、`src/presentation/single-step-presentation.js`；新怪物和普通小队配置在 `Configs/single-step-enemies.json`。开发依赖通过 `npm ci` 按锁文件安装，当前环境也兼容已有缓存依赖。
+构建直接在内存中组装并内嵌资源，生成 `dist/` 内的四个最终 HTML。只更新测试入口可运行 `npm run build:prototype`。正式包与自定义场共用单步战斗、武器结算和表现；新怪物和普通小队配置在 `Configs/single-step-enemies.json`。开发依赖通过 `npm ci` 按锁文件安装，当前环境也兼容已有缓存依赖。
 
 按用户要求，`dist/` 不保存或生成日常PNG预览图；正式版及机制原型的浏览器回归只做验证，不输出预览图片。游戏所需图片仍保留在 `Assets/`，新怪物固定帧及冻结纹理由 `tools/build-single-step-art.cjs` 加工，资源审核页位于 `Assets/single-step-enemies/`。
 

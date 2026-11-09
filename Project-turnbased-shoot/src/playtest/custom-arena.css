@@ -1,0 +1,27 @@
+.custom-arena-page #top-content-row{display:grid;grid-template-columns:minmax(0,954px) 272px;align-items:start;gap:16px!important;max-width:1242px}
+.custom-arena-page #main-column{width:100%;min-width:0;container-type:inline-size}
+#arena-tools{box-sizing:border-box;min-width:0;width:100%;padding:12px 16px;background:#112831;border:1px solid #345b65;border-radius:8px;color:#d6edf0}
+#arena-tools h1{display:block!important;font-size:18px;margin:0 0 6px;color:#eaf8f8}
+#arena-tools p{margin:6px 0;font-size:13px;line-height:1.45}
+#arena-tools .arena-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#arena-tools label{display:grid;grid-column:1/-1;gap:4px;font-size:12px;min-width:0}
+#arena-tools label[hidden]{display:none}
+#arena-tools button,#arena-tools select{box-sizing:border-box;min-width:0;width:100%;min-height:32px;border:1px solid #52737b;border-radius:4px;background:#0a1a21;color:#eaf8f8;padding:4px 8px;font:inherit}
+#arena-tools button:disabled,#arena-tools select:disabled{opacity:.5}
+#arena-tools button:not(:disabled){cursor:pointer}
+#arena-tools #arena-start:not(:disabled){background:#24606b}
+#arena-status{color:#a5dce1}
+#arena-details{color:#f2d695;min-height:19px}
+body.arena-editing #game{cursor:crosshair}
+body.arena-editing #text-overlay{pointer-events:none}
+@media(max-width:850px){
+  .custom-arena-page #top-content-row{grid-template-columns:minmax(0,1fr);max-width:954px}
+}
+@container(max-width:900px){
+  .custom-arena-page #scrap-hud{grid-template-columns:166px 84px minmax(0,1fr)}
+}
+@container(max-width:540px){
+  .custom-arena-page #scrap-hud{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .custom-arena-page .scrap-point-panel,.custom-arena-page .scrap-res{grid-column:1/-1}
+  .custom-arena-page .scrap-res{min-width:0}
+}

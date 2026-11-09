@@ -79,6 +79,10 @@ drawMonsters=function(){
   else{const kind=m.cfgId==='step_mobile'?'ranged':'melee';let frame=SINGLE_STEP.bonus?0:Math.floor(now/180)%3;if(action&&now>=action.at&&now-action.at<240&&['shot','strike'].includes(action.type))frame=3+Math.min(1,Math.floor((now-action.at)/120));if(!(m._stepHitAt>now)&&(m.hitFlash>0||now-m._stepHitAt<120))frame=5;scrapDraw(kind+frame,p.x-30,p.y-38,60,68);}
   if(m.cfgId==='step_charger'&&action?.type==='charge'&&now>=action.at&&now-action.at<400){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(action.dir.dy,action.dir.dx));scrapDraw('unit-effects-charge',-CELL*1.375,-CELL*.375,CELL*1.5,CELL*.75);ctx.restore();}
   drawMonsterHealthPreview(m,p.x-10,p.y+10,20,3);
+  if(m.weaponPoison){
+   ctx.save();ctx.fillStyle='#9bea74';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+   ctx.fillText('毒 '+m.weaponPoison.steps,p.x,p.y-20);ctx.restore();
+  }
  }
  // 所有准备攻击的单位（含Boss）均显示正式版约定位置的感叹号。
  for(const m of monsters)if(SINGLE_STEP.plans.get(m.id)?.cells.length&&!m.jumperVanished){const p=project(m.px,m.py);scrapDraw('alert',p.x+3.2,p.y-10.4,5.6,8.8);}
@@ -100,6 +104,10 @@ function stepDrawDodge(now=performance.now()){
 const stepPlayerOriginal=drawPlayer;
 drawPlayer=function(){
  stepDrawDodge();const now=performance.now(),hurt=stepVisualEvents.filter(e=>e.type==='hurt').at(-1),flash=player.hitFlash;
+ if(SINGLE_STEP.bonus&&SINGLE_STEP.echo){
+  const q=gridToPixel(SINGLE_STEP.echo.col,SINGLE_STEP.echo.row),p=project(q.x,q.y);
+  scrapDraw('hero-'+player.facing+'-move1',p.x-19.8,p.y-24,39.6,41.8,.38);
+ }
  // 规则即时扣血，受击帧等弹体或冲锋画面到达后播放；不延长输入锁定。
  if(hurt)player.hitFlash=now>=hurt.at&&now<hurt.at+240?1:0;
  try{stepPlayerOriginal();}finally{player.hitFlash=flash;}

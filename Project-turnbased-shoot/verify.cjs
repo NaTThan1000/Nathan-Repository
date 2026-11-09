@@ -4,4 +4,5 @@ for(const file of ['tests/map-editor.test.cjs','tests/combat-effects-state.test.
 for(const file of ['tests/action-history.test.cjs','tests/danger-forecast.test.js','tests/scrap-star-art.test.cjs','tests/rewind-hud-regression.test.cjs','tests/state-prediction-regression.test.cjs'])run(file,true);
 run('tests/single-step-formal.browser.cjs');
 run('tests/bullet-time.browser.cjs');
+run('tests/custom-arena.browser.cjs');
 console.log('PASS: 子弹时间正式版、机制原型与旧规则测试入口检查通过');

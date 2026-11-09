@@ -53,11 +53,11 @@ function singleStepPlan(){
  for(const id of SINGLE_STEP.plans.keys())if(!monsters.some(m=>m.id===id))SINGLE_STEP.plans.delete(id);
  for(const m of monsters){if(SINGLE_STEP.plans.has(m.id))continue;const kind=singleStepBasic(m);const plan=kind?singleStepBasicPlan(m,kind):singleStepLegacyPlan(m);SINGLE_STEP.plans.set(m.id,plan);}
 }
-function singleStepReset(){SINGLE_STEP.bonus=0;SINGLE_STEP.step=0;SINGLE_STEP.room=currentRoomId;SINGLE_STEP.plans.clear();SINGLE_STEP.legacy.clear();SINGLE_STEP.shots=[];SINGLE_STEP.error=null;historyOpen=false;actionHistory=[];provisionalDefeats=[];turnState.phase='player_select';pendingPlayerTurnEnd=false;dangerForecast=null;dangerForecastJob=null;dangerReveal=null;singleStepPlan();}
+function singleStepReset(){SINGLE_STEP.bonus=0;SINGLE_STEP.echo=null;SINGLE_STEP.weaponCharge=0;SINGLE_STEP.step=0;SINGLE_STEP.room=currentRoomId;SINGLE_STEP.plans.clear();SINGLE_STEP.legacy.clear();SINGLE_STEP.shots=[];SINGLE_STEP.error=null;historyOpen=false;actionHistory=[];provisionalDefeats=[];turnState.phase='player_select';pendingPlayerTurnEnd=false;dangerForecast=null;dangerForecastJob=null;dangerReveal=null;singleStepPlan();}
 function singleStepPush(m,col,row,dir){
  const sz=m.size||1;let groups;
  if(sz===1&&dir)groups=[[[-dir.dy,dir.dx],[dir.dy,-dir.dx]],[[dir.dx,dir.dy]],[[-dir.dx,-dir.dy]]];else groups=[[[0,-1],[0,1],[-1,0],[1,0]]];
- for(const dirs of groups){const options=dirs.map(([dx,dy])=>({col:player.col+dx,row:player.row+dy})).filter(p=>!isWall(p.col,p.row)&&!(p.col>=col&&p.col<col+sz&&p.row>=row&&p.row<row+sz)&&!monsters.some(o=>o!==m&&isInMonsterFootprint(o,p.col,p.row)));const p=singleStepPick(options);if(p){player.col=p.col;player.row=p.row;const q=gridToPixel(p.col,p.row);player.targetPx=q.x;player.targetPy=q.y;checkSpikeUnderPlayer();return true;}}
+ for(const dirs of groups){const options=dirs.map(([dx,dy])=>({col:player.col+dx,row:player.row+dy})).filter(p=>!isWall(p.col,p.row)&&!(p.col>=col&&p.col<col+sz&&p.row>=row&&p.row<row+sz)&&!monsters.some(o=>o!==m&&isInMonsterFootprint(o,p.col,p.row)));const p=singleStepPick(options);if(p){player.col=p.col;player.row=p.row;const q=gridToPixel(p.col,p.row);player.targetPx=q.x;player.targetPy=q.y;if(!trialPassive('boots'))checkSpikeUnderPlayer();return true;}}
  SINGLE_STEP.error='挤出无合法落点';return false;
 }
 function singleStepApplyPlan(m,p){
@@ -89,7 +89,7 @@ function singleStepApplyPlan(m,p){
  if(p.type==='legacy-jump'&&(origin.col!==m.col||origin.row!==m.row)){m.jumpFrom=origin;m.jumpTo={col:m.col,row:m.row};m.jumpType=p.commit?.jumpType||'small';m.jumpAnimTimer=m.jumpType==='big_land'?.55:.4;m._visualPath=[];}
  return before;
 }
-function singleStepVisualShot(source,to,playerShot,dir,hitIds=[]){if(!to)return;const a=gridToPixel(source.col,source.row),b=gridToPixel(to.col,to.row);SINGLE_STEP.shots.push({from:a,to:b,start:performance.now(),player:playerShot,owner:playerShot?null:source.id,dir,hitIds,travel:Math.hypot(b.x-a.x,b.y-a.y)/(CFG.BULLET_SPEED*(playerShot?1:.6))*1000});}
+function singleStepVisualShot(source,to,playerShot,dir,hitIds=[],beam=false){if(!to)return;const a=gridToPixel(source.col,source.row),b=gridToPixel(to.col,to.row);SINGLE_STEP.shots.push({from:a,to:b,start:performance.now(),player:playerShot,owner:playerShot?null:source.id,dir,hitIds,beam,travel:beam?0:Math.hypot(b.x-a.x,b.y-a.y)/(CFG.BULLET_SPEED*(playerShot?1:.6))*1000});}
 function singleStepPickup(){autoPickupResources();for(let i=itemsOnGround.length-1;i>=0;i--){const item=itemsOnGround[i];if(item.col!==player.col||item.row!==player.row)continue;if(isShopSlotCell(item.col,item.row)){tryBuyShopItem(item.col,item.row);continue;}if(!playerInventory.includes(item.cfgId)){applyItem(item.cfgId);itemsOnGround.splice(i,1);updateItemBar();}}}
 function singleStepAct(type,dir){
  if(!gameStarted||gameOver||worldMapOpen||transition?.active||floorFadeBusy||SINGLE_STEP.busy)return false;
@@ -97,24 +97,31 @@ function singleStepAct(type,dir){
  const old={col:player.col,row:player.row},frozen=SINGLE_STEP.bonus>0;SINGLE_STEP.damaged=false;const v=DIR_VEC[dir];
  if(type==='move'){
   if(tryWalkIntoDoor(player.col,player.row,dir))return true;
-  const col=player.col+v.dx,row=player.row+v.dy;if(isWall(col,row)||monsters.some(m=>isInMonsterFootprint(m,col,row)))return false;
+  let col=player.col+v.dx,row=player.row+v.dy;
+  if(trialPassive('jet')&&currentRoomGrid[col]?.[row]===TILE.PIT&&currentRoomGrid[col+v.dx]?.[row+v.dy]===TILE.FLOOR){col+=v.dx;row+=v.dy;}
+  if(isWall(col,row)||monsters.some(m=>isInMonsterFootprint(m,col,row)))return false;
   const bomb=bombs.find(b=>b.roomId===currentRoomId&&b.col===col&&b.row===row);if(bomb)pushBomb(bomb,v.dx,v.dy);
   player.col=col;player.row=row;const q=gridToPixel(col,row);player.targetPx=q.x;player.targetPy=q.y;player.animTime=0;player.shootTimer=0;
  }else if(type==='shoot'){
-  SFX.shoot();totalShots++;let end=old;const hit=new Set();
-  for(let n=1;n<=Math.floor(playerStats.range);n++){const col=old.col+v.dx*n,row=old.row+v.dy*n;if(col<0||row<0||col>=COLS||row>=ROWS)break;end={col,row};
-   if(singleStepBlocksBullet(col,row)){if(tileData[col+','+row])hitTile(col,row,playerStats.attack);break;}
-   const m=monsters.find(m=>!m.jumperVanished&&!hit.has(m.id)&&isInMonsterFootprint(m,col,row));if(m){hit.add(m.id);damageMonster(m,playerStats.attack);if(!player.hasPiercing)break;}
-  }singleStepVisualShot(old,end,true,{dx:v.dx,dy:v.dy},[...hit]);player.shootTimer=.4;
+  const echo=frozen&&SINGLE_STEP.echo;
+  const shot=weaponPrepareShot();
+  if(shot){
+   SINGLE_STEP.error=null;
+   SFX.shoot();totalShots++;fireSingleStepWeapon(old,v,shot);
+   if(echo)fireSingleStepWeapon(echo,v,shot);
+   player.shootTimer=.4;
+  }
  }else if(type==='bomb'){if(playerResources.bombs<=0)return false;placeBomb(player.col,player.row);}
  else return false;
  player.facing=dir||player.facing;
  SINGLE_STEP.busy=true;
  try{
   if(player.invincibleSteps>0)player.invincibleSteps--;
-  checkSpikeUnderPlayer();let dodged=false;
+  if(!trialPassive('boots'))checkSpikeUnderPlayer();
+  let dodged=false;
   if(!frozen){
    tickBombCountdown();
+   tickWeaponPoison();
    for(const m of [...monsters]){if(!monsters.includes(m))continue;const saved=SINGLE_STEP.plans.get(m.id);if(!saved)continue;const plan=singleStepResolvePlan(m,saved);
     const wasHit=plan.cells.some(p=>p.col===old.col&&p.row===old.row),nowHit=plan.cells.some(p=>p.col===player.col&&p.row===player.row);
     if(type==='move'&&wasHit&&!nowHit)dodged=true;
@@ -124,7 +131,8 @@ function singleStepAct(type,dir){
   }
   singleStepPickup();updateRoomCombatState();SINGLE_STEP.step++;turnState.turnNumber=SINGLE_STEP.step;
   if(frozen)SINGLE_STEP.bonus=SINGLE_STEP.damaged?0:SINGLE_STEP.bonus-1;
-  else if(dodged&&!SINGLE_STEP.damaged&&!gameOver)SINGLE_STEP.bonus=2;
+  else if(dodged&&!SINGLE_STEP.damaged&&!gameOver){SINGLE_STEP.bonus=2;if(trialPassive('echo'))SINGLE_STEP.echo=old;}
+  if(!SINGLE_STEP.bonus)SINGLE_STEP.echo=null;
   singleStepPlan();
   if(currentRoomGrid[player.col]?.[player.row]===TILE.LADDER){const next=currentFloor.floorNum+1;if(next>Object.keys(FLOOR_CONFIG).length)triggerVictoryScreen();else enterFloor(next);}
   updateDoorsLocked();updateUI();updateActionBar();return true;
@@ -156,7 +164,21 @@ document.addEventListener('keydown',e=>{
 });
 drawReachableOverlay=function(){};
 drawDangerOverlay=function(){if(!gameStarted||worldMapOpen)return;const seen=new Set();for(const m of monsters){const p=SINGLE_STEP.plans.get(m.id);for(const cell of p?.cells||[]){const k=cell.col+','+cell.row;if(seen.has(k))continue;seen.add(k);const q=cellRect(cell.col,cell.row);scrapDraw('redGrid',q.xL,q.yT,q.w,q.h,.55);}}};
-drawBullets=function(){const now=performance.now();SINGLE_STEP.shots=SINGLE_STEP.shots.filter(s=>now-s.start<s.travel+250);for(const s of SINGLE_STEP.shots){const age=now-s.start,t=Math.min(1,age/Math.max(1,s.travel)),x=s.from.x+(s.to.x-s.from.x)*t,y=s.from.y+(s.to.y-s.from.y)*t;if(age<s.travel){if(s.player){const dir=Math.abs(s.dir.dx)>Math.abs(s.dir.dy)?s.dir.dx<0?'left':'right':s.dir.dy<0?'up':'down';scrapDraw('bullet-'+dir+Math.floor(age/70)%3,x-12,y-10.6,24,21.2);}else{ctx.save();ctx.translate(x,y);ctx.rotate(Math.atan2(s.dir.dy,s.dir.dx));scrapDraw('remote',-4.4,-5,8.8,10);ctx.restore();}}else scrapDraw('impact'+Math.min(3,Math.floor((age-s.travel)/250*4)),x-10,y-15,20,30);}};
+drawBullets=function(){
+ const now=performance.now();
+ SINGLE_STEP.shots=SINGLE_STEP.shots.filter(s=>now-s.start<s.travel+250);
+ for(const s of SINGLE_STEP.shots){
+  const age=now-s.start,t=Math.min(1,age/Math.max(1,s.travel)),x=s.from.x+(s.to.x-s.from.x)*t,y=s.from.y+(s.to.y-s.from.y)*t;
+  if(s.beam){
+   const a=project(s.from.x,s.from.y),b=project(s.to.x,s.to.y);
+   ctx.save();ctx.globalAlpha=Math.max(0,1-age/250);ctx.strokeStyle='#77edff';ctx.lineWidth=4;
+   ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.restore();
+  }else if(age<s.travel){
+   if(s.player){const dir=Math.abs(s.dir.dx)>Math.abs(s.dir.dy)?s.dir.dx<0?'left':'right':s.dir.dy<0?'up':'down';scrapDraw('bullet-'+dir+Math.floor(age/70)%3,x-12,y-10.6,24,21.2);}
+   else{ctx.save();ctx.translate(x,y);ctx.rotate(Math.atan2(s.dir.dy,s.dir.dx));scrapDraw('remote',-4.4,-5,8.8,10);ctx.restore();}
+  }else scrapDraw('impact'+Math.min(3,Math.floor((age-s.travel)/250*4)),x-10,y-15,20,30);
+ }
+};
 const stepOldHUD=scrapUpdateHUD;
 scrapUpdateHUD=function(){stepOldHUD();const ap=document.getElementById('scrap-ap'),mp=document.getElementById('scrap-mp');if(ap)ap.textContent=SINGLE_STEP.bonus?'额外行动 '+SINGLE_STEP.bonus+'/2':'单步行动';if(mp)mp.textContent=SINGLE_STEP.bonus?'子弹时间':'移动 / 射击';const phase=document.getElementById('scrap-phase');if(phase)phase.textContent=SINGLE_STEP.bonus?'子弹时间':'自由思考';const rewind=document.getElementById('ui-rewind-info');if(rewind)rewind.style.display='none';};
 const stepOldTextOverlay=updateTextOverlay;

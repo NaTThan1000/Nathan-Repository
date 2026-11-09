@@ -2,7 +2,7 @@
 
 当前正式包在共享源码末尾追加 `combat/single-step-mode.js`、`combat/single-step-enemies.js` 与 `presentation/single-step-presentation.js`，采用单格移动／瞬发射击和固定2次额外行动的子弹时间规则。它保留房间、楼层、道具、掉落和资源系统；旧MP/AP调度不在正式版执行。普通怪物和小队使用 `Configs/single-step-enemies.json`，Boss继续用既有配置适配。`playtest/scenarios.js`对应的旧测试包仍使用回溯规则；`playtest/bullet-time*.js/html`维护12对照＋8连战房间与独立表现播放。以下历史整理说明中的“两个输出”“两包规则相同”不再适用于当前版本。
 
-构建现在输出三个HTML；`verify.cjs`分别检查新正式版、子弹时间原型和旧规则测试包。完整回溯版已冻结在仓库根 `backup/Project-turnbased-shoot-rewind-2026-11-05/`，不要在新规则开发中覆盖。
+构建现在输出四个 HTML；`verify.cjs` 分别检查正式版、子弹时间原型、旧规则测试包和自定义战斗场。自定义场在同一套正式规则上追加编辑工具，武器规则位于 `combat/weapon-upgrades.js`。正式掉落使用 `item-db.json` 的 `singleStepItems`，旧回溯回归包使用 `items`。完整回溯版已冻结在仓库根 `backup/Project-turnbased-shoot-rewind-2026-11-05/`，不要在新规则开发中覆盖。
 
 `tools/build-single-step-art.cjs`加工新怪物固定帧和冻结纹理，正式版与原型共用美术；动作到位后释放输入、余效独立播放，不缓存忙时按键。正式伤害保持原步数制无敌，受击帧按画面命中时刻播放。按用户要求，日常回归不再生成PNG预览，dist只保留HTML；不要重新向dist输出截图。
 

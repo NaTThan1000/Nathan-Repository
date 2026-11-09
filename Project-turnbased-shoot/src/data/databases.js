@@ -98,12 +98,12 @@ function _rebuildItemPools() {
   ITEM_POOL_ALL = keys;
 }
 
-async function loadItemDB() {
+async function loadItemDB(catalog = 'items') {
   try {
     const r = await fetch('Configs/item-db.json?' + Date.now());
     if (r.ok) {
       const data = await r.json();
-      ITEMS_DB = data.items || {};
+      ITEMS_DB = data[catalog] || {};
       ITEM_DROP_TABLES = data.itemDropTables || {};
       _rebuildItemPools();
       console.log('✅ 已从 JSON 加载道具数据库 (' + ITEM_POOL_ALL.length + ' 件 + ' + Object.keys(ITEM_DROP_TABLES).length + ' 张品质表)');

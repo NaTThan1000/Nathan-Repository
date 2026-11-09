@@ -8,6 +8,11 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
  await page.waitForFunction(()=>currentFloor&&MONSTER_DB.step_mobile&&Object.keys(RESOURCE_DB).length);await page.evaluate(()=>startGameFromMenu());
  await page.evaluate(()=>{
   const check=(v,msg)=>{if(!v)throw Error(msg);};
+  const approved=new Set(['single_step_attack','single_step_range','single_step_health','single_step_pierce']);
+  check(Object.keys(ITEMS_DB).length===approved.size&&Object.keys(ITEMS_DB).every(id=>approved.has(id)),'当前道具库只包含清单内的正式道具');
+  for(const quality of ['common','rare','legendary'])for(let i=0;i<20;i++){
+   check(approved.has(rollItem(quality)),'各品质与空池回退都只能生成清单内道具');
+  }
   window.stepFixture=(id='flying_eye_i',c=5,r=3)=>{
    currentRoomGrid=parseGrid(BUILTIN_TEMPLATES().open.tiles);const room=currentFloor.rooms.find(r=>r.id===currentRoomId);room.grid=currentRoomGrid;room.type='normal';room.bossLadderPlaced=false;
    monsters=[];bombs=[];bullets=[];resourcesOnGround=[];itemsOnGround=[];pendingBossLanding=null;floorFadeBusy=false;transition=null;gameStarted=true;gameOver=false;

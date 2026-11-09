@@ -1838,12 +1838,12 @@ function _rebuildItemPools() {
   ITEM_POOL_ALL = keys;
 }
 
-async function loadItemDB() {
+async function loadItemDB(catalog = 'items') {
   try {
-    const r = await (async () => { const d = "{\r\n  \"_schema\": {\r\n    \"_description\": \"道具数据库 — 所有可拾取道具的属性与效果定义 + 道具掉落表\",\r\n    \"_structure\": {\r\n      \"items\": \"所有道具定义 (key=cgId, value=道具属性)\",\r\n      \"itemDropTables\": \"道具掉落表，每张表结构 { mode, table }。mode 当前统一为 pick_one(权重抽1个品质，再从品质池均匀随机具体道具)。table 中 key=品质(none/common/rare/legendary)，value=权重(整数)。\"\r\n    },\r\n    \"_fields\": {\r\n      \"quality\": {\r\n        \"_values\": [\"common\", \"rare\", \"legendary\"],\r\n        \"_desc\": \"道具品质等级，决定出现在哪个掉落池\"\r\n      },\r\n      \"tags\": {\r\n        \"_values_examples\": [\"属性提升\", \"攻击\", \"HP\", \"射速\", \"射程\", \"移速\", \"穿透\", \"回复\", \"全属性\", \"伤害倍率\"],\r\n        \"_desc\": \"道具标签，用于分类筛选\"\r\n      },\r\n      \"specials[].type\": {\r\n        \"_values\": [\"heal_full\", \"piercing\", \"damage_mult\"],\r\n        \"_desc\": \"heal_full=回满血, piercing=子弹穿透, damage_mult=伤害倍率\"\r\n      },\r\n      \"effects\": {\r\n        \"_keys\": [\"maxHp\", \"attack\", \"fireRate\", \"moveSpeed\", \"range\"],\r\n        \"_desc\": \"追加的属性修正值\"\r\n      },\r\n      \"price\": {\r\n        \"_desc\": \"商店售价（金币），默认15\",\r\n        \"_type\": \"number\"\r\n      },\r\n      \"itemDropTables.*.mode\": {\r\n        \"_values\": [\"pick_one\"],\r\n        \"_desc\": \"掉落模式：pick_one=按权重抽1个品质，再从品质池均匀随机具体道具\"\r\n      },\r\n      \"itemDropTables.*.table.none\": { \"_desc\": \"不掉落道具权重 (整数), 0=必定掉落\", \"_type\": \"number\" },\r\n      \"itemDropTables.*.table.common\": { \"_desc\": \"普通品质权重 (整数)\", \"_type\": \"number\" },\r\n      \"itemDropTables.*.table.rare\": { \"_desc\": \"稀有品质权重 (整数)\", \"_type\": \"number\" },\r\n      \"itemDropTables.*.table.legendary\": { \"_desc\": \"传说品质权重 (整数)\", \"_type\": \"number\" }\r\n    }\r\n  },\r\n\r\n  \"items\": {\r\n    \"sad_onion\": {\r\n      \"id\": \"sad_onion\",\r\n      \"name\": \"伤心洋葱\",\r\n      \"icon\": \"🧅\",\r\n      \"desc\": \"射速 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"射速\"],\r\n      \"effects\": { \"fireRate\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"the_belt\": {\r\n      \"id\": \"the_belt\",\r\n      \"name\": \"皮带\",\r\n      \"icon\": \"🟤\",\r\n      \"desc\": \"移动速度 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"移速\"],\r\n      \"effects\": { \"moveSpeed\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"jesus_juice\": {\r\n      \"id\": \"jesus_juice\",\r\n      \"name\": \"耶稣果汁\",\r\n      \"icon\": \"🍷\",\r\n      \"desc\": \"攻击+0.5 射程+1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"射程\"],\r\n      \"effects\": { \"attack\": 0.5, \"range\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"iron_bar\": {\r\n      \"id\": \"iron_bar\",\r\n      \"name\": \"铁块\",\r\n      \"icon\": \"🔩\",\r\n      \"desc\": \"攻击+0.5\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"攻击\"],\r\n      \"effects\": { \"attack\": 0.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"wire_coat_hanger\": {\r\n      \"id\": \"wire_coat_hanger\",\r\n      \"name\": \"铁丝衣架\",\r\n      \"icon\": \"🪝\",\r\n      \"desc\": \"射速 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"射速\"],\r\n      \"effects\": { \"fireRate\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"breakfast\": {\r\n      \"id\": \"breakfast\",\r\n      \"name\": \"早餐\",\r\n      \"icon\": \"🥛\",\r\n      \"desc\": \"HP上限+1 回满血\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\"],\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"lunch\": {\r\n      \"id\": \"lunch\",\r\n      \"name\": \"午餐\",\r\n      \"icon\": \"🍖\",\r\n      \"desc\": \"HP上限+1 回满血\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\"],\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"dinner\": {\r\n      \"id\": \"dinner\",\r\n      \"name\": \"晚餐\",\r\n      \"icon\": \"🍗\",\r\n      \"desc\": \"HP上限+1 回满血\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\"],\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"dessert\": {\r\n      \"id\": \"dessert\",\r\n      \"name\": \"甜点\",\r\n      \"icon\": \"🍰\",\r\n      \"desc\": \"HP上限+1 回满血\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\"],\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"roid_rage\": {\r\n      \"id\": \"roid_rage\",\r\n      \"name\": \"狂暴针\",\r\n      \"icon\": \"💉\",\r\n      \"desc\": \"移动速度 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"移速\"],\r\n      \"effects\": { \"moveSpeed\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"speed_ball\": {\r\n      \"id\": \"speed_ball\",\r\n      \"name\": \"速度针\",\r\n      \"icon\": \"💊\",\r\n      \"desc\": \"移动速度 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"移速\"],\r\n      \"effects\": { \"moveSpeed\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"screw\": {\r\n      \"id\": \"screw\",\r\n      \"name\": \"螺钉\",\r\n      \"icon\": \"🔧\",\r\n      \"desc\": \"射速 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"射速\"],\r\n      \"effects\": { \"fireRate\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"synthol\": {\r\n      \"id\": \"synthol\",\r\n      \"name\": \"合成针\",\r\n      \"icon\": \"💪\",\r\n      \"desc\": \"攻击+0.5 射程+1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"射程\"],\r\n      \"effects\": { \"attack\": 0.5, \"range\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"pentagram\": {\r\n      \"id\": \"pentagram\",\r\n      \"name\": \"五芒星\",\r\n      \"icon\": \"⭐\",\r\n      \"desc\": \"攻击+1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"攻击\"],\r\n      \"effects\": { \"attack\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"meat\": {\r\n      \"id\": \"meat\",\r\n      \"name\": \"肉！\",\r\n      \"icon\": \"🥩\",\r\n      \"desc\": \"HP上限+1 攻击+0.5\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\", \"攻击\"],\r\n      \"effects\": { \"maxHp\": 1, \"attack\": 0.5 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n\r\n    \"the_halo\": {\r\n      \"id\": \"the_halo\",\r\n      \"name\": \"光环\",\r\n      \"icon\": \"👼\",\r\n      \"desc\": \"全属性+1 HP上限+1\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"HP\", \"攻击\", \"射速\", \"移速\", \"射程\", \"全属性\"],\r\n      \"effects\": { \"maxHp\": 1, \"attack\": 0.5, \"fireRate\": 0.5, \"moveSpeed\": 0.5, \"range\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"magic_mushroom\": {\r\n      \"id\": \"magic_mushroom\",\r\n      \"name\": \"魔法蘑菇\",\r\n      \"icon\": \"🍄\",\r\n      \"desc\": \"全属性大幅提升 回满血\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"HP\", \"攻击\", \"移速\", \"射程\", \"全属性\", \"回复\"],\r\n      \"effects\": { \"maxHp\": 1, \"attack\": 1, \"moveSpeed\": 0.5, \"range\": 2 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"stigmata\": {\r\n      \"id\": \"stigmata\",\r\n      \"name\": \"圣痕\",\r\n      \"icon\": \"✝️\",\r\n      \"desc\": \"HP上限+1 攻击+0.5\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"HP\", \"攻击\"],\r\n      \"effects\": { \"maxHp\": 1, \"attack\": 0.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"growth_hormones\": {\r\n      \"id\": \"growth_hormones\",\r\n      \"name\": \"生长激素\",\r\n      \"icon\": \"🧬\",\r\n      \"desc\": \"攻击+1 移速+1\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"移速\"],\r\n      \"effects\": { \"attack\": 1, \"moveSpeed\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"cupids_arrow\": {\r\n      \"id\": \"cupids_arrow\",\r\n      \"name\": \"丘比特之箭\",\r\n      \"icon\": \"🏹\",\r\n      \"desc\": \"攻击+1 子弹穿透敌人\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"穿透\"],\r\n      \"effects\": { \"attack\": 1 },\r\n      \"specials\": [{ \"type\": \"piercing\" }],\r\n      \"price\": 15\r\n    },\r\n    \"champion_belt\": {\r\n      \"id\": \"champion_belt\",\r\n      \"name\": \"冠军腰带\",\r\n      \"icon\": \"🏆\",\r\n      \"desc\": \"攻击+1.5\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"攻击\"],\r\n      \"effects\": { \"attack\": 1.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"the_mark\": {\r\n      \"id\": \"the_mark\",\r\n      \"name\": \"印记\",\r\n      \"icon\": \"👿\",\r\n      \"desc\": \"攻击+1 移速+0.5\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"移速\"],\r\n      \"effects\": { \"attack\": 1, \"moveSpeed\": 0.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n\r\n    \"sacred_heart\": {\r\n      \"id\": \"sacred_heart\",\r\n      \"name\": \"圣心\",\r\n      \"icon\": \"❤️\",\r\n      \"desc\": \"攻击大幅提升 回满血\",\r\n      \"quality\": \"legendary\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"HP\", \"回复\"],\r\n      \"effects\": { \"attack\": 2.5, \"maxHp\": 2 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"crickets_head\": {\r\n      \"id\": \"crickets_head\",\r\n      \"name\": \"蟋蟀的头\",\r\n      \"icon\": \"🐕\",\r\n      \"desc\": \"攻击+1 伤害×1.5倍\",\r\n      \"quality\": \"legendary\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"伤害倍率\"],\r\n      \"effects\": { \"attack\": 1 },\r\n      \"specials\": [{ \"type\": \"damage_mult\", \"mult\": 1.5 }],\r\n      \"price\": 15\r\n    },\r\n    \"deaths_touch\": {\r\n      \"id\": \"deaths_touch\",\r\n      \"name\": \"死神的镰刀\",\r\n      \"icon\": \"💀\",\r\n      \"desc\": \"攻击+2 子弹穿透\",\r\n      \"quality\": \"legendary\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"穿透\"],\r\n      \"effects\": { \"attack\": 2 },\r\n      \"specials\": [{ \"type\": \"piercing\" }],\r\n      \"price\": 15\r\n    }\r\n  },\r\n\r\n  \"itemDropTables\": {\r\n    \"item_drop_default\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"默认道具掉落(通用fallback)\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    },\r\n    \"item_drop_common\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"普通怪物道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    },\r\n    \"item_drop_ranged\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"远程怪物道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    },\r\n    \"item_drop_heavy\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"重型怪物道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    },\r\n    \"item_drop_boss\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"Boss怪物道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 20,\r\n        \"rare\": 45,\r\n        \"legendary\": 35\r\n      }\r\n    },\r\n    \"item_drop_treasure_room\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"宝藏房间道具掉落(无common)\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 0,\r\n        \"rare\": 75,\r\n        \"legendary\": 25\r\n      }\r\n    },\r\n    \"item_drop_boss_room\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"Boss房间清空道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 25,\r\n        \"rare\": 45,\r\n        \"legendary\": 30\r\n      }\r\n    },\r\n    \"item_drop_chest_normal\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"普通宝箱道具品质（稀有与传说）\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 0,\r\n        \"rare\": 250,\r\n        \"legendary\": 100\r\n      }\r\n    },\r\n    \"item_drop_chest_golden\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"金宝箱道具品质（稀有与传说）\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 0,\r\n        \"rare\": 60,\r\n        \"legendary\": 40\r\n      }\r\n    },\r\n    \"item_drop_shop_stock\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"商店道具生成\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    }\r\n  }\r\n}\r\n"; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })();
+    const r = await (async () => { const d = "{\r\n  \"_schema\": {\r\n    \"_description\": \"道具数据库 — 所有可拾取道具的属性与效果定义 + 道具掉落表\",\r\n    \"_structure\": {\r\n      \"items\": \"已退出当前道具池的旧配置，仅供回溯回归包使用\",\r\n      \"singleStepItems\": \"当前单步版正式掉落与商店的道具定义 (key=cgId, value=道具属性)\",\r\n      \"itemDropTables\": \"道具掉落表，每张表结构 { mode, table }。mode 当前统一为 pick_one(权重抽1个品质，再从品质池均匀随机具体道具)。table 中 key=品质(none/common/rare/legendary)，value=权重(整数)。\"\r\n    },\r\n    \"_fields\": {\r\n      \"quality\": {\r\n        \"_values\": [\"common\", \"rare\", \"legendary\"],\r\n        \"_desc\": \"道具品质等级，决定出现在哪个掉落池\"\r\n      },\r\n      \"tags\": {\r\n        \"_values_examples\": [\"属性提升\", \"攻击\", \"HP\", \"射速\", \"射程\", \"移速\", \"穿透\", \"回复\", \"全属性\", \"伤害倍率\"],\r\n        \"_desc\": \"道具标签，用于分类筛选\"\r\n      },\r\n      \"specials[].type\": {\r\n        \"_values\": [\"heal_full\", \"piercing\", \"damage_mult\"],\r\n        \"_desc\": \"heal_full=回满血, piercing=子弹穿透, damage_mult=伤害倍率\"\r\n      },\r\n      \"effects\": {\r\n        \"_keys\": [\"maxHp\", \"attack\", \"fireRate\", \"moveSpeed\", \"range\"],\r\n        \"_desc\": \"追加的属性修正值\"\r\n      },\r\n      \"price\": {\r\n        \"_desc\": \"商店售价（金币），默认15\",\r\n        \"_type\": \"number\"\r\n      },\r\n      \"itemDropTables.*.mode\": {\r\n        \"_values\": [\"pick_one\"],\r\n        \"_desc\": \"掉落模式：pick_one=按权重抽1个品质，再从品质池均匀随机具体道具\"\r\n      },\r\n      \"itemDropTables.*.table.none\": { \"_desc\": \"不掉落道具权重 (整数), 0=必定掉落\", \"_type\": \"number\" },\r\n      \"itemDropTables.*.table.common\": { \"_desc\": \"普通品质权重 (整数)\", \"_type\": \"number\" },\r\n      \"itemDropTables.*.table.rare\": { \"_desc\": \"稀有品质权重 (整数)\", \"_type\": \"number\" },\r\n      \"itemDropTables.*.table.legendary\": { \"_desc\": \"传说品质权重 (整数)\", \"_type\": \"number\" }\r\n    }\r\n  },\r\n\r\n  \"singleStepItems\": {\r\n    \"single_step_attack\": {\r\n      \"id\": \"single_step_attack\",\r\n      \"name\": \"攻击力+\",\r\n      \"icon\": \"⚔\",\r\n      \"desc\": \"攻击力 +0.5\",\r\n      \"quality\": \"common\",\r\n      \"effects\": { \"attack\": 0.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"single_step_range\": {\r\n      \"id\": \"single_step_range\",\r\n      \"name\": \"射程+\",\r\n      \"icon\": \"➜\",\r\n      \"desc\": \"射程 +1 格\",\r\n      \"quality\": \"common\",\r\n      \"effects\": { \"range\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"single_step_health\": {\r\n      \"id\": \"single_step_health\",\r\n      \"name\": \"生命+\",\r\n      \"icon\": \"♥\",\r\n      \"desc\": \"最大生命 +1，当前生命随上限提升\",\r\n      \"quality\": \"common\",\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"single_step_pierce\": {\r\n      \"id\": \"single_step_pierce\",\r\n      \"name\": \"穿透子弹\",\r\n      \"icon\": \"➤\",\r\n      \"desc\": \"穿透怪物，仍会被地形挡住\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": { \"effect\": \"pierce\", \"slot\": \"shell\" },\r\n      \"price\": 20\r\n    }\r\n  },\r\n  \"items\": {\r\n    \"sad_onion\": {\r\n      \"id\": \"sad_onion\",\r\n      \"name\": \"伤心洋葱\",\r\n      \"icon\": \"🧅\",\r\n      \"desc\": \"射速 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"射速\"],\r\n      \"effects\": { \"fireRate\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"the_belt\": {\r\n      \"id\": \"the_belt\",\r\n      \"name\": \"皮带\",\r\n      \"icon\": \"🟤\",\r\n      \"desc\": \"移动速度 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"移速\"],\r\n      \"effects\": { \"moveSpeed\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"jesus_juice\": {\r\n      \"id\": \"jesus_juice\",\r\n      \"name\": \"耶稣果汁\",\r\n      \"icon\": \"🍷\",\r\n      \"desc\": \"攻击+0.5 射程+1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"射程\"],\r\n      \"effects\": { \"attack\": 0.5, \"range\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"iron_bar\": {\r\n      \"id\": \"iron_bar\",\r\n      \"name\": \"铁块\",\r\n      \"icon\": \"🔩\",\r\n      \"desc\": \"攻击+0.5\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"攻击\"],\r\n      \"effects\": { \"attack\": 0.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"wire_coat_hanger\": {\r\n      \"id\": \"wire_coat_hanger\",\r\n      \"name\": \"铁丝衣架\",\r\n      \"icon\": \"🪝\",\r\n      \"desc\": \"射速 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"射速\"],\r\n      \"effects\": { \"fireRate\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"breakfast\": {\r\n      \"id\": \"breakfast\",\r\n      \"name\": \"早餐\",\r\n      \"icon\": \"🥛\",\r\n      \"desc\": \"HP上限+1 回满血\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\"],\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"lunch\": {\r\n      \"id\": \"lunch\",\r\n      \"name\": \"午餐\",\r\n      \"icon\": \"🍖\",\r\n      \"desc\": \"HP上限+1 回满血\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\"],\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"dinner\": {\r\n      \"id\": \"dinner\",\r\n      \"name\": \"晚餐\",\r\n      \"icon\": \"🍗\",\r\n      \"desc\": \"HP上限+1 回满血\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\"],\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"dessert\": {\r\n      \"id\": \"dessert\",\r\n      \"name\": \"甜点\",\r\n      \"icon\": \"🍰\",\r\n      \"desc\": \"HP上限+1 回满血\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\"],\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"roid_rage\": {\r\n      \"id\": \"roid_rage\",\r\n      \"name\": \"狂暴针\",\r\n      \"icon\": \"💉\",\r\n      \"desc\": \"移动速度 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"移速\"],\r\n      \"effects\": { \"moveSpeed\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"speed_ball\": {\r\n      \"id\": \"speed_ball\",\r\n      \"name\": \"速度针\",\r\n      \"icon\": \"💊\",\r\n      \"desc\": \"移动速度 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"移速\"],\r\n      \"effects\": { \"moveSpeed\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"screw\": {\r\n      \"id\": \"screw\",\r\n      \"name\": \"螺钉\",\r\n      \"icon\": \"🔧\",\r\n      \"desc\": \"射速 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"射速\"],\r\n      \"effects\": { \"fireRate\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"synthol\": {\r\n      \"id\": \"synthol\",\r\n      \"name\": \"合成针\",\r\n      \"icon\": \"💪\",\r\n      \"desc\": \"攻击+0.5 射程+1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"射程\"],\r\n      \"effects\": { \"attack\": 0.5, \"range\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"pentagram\": {\r\n      \"id\": \"pentagram\",\r\n      \"name\": \"五芒星\",\r\n      \"icon\": \"⭐\",\r\n      \"desc\": \"攻击+1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"攻击\"],\r\n      \"effects\": { \"attack\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"meat\": {\r\n      \"id\": \"meat\",\r\n      \"name\": \"肉！\",\r\n      \"icon\": \"🥩\",\r\n      \"desc\": \"HP上限+1 攻击+0.5\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\", \"攻击\"],\r\n      \"effects\": { \"maxHp\": 1, \"attack\": 0.5 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n\r\n    \"the_halo\": {\r\n      \"id\": \"the_halo\",\r\n      \"name\": \"光环\",\r\n      \"icon\": \"👼\",\r\n      \"desc\": \"全属性+1 HP上限+1\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"HP\", \"攻击\", \"射速\", \"移速\", \"射程\", \"全属性\"],\r\n      \"effects\": { \"maxHp\": 1, \"attack\": 0.5, \"fireRate\": 0.5, \"moveSpeed\": 0.5, \"range\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"magic_mushroom\": {\r\n      \"id\": \"magic_mushroom\",\r\n      \"name\": \"魔法蘑菇\",\r\n      \"icon\": \"🍄\",\r\n      \"desc\": \"全属性大幅提升 回满血\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"HP\", \"攻击\", \"移速\", \"射程\", \"全属性\", \"回复\"],\r\n      \"effects\": { \"maxHp\": 1, \"attack\": 1, \"moveSpeed\": 0.5, \"range\": 2 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"stigmata\": {\r\n      \"id\": \"stigmata\",\r\n      \"name\": \"圣痕\",\r\n      \"icon\": \"✝️\",\r\n      \"desc\": \"HP上限+1 攻击+0.5\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"HP\", \"攻击\"],\r\n      \"effects\": { \"maxHp\": 1, \"attack\": 0.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"growth_hormones\": {\r\n      \"id\": \"growth_hormones\",\r\n      \"name\": \"生长激素\",\r\n      \"icon\": \"🧬\",\r\n      \"desc\": \"攻击+1 移速+1\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"移速\"],\r\n      \"effects\": { \"attack\": 1, \"moveSpeed\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"cupids_arrow\": {\r\n      \"id\": \"cupids_arrow\",\r\n      \"name\": \"丘比特之箭\",\r\n      \"icon\": \"🏹\",\r\n      \"desc\": \"攻击+1 子弹穿透敌人\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"穿透\"],\r\n      \"effects\": { \"attack\": 1 },\r\n      \"specials\": [{ \"type\": \"piercing\" }],\r\n      \"price\": 15\r\n    },\r\n    \"champion_belt\": {\r\n      \"id\": \"champion_belt\",\r\n      \"name\": \"冠军腰带\",\r\n      \"icon\": \"🏆\",\r\n      \"desc\": \"攻击+1.5\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"攻击\"],\r\n      \"effects\": { \"attack\": 1.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"the_mark\": {\r\n      \"id\": \"the_mark\",\r\n      \"name\": \"印记\",\r\n      \"icon\": \"👿\",\r\n      \"desc\": \"攻击+1 移速+0.5\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"移速\"],\r\n      \"effects\": { \"attack\": 1, \"moveSpeed\": 0.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n\r\n    \"sacred_heart\": {\r\n      \"id\": \"sacred_heart\",\r\n      \"name\": \"圣心\",\r\n      \"icon\": \"❤️\",\r\n      \"desc\": \"攻击大幅提升 回满血\",\r\n      \"quality\": \"legendary\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"HP\", \"回复\"],\r\n      \"effects\": { \"attack\": 2.5, \"maxHp\": 2 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"crickets_head\": {\r\n      \"id\": \"crickets_head\",\r\n      \"name\": \"蟋蟀的头\",\r\n      \"icon\": \"🐕\",\r\n      \"desc\": \"攻击+1 伤害×1.5倍\",\r\n      \"quality\": \"legendary\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"伤害倍率\"],\r\n      \"effects\": { \"attack\": 1 },\r\n      \"specials\": [{ \"type\": \"damage_mult\", \"mult\": 1.5 }],\r\n      \"price\": 15\r\n    },\r\n    \"deaths_touch\": {\r\n      \"id\": \"deaths_touch\",\r\n      \"name\": \"死神的镰刀\",\r\n      \"icon\": \"💀\",\r\n      \"desc\": \"攻击+2 子弹穿透\",\r\n      \"quality\": \"legendary\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"穿透\"],\r\n      \"effects\": { \"attack\": 2 },\r\n      \"specials\": [{ \"type\": \"piercing\" }],\r\n      \"price\": 15\r\n    }\r\n  },\r\n\r\n  \"itemDropTables\": {\r\n    \"item_drop_default\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"默认道具掉落(通用fallback)\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    },\r\n    \"item_drop_common\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"普通怪物道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    },\r\n    \"item_drop_ranged\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"远程怪物道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    },\r\n    \"item_drop_heavy\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"重型怪物道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    },\r\n    \"item_drop_boss\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"Boss怪物道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 20,\r\n        \"rare\": 45,\r\n        \"legendary\": 35\r\n      }\r\n    },\r\n    \"item_drop_treasure_room\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"宝藏房间道具掉落(无common)\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 0,\r\n        \"rare\": 75,\r\n        \"legendary\": 25\r\n      }\r\n    },\r\n    \"item_drop_boss_room\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"Boss房间清空道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 25,\r\n        \"rare\": 45,\r\n        \"legendary\": 30\r\n      }\r\n    },\r\n    \"item_drop_chest_normal\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"普通宝箱道具品质（稀有与传说）\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 0,\r\n        \"rare\": 250,\r\n        \"legendary\": 100\r\n      }\r\n    },\r\n    \"item_drop_chest_golden\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"金宝箱道具品质（稀有与传说）\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 0,\r\n        \"rare\": 60,\r\n        \"legendary\": 40\r\n      }\r\n    },\r\n    \"item_drop_shop_stock\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"商店道具生成\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    }\r\n  }\r\n}\r\n"; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })();
     if (r.ok) {
       const data = await r.json();
-      ITEMS_DB = data.items || {};
+      ITEMS_DB = data[catalog] || {};
       ITEM_DROP_TABLES = data.itemDropTables || {};
       _rebuildItemPools();
       console.log('✅ 已从 JSON 加载道具数据库 (' + ITEM_POOL_ALL.length + ' 件 + ' + Object.keys(ITEM_DROP_TABLES).length + ' 张品质表)');
@@ -7772,7 +7772,7 @@ bootGame();
  * @param {string} cfgId - 怪物配置ID
  * @returns {boolean} 是否成功生成
  */
-function spawnMonsterAtRandomPos(cfgId, overrideMovementTags, anchorPos) {
+function spawnMonsterAtRandomPos(cfgId, overrideMovementTags, anchorPos, exactPosition) {
   const cfg = MONSTER_DB[cfgId];
   if (!cfg) return false;
 
@@ -7802,7 +7802,10 @@ function spawnMonsterAtRandomPos(cfgId, overrideMovementTags, anchorPos) {
 
   // 有锚点时，只选距离=1的候选（上下左右相邻），没有则返回false让调用方换锚点
   let pos;
-  if (anchorPos) {
+  if (exactPosition) {
+    pos = candidates.find(p => p.col === exactPosition.col && p.row === exactPosition.row);
+    if (!pos) return false;
+  } else if (anchorPos) {
     const adjacent = candidates.filter(c => Math.abs(c.col - anchorPos.col) + Math.abs(c.row - anchorPos.row) === 1);
     if (adjacent.length === 0) return false;
     pos = adjacent[Math.floor(Math.random() * adjacent.length)];
@@ -8038,6 +8041,197 @@ console.log(`  资源库: ${Object.keys(RESOURCE_DB).length} 种资源 (金币/�
 console.log(`  AP=${playerStats.fireRate}  MP=${playerStats.moveSpeed}  HP=${playerStats.hp}/${playerStats.maxHp}`);
 
 // SINGLE_STEP_FORMAL_START
+// 这些配置由自定义场注册，使用同一套正式战斗规则，不进入当前随机掉落池。
+const WEAPON_TRIAL_ITEMS = {
+  dual: ['双管','pattern','同向发射两发，每发造成65%伤害。','Ⅱ'],
+  triple: ['三管','pattern','同向发射三发，每发造成50%伤害。','Ⅲ'],
+  fork: ['分叉管','pattern','向正前方两侧各45°发射一发。','⋎'],
+  trident: ['三叉管','pattern','向正前方及两侧各45°发射一发。','Ψ'],
+  twin: ['双头管','pattern','向正前和正后各发射一发。','↔'],
+  random: ['随机枪管','pattern','向前射击，并从其余方向中随机选不同方向追加发射。','※'],
+  straight: ['普通枪管','trajectory','恢复普通直线射击，覆盖同类发射方式。','→'],
+  burstCharge: ['蓄力枪管（连击）','trajectory','前三次射击行动蓄力，第四次额外连射。移动保留蓄力。','≡'],
+  heavyCharge: ['蓄力枪管（合体）','trajectory','前三次射击行动蓄力，第四次射出高伤重弹。移动保留蓄力。','⬤'],
+  decay: ['能量衰减枪管','trajectory','近距离伤害更高，远距离衰减。','↘'],
+  gain: ['能量增幅枪管','trajectory','近距离伤害较低，远距离伤害增加。','↗'],
+  bullet: ['实弹枪','body','恢复普通实弹枪体，覆盖同类枪体。','●'],
+  shotgun: ['霰弹枪','body','枪体默认射出五发散射弹。另有发射数量道具时，使用该道具的发射方式。','⋰'],
+  laser: ['激光枪','body','发射激光，射程增加2格。','━'],
+  energy: ['能量光速枪','body','发射能量射线，射程增加2格并穿透怪物。','═'],
+  ghost: ['灵体子弹','shell','穿透怪物和阻挡射击的地形，无法穿出房间。','◇'],
+  blast: ['爆炸子弹','shell','每发首次命中敌人或障碍时，对相邻的其他敌人造成范围伤害。','✷'],
+  splash: ['溅射子弹','shell','每发首次命中后，向命中点两侧各飞出一发短程碎片。','✣'],
+  arc: ['电弧子弹','shell','每发首次命中后，在距离2格内的敌人间最多跳跃两次。','ϟ'],
+  tracking: ['追踪子弹','shell','若射线左右45°内有无遮挡的目标，子弹转向最近的一条可命中射线。','⌖'],
+  fold: ['空间折叠子弹','shell','同一发子弹最多从房间边界绕回一次，继续使用剩余射程。','↻'],
+  poison: ['毒性子弹','ammo','命中施毒，接下来3次正常战斗步各造成少量伤害。再次命中刷新。','◈'],
+  shield: ['护盾',null,'拾取时获得1点可耗尽的蓝心。','⬟'],
+  jet: ['喷气背包',null,'朝单格深坑移动时，可跨到对面的空地。','⤴'],
+  boots: ['厚底皮靴',null,'免疫地刺伤害。','▣'],
+  echo: ['残影',null,'成功闪避时在原格留下残影。子弹时间内射击，残影从原格同向补射。','◐'],
+};
+const WEAPON_TRIAL_PREFIX = 'trial_weapon_';
+const loadItemCatalog = loadItemDB;
+loadItemDB = () => loadItemCatalog('singleStepItems');
+function registerWeaponTrialItems() {
+  for (const [effect, [name, slot, desc, icon]] of Object.entries(WEAPON_TRIAL_ITEMS)) {
+    const id = WEAPON_TRIAL_PREFIX + effect;
+    ITEMS_DB[id] = {id, name, desc, icon, quality: 'rare', effects: {}, specials: [], weaponTrial: {effect, slot}};
+  }
+}
+function trialPassive(effect) {
+  return playerInventory.includes(WEAPON_TRIAL_PREFIX + effect);
+}
+function equippedWeaponTrial(slot) {
+  return playerInventory.map(id => ITEMS_DB[id]?.weaponTrial).find(item => item?.slot === slot)?.effect;
+}
+const trialApplyItemBase = applyItem;
+applyItem = function(cfgId) {
+  const trial = ITEMS_DB[cfgId]?.weaponTrial;
+  if (!trial) return trialApplyItemBase(cfgId);
+  if (playerInventory.includes(cfgId)) return;
+  if (trial.slot) playerInventory = playerInventory.filter(id => ITEMS_DB[id]?.weaponTrial?.slot !== trial.slot);
+  if (trial.slot === 'trajectory') SINGLE_STEP.weaponCharge = 0;
+  trialApplyItemBase(cfgId);
+  if (trial.effect === 'shield') {
+    playerResources.blueHearts += 1;
+    updateResourceUI();
+    updateUI();
+  }
+};
+
+const WEAPON_DIRECTIONS = [[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]];
+function weaponVolley(pattern, body) {
+  if (pattern === 'dual') return [[0,.65],[0,.65]];
+  if (pattern === 'triple') return [[0,.5],[0,.5],[0,.5]];
+  if (pattern === 'fork') return [[-1,1],[1,1]];
+  if (pattern === 'trident') return [[0,1],[-1,1],[1,1]];
+  if (pattern === 'twin') return [[0,1],[4,1]];
+  if (pattern === 'random') {
+    const pool = [1,2,3,4,5,6,7], rays = [[0,1]], count = Math.max(1, Math.min(7, 1 + Math.floor(playerStats.luck)));
+    for (let i=0;i<count;i++) rays.push([pool.splice(Math.floor(Math.random()*pool.length),1)[0],1]);
+    return rays;
+  }
+  if (body === 'shotgun') return [[0,.55],[-1,.55],[1,.55],[0,.55],[0,.55]];
+  return [[0,1]];
+}
+function weaponShotDamage(base, trajectory, n, range) {
+  const progress = (n - 1) / Math.max(1, range - 1);
+  if (trajectory === 'decay') return Math.round(base * (1.45 - .9 * progress) * 100) / 100;
+  if (trajectory === 'gain') return Math.round(base * (.55 + .9 * progress) * 100) / 100;
+  return base;
+}
+function weaponBlast(col, row, damage, direct) {
+  const q = gridToPixel(col,row);
+  particles.push({x:q.x,y:q.y,vx:0,vy:0,life:.18,maxLife:.18,size:8,color:'#ffc371'});
+  for (const m of [...monsters]) {
+    if (m === direct || m.hp <= 0 || m.jumperVanished || !monsters.includes(m)) continue;
+    if (monsterCells(m).some(p => Math.abs(p.col-col)+Math.abs(p.row-row)<=1)) damageMonster(m, Math.round(damage * 50) / 100);
+  }
+}
+function weaponFirstTarget(origin, dx, dy, range) {
+  for (let n=1;n<=range;n++) {
+    const col=origin.col+dx*n,row=origin.row+dy*n;
+    if (singleStepBlocksBullet(col,row) || (dx && dy &&
+      (singleStepBlocksBullet(col-dx,row) || singleStepBlocksBullet(col,row-dy)))) break;
+    if (monsters.some(m => !m.jumperVanished && isInMonsterFootprint(m,col,row))) return n;
+  }
+  return Infinity;
+}
+function weaponArc(origin, damage, direct) {
+  const visited=new Set([direct.id]);
+  let from=origin;
+  for (let jump=0;jump<2;jump++) {
+    const next=monsters.filter(m=>!visited.has(m.id)&&!m.jumperVanished)
+      .map(m=>({m,distance:Math.abs(m.col-from.col)+Math.abs(m.row-from.row)}))
+      .filter(p=>p.distance<=2).sort((a,b)=>a.distance-b.distance||a.m.id-b.m.id)[0]?.m;
+    if(!next)break;
+    visited.add(next.id);
+    singleStepVisualShot(from,next,true,{dx:0,dy:0},[next.id],true);
+    damageMonster(next,Math.round(damage*50)/100);
+    from=next;
+  }
+}
+function weaponShootRay(origin, dx, dy, base, range, trajectory, shell, body, ammo) {
+  const ignoresTerrain = shell === 'ghost';
+  const pierces = shell === 'pierce' || ignoresTerrain || body === 'energy' || (!shell && player.hasPiercing);
+  const hit = new Set();
+  let segment = origin, end = origin, col = origin.col, row = origin.row, wrapped = false, exploded = false;
+  const beam = body === 'laser' || body === 'energy';
+  for (let n = 1; n <= range; n++) {
+    const prevCol = col, prevRow = row;
+    col += dx; row += dy;
+    if (col < 0 || col >= COLS || row < 0 || row >= ROWS) {
+      if (shell !== 'fold' || wrapped) break;
+      singleStepVisualShot(segment,end,true,{dx,dy},[...hit],beam);
+      col = (col + COLS) % COLS; row = (row + ROWS) % ROWS;
+      segment = {col,row};
+      wrapped = true;
+    } else if (dx && dy && !ignoresTerrain && (singleStepBlocksBullet(prevCol,row) || singleStepBlocksBullet(col,prevRow))) break;
+    end = {col,row};
+    const damage = weaponShotDamage(base,trajectory,n,range);
+    if (!ignoresTerrain && singleStepBlocksBullet(col,row)) {
+      if (tileData[col+','+row]) hitTile(col,row,damage);
+      if (shell === 'blast' && !exploded) weaponBlast(col,row,damage,null);
+      break;
+    }
+    const m = monsters.find(unit => !unit.jumperVanished && !hit.has(unit.id) && isInMonsterFootprint(unit,col,row));
+    if (!m) continue;
+    hit.add(m.id);
+    damageMonster(m,damage);
+    if (ammo === 'poison' && m.hp > 0 && monsters.includes(m)) {
+      m.weaponPoison = {steps:3, firstStep:m.weaponPoison?.firstStep ?? SINGLE_STEP.step+1,
+        damage:Math.max(.25,Math.round(damage*.25*100)/100)};
+    }
+    if (shell === 'blast' && !exploded) { exploded = true; weaponBlast(col,row,damage,m); }
+    if (shell === 'splash' && !exploded) {
+      exploded = true;
+      for (const side of [-1,1]) weaponShootRay(end,-dy*side,dx*side,Math.round(damage*50)/100,2,null,'fragment',null,null);
+    }
+    if (shell === 'arc' && !exploded) { exploded = true; weaponArc(end,damage,m); }
+    if (!pierces) break;
+  }
+  singleStepVisualShot(segment,end,true,{dx,dy},[...hit],beam);
+}
+function weaponPrepareShot() {
+  const trajectory = equippedWeaponTrial('trajectory');
+  if (trajectory !== 'burstCharge' && trajectory !== 'heavyCharge') return {repetitions:1, scale:1};
+  if (SINGLE_STEP.weaponCharge < 3) {
+    SINGLE_STEP.weaponCharge++;
+    SINGLE_STEP.error='蓄力 '+SINGLE_STEP.weaponCharge+'/3';
+    return null;
+  }
+  SINGLE_STEP.weaponCharge=0;
+  return trajectory==='burstCharge' ? {repetitions:3,scale:1} : {repetitions:1,scale:3};
+}
+function fireSingleStepWeapon(origin, direction, charge) {
+  const pattern = equippedWeaponTrial('pattern'), body = equippedWeaponTrial('body'),
+    trajectory = equippedWeaponTrial('trajectory'), shell = equippedWeaponTrial('shell'), ammo = equippedWeaponTrial('ammo');
+  const start = WEAPON_DIRECTIONS.findIndex(([dx,dy]) => direction.dx === dx && direction.dy === dy);
+  const range = Math.floor(playerStats.range) + (['laser','energy'].includes(body) ? 2 : 0);
+  for (let i=0;i<charge.repetitions;i++) for (const [offset, scale] of weaponVolley(pattern,body)) {
+    const aim=(start+offset+8)%8;
+    let [dx,dy] = WEAPON_DIRECTIONS[aim];
+    if(shell==='tracking'){
+      let distance=weaponFirstTarget(origin,dx,dy,range);
+      for(const side of [-1,1]){
+        const [x,y]=WEAPON_DIRECTIONS[(aim+side+8)%8], n=weaponFirstTarget(origin,x,y,range);
+        if(n<distance){distance=n;dx=x;dy=y;}
+      }
+    }
+    const damage=playerStats.attack*scale*charge.scale;
+    weaponShootRay(origin,dx,dy,scale===1&&charge.scale===1?damage:Math.round(damage*100)/100,range,trajectory,shell,body,ammo);
+  }
+}
+function tickWeaponPoison() {
+  for (const m of [...monsters]) {
+    const poison = m.weaponPoison;
+    if (!poison || SINGLE_STEP.step<poison.firstStep || m.hp <= 0 || m.jumperVanished || !monsters.includes(m)) continue;
+    if (--poison.steps === 0) delete m.weaponPoison;
+    damageMonster(m,poison.damage);
+  }
+}
+
 // 正式版单步调度：保留楼层、配置、掉落与道具；不再进入旧 MP/AP 与回溯循环。
 // 普通怪物由 single-step-enemies 接入新规则；Boss通过旧规则模拟获得锁定行动。
 const SINGLE_STEP={bonus:0,step:0,room:null,plans:new Map(),legacy:new Map(),damaged:false,busy:false,shots:[],error:null};
@@ -8093,11 +8287,11 @@ function singleStepPlan(){
  for(const id of SINGLE_STEP.plans.keys())if(!monsters.some(m=>m.id===id))SINGLE_STEP.plans.delete(id);
  for(const m of monsters){if(SINGLE_STEP.plans.has(m.id))continue;const kind=singleStepBasic(m);const plan=kind?singleStepBasicPlan(m,kind):singleStepLegacyPlan(m);SINGLE_STEP.plans.set(m.id,plan);}
 }
-function singleStepReset(){SINGLE_STEP.bonus=0;SINGLE_STEP.step=0;SINGLE_STEP.room=currentRoomId;SINGLE_STEP.plans.clear();SINGLE_STEP.legacy.clear();SINGLE_STEP.shots=[];SINGLE_STEP.error=null;historyOpen=false;actionHistory=[];provisionalDefeats=[];turnState.phase='player_select';pendingPlayerTurnEnd=false;dangerForecast=null;dangerForecastJob=null;dangerReveal=null;singleStepPlan();}
+function singleStepReset(){SINGLE_STEP.bonus=0;SINGLE_STEP.echo=null;SINGLE_STEP.weaponCharge=0;SINGLE_STEP.step=0;SINGLE_STEP.room=currentRoomId;SINGLE_STEP.plans.clear();SINGLE_STEP.legacy.clear();SINGLE_STEP.shots=[];SINGLE_STEP.error=null;historyOpen=false;actionHistory=[];provisionalDefeats=[];turnState.phase='player_select';pendingPlayerTurnEnd=false;dangerForecast=null;dangerForecastJob=null;dangerReveal=null;singleStepPlan();}
 function singleStepPush(m,col,row,dir){
  const sz=m.size||1;let groups;
  if(sz===1&&dir)groups=[[[-dir.dy,dir.dx],[dir.dy,-dir.dx]],[[dir.dx,dir.dy]],[[-dir.dx,-dir.dy]]];else groups=[[[0,-1],[0,1],[-1,0],[1,0]]];
- for(const dirs of groups){const options=dirs.map(([dx,dy])=>({col:player.col+dx,row:player.row+dy})).filter(p=>!isWall(p.col,p.row)&&!(p.col>=col&&p.col<col+sz&&p.row>=row&&p.row<row+sz)&&!monsters.some(o=>o!==m&&isInMonsterFootprint(o,p.col,p.row)));const p=singleStepPick(options);if(p){player.col=p.col;player.row=p.row;const q=gridToPixel(p.col,p.row);player.targetPx=q.x;player.targetPy=q.y;checkSpikeUnderPlayer();return true;}}
+ for(const dirs of groups){const options=dirs.map(([dx,dy])=>({col:player.col+dx,row:player.row+dy})).filter(p=>!isWall(p.col,p.row)&&!(p.col>=col&&p.col<col+sz&&p.row>=row&&p.row<row+sz)&&!monsters.some(o=>o!==m&&isInMonsterFootprint(o,p.col,p.row)));const p=singleStepPick(options);if(p){player.col=p.col;player.row=p.row;const q=gridToPixel(p.col,p.row);player.targetPx=q.x;player.targetPy=q.y;if(!trialPassive('boots'))checkSpikeUnderPlayer();return true;}}
  SINGLE_STEP.error='挤出无合法落点';return false;
 }
 function singleStepApplyPlan(m,p){
@@ -8129,7 +8323,7 @@ function singleStepApplyPlan(m,p){
  if(p.type==='legacy-jump'&&(origin.col!==m.col||origin.row!==m.row)){m.jumpFrom=origin;m.jumpTo={col:m.col,row:m.row};m.jumpType=p.commit?.jumpType||'small';m.jumpAnimTimer=m.jumpType==='big_land'?.55:.4;m._visualPath=[];}
  return before;
 }
-function singleStepVisualShot(source,to,playerShot,dir,hitIds=[]){if(!to)return;const a=gridToPixel(source.col,source.row),b=gridToPixel(to.col,to.row);SINGLE_STEP.shots.push({from:a,to:b,start:performance.now(),player:playerShot,owner:playerShot?null:source.id,dir,hitIds,travel:Math.hypot(b.x-a.x,b.y-a.y)/(CFG.BULLET_SPEED*(playerShot?1:.6))*1000});}
+function singleStepVisualShot(source,to,playerShot,dir,hitIds=[],beam=false){if(!to)return;const a=gridToPixel(source.col,source.row),b=gridToPixel(to.col,to.row);SINGLE_STEP.shots.push({from:a,to:b,start:performance.now(),player:playerShot,owner:playerShot?null:source.id,dir,hitIds,beam,travel:beam?0:Math.hypot(b.x-a.x,b.y-a.y)/(CFG.BULLET_SPEED*(playerShot?1:.6))*1000});}
 function singleStepPickup(){autoPickupResources();for(let i=itemsOnGround.length-1;i>=0;i--){const item=itemsOnGround[i];if(item.col!==player.col||item.row!==player.row)continue;if(isShopSlotCell(item.col,item.row)){tryBuyShopItem(item.col,item.row);continue;}if(!playerInventory.includes(item.cfgId)){applyItem(item.cfgId);itemsOnGround.splice(i,1);updateItemBar();}}}
 function singleStepAct(type,dir){
  if(!gameStarted||gameOver||worldMapOpen||transition?.active||floorFadeBusy||SINGLE_STEP.busy)return false;
@@ -8137,24 +8331,31 @@ function singleStepAct(type,dir){
  const old={col:player.col,row:player.row},frozen=SINGLE_STEP.bonus>0;SINGLE_STEP.damaged=false;const v=DIR_VEC[dir];
  if(type==='move'){
   if(tryWalkIntoDoor(player.col,player.row,dir))return true;
-  const col=player.col+v.dx,row=player.row+v.dy;if(isWall(col,row)||monsters.some(m=>isInMonsterFootprint(m,col,row)))return false;
+  let col=player.col+v.dx,row=player.row+v.dy;
+  if(trialPassive('jet')&&currentRoomGrid[col]?.[row]===TILE.PIT&&currentRoomGrid[col+v.dx]?.[row+v.dy]===TILE.FLOOR){col+=v.dx;row+=v.dy;}
+  if(isWall(col,row)||monsters.some(m=>isInMonsterFootprint(m,col,row)))return false;
   const bomb=bombs.find(b=>b.roomId===currentRoomId&&b.col===col&&b.row===row);if(bomb)pushBomb(bomb,v.dx,v.dy);
   player.col=col;player.row=row;const q=gridToPixel(col,row);player.targetPx=q.x;player.targetPy=q.y;player.animTime=0;player.shootTimer=0;
  }else if(type==='shoot'){
-  SFX.shoot();totalShots++;let end=old;const hit=new Set();
-  for(let n=1;n<=Math.floor(playerStats.range);n++){const col=old.col+v.dx*n,row=old.row+v.dy*n;if(col<0||row<0||col>=COLS||row>=ROWS)break;end={col,row};
-   if(singleStepBlocksBullet(col,row)){if(tileData[col+','+row])hitTile(col,row,playerStats.attack);break;}
-   const m=monsters.find(m=>!m.jumperVanished&&!hit.has(m.id)&&isInMonsterFootprint(m,col,row));if(m){hit.add(m.id);damageMonster(m,playerStats.attack);if(!player.hasPiercing)break;}
-  }singleStepVisualShot(old,end,true,{dx:v.dx,dy:v.dy},[...hit]);player.shootTimer=.4;
+  const echo=frozen&&SINGLE_STEP.echo;
+  const shot=weaponPrepareShot();
+  if(shot){
+   SINGLE_STEP.error=null;
+   SFX.shoot();totalShots++;fireSingleStepWeapon(old,v,shot);
+   if(echo)fireSingleStepWeapon(echo,v,shot);
+   player.shootTimer=.4;
+  }
  }else if(type==='bomb'){if(playerResources.bombs<=0)return false;placeBomb(player.col,player.row);}
  else return false;
  player.facing=dir||player.facing;
  SINGLE_STEP.busy=true;
  try{
   if(player.invincibleSteps>0)player.invincibleSteps--;
-  checkSpikeUnderPlayer();let dodged=false;
+  if(!trialPassive('boots'))checkSpikeUnderPlayer();
+  let dodged=false;
   if(!frozen){
    tickBombCountdown();
+   tickWeaponPoison();
    for(const m of [...monsters]){if(!monsters.includes(m))continue;const saved=SINGLE_STEP.plans.get(m.id);if(!saved)continue;const plan=singleStepResolvePlan(m,saved);
     const wasHit=plan.cells.some(p=>p.col===old.col&&p.row===old.row),nowHit=plan.cells.some(p=>p.col===player.col&&p.row===player.row);
     if(type==='move'&&wasHit&&!nowHit)dodged=true;
@@ -8164,7 +8365,8 @@ function singleStepAct(type,dir){
   }
   singleStepPickup();updateRoomCombatState();SINGLE_STEP.step++;turnState.turnNumber=SINGLE_STEP.step;
   if(frozen)SINGLE_STEP.bonus=SINGLE_STEP.damaged?0:SINGLE_STEP.bonus-1;
-  else if(dodged&&!SINGLE_STEP.damaged&&!gameOver)SINGLE_STEP.bonus=2;
+  else if(dodged&&!SINGLE_STEP.damaged&&!gameOver){SINGLE_STEP.bonus=2;if(trialPassive('echo'))SINGLE_STEP.echo=old;}
+  if(!SINGLE_STEP.bonus)SINGLE_STEP.echo=null;
   singleStepPlan();
   if(currentRoomGrid[player.col]?.[player.row]===TILE.LADDER){const next=currentFloor.floorNum+1;if(next>Object.keys(FLOOR_CONFIG).length)triggerVictoryScreen();else enterFloor(next);}
   updateDoorsLocked();updateUI();updateActionBar();return true;
@@ -8196,7 +8398,21 @@ document.addEventListener('keydown',e=>{
 });
 drawReachableOverlay=function(){};
 drawDangerOverlay=function(){if(!gameStarted||worldMapOpen)return;const seen=new Set();for(const m of monsters){const p=SINGLE_STEP.plans.get(m.id);for(const cell of p?.cells||[]){const k=cell.col+','+cell.row;if(seen.has(k))continue;seen.add(k);const q=cellRect(cell.col,cell.row);scrapDraw('redGrid',q.xL,q.yT,q.w,q.h,.55);}}};
-drawBullets=function(){const now=performance.now();SINGLE_STEP.shots=SINGLE_STEP.shots.filter(s=>now-s.start<s.travel+250);for(const s of SINGLE_STEP.shots){const age=now-s.start,t=Math.min(1,age/Math.max(1,s.travel)),x=s.from.x+(s.to.x-s.from.x)*t,y=s.from.y+(s.to.y-s.from.y)*t;if(age<s.travel){if(s.player){const dir=Math.abs(s.dir.dx)>Math.abs(s.dir.dy)?s.dir.dx<0?'left':'right':s.dir.dy<0?'up':'down';scrapDraw('bullet-'+dir+Math.floor(age/70)%3,x-12,y-10.6,24,21.2);}else{ctx.save();ctx.translate(x,y);ctx.rotate(Math.atan2(s.dir.dy,s.dir.dx));scrapDraw('remote',-4.4,-5,8.8,10);ctx.restore();}}else scrapDraw('impact'+Math.min(3,Math.floor((age-s.travel)/250*4)),x-10,y-15,20,30);}};
+drawBullets=function(){
+ const now=performance.now();
+ SINGLE_STEP.shots=SINGLE_STEP.shots.filter(s=>now-s.start<s.travel+250);
+ for(const s of SINGLE_STEP.shots){
+  const age=now-s.start,t=Math.min(1,age/Math.max(1,s.travel)),x=s.from.x+(s.to.x-s.from.x)*t,y=s.from.y+(s.to.y-s.from.y)*t;
+  if(s.beam){
+   const a=project(s.from.x,s.from.y),b=project(s.to.x,s.to.y);
+   ctx.save();ctx.globalAlpha=Math.max(0,1-age/250);ctx.strokeStyle='#77edff';ctx.lineWidth=4;
+   ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.restore();
+  }else if(age<s.travel){
+   if(s.player){const dir=Math.abs(s.dir.dx)>Math.abs(s.dir.dy)?s.dir.dx<0?'left':'right':s.dir.dy<0?'up':'down';scrapDraw('bullet-'+dir+Math.floor(age/70)%3,x-12,y-10.6,24,21.2);}
+   else{ctx.save();ctx.translate(x,y);ctx.rotate(Math.atan2(s.dir.dy,s.dir.dx));scrapDraw('remote',-4.4,-5,8.8,10);ctx.restore();}
+  }else scrapDraw('impact'+Math.min(3,Math.floor((age-s.travel)/250*4)),x-10,y-15,20,30);
+ }
+};
 const stepOldHUD=scrapUpdateHUD;
 scrapUpdateHUD=function(){stepOldHUD();const ap=document.getElementById('scrap-ap'),mp=document.getElementById('scrap-mp');if(ap)ap.textContent=SINGLE_STEP.bonus?'额外行动 '+SINGLE_STEP.bonus+'/2':'单步行动';if(mp)mp.textContent=SINGLE_STEP.bonus?'子弹时间':'移动 / 射击';const phase=document.getElementById('scrap-phase');if(phase)phase.textContent=SINGLE_STEP.bonus?'子弹时间':'自由思考';const rewind=document.getElementById('ui-rewind-info');if(rewind)rewind.style.display='none';};
 const stepOldTextOverlay=updateTextOverlay;
@@ -8409,6 +8625,10 @@ drawMonsters=function(){
   else{const kind=m.cfgId==='step_mobile'?'ranged':'melee';let frame=SINGLE_STEP.bonus?0:Math.floor(now/180)%3;if(action&&now>=action.at&&now-action.at<240&&['shot','strike'].includes(action.type))frame=3+Math.min(1,Math.floor((now-action.at)/120));if(!(m._stepHitAt>now)&&(m.hitFlash>0||now-m._stepHitAt<120))frame=5;scrapDraw(kind+frame,p.x-30,p.y-38,60,68);}
   if(m.cfgId==='step_charger'&&action?.type==='charge'&&now>=action.at&&now-action.at<400){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(action.dir.dy,action.dir.dx));scrapDraw('unit-effects-charge',-CELL*1.375,-CELL*.375,CELL*1.5,CELL*.75);ctx.restore();}
   drawMonsterHealthPreview(m,p.x-10,p.y+10,20,3);
+  if(m.weaponPoison){
+   ctx.save();ctx.fillStyle='#9bea74';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+   ctx.fillText('毒 '+m.weaponPoison.steps,p.x,p.y-20);ctx.restore();
+  }
  }
  // 所有准备攻击的单位（含Boss）均显示正式版约定位置的感叹号。
  for(const m of monsters)if(SINGLE_STEP.plans.get(m.id)?.cells.length&&!m.jumperVanished){const p=project(m.px,m.py);scrapDraw('alert',p.x+3.2,p.y-10.4,5.6,8.8);}
@@ -8430,6 +8650,10 @@ function stepDrawDodge(now=performance.now()){
 const stepPlayerOriginal=drawPlayer;
 drawPlayer=function(){
  stepDrawDodge();const now=performance.now(),hurt=stepVisualEvents.filter(e=>e.type==='hurt').at(-1),flash=player.hitFlash;
+ if(SINGLE_STEP.bonus&&SINGLE_STEP.echo){
+  const q=gridToPixel(SINGLE_STEP.echo.col,SINGLE_STEP.echo.row),p=project(q.x,q.y);
+  scrapDraw('hero-'+player.facing+'-move1',p.x-19.8,p.y-24,39.6,41.8,.38);
+ }
  // 规则即时扣血，受击帧等弹体或冲锋画面到达后播放；不延长输入锁定。
  if(hurt)player.hitFlash=now>=hurt.at&&now<hurt.at+240?1:0;
  try{stepPlayerOriginal();}finally{player.hitFlash=flash;}
