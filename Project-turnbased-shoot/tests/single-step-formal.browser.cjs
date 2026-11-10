@@ -6,12 +6,30 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
  const page=await browser.newPage({viewport:{width:1280,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(pathToFileURL(path.resolve(__dirname,'../dist/turnbased-shoot-demo-pack.html')).href);
  await page.waitForFunction(()=>currentFloor&&MONSTER_DB.step_mobile&&Object.keys(RESOURCE_DB).length);await page.evaluate(()=>startGameFromMenu());
- await page.evaluate(()=>{
+ await page.evaluate(singleStepItems=>{
   const check=(v,msg)=>{if(!v)throw Error(msg);};
-  const approved=new Set(['single_step_attack','single_step_range','single_step_health','single_step_pierce']);
-  check(Object.keys(ITEMS_DB).length===approved.size&&Object.keys(ITEMS_DB).every(id=>approved.has(id)),'当前道具库只包含清单内的正式道具');
-  for(const quality of ['common','rare','legendary'])for(let i=0;i<20;i++){
-   check(approved.has(rollItem(quality)),'各品质与空池回退都只能生成清单内道具');
+  const approved=new Set(Object.keys(singleStepItems));
+  check(approved.size===60&&Object.keys(ITEMS_DB).length===60&&Object.keys(ITEMS_DB).every(id=>approved.has(id)),'正式版加载全部60件道具');
+  check(ITEM_POOL_ALL.length===60&&ITEM_POOL_ALL.every(id=>approved.has(id)),'正式掉落池覆盖全部60件道具');
+  const baseRandom=Math.random;
+  try{
+   for(const quality of ['common','rare','legendary']){
+    const items=Object.values(singleStepItems).filter(item=>item.quality===quality);
+    items.forEach((item,index)=>{
+     Math.random=()=>(index+.5)/items.length;
+     check(rollItem(quality)===item.id,'正式版可从对应品质抽到 '+item.name);
+    });
+   }
+   Math.random=()=>.3;
+   check(ITEMS_DB[rollItem(null,'item_drop_treasure_room')].quality==='rare'&&
+     ITEMS_DB[rollItem(null,'item_drop_boss_room')].quality==='legendary','宝物房和Boss房使用各自的品质权重');
+   applyItem('trial_weapon_blast');
+   Math.random=()=>.5;
+   check(rollItem('legendary')!=='trial_weapon_blast','正式抽取跳过已经装备的同款武器');
+   applyPreRolledLoot([{type:'item',cfgId:'trial_weapon_blast',itemDropTable:'item_drop_boss_room'}],3,3);
+   check(itemsOnGround.length===1&&itemsOnGround[0].cfgId!=='trial_weapon_blast','预抽后才拾到的同款会重新选道具');
+  }finally{
+   Math.random=baseRandom;playerInventory=[];recalcAllStats();itemsOnGround.length=0;
   }
   window.stepFixture=(id='flying_eye_i',c=5,r=3)=>{
    currentRoomGrid=parseGrid(BUILTIN_TEMPLATES().open.tiles);const room=currentFloor.rooms.find(r=>r.id===currentRoomId);room.grid=currentRoomGrid;room.type='normal';room.bossLadderPlaced=false;
@@ -19,6 +37,34 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
    Object.assign(playerStats,{hp:5,maxHp:5,attack:3.5,range:6});Object.assign(player,{col:2,row:3,...(()=>{const p=gridToPixel(2,3);return {px:p.x,py:p.y,targetPx:null,targetPy:null};})(),invincibleSteps:0,hitFlash:0,shootTimer:0});playerResources.blueHearts=0;
    document.getElementById('death-modal').classList.remove('show');document.getElementById('floor-fade').style.opacity='0';initTileData();spawnMonsterAtRandomPos(id);const m=monsters.at(-1);Object.assign(m,{col:c,row:r,px:gridToPixel(c,r).x,py:gridToPixel(c,r).y,_spawnedThisTurn:false});inCombat=true;singleStepReset();return m;
   };
+  const itemRoom=currentFloor.rooms.find(r=>r.id===currentRoomId);
+  stepFixture('step_fixed',10,5);
+  itemRoom.type='treasure';itemRoom.itemSpawned=false;
+  spawnTreasureRoomItem();
+  check(itemsOnGround.length===1&&ITEMS_DB[itemsOnGround[0].cfgId].weaponTrial,'正式宝物房生成一件武器道具');
+  itemsOnGround.length=0;itemRoom.itemSpawned=false;
+  spawnItemOnGrid(2,2,'trial_weapon_dual');
+  singleStepAct('move','up');
+  check(equippedWeaponTrial('pattern')==='dual'&&itemsOnGround.length===0,'正式版走到道具卡片上装配枪管');
+  singleStepAct('shoot','right');
+  check(SINGLE_STEP.shots.filter(shot=>shot.player).length===2,'正式版用拾到的双管实际射出两发');
+  playerInventory=[];recalcAllStats();updateItemBar();
+  itemRoom.type='shop';
+  rollShopSlots(itemRoom,currentFloor.floorNum);
+  const goods=itemRoom._shopSlots.filter(slot=>slot.type==='item');
+  check(goods.length===2&&goods.every(slot=>approved.has(slot.cfgId)&&slot.price>0)&&goods[0].cfgId!==goods[1].cfgId,
+   '正式商店生成两件不同的正式池商品');
+  itemRoom._shopSlots=null;
+  stepFixture('step_fixed',10,5);
+  spawnItemOnGrid(3,3,'trial_weapon_timedShield');
+  singleStepAct('move','right');scrapUpdateHUD();
+  check(trialPassive('timedShield')&&document.querySelector('#scrap-hearts .arena-heart-shield.ready'),'正式版踩格拾取护盾后立即发光');
+  const shieldHp=playerStats.hp;
+  damagePlayer(1);
+  check(arenaEffects.timedCharge===0&&playerStats.hp===shieldHp,'正式版护盾可实际挡伤');
+  singleStepAct('move','left');
+  check(arenaEffects.timedCharge===1,'正式版移动一格充能一点');
+  playerInventory=[];recalcAllStats();updateItemBar();
   let m=stepFixture();check(SINGLE_STEP.plans.get(m.id).type==='shot','基础射手初始锁定');singleStepAct('move','up');check(SINGLE_STEP.bonus===2&&playerStats.hp===5,'正式版闪避奖励');
   const frozen=JSON.stringify([monsters.map(m=>[m.id,m.col,m.row]),[...SINGLE_STEP.plans],combatRng]);singleStepAct('shoot','left');singleStepAct('shoot','left');check(SINGLE_STEP.bonus===0&&frozen===JSON.stringify([monsters.map(m=>[m.id,m.col,m.row]),[...SINGLE_STEP.plans],combatRng]),'正式版两次额外行动冻结所有阶段');
   singleStepAct('shoot','left');check(SINGLE_STEP.step===4,'恢复普通行动');
@@ -32,7 +78,13 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   m=stepFixture();currentRoomGrid[4][3]=TILE.ROCK;initTileData();const terrainBefore=JSON.stringify(tileData);singleStepReset();for(let i=0;i<5;i++){SINGLE_STEP.plans.clear();singleStepPlan();}check(JSON.stringify(tileData)===terrainBefore,'攻击规划不能损伤地形');
   m=stepFixture();singleStepAct('move','up');playerResources.bombs=3;placeBomb(10,5);const b=bombs.at(-1),timer=b.timer;singleStepAct('shoot','left');singleStepAct('shoot','left');check(b.timer===timer,'奖励期炸弹倒计时冻结');singleStepAct('shoot','left');check(b.timer===timer-1,'普通步炸弹推进一次');
   m=stepFixture();m.hp=1;singleStepAct('shoot','right');check(!monsters.length&&!inCombat,'瞬发击杀及清房');check(!actionHistoryActive(),'正式版不创建回溯历史');
-  m=stepFixture();m.hp=1;currentFloor.rooms.find(r=>r.id===currentRoomId).type='boss';singleStepAct('shoot','right');check(currentRoomGrid[6][1]===TILE.LADDER,'Boss清场保留梯子流程');
+  m=stepFixture();m.hp=1;m._killLoot=[];
+  itemRoom.type='boss';itemRoom.itemDropped=false;
+  const originalClearDrop=itemRoom.roomClearDrop;
+  itemRoom.roomClearDrop={itemDropTable:'item_drop_boss_room'};
+  singleStepAct('shoot','right');
+  check(currentRoomGrid[6][1]===TILE.LADDER&&itemsOnGround.length===1&&ITEMS_DB[itemsOnGround[0].cfgId].weaponTrial,'Boss清场生成梯子和正式武器奖励');
+  itemRoom.roomClearDrop=originalClearDrop;itemRoom.itemDropped=false;
   m=stepFixture();const itemId=Object.keys(ITEMS_DB).find(k=>!playerInventory.includes(k)&&ITEMS_DB[k].effects?.attack);if(itemId){spawnItemOnGrid(2,2,itemId);const attack=playerStats.attack;singleStepAct('move','up');check(playerInventory.includes(itemId)&&playerStats.attack>attack,'正式版道具自动拾取与攻击加成');}
   check(Object.keys(STEP_ENEMIES).length===9,'九种新怪物配置');
   check(Object.values(SQUAD_TEMPLATES.squads).filter(s=>s.roomTypes.includes('normal')).every(s=>s.monsters.every(id=>id.startsWith('step_'))),'普通房间小队全部替换');
@@ -52,6 +104,75 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   for(const id of ['step_x','step_cross']){m=stepFixture(id,4,6);const plan=SINGLE_STEP.plans.get(m.id);check(plan.jump&&plan.path.length===1,id+'追击跳跃');const probe={...m,...plan.path[0]};check(stepEnemyCells(probe).some(p=>p.col===player.col&&p.row===player.row),id+'追击落点能够射到玩家');singleStepAct('shoot','left');check(m._stepJump&&SINGLE_STEP.plans.get(m.id).type==='fan',id+'落地后锁定攻击');}
   m=stepFixture('step_big',4,3);m.hp=1;SINGLE_STEP.bonus=2;singleStepAct('shoot','right');check(monsters.length===2&&monsters.every(m=>m.cfgId==='step_small'&&m._stepJump),'击杀最后一只大史莱姆先分裂再判清房');check(inCombat&&SINGLE_STEP.bonus===1,'分裂不能提前清房或中止子弹时间');const children=JSON.stringify(monsters.map(m=>[m.col,m.row]));singleStepAct('shoot','left');check(children===JSON.stringify(monsters.map(m=>[m.col,m.row])),'奖励期间新生小史莱姆冻结');
   m=stepFixture('step_bomber',3,3);singleStepAct('move','left');check(!monsters.length&&playerStats.hp===5&&SINGLE_STEP.bonus===2,'自爆八格锁定、闪避与自身死亡');
+  const placeAlly=(col,row)=>{
+   spawnMonsterAtRandomPos('step_fixed');
+   const ally=monsters.at(-1);
+   return Object.assign(ally,{col,row,_spawnedThisTurn:false});
+  };
+  m=stepFixture('step_mobile',5,5);placeAlly(4,5);
+  check(stepEnemyPlan(m).type!=='shot','射手不因射程内有其他怪物而锁定攻击');
+  m=stepFixture('step_bomber',3,3);const blastAlly=placeAlly(3,4),blastAllyHp=blastAlly.hp;
+  singleStepAct('shoot','up');
+  check(playerStats.hp===4&&!monsters.includes(m)&&blastAlly.hp===blastAllyHp,'自爆伤害玩家和自身，附近怪物不受伤');
+  m=stepFixture('step_fixed',4,3);const meleeAlly=placeAlly(5,3),meleeAllyHp=meleeAlly.hp;
+  const adjacent={type:'attack_adjacent',range:2,damage:1};
+  const context={monster:m,targetCol:m.col,targetRow:m.row,sz:1};
+  Object.assign(meleeAlly,{size:2});
+  resolveAfterEffects({after_effect:[adjacent]},context);
+  check(playerStats.hp===4&&meleeAlly.hp===meleeAllyHp,'旧版范围近战默认只伤害玩家');
+  resolveAfterEffects({after_effect:[{...adjacent,hitsAllies:true}]},context);
+  check(meleeAlly.hp===meleeAllyHp-1,'显式开启友伤时，多格怪物同一次近战只扣血一次');
+  const threatArt=()=>{
+   const draw=scrapDraw,calls=[];
+   scrapDraw=(key,...args)=>{if(['redGrid','blueGrid','alert'].includes(key))calls.push(key);return draw(key,...args);};
+   try{drawDangerOverlay();drawMonsters();return calls;}
+   finally{scrapDraw=draw;}
+  };
+  m=stepFixture('boss_jumper_i',8,4);
+  const smallJump=SINGLE_STEP.plans.get(m.id);
+  check(smallJump.type==='legacy-jump'&&smallJump.cells.length>0&&threatArt().length===0,'Boss普通跳跃有落点也不显示红格或感叹号');
+  const shockwaveAlly=placeAlly(7,3);
+  const landAction=MONSTER_DB[m.cfgId].actions.find(action=>action.type==='jump_big_land');
+  Object.assign(player,{col:5,row:3});
+  m._charging=true;
+  SINGLE_STEP.legacy.set(m.id,{queue:[],counter:0,landing:{monster:m,targetCol:5,targetRow:3,landAction}});
+  const shockwave=singleStepLegacyPlan(m);
+  SINGLE_STEP.plans.set(m.id,shockwave);
+  check(shockwave.cells.some(cell=>cell.col===shockwaveAlly.col&&cell.row===shockwaveAlly.row),'其他怪物在砸地范围内');
+  Object.assign(player,{col:2,row:3});
+  const warnings=threatArt();
+  check(warnings.filter(key=>key==='alert').length===1&&warnings.filter(key=>key==='redGrid').length===shockwave.cells.length,'玩家离开已锁定的砸地区域后仍显示预警');
+  m=stepFixture('step_mobile',5,3);
+  const shotWarning=threatArt();
+  Object.assign(player,{col:2,row:2});
+  check(shotWarning.includes('alert')&&JSON.stringify(threatArt())===JSON.stringify(shotWarning),'玩家离开已锁定的射线后仍显示预警');
+  placeAlly(4,3);
+  check(threatArt().join(',')==='alert','贴身怪物挡住整条射线，射手仍准备开枪');
+  m=stepFixture('step_mobile',5,5);
+  placeAlly(4,5);
+  SINGLE_STEP.plans.set(m.id,stepEnemyPlan(m));
+  check(threatArt().length===0,'只有其他怪物在射程内时不会锁定射击或显示预警');
+  for(const [col,row,type] of [[4,5,'chase'],[9,5,'wander']]){
+   m=stepFixture('step_mobile',col,row);
+   const movement=SINGLE_STEP.plans.get(m.id);
+   check(movement.type===type&&movement.path.length===1&&threatArt().length===0,'追击和游走有移动落点也不显示蓝格');
+  }
+  for(const hitsAllies of [false,true]){
+   m=stepFixture('boss_jumper_i',8,4);
+   const shockwaveAlly=placeAlly(7,3),shockwaveAllyHp=shockwaveAlly.hp;
+   Object.assign(player,{col:4,row:3});
+   const landAction={after_effect:[{type:'attack_side',range:1,damage:1,hitsAllies}]};
+   m._charging=true;
+   SINGLE_STEP.legacy.set(m.id,{queue:[],counter:0,landing:{monster:m,targetCol:5,targetRow:3,landAction}});
+   const landing=singleStepLegacyPlan(m);
+   singleStepApplyPlan(m,landing);
+   check(m.col===5&&m.row===3&&playerStats.hp<5&&shockwaveAlly.hp===shockwaveAllyHp-Number(hitsAllies),'Boss冲击波伤害玩家，只按配置伤害怪物');
+  }
+  m=stepFixture('boss_jumper_i',8,4);
+  const landingAlly=placeAlly(5,3),landingAllyHp=landingAlly.hp;
+  pendingBossLanding={monster:m,targetCol:5,targetRow:3};
+  executeBossLanding();
+  check(!isInMonsterFootprint(m,landingAlly.col,landingAlly.row)&&landingAlly.hp===landingAllyHp,'旧版Boss落地避开怪物占位');
   // 旧普通怪物入口兼容映射为新怪物，Boss保留原配置并执行锁定计划。
   for(const id of Object.keys(MONSTER_DB).filter(k=>!k.startsWith('_'))){
    m=stepFixture(id,8,3);playerStats.hp=playerStats.maxHp=100;
@@ -63,10 +184,20 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   // 使用原始房门触发真正的换房流程，再验证三层入口。
   resetGameToFloor1();gameStarted=true;gameOver=false;
   const room=currentFloor.rooms.find(r=>r.id===currentRoomId),door=Object.entries(room.doors).find(([,d])=>d?.targetRoomId);
-  if(door){const [dir,d]=door,pos=DOOR_POS[dir];d.open=true;room.locked=false;monsters=[];inCombat=false;player.col=pos.col;player.row=pos.row;const oldId=currentRoomId;singleStepAct('move',dir);check(transition?.active,'走门触发换房');finishTransition();check(currentRoomId!==oldId&&SINGLE_STEP.room===currentRoomId,'新房生成新计划');check(monsters.every(m=>SINGLE_STEP.plans.has(m.id)),'新房怪物均有计划');}
+  if(door){
+   const [dir,d]=door,pos=DOOR_POS[dir];d.open=true;room.locked=false;monsters=[];inCombat=false;player.col=pos.col;player.row=pos.row;
+   applyItem('trial_weapon_backArmor');arenaEffects.armorReady=false;
+   arenaGroundEffect({col:3,row:3},'slime',3);
+   const oldId=currentRoomId;singleStepAct('move',dir);check(transition?.active,'走门触发换房');finishTransition();
+   check(currentRoomId!==oldId&&SINGLE_STEP.room===currentRoomId,'新房生成新计划');
+   check(monsters.every(m=>SINGLE_STEP.plans.has(m.id)),'新房怪物均有计划');
+   check(arenaEffects.armorReady&&arenaEffects.ground.size===0&&arenaEffects.roomHadEnemies===hasMonstersAlive(),'正式换房恢复背甲、清除液体并跟踪清房');
+  }
+  arenaEffects.floorAttack=1;recalcAllStats();
   for(const n of [2,3,1]){enterFloor(n);check(currentFloor.floorNum===n&&SINGLE_STEP.room===currentRoomId,'楼层切换重置调度');}
+  check(arenaEffects.floorAttack===0&&playerStats.attack===3.5,'正式换层清除本层攻击加成');
   stepFixture();document.getElementById('floor-banner').classList.remove('show');particles=[];damageNumbers=[];
- });
+ },require('../Configs/item-db.json').singleStepItems);
  const before=await page.evaluate(()=>({step:SINGLE_STEP.step,col:player.col,row:player.row}));await page.keyboard.press('Space');await page.keyboard.press('Escape');assert.deepEqual(await page.evaluate(()=>({step:SINGLE_STEP.step,col:player.col,row:player.row})),before,'空格/Esc不推进不回溯');
  await page.keyboard.press('w');assert.equal(await page.evaluate(()=>SINGLE_STEP.bonus),2);
  assert.equal(await page.evaluate(()=>stepTimeFx.active&&!!stepTimeFx.enter),true,'触发输入立即启动冻结效果');

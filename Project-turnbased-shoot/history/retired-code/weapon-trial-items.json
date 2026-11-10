@@ -1,0 +1,148 @@
+{
+  "_description": "本轮未转正的自定义战斗场道具。保留原标识和原型定义，正式版与当前自定义场均不加载。",
+  "items": {
+    "trial_weapon_fork": {
+      "id": "trial_weapon_fork",
+      "name": "分叉管",
+      "icon": "⋎",
+      "desc": "向正前方两侧各45°发射一发。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {
+        "effect": "fork",
+        "slot": "pattern"
+      }
+    },
+    "trial_weapon_twin": {
+      "id": "trial_weapon_twin",
+      "name": "双头管",
+      "icon": "↔",
+      "desc": "向正前和正后各发射一发。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {
+        "effect": "twin",
+        "slot": "pattern"
+      }
+    },
+    "trial_weapon_random": {
+      "id": "trial_weapon_random",
+      "name": "随机枪管",
+      "icon": "※",
+      "desc": "向前射击，并从其余方向中随机选不同方向追加发射。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {
+        "effect": "random",
+        "slot": "pattern"
+      }
+    },
+    "trial_weapon_straight": {
+      "id": "trial_weapon_straight",
+      "name": "普通枪管",
+      "icon": "→",
+      "desc": "恢复普通直线射击，覆盖同类发射方式。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {
+        "effect": "straight",
+        "slot": "trajectory"
+      }
+    },
+    "trial_weapon_bullet": {
+      "id": "trial_weapon_bullet",
+      "name": "实弹枪",
+      "icon": "●",
+      "desc": "恢复普通实弹枪体，覆盖同类枪体。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {
+        "effect": "bullet",
+        "slot": "body"
+      }
+    },
+    "trial_weapon_laser": {
+      "id": "trial_weapon_laser",
+      "name": "激光枪",
+      "icon": "━",
+      "desc": "发射激光，射程增加2格。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {
+        "effect": "laser",
+        "slot": "body"
+      }
+    },
+    "trial_weapon_ghost": {
+      "id": "trial_weapon_ghost",
+      "name": "灵体子弹",
+      "icon": "◇",
+      "desc": "穿透怪物和阻挡射击的地形，无法穿出房间。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {
+        "effect": "ghost",
+        "slot": "shell"
+      }
+    },
+    "trial_weapon_shield": {
+      "id": "trial_weapon_shield",
+      "name": "护盾",
+      "icon": "⬟",
+      "desc": "拾取时获得1点可耗尽的蓝心。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {
+        "effect": "shield",
+        "slot": null
+      }
+    },
+    "trial_weapon_jet": {
+      "id": "trial_weapon_jet",
+      "name": "喷气背包",
+      "icon": "⤴",
+      "desc": "朝单格深坑移动时，可跨到对面的空地。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {
+        "effect": "jet",
+        "slot": null
+      }
+    },
+    "trial_weapon_boots": {
+      "id": "trial_weapon_boots",
+      "name": "厚底皮靴",
+      "icon": "▣",
+      "desc": "免疫地刺伤害。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {
+        "effect": "boots",
+        "slot": null
+      }
+    },
+    "trial_weapon_echo": {
+      "id": "trial_weapon_echo",
+      "name": "残影",
+      "icon": "◐",
+      "desc": "成功闪避时在原格留下残影。子弹时间内射击，残影从原格同向补射。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {
+        "effect": "echo",
+        "slot": null
+      }
+    }
+  }
+}

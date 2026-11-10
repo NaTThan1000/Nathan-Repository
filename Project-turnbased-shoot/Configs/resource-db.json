@@ -70,10 +70,10 @@
       "name": "炸弹",
       "icon": "@",
       "amount": 1,
-      "desc": "可放置的炸弹，爆炸造成50伤害",
+      "desc": "可放置的炸弹，倒计时5回合，对引爆格及周围8格造成50伤害",
       "damage": 50,
-      "radius": 2,
-      "detonateTurns": 3,
+      "radius": 1,
+      "detonateTurns": 5,
       "price": 5
     },
     "bomb_double": {
@@ -82,10 +82,10 @@
       "name": "双炸弹",
       "icon": "@@",
       "amount": 2,
-      "desc": "两个炸弹，爆炸造成50伤害",
+      "desc": "两个炸弹，各倒计时5回合，对引爆格及周围8格造成50伤害",
       "damage": 50,
-      "radius": 2,
-      "detonateTurns": 3,
+      "radius": 1,
+      "detonateTurns": 5,
       "price": 5
     },
 

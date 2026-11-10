@@ -20,7 +20,10 @@ const stepSpawnOriginal=spawnMonsterAtRandomPos;
 spawnMonsterAtRandomPos=function(id,tags,anchor){const mapped=stepEnemyAlias(id);return stepSpawnOriginal(mapped,STEP_ENEMIES[mapped.replace(/^step_/,'')]?['地面']:tags,anchor);};
 const stepSummonOriginal=handleDukeSummon;
 handleDukeSummon=function(m){if(m._turnAfterAction?.monsterId)m._turnAfterAction.monsterId=stepEnemyAlias(m._turnAfterAction.monsterId);return stepSummonOriginal(m);};
-function stepEnemyRay(m,dx,dy,range){return singleStepRay(m,dx,dy,range);}
+function stepEnemyRay(m,dx,dy,range){
+ const d=stepEnemyDefinition(m);
+ return singleStepRay(m,dx,dy,range,d.hitsAllies===true&&d.mode!=='charge');
+}
 function stepEnemyCells(m,target=player){
  const d=stepEnemyDefinition(m),dx=target.col-m.col,dy=target.row-m.row;
  if(d.mode==='blast')return [...STEP_CARDINAL,...STEP_DIAGONAL].map(([x,y])=>({col:m.col+x,row:m.row+y})).filter(p=>p.col>=0&&p.row>=0&&p.col<COLS&&p.row<ROWS);
@@ -28,20 +31,20 @@ function stepEnemyCells(m,target=player){
  if(dx&&dy||!dx&&!dy||Math.abs(dx)+Math.abs(dy)>d.range)return [];
  return stepEnemyRay(m,Math.sign(dx),Math.sign(dy),d.range);
 }
-function stepEnemyChaseDirections(m){
- const dx=player.col-m.col,dy=player.row-m.row,axes=[];
+function stepEnemyChaseDirections(m,target=player){
+ const dx=target.col-m.col,dy=target.row-m.row,axes=[];
  if(dx)axes.push({col:m.col+Math.sign(dx),row:m.row,distance:Math.abs(dx)});
  if(dy)axes.push({col:m.col,row:m.row+Math.sign(dy),distance:Math.abs(dy)});
  axes.sort((a,b)=>b.distance-a.distance);
  if(axes.length===2&&Math.abs(dx)===Math.abs(dy)&&singleStepPick([false,true]))axes.reverse();
  return axes.map(({col,row})=>({col,row}));
 }
-function stepEnemyChase(m){
+function stepEnemyChase(m,target=player){
  // 同长最短路线优先较长轴；绕障允许先远离，无法贴近时走向最近可达位置。
- const preferred=stepEnemyChaseDirections(m).map(p=>[p.col-m.col,p.row-m.row]),dirs=[...preferred,...STEP_CARDINAL].filter((p,i,all)=>all.findIndex(o=>o[0]===p[0]&&o[1]===p[1])===i);
- const queue=[{col:m.col,row:m.row,first:null}],seen=new Set([m.col+','+m.row]);let best=Math.abs(m.col-player.col)+Math.abs(m.row-player.row),fallback=null;
+ const preferred=stepEnemyChaseDirections(m,target).map(p=>[p.col-m.col,p.row-m.row]),dirs=[...preferred,...STEP_CARDINAL].filter((p,i,all)=>all.findIndex(o=>o[0]===p[0]&&o[1]===p[1])===i);
+ const queue=[{col:m.col,row:m.row,first:null}],seen=new Set([m.col+','+m.row]);let best=Math.abs(m.col-target.col)+Math.abs(m.row-target.row),fallback=null;
  for(let i=0;i<queue.length;i++){
-  const p=queue[i],distance=Math.abs(p.col-player.col)+Math.abs(p.row-player.row);if(distance===1)return p.first;
+  const p=queue[i],distance=Math.abs(p.col-target.col)+Math.abs(p.row-target.row);if(distance===1)return p.first;
   if(distance<best){best=distance;fallback=p.first;}
   for(const [dx,dy]of dirs){const col=p.col+dx,row=p.row+dy,k=col+','+row;if(seen.has(k)||!singleStepLegal(m,col,row)||col===player.col&&row===player.row)continue;seen.add(k);queue.push({col,row,first:p.first||{col,row}});}
  }return fallback;
@@ -61,7 +64,17 @@ function stepEnemyPlan(m){
  return {type:chase?'chase':'wander',cells:[],path:next?[next]:[],jump:d.jump};
 }
 // 射线探针按id排除自身，兼容跳跃选点。
-singleStepRay=function(m,dx,dy,range){const out=[];for(let n=1;n<=range;n++){const col=m.col+dx*n,row=m.row+dy*n;if(singleStepBlocksBullet(col,row)||(dx&&dy&&(singleStepBlocksBullet(col-dx,row)||singleStepBlocksBullet(col,row-dy))))break;if(monsters.some(o=>o.id!==m.id&&o.hp>0&&isInMonsterFootprint(o,col,row)))break;out.push({col,row});}return out;};
+singleStepRay=function(m,dx,dy,range,hitsAllies=false){
+ const out=[];
+ for(let n=1;n<=range;n++){
+  const col=m.col+dx*n,row=m.row+dy*n;
+  if(singleStepBlocksBullet(col,row)||(dx&&dy&&(singleStepBlocksBullet(col-dx,row)||singleStepBlocksBullet(col,row-dy))))break;
+  const occupied=monsters.some(o=>o.id!==m.id&&o.hp>0&&isInMonsterFootprint(o,col,row));
+  if(!occupied||hitsAllies)out.push({col,row});
+  if(occupied)break;
+ }
+ return out;
+};
 singleStepPlan=function(){
  for(const id of SINGLE_STEP.plans.keys())if(!monsters.some(m=>m.id===id))SINGLE_STEP.plans.delete(id);
  for(const m of monsters){if(SINGLE_STEP.plans.has(m.id))continue;const d=stepEnemyDefinition(m);SINGLE_STEP.plans.set(m.id,d?stepEnemyPlan(m):singleStepLegacyPlan(m));}
@@ -78,6 +91,7 @@ singleStepApplyPlan=function(m,p){
  const from={col:m.col,row:m.row};m._stepAction={type:p.type,at:performance.now(),from,cells:cloneHistoryValue(p.cells),dir:p.dir};
  if(['shot','fan','strike','blast'].includes(p.type)){
   if(p.cells.some(c=>c.col===player.col&&c.row===player.row))damagePlayer(1,m.id);
+  if(d.hitsAllies===true)damageMonsterAllies(d,m,new Set(p.cells.map(c=>`${c.col},${c.row}`)),1);
   if(p.type==='shot'||p.type==='fan'){
    const rays=new Map();for(const cell of p.cells){const dx=Math.sign(cell.col-m.col),dy=Math.sign(cell.row-m.row),k=dx+','+dy,old=rays.get(k);if(!old||Math.hypot(cell.col-m.col,cell.row-m.row)>Math.hypot(old.col-m.col,old.row-m.row))rays.set(k,cell);}
    for(const[k,to]of rays){const[dx,dy]=k.split(',').map(Number);singleStepVisualShot(m,to,false,{dx,dy});}

@@ -17,6 +17,17 @@ function getAttackSideCells(targetCol, targetRow, size, range) {
   return cells;
 }
 
+// 只有攻击配置显式开启时才结算友伤，大体型怪物每次攻击也只受伤一次。
+function damageMonsterAllies(attack, attacker, cells, damage) {
+  if (attack?.hitsAllies !== true) return;
+  for (const target of [...monsters]) {
+    if (target.id === attacker.id || target.hp <= 0 || target.jumperVanished) continue;
+    if (monsterCells(target).some(({col, row}) => cells.has(`${col},${row}`))) {
+      damageMonster(target, damage);
+    }
+  }
+}
+
 // 执行 action 的 after_effect 数组
 function resolveAfterEffects(action, context) {
   if (!action || !action.after_effect || action.after_effect.length === 0) return;
@@ -30,8 +41,8 @@ function resolveAfterEffects(action, context) {
 
       const sideCells = getAttackSideCells(targetCol, targetRow, sz, range);
 
-      // 对冲击波范围内角色造成伤害（玩家可能已被落地碰撞触发无敌，自然免疫）
-      let playerHitInSide = false, monsterHitsInSide = new Set();
+      // 玩家可能已被落地碰撞触发无敌。
+      let playerHitInSide = false;
       for (const key of sideCells) {
         const [c, r] = key.split(',').map(Number);
         noteDangerCell(c, r, m.id, "move");
@@ -39,16 +50,8 @@ function resolveAfterEffects(action, context) {
           damagePlayer(damage, m.id);
           playerHitInSide = true;
         }
-        for (const om of monsters) {
-          if (om.id === m.id || om.jumperVanished) continue;
-          if (isInMonsterFootprint(om, c, r)) {
-            if (!monsterHitsInSide.has(om.id)) {
-              damageMonster(om, damage);
-              monsterHitsInSide.add(om.id);
-            }
-          }
-        }
       }
+      damageMonsterAllies(effect, m, sideCells, damage);
     } else if (effect.type === 'attack_adjacent') {
       const damage = effect.damage !== undefined ? effect.damage : 0.5;
       const range = effect.range !== undefined ? effect.range : 1;
@@ -61,12 +64,14 @@ function resolveAfterEffects(action, context) {
         { dx: 1, dy: 0 }
       ];
       let playerHit = false;
+      const adjacentCells = new Set();
       for (const dir of allDirs) {
         for (let i = 1; i <= range; i++) {
           const ac = m.col + dir.dx * i;
           const ar = m.row + dir.dy * i;
           if (ac < 0 || ac >= COLS || ar < 0 || ar >= ROWS) break;
           if (isWall(ac, ar)) break;
+          adjacentCells.add(`${ac},${ar}`);
           noteDangerCell(ac, ar, m.id, "move");
           // 攻击玩家（只扣血一次）
           if (!playerHit && ac === player.col && ar === player.row) {
@@ -74,15 +79,9 @@ function resolveAfterEffects(action, context) {
             playerHit = true;
             if(movementPlanning)scheduleMovementEvent({type:'melee',monsterId:m.id,dx:dir.dx,dy:dir.dy});else{m.meleeFlash=0.25;m.meleeDir={dx:dir.dx,dy:dir.dy};}
           }
-          // 攻击其他怪物
-          for (const om of monsters) {
-            if (om.id === m.id || om.jumperVanished) continue;
-            if (isInMonsterFootprint(om, ac, ar)) {
-              damageMonster(om, damage);
-            }
-          }
         }
       }
+      damageMonsterAllies(effect, m, adjacentCells, damage);
     }
   }
 }

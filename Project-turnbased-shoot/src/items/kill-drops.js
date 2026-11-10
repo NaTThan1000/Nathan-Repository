@@ -57,8 +57,9 @@ function preRollLoot(lootConfig) {
 /** 预 roll 单个掉落条目 */
 function preRollDropEntry(entry) {
   if (entry.type === 'item') {
-    const cfgId = rollItem(null, entry.itemDropTable || 'item_drop_default');
-    if (cfgId) return { type: 'item', cfgId };
+    const itemDropTable = entry.itemDropTable || 'item_drop_default';
+    const cfgId = rollItem(null, itemDropTable);
+    if (cfgId) return { type: 'item', cfgId, itemDropTable };
   } else if (entry.type === 'resource') {
     // 新：支持 minDrop/maxDrop 随机次数抽取（每次独立 pick_one）
     if (entry.minDrop !== undefined && entry.maxDrop !== undefined) {
@@ -86,7 +87,8 @@ function preRollDropEntry(entry) {
 function applyPreRolledLoot(preRolled, col, row) {
   for (const drop of preRolled) {
     if (drop.type === 'item') {
-      spawnItemOnGrid(col, row, drop.cfgId);
+      const cfgId = isEligibleItemDrop(drop.cfgId) ? drop.cfgId : rollItem(null,drop.itemDropTable);
+      spawnItemOnGrid(col, row, cfgId);
     } else if (drop.type === 'resource') {
       for (const rid of drop.resIds) {
         if (col >= 0 && col < COLS && row >= 0 && row < ROWS && !isWall(col, row)) {

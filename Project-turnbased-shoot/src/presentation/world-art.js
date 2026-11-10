@@ -8,11 +8,11 @@ function staticWorldMonsterKey(m){
  if(m.cfgId==='duke_floater')return 'static-floater';
  return null;
 }
-function drawStaticWorldMonster(m,x,y,size,scale=1){
+function drawStaticWorldMonster(m,x,y,size,scale=1,drawSprite=scrapDraw){
  const key=staticWorldMonsterKey(m);if(!key)return;
  ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
- if(key==='melee0'||key==='ranged0')scrapDraw(key,-30,-38,60,68);
- else{const w=size*((m.size||1)>1?1.15:1.45);scrapDraw(key,-w/2,-w*.58,w,w);}
+ if(key==='melee0'||key==='ranged0')drawSprite(key,-30,-38,60,68);
+ else{const w=size*((m.size||1)>1?1.15:1.45);drawSprite(key,-w/2,-w*.58,w,w);}
  const tier=m.cfgId.endsWith('_iii')?3:m.cfgId.endsWith('_ii')?2:0;
  ctx.fillStyle=tier===3?'#f49067':'#74e1e7';for(let i=0;i<tier;i++)ctx.fillRect(-tier*2+i*4,size*.48,2.5,1.8);
  ctx.restore();

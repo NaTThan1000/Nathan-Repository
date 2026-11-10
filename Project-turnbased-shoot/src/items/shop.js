@@ -105,6 +105,7 @@ function tryBuyShopItem(col, row) {
 
   const slot = room._shopSlots.find(s => s.col === col && s.row === row);
   if (!slot || slot.sold) return false;
+  if (slot.type === 'item' && !isEligibleItemDrop(slot.cfgId)) return false;
 
   // 金币不足 → 静默不购买
   if (playerResources.coins < slot.price) return false;

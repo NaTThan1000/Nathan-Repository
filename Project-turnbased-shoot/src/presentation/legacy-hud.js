@@ -198,7 +198,9 @@ function updateTextOverlay() {
   // --- 伤害飘字 ---
   let dmgIdx = 0;
   const existingDmgs = overlay.querySelectorAll('.txt-damage');
+  const now = performance.now();
   for (const d of damageNumbers) {
+    if (d.showAt > now) continue;
     const pp = project(d.x, d.y);
     const alpha = Math.max(0, d.life / d.maxLife);
     const sx = Math.round(pp.x * DISPLAY_SCALE);

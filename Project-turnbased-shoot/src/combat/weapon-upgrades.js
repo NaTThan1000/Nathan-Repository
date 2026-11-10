@@ -1,41 +1,9 @@
-// 这些配置由自定义场注册，使用同一套正式战斗规则，不进入当前随机掉落池。
-const WEAPON_TRIAL_ITEMS = {
-  dual: ['双管','pattern','同向发射两发，每发造成65%伤害。','Ⅱ'],
-  triple: ['三管','pattern','同向发射三发，每发造成50%伤害。','Ⅲ'],
-  fork: ['分叉管','pattern','向正前方两侧各45°发射一发。','⋎'],
-  trident: ['三叉管','pattern','向正前方及两侧各45°发射一发。','Ψ'],
-  twin: ['双头管','pattern','向正前和正后各发射一发。','↔'],
-  random: ['随机枪管','pattern','向前射击，并从其余方向中随机选不同方向追加发射。','※'],
-  straight: ['普通枪管','trajectory','恢复普通直线射击，覆盖同类发射方式。','→'],
-  burstCharge: ['蓄力枪管（连击）','trajectory','前三次射击行动蓄力，第四次额外连射。移动保留蓄力。','≡'],
-  heavyCharge: ['蓄力枪管（合体）','trajectory','前三次射击行动蓄力，第四次射出高伤重弹。移动保留蓄力。','⬤'],
-  decay: ['能量衰减枪管','trajectory','近距离伤害更高，远距离衰减。','↘'],
-  gain: ['能量增幅枪管','trajectory','近距离伤害较低，远距离伤害增加。','↗'],
-  bullet: ['实弹枪','body','恢复普通实弹枪体，覆盖同类枪体。','●'],
-  shotgun: ['霰弹枪','body','枪体默认射出五发散射弹。另有发射数量道具时，使用该道具的发射方式。','⋰'],
-  laser: ['激光枪','body','发射激光，射程增加2格。','━'],
-  energy: ['能量光速枪','body','发射能量射线，射程增加2格并穿透怪物。','═'],
-  ghost: ['灵体子弹','shell','穿透怪物和阻挡射击的地形，无法穿出房间。','◇'],
-  blast: ['爆炸子弹','shell','每发首次命中敌人或障碍时，对相邻的其他敌人造成范围伤害。','✷'],
-  splash: ['溅射子弹','shell','每发首次命中后，向命中点两侧各飞出一发短程碎片。','✣'],
-  arc: ['电弧子弹','shell','每发首次命中后，在距离2格内的敌人间最多跳跃两次。','ϟ'],
-  tracking: ['追踪子弹','shell','若射线左右45°内有无遮挡的目标，子弹转向最近的一条可命中射线。','⌖'],
-  fold: ['空间折叠子弹','shell','同一发子弹最多从房间边界绕回一次，继续使用剩余射程。','↻'],
-  poison: ['毒性子弹','ammo','命中施毒，接下来3次正常战斗步各造成少量伤害。再次命中刷新。','◈'],
-  shield: ['护盾',null,'拾取时获得1点可耗尽的蓝心。','⬟'],
-  jet: ['喷气背包',null,'朝单格深坑移动时，可跨到对面的空地。','⤴'],
-  boots: ['厚底皮靴',null,'免疫地刺伤害。','▣'],
-  echo: ['残影',null,'成功闪避时在原格留下残影。子弹时间内射击，残影从原格同向补射。','◐'],
-};
+// 正式版与自定义场共用 Configs/item-db.json 的单步道具池。
 const WEAPON_TRIAL_PREFIX = 'trial_weapon_';
 const loadItemCatalog = loadItemDB;
 loadItemDB = () => loadItemCatalog('singleStepItems');
-function registerWeaponTrialItems() {
-  for (const [effect, [name, slot, desc, icon]] of Object.entries(WEAPON_TRIAL_ITEMS)) {
-    const id = WEAPON_TRIAL_PREFIX + effect;
-    ITEMS_DB[id] = {id, name, desc, icon, quality: 'rare', effects: {}, specials: [], weaponTrial: {effect, slot}};
-  }
-}
+isEligibleItemDrop = canPickupItem;
+const stepTestHooks = {};
 function trialPassive(effect) {
   return playerInventory.includes(WEAPON_TRIAL_PREFIX + effect);
 }
@@ -50,7 +18,7 @@ applyItem = function(cfgId) {
   if (trial.slot) playerInventory = playerInventory.filter(id => ITEMS_DB[id]?.weaponTrial?.slot !== trial.slot);
   if (trial.slot === 'trajectory') SINGLE_STEP.weaponCharge = 0;
   trialApplyItemBase(cfgId);
-  if (trial.effect === 'shield') {
+  if (trial.effect === 'shield' && tryAddBlueHeart()) {
     playerResources.blueHearts += 1;
     updateResourceUI();
     updateUI();
@@ -58,7 +26,12 @@ applyItem = function(cfgId) {
 };
 
 const WEAPON_DIRECTIONS = [[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]];
-function weaponVolley(pattern, body) {
+const SHOTGUN_PELLETS = 20;
+const BURST_INTERVAL = 130;
+function weaponShotgunRange() {
+  return Math.max(1,Math.min(6,Math.floor(playerStats.range*.5)));
+}
+function weaponVolley(pattern) {
   if (pattern === 'dual') return [[0,.65],[0,.65]];
   if (pattern === 'triple') return [[0,.5],[0,.5],[0,.5]];
   if (pattern === 'fork') return [[-1,1],[1,1]];
@@ -69,86 +42,224 @@ function weaponVolley(pattern, body) {
     for (let i=0;i<count;i++) rays.push([pool.splice(Math.floor(Math.random()*pool.length),1)[0],1]);
     return rays;
   }
-  if (body === 'shotgun') return [[0,.55],[-1,.55],[1,.55],[0,.55],[0,.55]];
   return [[0,1]];
 }
-function weaponShotDamage(base, trajectory, n, range) {
-  const progress = (n - 1) / Math.max(1, range - 1);
-  if (trajectory === 'decay') return Math.round(base * (1.45 - .9 * progress) * 100) / 100;
-  if (trajectory === 'gain') return Math.round(base * (.55 + .9 * progress) * 100) / 100;
-  return base;
+function weaponEnergyScale(trajectory, distance, range) {
+  const progress = Math.max(0, Math.min(1, (distance - 1) / Math.max(1, range - 1)));
+  if (trajectory === 'decay') return 1.45 - .9 * progress;
+  if (trajectory === 'gain') return .55 + .9 * progress;
+  return 1;
 }
-function weaponBlast(col, row, damage, direct) {
-  const q = gridToPixel(col,row);
-  particles.push({x:q.x,y:q.y,vx:0,vy:0,life:.18,maxLife:.18,size:8,color:'#ffc371'});
+function weaponDamageMonster(m, damage, at, lane) {
+  const firstNumber = damageNumbers.length, firstEvent = stepVisualEvents.length;
+  damageMonster(m, damage);
+  for (const number of damageNumbers.slice(firstNumber)) {
+    number.showAt = at;
+    if (lane) {
+      number.x += lane * 3;
+      number.vx = lane * 2;
+    }
+  }
+  for (const event of stepVisualEvents.slice(firstEvent)) {
+    if (event.type === 'death') {
+      event.at = at;
+      event.weaponHit = true;
+    }
+  }
+  stepVisualEvents.push({type: 'weapon-hit', id: m.id, at});
+}
+function weaponDamageTerrain(col, row, damage) {
+  const terrain = tileData[col+','+row];
+  if (terrain) hitTile(col,row,terrain.type === 'poop' ? terrain.hp : damage);
+}
+function weaponBlast(col, row, damage, direct, at, lane) {
+  stepVisualEvents.push({type: 'blast', col, row, at});
+  for (let dc = -1; dc <= 1; dc++) for (let dr = -1; dr <= 1; dr++) {
+    const terrain = tileData[(col + dc) + ',' + (row + dr)];
+    if (terrain) hitTile(col + dc, row + dr, terrain.hp);
+  }
   for (const m of [...monsters]) {
     if (m === direct || m.hp <= 0 || m.jumperVanished || !monsters.includes(m)) continue;
-    if (monsterCells(m).some(p => Math.abs(p.col-col)+Math.abs(p.row-row)<=1)) damageMonster(m, Math.round(damage * 50) / 100);
+    if (monsterCells(m).some(p => Math.max(Math.abs(p.col-col), Math.abs(p.row-row)) <= 1)) {
+      weaponDamageMonster(m, Math.round(damage * 50) / 100, at, lane);
+    }
   }
 }
-function weaponFirstTarget(origin, dx, dy, range) {
-  for (let n=1;n<=range;n++) {
-    const col=origin.col+dx*n,row=origin.row+dy*n;
-    if (singleStepBlocksBullet(col,row) || (dx && dy &&
-      (singleStepBlocksBullet(col-dx,row) || singleStepBlocksBullet(col,row-dy)))) break;
-    if (monsters.some(m => !m.jumperVanished && isInMonsterFootprint(m,col,row))) return n;
-  }
-  return Infinity;
+function weaponBlockedCorner(cell, dx, dy) {
+  return dx && dy && (singleStepBlocksBullet(cell.col+dx,cell.row) || singleStepBlocksBullet(cell.col,cell.row+dy));
 }
-function weaponArc(origin, damage, direct) {
-  const visited=new Set([direct.id]);
-  let from=origin;
-  for (let jump=0;jump<2;jump++) {
-    const next=monsters.filter(m=>!visited.has(m.id)&&!m.jumperVanished)
-      .map(m=>({m,distance:Math.abs(m.col-from.col)+Math.abs(m.row-from.row)}))
-      .filter(p=>p.distance<=2).sort((a,b)=>a.distance-b.distance||a.m.id-b.m.id)[0]?.m;
-    if(!next)break;
-    visited.add(next.id);
-    singleStepVisualShot(from,next,true,{dx:0,dy:0},[next.id],true);
-    damageMonster(next,Math.round(damage*50)/100);
-    from=next;
+function weaponTrackingDirection(cell, dx, dy, passesTerrain, hit) {
+  const forward = WEAPON_DIRECTIONS.findIndex(([x,y]) => x === dx && y === dy);
+  // 正交邻格优先，再按与当前方向的夹角排序。
+  for (const diagonal of [false,true]) for (const offset of [0,-1,1,-2,2,-3,3,4]) {
+    const [x,y] = WEAPON_DIRECTIONS[(forward+offset+8)%8];
+    if (Boolean(x && y) !== diagonal) continue;
+    const col = cell.col+x, row = cell.row+y;
+    if (!passesTerrain && (singleStepBlocksBullet(col,row) || weaponBlockedCorner(cell,x,y))) continue;
+    if (monsters.some(m => m.hp > 0 && !m.jumperVanished && !hit.has(m.id) && isInMonsterFootprint(m,col,row))) {
+      return [x,y];
+    }
   }
+  return [dx,dy];
 }
-function weaponShootRay(origin, dx, dy, base, range, trajectory, shell, body, ammo) {
+function weaponArcRoute(origin, direct, range) {
+  const targets = monsters.filter(m => m !== direct && m.hp > 0 && !m.jumperVanished);
+  const terrain = Object.keys(tileData).filter(key => key !== origin.col+','+origin.row).map(key => {
+    const [col,row] = key.split(',').map(Number);
+    return {col,row,key};
+  });
+  const nodes = targets.flatMap(m => monsterCells(m).map(cell => ({...cell,m,key:m.id}))).concat(terrain);
+  for (let i = nodes.length-1; i > 0; i--) {
+    const pick = Math.floor(Math.random()*(i+1));
+    [nodes[i],nodes[pick]] = [nodes[pick],nodes[i]];
+  }
+  const neighbors = new Map(), visited = new Set(), route = [];
+  let best = [], bestScore = 0;
+
+  function search(from, hits) {
+    const endsOnTerrain = route.length > 0 && !from.m;
+    const score = hits*2 + Number(endsOnTerrain);
+    if (score > bestScore) {
+      bestScore = score;
+      best = [...route];
+    }
+    const remaining = 4-route.length;
+    const moreHits = Math.min(remaining,targets.length-hits);
+    // 先最大化不同怪物的命中数，同样多时优先能额外伤害末端障碍的路线。
+    const upperBound = (hits+moreHits)*2 + Number(terrain.length > 0 && remaining > moreHits);
+    if (!remaining || upperBound <= bestScore) return;
+    if (!neighbors.has(from)) {
+      neighbors.set(from,nodes.filter(node => Math.abs(node.col-from.col)+Math.abs(node.row-from.row) <= range));
+    }
+    for (const next of neighbors.get(from)) {
+      if (visited.has(next.key)) continue;
+      visited.add(next.key);
+      route.push(next);
+      search(next,hits+Number(!!next.m));
+      route.pop();
+      visited.delete(next.key);
+      if (bestScore >= upperBound) break;
+    }
+  }
+  search(origin,0);
+  return best;
+}
+function weaponArc(origin, damage, direct, at, lane, range) {
+  const route = weaponArcRoute(origin,direct,range);
+  const arcDamage = Math.round(damage*50)/100;
+  let from = origin;
+  for (const next of route) {
+    singleStepVisualShot(from,next,true,{dx:0,dy:0},{beam:true,start:at});
+    if (next.m) weaponDamageMonster(next.m,arcDamage,at,lane);
+    from = next;
+  }
+  if (route.length && !from.m) weaponDamageTerrain(from.col,from.row,arcDamage);
+}
+function weaponShootRay(origin, dx, dy, base, range, {
+  trajectory, shell, body, ammo, start, lane, size = 1, spreadStep, spreadSide = 0,
+}) {
   const ignoresTerrain = shell === 'ghost';
-  const pierces = shell === 'pierce' || ignoresTerrain || body === 'energy' || (!shell && player.hasPiercing);
+  const passesTerrain = ignoresTerrain || body === 'energy';
+  const pierces = shell === 'pierce' || passesTerrain || (!shell && player.hasPiercing);
   const hit = new Set();
-  let segment = origin, end = origin, col = origin.col, row = origin.row, wrapped = false, exploded = false;
-  const beam = body === 'laser' || body === 'energy';
-  for (let n = 1; n <= range; n++) {
-    const prevCol = col, prevRow = row;
-    col += dx; row += dy;
-    if (col < 0 || col >= COLS || row < 0 || row >= ROWS) {
-      if (shell !== 'fold' || wrapped) break;
-      singleStepVisualShot(segment,end,true,{dx,dy},[...hit],beam);
-      col = (col + COLS) % COLS; row = (row + ROWS) % ROWS;
-      segment = {col,row};
+  const lob = trajectory === 'lob' && stepTestHooks.lobTarget?.(origin,dx,dy,range);
+  const beam = !lob && (body === 'laser' || body === 'energy');
+  const forwardDx = dx, forwardDy = dy;
+  let segment = origin, cell = origin, at = start, wrapped = false, triggered = false;
+  let segmentDistance = 0, distance = 0;
+  const emit = (end, impact = true, endDistance = distance) => {
+    singleStepVisualShot(segment,end,true,{dx,dy},{
+      beam,start,lane,impact,arcHeight:lob ? CELL : 0,
+      fromScale:size*weaponEnergyScale(trajectory,segmentDistance,range),
+      toScale:size*weaponEnergyScale(trajectory,endDistance,range),
+    });
+  };
+  const trigger = (damage, direct, impactAt = at) => {
+    if (triggered) return;
+    triggered = true;
+    if (shell === 'blast') weaponBlast(cell.col,cell.row,damage,direct,impactAt,lane);
+    if (shell === 'arc') weaponArc(cell,damage,direct,impactAt,lane,Math.max(1,Math.floor(range*.5)));
+    if (shell === 'splash') {
+      const pool = [...WEAPON_DIRECTIONS];
+      const count = Math.max(1,Math.min(8,1+Math.floor(playerStats.luck)));
+      const splashRange = Math.max(1,Math.floor(range*.4));
+      for (let i = 0; i < count; i++) {
+        const [x,y] = pool.splice(Math.floor(Math.random()*pool.length),1)[0];
+        weaponShootRay(cell,x,y,Math.round(damage*50)/100,splashRange,{shell:'fragment',body,start:impactAt,lane,size});
+      }
+    }
+  };
+  const flightRange = lob ? lob.steps : range;
+  for (let n = 1; n <= flightRange; n++) {
+    let nextDx = dx, nextDy = dy;
+    if (!lob && spreadStep !== undefined) {
+      const side = n === spreadStep ? spreadSide : 0;
+      nextDx = forwardDx-forwardDy*side;
+      nextDy = forwardDy+forwardDx*side;
+    }
+    if (!lob && shell === 'tracking' && n > 1) {
+      [nextDx,nextDy] = weaponTrackingDirection(cell,nextDx,nextDy,passesTerrain,hit);
+    }
+    if (dx !== nextDx || dy !== nextDy) {
+      if (distance > segmentDistance) emit(cell,false);
+      segment = cell;
+      segmentDistance = distance;
+      start = at;
+      dx = nextDx;
+      dy = nextDy;
+    }
+    const travel = beam ? 0 : Math.hypot(dx,dy) * CELL / CFG.BULLET_SPEED * 1000;
+    const damage = trajectory === 'decay' || trajectory === 'gain'
+      ? Math.round(base*weaponEnergyScale(trajectory,n,range)*100)/100 : base;
+    let col = cell.col+dx, row = cell.row+dy;
+    const wall = col < 0 || col >= COLS || row < 0 || row >= ROWS;
+    if (wall) {
+      const edge = {col:cell.col+dx/2,row:cell.row+dy/2};
+      if (shell === 'blast') {
+        trigger(damage,null,at+travel/2);
+        emit(edge,false,n-.5);
+        return;
+      }
+      if (shell !== 'fold') break;
+      emit(edge,false,n-.5);
+      if (wrapped) return;
+      col = (col + COLS) % COLS;
+      row = (row + ROWS) % ROWS;
+      segment = {col:col-dx/2,row:row-dy/2};
+      segmentDistance = n-.5;
+      start = at+travel/2;
       wrapped = true;
-    } else if (dx && dy && !ignoresTerrain && (singleStepBlocksBullet(prevCol,row) || singleStepBlocksBullet(col,prevRow))) break;
-    end = {col,row};
-    const damage = weaponShotDamage(base,trajectory,n,range);
+    } else if (!lob && !passesTerrain && weaponBlockedCorner(cell,dx,dy)) break;
+    cell = {col,row};
+    distance = n;
+    at += travel;
+    if (lob && n < flightRange) continue;
     if (!ignoresTerrain && singleStepBlocksBullet(col,row)) {
-      if (tileData[col+','+row]) hitTile(col,row,damage);
-      if (shell === 'blast' && !exploded) weaponBlast(col,row,damage,null);
-      break;
+      if (shell !== 'blast' || triggered) weaponDamageTerrain(col,row,damage);
+      trigger(damage,null);
+      if (lob || !passesTerrain) {
+        emit(cell);
+        return;
+      }
+      continue;
     }
     const m = monsters.find(unit => !unit.jumperVanished && !hit.has(unit.id) && isInMonsterFootprint(unit,col,row));
     if (!m) continue;
     hit.add(m.id);
-    damageMonster(m,damage);
+    weaponDamageMonster(m,damage,at,lane);
     if (ammo === 'poison' && m.hp > 0 && monsters.includes(m)) {
       m.weaponPoison = {steps:3, firstStep:m.weaponPoison?.firstStep ?? SINGLE_STEP.step+1,
-        damage:Math.max(.25,Math.round(damage*.25*100)/100)};
+        damage:Math.max(.25,Math.round(damage*.25*100)/100), appliedAt:at};
     }
-    if (shell === 'blast' && !exploded) { exploded = true; weaponBlast(col,row,damage,m); }
-    if (shell === 'splash' && !exploded) {
-      exploded = true;
-      for (const side of [-1,1]) weaponShootRay(end,-dy*side,dx*side,Math.round(damage*50)/100,2,null,'fragment',null,null);
+    trigger(damage,m);
+    stepTestHooks.onWeaponHit?.(m,cell,{dx,dy,damage,at,lane,ammo});
+    if (lob || !pierces) {
+      emit(cell);
+      return;
     }
-    if (shell === 'arc' && !exploded) { exploded = true; weaponArc(end,damage,m); }
-    if (!pierces) break;
   }
-  singleStepVisualShot(segment,end,true,{dx,dy},[...hit],beam);
+  if (lob && shell === 'blast' && distance) trigger(base,null);
+  emit(cell,shell !== 'fold');
 }
 function weaponPrepareShot() {
   const trajectory = equippedWeaponTrial('trajectory');
@@ -161,29 +272,46 @@ function weaponPrepareShot() {
   SINGLE_STEP.weaponCharge=0;
   return trajectory==='burstCharge' ? {repetitions:3,scale:1} : {repetitions:1,scale:3};
 }
+function weaponShotgunVolley(origin, {dx,dy}, damage, range, options, start) {
+  const pelletDamage = Math.round(damage*(2.75/SHOTGUN_PELLETS)*100)/100;
+  for (let pellet = 0; pellet < SHOTGUN_PELLETS; pellet++) {
+    weaponShootRay(origin,dx,dy,pelletDamage,range,{
+      ...options,size:.3,spreadStep:Math.floor(range/2)+1,spreadSide:Math.floor(Math.random()*3)-1,
+      start:start+pellet*2,lane:(pellet%5-2)*1.1,
+    });
+  }
+}
 function fireSingleStepWeapon(origin, direction, charge) {
   const pattern = equippedWeaponTrial('pattern'), body = equippedWeaponTrial('body'),
     trajectory = equippedWeaponTrial('trajectory'), shell = equippedWeaponTrial('shell'), ammo = equippedWeaponTrial('ammo');
   const start = WEAPON_DIRECTIONS.findIndex(([dx,dy]) => direction.dx === dx && direction.dy === dy);
-  const range = Math.floor(playerStats.range) + (['laser','energy'].includes(body) ? 2 : 0);
-  for (let i=0;i<charge.repetitions;i++) for (const [offset, scale] of weaponVolley(pattern,body)) {
-    const aim=(start+offset+8)%8;
-    let [dx,dy] = WEAPON_DIRECTIONS[aim];
-    if(shell==='tracking'){
-      let distance=weaponFirstTarget(origin,dx,dy,range);
-      for(const side of [-1,1]){
-        const [x,y]=WEAPON_DIRECTIONS[(aim+side+8)%8], n=weaponFirstTarget(origin,x,y,range);
-        if(n<distance){distance=n;dx=x;dy=y;}
-      }
+  const extraRange = stepTestHooks.rangeBonus?.(trajectory) ?? 0;
+  const range = body === 'shotgun' ? Math.min(6,weaponShotgunRange()+extraRange)
+    : Math.floor(playerStats.range) + (['laser','energy'].includes(body) ? 2 : 0) + extraRange;
+  const firedAt = performance.now();
+  const stagger = pattern === 'dual' || pattern === 'triple';
+  for (let i=0;i<charge.repetitions;i++) {
+    const volleyStart = firedAt+i*BURST_INTERVAL;
+    const options = {trajectory,shell,body,ammo};
+    if (body === 'shotgun' && !pattern) {
+      weaponShotgunVolley(origin,direction,playerStats.attack*charge.scale,range,options,volleyStart);
+      continue;
     }
-    const damage=playerStats.attack*scale*charge.scale;
-    weaponShootRay(origin,dx,dy,scale===1&&charge.scale===1?damage:Math.round(damage*100)/100,range,trajectory,shell,body,ammo);
+    for (const [index, [offset, scale]] of weaponVolley(pattern).entries()) {
+      const aim = (start+offset+8)%8;
+      const [dx,dy] = WEAPON_DIRECTIONS[aim];
+      const damage = playerStats.attack*scale*charge.scale;
+      const lane = stagger ? (index - (pattern === 'dual' ? .5 : 1)) * 4 : 0;
+      weaponShootRay(origin,dx,dy,scale===1&&charge.scale===1?damage:Math.round(damage*100)/100,range,
+        {...options,start:volleyStart+(stagger ? index*20 : 0),lane});
+    }
   }
 }
 function tickWeaponPoison() {
   for (const m of [...monsters]) {
     const poison = m.weaponPoison;
     if (!poison || SINGLE_STEP.step<poison.firstStep || m.hp <= 0 || m.jumperVanished || !monsters.includes(m)) continue;
+    m.weaponPoisonFlashAt = performance.now();
     if (--poison.steps === 0) delete m.weaponPoison;
     damageMonster(m,poison.damage);
   }

@@ -1,4 +1,8 @@
 // ==================== 炸弹系统 ====================
+function bombFuseTurns() {
+  return RESOURCE_DB.bomb_single?.detonateTurns ?? 5;
+}
+
 function placeBomb(col, row) {
   if (playerResources.bombs <= 0) return;
   playerResources.bombs--;
@@ -7,7 +11,7 @@ function placeBomb(col, row) {
   const bomb = {
     id: ++bombIdCounter,
     col, row,
-    timer: RESOURCE_DB['bomb_single']?.detonateTurns ?? 3,
+    timer: bombFuseTurns(),
     roomId: currentRoomId,
   };
   bombs.push(bomb);
@@ -23,11 +27,12 @@ function placeBomb(col, row) {
 
   updateResourceUI();
   console.log(`💣 放置炸弹在 (${col},${row})，倒计时 ${bomb.timer}`);
+  return bomb;
 }
 
-// 消耗1个炸弹回合（怪物回合开始时调用）
-function tickBombCountdown() {
-  const currentBombs = bombs.filter(b => b.roomId === currentRoomId);
+// 推进当前房间的倒计时，单步模式从放置后的下一次行动开始计时。
+function tickBombCountdown(placedBomb) {
+  const currentBombs = bombs.filter(b => b.roomId === currentRoomId && b !== placedBomb);
   if (currentBombs.length === 0) return;
 
   for (const bomb of currentBombs) {
@@ -57,10 +62,10 @@ function getDiamondRange(cx, cy, radius) {
   return cells;
 }
 
-function detonateBomb(bomb) {
+function detonateBomb(bomb, affectedOverride) {
   const cx = bomb.col, cy = bomb.row;
-  const cfg = RESOURCE_DB['bomb_single'] || { damage: 50, radius: 2 };
-  const damageRadius = cfg.radius || 2;
+  const cfg = RESOURCE_DB.bomb_single;
+  const damageRadius = cfg?.radius ?? 1;
 
   console.log(`💥 炸弹爆炸! (${cx},${cy}) 范围${damageRadius}`);
   SFX.boom();
@@ -81,30 +86,25 @@ function detonateBomb(bomb) {
     });
   }
 
-  const affected = getDiamondRange(cx, cy, damageRadius);
-
-  for (const {col, row} of affected) {
-    // 越界检查
-    if (col < 0 || col >= COLS || row < 0 || row >= ROWS) continue;
-
-    // 伤害怪物
-    for (const m of monsters) {
-      if (m.hp <= 0 || m.jumperVanished) continue;
-      const sz = m.size || 1;
-      // 检查炸弹范围是否与怪物占地区域重叠
-      let hitMonster = false;
-      for (let dc = 0; dc < sz; dc++) {
-        for (let dr = 0; dr < sz; dr++) {
-          if (Math.abs((m.col + dc) - cx) + Math.abs((m.row + dr) - cy) <= damageRadius) {
-            hitMonster = true;
-          }
-        }
-      }
-      if (hitMonster) {
-        damageMonster(m, cfg.damage || 50);
+  const affected = affectedOverride || [];
+  if (!affectedOverride) {
+    for (let col = cx - damageRadius; col <= cx + damageRadius; col++) {
+      for (let row = cy - damageRadius; row <= cy + damageRadius; row++) {
+        affected.push({col,row});
       }
     }
+  }
+  const blastCells = affected.filter(({col,row}) => col >= 0 && col < COLS && row >= 0 && row < ROWS);
 
+  // 每只怪物只结算一次，占据多格的怪物命中任一格即可。
+  for (const m of [...monsters]) {
+    if (m.hp <= 0 || m.jumperVanished) continue;
+    if (monsterCells(m).some(cell => blastCells.some(p => p.col === cell.col && p.row === cell.row))) {
+      damageMonster(m, cfg?.damage || 50);
+    }
+  }
+
+  for (const {col, row} of blastCells) {
     noteDangerCell(col, row, -1, "environment");
     // 伤害玩家
     if (col === player.col && row === player.row) {
@@ -144,6 +144,7 @@ function detonateBomb(bomb) {
     life: 0.8, maxLife: 0.8,
     vy: -50, vx: 0,
   });
+  return blastCells;
 }
 
 // 子弹/怪物碰撞炸弹推移 (向射击方向推3格)
@@ -176,10 +177,14 @@ function pushBomb(bomb, dirX, dirY) {
   console.log(`💣 炸弹被推移到 (${col},${row})`);
 }
 
-function applyItem(cfgId) {
+function canPickupItem(cfgId) {
   const cfg = ITEMS_DB[cfgId];
-  if (!cfg) return;
-  if (playerInventory.includes(cfgId)) return; // 已拥有
+  return !!cfg && (cfg.stackable || !playerInventory.includes(cfgId));
+}
+
+function applyItem(cfgId) {
+  if (!canPickupItem(cfgId)) return;
+  const cfg = ITEMS_DB[cfgId];
 
   playerInventory.push(cfgId);
 
@@ -241,14 +246,14 @@ function _hasHealFull(cfg) {
 }
 
 // 重新计算所有属性（遍历所有已拥有道具，同时处理特效注册表）
-function recalcAllStats() {
+function recalcAllStats(baseMaxHp = 3) {
   // 从基准值开始
   playerStats.attack = 3.5;
   playerStats.fireRate = 3;
   playerStats.moveSpeed = 3;
   playerStats.range = 6;
   playerStats.luck = 0;
-  playerStats.maxHp = 3;
+  playerStats.maxHp = baseMaxHp;
 
   // 初始化特效状态
   const effectState = { hasPiercing: false, damageMultiplier: 1.0 };
@@ -289,9 +294,10 @@ function recalcAllStats() {
   playerStats.fireRate = Math.max(1, playerStats.fireRate);
   playerStats.moveSpeed = Math.max(1, playerStats.moveSpeed);
   playerStats.range = Math.max(3, playerStats.range);
-  playerStats.maxHp = Math.max(1, Math.min(MAX_TOTAL_HEARTS, playerStats.maxHp));
+  const capacity = heartCapacity();
+  playerStats.maxHp = Math.max(1, Math.min(capacity, playerStats.maxHp));
   // 红+蓝总心数不得超过上限：超出部分优先削蓝心（红心优先）
-  const heartOverflow = playerStats.maxHp + playerResources.blueHearts - MAX_TOTAL_HEARTS;
+  const heartOverflow = playerStats.maxHp + playerResources.blueHearts - capacity;
   if (heartOverflow > 0) {
     playerResources.blueHearts = Math.max(0, playerResources.blueHearts - heartOverflow);
   }

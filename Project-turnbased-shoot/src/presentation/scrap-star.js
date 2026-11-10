@@ -85,9 +85,10 @@ function scrapSetupHUD(){
 }
 let scrapHudKey='';
 function scrapUpdateHUD(){const el=id=>document.getElementById(id);if(!el('scrap-hearts'))return;
- const key=JSON.stringify([playerStats,turnState.mAP,turnState.aAP,turnState.maxMAP,turnState.maxAAP,turnState.phase,turnState.turnNumber,playerResources,currentFloor?.floorNum]);if(key===scrapHudKey)return;scrapHudKey=key;
- let hearts=Array.from({length:Math.min(12,Math.ceil(playerStats.maxHp))},(_,i)=>scrapIcon(playerStats.hp>=i+1?'heart':playerStats.hp>i?'halfHeart':'emptyHeart',22)).join('');
- const blue=Math.max(0,Math.min(playerResources.blueHearts||0,12-Math.ceil(playerStats.maxHp)));
+ const capacity=heartCapacity();
+ const key=JSON.stringify([playerStats,turnState.mAP,turnState.aAP,turnState.maxMAP,turnState.maxAAP,turnState.phase,turnState.turnNumber,playerResources,currentFloor?.floorNum,capacity]);if(key===scrapHudKey)return;scrapHudKey=key;
+ let hearts=Array.from({length:Math.min(capacity,Math.ceil(playerStats.maxHp))},(_,i)=>scrapIcon(playerStats.hp>=i+1?'heart':playerStats.hp>i?'halfHeart':'emptyHeart',22)).join('');
+ const blue=Math.max(0,Math.min(playerResources.blueHearts||0,capacity-Math.ceil(playerStats.maxHp)));
  for(let i=0;i<Math.ceil(blue);i++){const src=SCRAP_ASSETS[blue-i>=1?'blueHeart':'halfBlueHeart'];if(src)hearts+='<img src="'+src+'" width="22" height="22" alt="蓝心">'}
  el('scrap-hearts').innerHTML=hearts;
  el('scrap-floor').innerHTML='<span>楼层 B'+(currentFloor?.floorNum||1)+'</span><small>地图 [M]</small>';el('scrap-atk').textContent=playerStats.attack;el('scrap-range').textContent=playerStats.range;

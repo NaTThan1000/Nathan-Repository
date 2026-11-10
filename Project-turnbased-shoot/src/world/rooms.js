@@ -293,8 +293,8 @@ function finishTransition(){
   // 切换房间：检查是否需要重置炸弹倒计时
   const roomBombs = bombs.filter(b => b.roomId === currentRoomId);
   if (roomBombs.length > 0) {
-    // 再次进入有炸弹的房间：倒计时重置为3
-    for (const b of roomBombs) b.timer = 3;
+    // 重新进房时，定时炸弹恢复到完整倒计时。
+    for (const b of roomBombs) if (Number.isFinite(b.timer)) b.timer = bombFuseTurns();
   }
 
   const alreadyVisited = visitedRooms.has(currentRoomId);

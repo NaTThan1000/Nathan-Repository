@@ -72,7 +72,7 @@ function updateItemTooltip() {
     if (!cfg) { hide(); return; }
     const shopSlot = isShopSlotCell(best.col, best.row) ? getShopSlotAt(best.col, best.row) : null;
     const priceLine = shopSlot ? `<div class="tt-price">价格 ${shopSlot.price} 金</div>` : '';
-    const ownedLine = playerInventory.includes(best.cfgId) ? '<div class="tt-desc">（已拥有）</div>' : '';
+    const ownedLine = canPickupItem(best.cfgId) ? '' : '<div class="tt-desc">（已拥有）</div>';
     el.className = (cfg.quality || 'common') + ' show';
     el.innerHTML = `<div class="tt-name">${cfg.name}</div><div class="tt-desc">${cfg.desc || ''}</div>${priceLine}${ownedLine}`;
     _tooltipKey = key;

@@ -742,6 +742,12 @@ body,body *,button,input,select,textarea{font-family:var(--game-font)!important}
 @media(max-width:580px){#scrap-hud{grid-template-columns:minmax(166px,1fr) minmax(100px,1fr)}.scrap-point-panel{grid-column:1/-1}.scrap-res{grid-column:1/-1}.world-map-card{padding:10px}#world-map-modal{padding:12px}.world-map-card header{align-items:flex-start}.world-map-card button{padding:7px;font-size:12px}}
 #game-container{width:954px!important;max-width:100%!important;height:auto!important}#game{width:100%!important;height:auto!important}#text-overlay{transform-origin:top left}
 #scrap-footer .scrap-items{display:flex;align-items:center;padding:12px}#scrap-footer #item-bar{align-items:center;gap:6px;padding:0}#item-bar-label,#item-bar-empty{color:#a7bec0!important;line-height:24px}
+
+.arena-heart-shield{display:block;width:20px;height:20px}
+.arena-heart-shield svg{display:block;width:100%;height:100%;overflow:visible}
+.arena-heart-shield .arena-shield-energy{fill:#45bcd5}
+.arena-heart-shield.ready{filter:drop-shadow(0 0 3px #5df6ff)}
+.arena-heart-shield.ready .arena-shield-energy{fill:#a0f9ff}
 </style><style>.custom-arena-page #top-content-row{display:grid;grid-template-columns:minmax(0,954px) 272px;align-items:start;gap:16px!important;max-width:1242px}
 .custom-arena-page #main-column{width:100%;min-width:0;container-type:inline-size}
 #arena-tools{box-sizing:border-box;min-width:0;width:100%;padding:12px 16px;background:#112831;border:1px solid #345b65;border-radius:8px;color:#d6edf0}
@@ -750,7 +756,11 @@ body,body *,button,input,select,textarea{font-family:var(--game-font)!important}
 #arena-tools .arena-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 #arena-tools label{display:grid;grid-column:1/-1;gap:4px;font-size:12px;min-width:0}
 #arena-tools label[hidden]{display:none}
-#arena-tools button,#arena-tools select{box-sizing:border-box;min-width:0;width:100%;min-height:32px;border:1px solid #52737b;border-radius:4px;background:#0a1a21;color:#eaf8f8;padding:4px 8px;font:inherit}
+#arena-tools button,#arena-tools select,#arena-tools input{box-sizing:border-box;min-width:0;width:100%;min-height:32px;border:1px solid #52737b;border-radius:4px;background:#0a1a21;color:#eaf8f8;padding:4px 8px;font:inherit}
+#arena-setup{margin-top:10px;padding:8px;border:1px solid #345b65;border-radius:4px}
+#arena-setup summary{cursor:pointer;font-size:13px}
+#arena-setup .arena-setup-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 8px}
+#arena-setup .arena-setup-fields label{grid-column:auto}
 #arena-tools button:disabled,#arena-tools select:disabled{opacity:.5}
 #arena-tools button:not(:disabled){cursor:pointer}
 #arena-tools #arena-start:not(:disabled){background:#24606b}
@@ -1512,8 +1522,8 @@ function finishTransition(){
   // 切换房间：检查是否需要重置炸弹倒计时
   const roomBombs = bombs.filter(b => b.roomId === currentRoomId);
   if (roomBombs.length > 0) {
-    // 再次进入有炸弹的房间：倒计时重置为3
-    for (const b of roomBombs) b.timer = 3;
+    // 重新进房时，定时炸弹恢复到完整倒计时。
+    for (const b of roomBombs) if (Number.isFinite(b.timer)) b.timer = bombFuseTurns();
   }
 
   const alreadyVisited = visitedRooms.has(currentRoomId);
@@ -1650,7 +1660,7 @@ function updateItemTooltip() {
     if (!cfg) { hide(); return; }
     const shopSlot = isShopSlotCell(best.col, best.row) ? getShopSlotAt(best.col, best.row) : null;
     const priceLine = shopSlot ? `<div class="tt-price">价格 ${shopSlot.price} 金</div>` : '';
-    const ownedLine = playerInventory.includes(best.cfgId) ? '<div class="tt-desc">（已拥有）</div>' : '';
+    const ownedLine = canPickupItem(best.cfgId) ? '' : '<div class="tt-desc">（已拥有）</div>';
     el.className = (cfg.quality || 'common') + ' show';
     el.innerHTML = `<div class="tt-name">${cfg.name}</div><div class="tt-desc">${cfg.desc || ''}</div>${priceLine}${ownedLine}`;
     _tooltipKey = key;
@@ -1867,11 +1877,12 @@ function _rebuildItemPools() {
 
 async function loadItemDB(catalog = 'items') {
   try {
-    const r = await (async () => { const d = "{\r\n  \"_schema\": {\r\n    \"_description\": \"道具数据库 — 所有可拾取道具的属性与效果定义 + 道具掉落表\",\r\n    \"_structure\": {\r\n      \"items\": \"已退出当前道具池的旧配置，仅供回溯回归包使用\",\r\n      \"singleStepItems\": \"当前单步版正式掉落与商店的道具定义 (key=cgId, value=道具属性)\",\r\n      \"itemDropTables\": \"道具掉落表，每张表结构 { mode, table }。mode 当前统一为 pick_one(权重抽1个品质，再从品质池均匀随机具体道具)。table 中 key=品质(none/common/rare/legendary)，value=权重(整数)。\"\r\n    },\r\n    \"_fields\": {\r\n      \"quality\": {\r\n        \"_values\": [\"common\", \"rare\", \"legendary\"],\r\n        \"_desc\": \"道具品质等级，决定出现在哪个掉落池\"\r\n      },\r\n      \"tags\": {\r\n        \"_values_examples\": [\"属性提升\", \"攻击\", \"HP\", \"射速\", \"射程\", \"移速\", \"穿透\", \"回复\", \"全属性\", \"伤害倍率\"],\r\n        \"_desc\": \"道具标签，用于分类筛选\"\r\n      },\r\n      \"specials[].type\": {\r\n        \"_values\": [\"heal_full\", \"piercing\", \"damage_mult\"],\r\n        \"_desc\": \"heal_full=回满血, piercing=子弹穿透, damage_mult=伤害倍率\"\r\n      },\r\n      \"effects\": {\r\n        \"_keys\": [\"maxHp\", \"attack\", \"fireRate\", \"moveSpeed\", \"range\"],\r\n        \"_desc\": \"追加的属性修正值\"\r\n      },\r\n      \"price\": {\r\n        \"_desc\": \"商店售价（金币），默认15\",\r\n        \"_type\": \"number\"\r\n      },\r\n      \"itemDropTables.*.mode\": {\r\n        \"_values\": [\"pick_one\"],\r\n        \"_desc\": \"掉落模式：pick_one=按权重抽1个品质，再从品质池均匀随机具体道具\"\r\n      },\r\n      \"itemDropTables.*.table.none\": { \"_desc\": \"不掉落道具权重 (整数), 0=必定掉落\", \"_type\": \"number\" },\r\n      \"itemDropTables.*.table.common\": { \"_desc\": \"普通品质权重 (整数)\", \"_type\": \"number\" },\r\n      \"itemDropTables.*.table.rare\": { \"_desc\": \"稀有品质权重 (整数)\", \"_type\": \"number\" },\r\n      \"itemDropTables.*.table.legendary\": { \"_desc\": \"传说品质权重 (整数)\", \"_type\": \"number\" }\r\n    }\r\n  },\r\n\r\n  \"singleStepItems\": {\r\n    \"single_step_attack\": {\r\n      \"id\": \"single_step_attack\",\r\n      \"name\": \"攻击力+\",\r\n      \"icon\": \"⚔\",\r\n      \"desc\": \"攻击力 +0.5\",\r\n      \"quality\": \"common\",\r\n      \"effects\": { \"attack\": 0.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"single_step_range\": {\r\n      \"id\": \"single_step_range\",\r\n      \"name\": \"射程+\",\r\n      \"icon\": \"➜\",\r\n      \"desc\": \"射程 +1 格\",\r\n      \"quality\": \"common\",\r\n      \"effects\": { \"range\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"single_step_health\": {\r\n      \"id\": \"single_step_health\",\r\n      \"name\": \"生命+\",\r\n      \"icon\": \"♥\",\r\n      \"desc\": \"最大生命 +1，当前生命随上限提升\",\r\n      \"quality\": \"common\",\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"single_step_pierce\": {\r\n      \"id\": \"single_step_pierce\",\r\n      \"name\": \"穿透子弹\",\r\n      \"icon\": \"➤\",\r\n      \"desc\": \"穿透怪物，仍会被地形挡住\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": { \"effect\": \"pierce\", \"slot\": \"shell\" },\r\n      \"price\": 20\r\n    }\r\n  },\r\n  \"items\": {\r\n    \"sad_onion\": {\r\n      \"id\": \"sad_onion\",\r\n      \"name\": \"伤心洋葱\",\r\n      \"icon\": \"🧅\",\r\n      \"desc\": \"射速 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"射速\"],\r\n      \"effects\": { \"fireRate\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"the_belt\": {\r\n      \"id\": \"the_belt\",\r\n      \"name\": \"皮带\",\r\n      \"icon\": \"🟤\",\r\n      \"desc\": \"移动速度 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"移速\"],\r\n      \"effects\": { \"moveSpeed\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"jesus_juice\": {\r\n      \"id\": \"jesus_juice\",\r\n      \"name\": \"耶稣果汁\",\r\n      \"icon\": \"🍷\",\r\n      \"desc\": \"攻击+0.5 射程+1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"射程\"],\r\n      \"effects\": { \"attack\": 0.5, \"range\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"iron_bar\": {\r\n      \"id\": \"iron_bar\",\r\n      \"name\": \"铁块\",\r\n      \"icon\": \"🔩\",\r\n      \"desc\": \"攻击+0.5\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"攻击\"],\r\n      \"effects\": { \"attack\": 0.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"wire_coat_hanger\": {\r\n      \"id\": \"wire_coat_hanger\",\r\n      \"name\": \"铁丝衣架\",\r\n      \"icon\": \"🪝\",\r\n      \"desc\": \"射速 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"射速\"],\r\n      \"effects\": { \"fireRate\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"breakfast\": {\r\n      \"id\": \"breakfast\",\r\n      \"name\": \"早餐\",\r\n      \"icon\": \"🥛\",\r\n      \"desc\": \"HP上限+1 回满血\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\"],\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"lunch\": {\r\n      \"id\": \"lunch\",\r\n      \"name\": \"午餐\",\r\n      \"icon\": \"🍖\",\r\n      \"desc\": \"HP上限+1 回满血\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\"],\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"dinner\": {\r\n      \"id\": \"dinner\",\r\n      \"name\": \"晚餐\",\r\n      \"icon\": \"🍗\",\r\n      \"desc\": \"HP上限+1 回满血\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\"],\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"dessert\": {\r\n      \"id\": \"dessert\",\r\n      \"name\": \"甜点\",\r\n      \"icon\": \"🍰\",\r\n      \"desc\": \"HP上限+1 回满血\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\"],\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"roid_rage\": {\r\n      \"id\": \"roid_rage\",\r\n      \"name\": \"狂暴针\",\r\n      \"icon\": \"💉\",\r\n      \"desc\": \"移动速度 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"移速\"],\r\n      \"effects\": { \"moveSpeed\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"speed_ball\": {\r\n      \"id\": \"speed_ball\",\r\n      \"name\": \"速度针\",\r\n      \"icon\": \"💊\",\r\n      \"desc\": \"移动速度 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"移速\"],\r\n      \"effects\": { \"moveSpeed\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"screw\": {\r\n      \"id\": \"screw\",\r\n      \"name\": \"螺钉\",\r\n      \"icon\": \"🔧\",\r\n      \"desc\": \"射速 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"射速\"],\r\n      \"effects\": { \"fireRate\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"synthol\": {\r\n      \"id\": \"synthol\",\r\n      \"name\": \"合成针\",\r\n      \"icon\": \"💪\",\r\n      \"desc\": \"攻击+0.5 射程+1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"射程\"],\r\n      \"effects\": { \"attack\": 0.5, \"range\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"pentagram\": {\r\n      \"id\": \"pentagram\",\r\n      \"name\": \"五芒星\",\r\n      \"icon\": \"⭐\",\r\n      \"desc\": \"攻击+1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"攻击\"],\r\n      \"effects\": { \"attack\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"meat\": {\r\n      \"id\": \"meat\",\r\n      \"name\": \"肉！\",\r\n      \"icon\": \"🥩\",\r\n      \"desc\": \"HP上限+1 攻击+0.5\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\", \"攻击\"],\r\n      \"effects\": { \"maxHp\": 1, \"attack\": 0.5 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n\r\n    \"the_halo\": {\r\n      \"id\": \"the_halo\",\r\n      \"name\": \"光环\",\r\n      \"icon\": \"👼\",\r\n      \"desc\": \"全属性+1 HP上限+1\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"HP\", \"攻击\", \"射速\", \"移速\", \"射程\", \"全属性\"],\r\n      \"effects\": { \"maxHp\": 1, \"attack\": 0.5, \"fireRate\": 0.5, \"moveSpeed\": 0.5, \"range\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"magic_mushroom\": {\r\n      \"id\": \"magic_mushroom\",\r\n      \"name\": \"魔法蘑菇\",\r\n      \"icon\": \"🍄\",\r\n      \"desc\": \"全属性大幅提升 回满血\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"HP\", \"攻击\", \"移速\", \"射程\", \"全属性\", \"回复\"],\r\n      \"effects\": { \"maxHp\": 1, \"attack\": 1, \"moveSpeed\": 0.5, \"range\": 2 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"stigmata\": {\r\n      \"id\": \"stigmata\",\r\n      \"name\": \"圣痕\",\r\n      \"icon\": \"✝️\",\r\n      \"desc\": \"HP上限+1 攻击+0.5\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"HP\", \"攻击\"],\r\n      \"effects\": { \"maxHp\": 1, \"attack\": 0.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"growth_hormones\": {\r\n      \"id\": \"growth_hormones\",\r\n      \"name\": \"生长激素\",\r\n      \"icon\": \"🧬\",\r\n      \"desc\": \"攻击+1 移速+1\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"移速\"],\r\n      \"effects\": { \"attack\": 1, \"moveSpeed\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"cupids_arrow\": {\r\n      \"id\": \"cupids_arrow\",\r\n      \"name\": \"丘比特之箭\",\r\n      \"icon\": \"🏹\",\r\n      \"desc\": \"攻击+1 子弹穿透敌人\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"穿透\"],\r\n      \"effects\": { \"attack\": 1 },\r\n      \"specials\": [{ \"type\": \"piercing\" }],\r\n      \"price\": 15\r\n    },\r\n    \"champion_belt\": {\r\n      \"id\": \"champion_belt\",\r\n      \"name\": \"冠军腰带\",\r\n      \"icon\": \"🏆\",\r\n      \"desc\": \"攻击+1.5\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"攻击\"],\r\n      \"effects\": { \"attack\": 1.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"the_mark\": {\r\n      \"id\": \"the_mark\",\r\n      \"name\": \"印记\",\r\n      \"icon\": \"👿\",\r\n      \"desc\": \"攻击+1 移速+0.5\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"移速\"],\r\n      \"effects\": { \"attack\": 1, \"moveSpeed\": 0.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n\r\n    \"sacred_heart\": {\r\n      \"id\": \"sacred_heart\",\r\n      \"name\": \"圣心\",\r\n      \"icon\": \"❤️\",\r\n      \"desc\": \"攻击大幅提升 回满血\",\r\n      \"quality\": \"legendary\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"HP\", \"回复\"],\r\n      \"effects\": { \"attack\": 2.5, \"maxHp\": 2 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"crickets_head\": {\r\n      \"id\": \"crickets_head\",\r\n      \"name\": \"蟋蟀的头\",\r\n      \"icon\": \"🐕\",\r\n      \"desc\": \"攻击+1 伤害×1.5倍\",\r\n      \"quality\": \"legendary\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"伤害倍率\"],\r\n      \"effects\": { \"attack\": 1 },\r\n      \"specials\": [{ \"type\": \"damage_mult\", \"mult\": 1.5 }],\r\n      \"price\": 15\r\n    },\r\n    \"deaths_touch\": {\r\n      \"id\": \"deaths_touch\",\r\n      \"name\": \"死神的镰刀\",\r\n      \"icon\": \"💀\",\r\n      \"desc\": \"攻击+2 子弹穿透\",\r\n      \"quality\": \"legendary\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"穿透\"],\r\n      \"effects\": { \"attack\": 2 },\r\n      \"specials\": [{ \"type\": \"piercing\" }],\r\n      \"price\": 15\r\n    }\r\n  },\r\n\r\n  \"itemDropTables\": {\r\n    \"item_drop_default\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"默认道具掉落(通用fallback)\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    },\r\n    \"item_drop_common\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"普通怪物道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    },\r\n    \"item_drop_ranged\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"远程怪物道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    },\r\n    \"item_drop_heavy\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"重型怪物道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    },\r\n    \"item_drop_boss\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"Boss怪物道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 20,\r\n        \"rare\": 45,\r\n        \"legendary\": 35\r\n      }\r\n    },\r\n    \"item_drop_treasure_room\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"宝藏房间道具掉落(无common)\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 0,\r\n        \"rare\": 75,\r\n        \"legendary\": 25\r\n      }\r\n    },\r\n    \"item_drop_boss_room\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"Boss房间清空道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 25,\r\n        \"rare\": 45,\r\n        \"legendary\": 30\r\n      }\r\n    },\r\n    \"item_drop_chest_normal\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"普通宝箱道具品质（稀有与传说）\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 0,\r\n        \"rare\": 250,\r\n        \"legendary\": 100\r\n      }\r\n    },\r\n    \"item_drop_chest_golden\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"金宝箱道具品质（稀有与传说）\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 0,\r\n        \"rare\": 60,\r\n        \"legendary\": 40\r\n      }\r\n    },\r\n    \"item_drop_shop_stock\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"商店道具生成\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    }\r\n  }\r\n}\r\n"; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })();
+    const r = await (async () => { const d = "{\r\n  \"_schema\": {\r\n    \"_description\": \"道具数据库 — 所有可拾取道具的属性与效果定义 + 道具掉落表\",\r\n    \"_structure\": {\r\n      \"items\": \"已退出当前道具池的旧配置，仅供回溯回归包使用\",\r\n      \"singleStepItems\": \"单步正式版和自定义战斗场共用的道具目录，同时用于正式掉落与商店。\",\r\n      \"singleStepItemDropTables\": \"单步正式版的来源品质权重，按表名覆盖基础表。\",\r\n      \"itemDropTables\": \"道具掉落表，每张表结构 { mode, table }。mode 当前统一为 pick_one(权重抽1个品质，再从品质池均匀随机具体道具)。table 中 key=品质(none/common/rare/legendary)，value=权重(整数)。\"\r\n    },\r\n    \"_fields\": {\r\n      \"quality\": {\r\n        \"_values\": [\"common\", \"rare\", \"legendary\"],\r\n        \"_desc\": \"道具品质等级，决定出现在哪个掉落池\"\r\n      },\r\n      \"tags\": {\r\n        \"_values_examples\": [\"属性提升\", \"攻击\", \"HP\", \"射速\", \"射程\", \"移速\", \"穿透\", \"回复\", \"全属性\", \"伤害倍率\"],\r\n        \"_desc\": \"道具标签，用于分类筛选\"\r\n      },\r\n      \"specials[].type\": {\r\n        \"_values\": [\"heal_full\", \"piercing\", \"damage_mult\"],\r\n        \"_desc\": \"heal_full=回满血, piercing=子弹穿透, damage_mult=伤害倍率\"\r\n      },\r\n      \"effects\": {\r\n        \"_keys\": [\"maxHp\", \"attack\", \"fireRate\", \"moveSpeed\", \"range\"],\r\n        \"_desc\": \"追加的属性修正值\"\r\n      },\r\n      \"stackable\": {\r\n        \"_type\": \"boolean\",\r\n        \"_desc\": \"允许重复获得，并累计每份道具的属性修正\"\r\n      },\r\n      \"price\": {\r\n        \"_desc\": \"商店售价（金币），默认15\",\r\n        \"_type\": \"number\"\r\n      },\r\n      \"itemDropTables.*.mode\": {\r\n        \"_values\": [\"pick_one\"],\r\n        \"_desc\": \"掉落模式：pick_one=按权重抽1个品质，再从品质池均匀随机具体道具\"\r\n      },\r\n      \"itemDropTables.*.table.none\": { \"_desc\": \"不掉落道具权重 (整数), 0=必定掉落\", \"_type\": \"number\" },\r\n      \"itemDropTables.*.table.common\": { \"_desc\": \"普通品质权重 (整数)\", \"_type\": \"number\" },\r\n      \"itemDropTables.*.table.rare\": { \"_desc\": \"稀有品质权重 (整数)\", \"_type\": \"number\" },\r\n      \"itemDropTables.*.table.legendary\": { \"_desc\": \"传说品质权重 (整数)\", \"_type\": \"number\" }\r\n    }\r\n  },\r\n\r\n  \"singleStepItems\": {\r\n    \"single_step_attack\": {\r\n      \"id\": \"single_step_attack\",\r\n      \"name\": \"攻击力+\",\r\n      \"stackable\": true,\r\n      \"icon\": \"⚔\",\r\n      \"desc\": \"攻击力 +0.5\",\r\n      \"quality\": \"common\",\r\n      \"effects\": { \"attack\": 0.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"single_step_range\": {\r\n      \"id\": \"single_step_range\",\r\n      \"name\": \"射程+\",\r\n      \"stackable\": true,\r\n      \"icon\": \"➜\",\r\n      \"desc\": \"射程 +1 格\",\r\n      \"quality\": \"common\",\r\n      \"effects\": { \"range\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"single_step_health\": {\r\n      \"id\": \"single_step_health\",\r\n      \"name\": \"生命+\",\r\n      \"stackable\": true,\r\n      \"icon\": \"♥\",\r\n      \"desc\": \"最大生命 +1，当前生命随上限提升\",\r\n      \"quality\": \"common\",\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"single_step_pierce\": {\r\n      \"id\": \"single_step_pierce\",\r\n      \"name\": \"穿透子弹\",\r\n      \"icon\": \"➤\",\r\n      \"desc\": \"穿透怪物，仍会被地形挡住\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": { \"effect\": \"pierce\", \"slot\": \"shell\" },\r\n      \"price\": 20\r\n    },\r\n    \"trial_weapon_dual\": {\r\n      \"id\": \"trial_weapon_dual\",\r\n      \"name\": \"双管\",\r\n      \"icon\": \"Ⅱ\",\r\n      \"desc\": \"同向发射两发，每发造成65%伤害。\",\r\n      \"quality\": \"common\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"dual\",\"slot\":\"pattern\"},\r\n      \"price\": 15\r\n    },\r\n    \"trial_weapon_triple\": {\r\n      \"id\": \"trial_weapon_triple\",\r\n      \"name\": \"三管\",\r\n      \"icon\": \"Ⅲ\",\r\n      \"desc\": \"同向发射三发，每发造成50%伤害。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"triple\",\"slot\":\"pattern\"},\r\n      \"price\": 20\r\n    },\r\n    \"trial_weapon_trident\": {\r\n      \"id\": \"trial_weapon_trident\",\r\n      \"name\": \"三叉管\",\r\n      \"icon\": \"Ψ\",\r\n      \"desc\": \"向正前方及两侧各45°发射一发。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"trident\",\"slot\":\"pattern\"},\r\n      \"price\": 20\r\n    },\r\n    \"trial_weapon_burstCharge\": {\r\n      \"id\": \"trial_weapon_burstCharge\",\r\n      \"name\": \"蓄力枪管（连击）\",\r\n      \"icon\": \"≡\",\r\n      \"desc\": \"前三次射击行动蓄力，第四次额外连射。移动保留蓄力。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"burstCharge\",\"slot\":\"trajectory\"},\r\n      \"price\": 20\r\n    },\r\n    \"trial_weapon_heavyCharge\": {\r\n      \"id\": \"trial_weapon_heavyCharge\",\r\n      \"name\": \"蓄力枪管（合体）\",\r\n      \"icon\": \"⬤\",\r\n      \"desc\": \"前三次射击行动蓄力，第四次射出高伤重弹。移动保留蓄力。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"heavyCharge\",\"slot\":\"trajectory\"},\r\n      \"price\": 20\r\n    },\r\n    \"trial_weapon_decay\": {\r\n      \"id\": \"trial_weapon_decay\",\r\n      \"name\": \"能量衰减枪管\",\r\n      \"icon\": \"↘\",\r\n      \"desc\": \"近距离伤害更高，远距离衰减。\",\r\n      \"quality\": \"common\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"decay\",\"slot\":\"trajectory\"},\r\n      \"price\": 15\r\n    },\r\n    \"trial_weapon_gain\": {\r\n      \"id\": \"trial_weapon_gain\",\r\n      \"name\": \"能量增幅枪管\",\r\n      \"icon\": \"↗\",\r\n      \"desc\": \"近距离伤害较低，远距离伤害增加。\",\r\n      \"quality\": \"common\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"gain\",\"slot\":\"trajectory\"},\r\n      \"price\": 15\r\n    },\r\n    \"trial_weapon_shotgun\": {\r\n      \"id\": \"trial_weapon_shotgun\",\r\n      \"name\": \"霰弹枪\",\r\n      \"icon\": \"⋰\",\r\n      \"desc\": \"射程减半并向下取整，最多6格。20颗低伤弹丸前半程沿一列飞行，后半程随机分散到三列。数量类枪管可覆盖散射。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"shotgun\",\"slot\":\"body\"},\r\n      \"price\": 20\r\n    },\r\n    \"trial_weapon_energy\": {\r\n      \"id\": \"trial_weapon_energy\",\r\n      \"name\": \"能量光速枪\",\r\n      \"icon\": \"═\",\r\n      \"desc\": \"发射能量射线，射程增加2格，可穿过怪物、木箱和岩石。\",\r\n      \"quality\": \"legendary\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"energy\",\"slot\":\"body\"},\r\n      \"price\": 25\r\n    },\r\n    \"trial_weapon_blast\": {\r\n      \"id\": \"trial_weapon_blast\",\r\n      \"name\": \"爆炸子弹\",\r\n      \"icon\": \"✷\",\r\n      \"desc\": \"每发首次命中时爆炸，覆盖命中格及周围8格。撞墙时以墙边的房内格为中心。\",\r\n      \"quality\": \"legendary\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"blast\",\"slot\":\"shell\"},\r\n      \"price\": 25\r\n    },\r\n    \"trial_weapon_splash\": {\r\n      \"id\": \"trial_weapon_splash\",\r\n      \"name\": \"溅射子弹\",\r\n      \"icon\": \"✣\",\r\n      \"desc\": \"首次命中怪物或障碍时，随机向1–8个方向溅射。幸运决定方向数，距离为射程的40%。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"splash\",\"slot\":\"shell\"},\r\n      \"price\": 20\r\n    },\r\n    \"trial_weapon_arc\": {\r\n      \"id\": \"trial_weapon_arc\",\r\n      \"name\": \"电弧子弹\",\r\n      \"icon\": \"ϟ\",\r\n      \"desc\": \"最多传导四次，每跳距离为射程的50%。随机选择能命中最多不同怪物的路线，末端障碍也承受伤害。\",\r\n      \"quality\": \"legendary\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"arc\",\"slot\":\"shell\"},\r\n      \"price\": 25\r\n    },\r\n    \"trial_weapon_tracking\": {\r\n      \"id\": \"trial_weapon_tracking\",\r\n      \"name\": \"追踪子弹\",\r\n      \"icon\": \"⌖\",\r\n      \"desc\": \"飞行中检测当前位置周围8格，发现可命中的怪物就转向。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"tracking\",\"slot\":\"shell\"},\r\n      \"price\": 20\r\n    },\r\n    \"trial_weapon_fold\": {\r\n      \"id\": \"trial_weapon_fold\",\r\n      \"name\": \"空间折叠子弹\",\r\n      \"icon\": \"↻\",\r\n      \"desc\": \"同一发子弹最多从房间边界绕回一次，继续使用剩余射程。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"fold\",\"slot\":\"shell\"},\r\n      \"price\": 20\r\n    },\r\n    \"trial_weapon_poison\": {\r\n      \"id\": \"trial_weapon_poison\",\r\n      \"name\": \"毒性子弹\",\r\n      \"icon\": \"◈\",\r\n      \"desc\": \"命中施毒，接下来3次正常战斗步各造成少量伤害。再次命中刷新。\",\r\n      \"quality\": \"common\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"poison\",\"slot\":\"ammo\"},\r\n      \"price\": 15\r\n    },\n    \"trial_weapon_fork\": {\r\n      \"id\": \"trial_weapon_fork\",\r\n      \"name\": \"分叉管\",\r\n      \"icon\": \"⋎\",\r\n      \"desc\": \"向正前方两侧各45°发射一发。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"fork\",\"slot\":\"pattern\"}\r\n    },\r\n    \"trial_weapon_twin\": {\r\n      \"id\": \"trial_weapon_twin\",\r\n      \"name\": \"双头管\",\r\n      \"icon\": \"↔\",\r\n      \"desc\": \"向正前和正后各发射一发。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"twin\",\"slot\":\"pattern\"}\r\n    },\r\n    \"trial_weapon_random\": {\r\n      \"id\": \"trial_weapon_random\",\r\n      \"name\": \"随机枪管\",\r\n      \"icon\": \"※\",\r\n      \"desc\": \"向前射击，并从其余方向中随机选不同方向追加发射。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"random\",\"slot\":\"pattern\"}\r\n    },\r\n    \"trial_weapon_straight\": {\r\n      \"id\": \"trial_weapon_straight\",\r\n      \"name\": \"普通枪管\",\r\n      \"icon\": \"→\",\r\n      \"desc\": \"恢复普通直线射击，覆盖同类发射方式。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"straight\",\"slot\":\"trajectory\"}\r\n    },\r\n    \"trial_weapon_bullet\": {\r\n      \"id\": \"trial_weapon_bullet\",\r\n      \"name\": \"实弹枪\",\r\n      \"icon\": \"●\",\r\n      \"desc\": \"恢复普通实弹枪体，覆盖同类枪体。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"bullet\",\"slot\":\"body\"}\r\n    },\r\n    \"trial_weapon_laser\": {\r\n      \"id\": \"trial_weapon_laser\",\r\n      \"name\": \"激光枪\",\r\n      \"icon\": \"━\",\r\n      \"desc\": \"发射激光，射程增加2格。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"laser\",\"slot\":\"body\"}\r\n    },\r\n    \"trial_weapon_ghost\": {\r\n      \"id\": \"trial_weapon_ghost\",\r\n      \"name\": \"灵体子弹\",\r\n      \"icon\": \"◇\",\r\n      \"desc\": \"穿透怪物和阻挡射击的地形，无法穿出房间。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"ghost\",\"slot\":\"shell\"}\r\n    },\r\n    \"trial_weapon_shield\": {\r\n      \"id\": \"trial_weapon_shield\",\r\n      \"name\": \"护盾\",\r\n      \"icon\": \"⬟\",\r\n      \"desc\": \"拾取时获得1点可耗尽的蓝心。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"shield\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_jet\": {\r\n      \"id\": \"trial_weapon_jet\",\r\n      \"name\": \"喷气背包\",\r\n      \"icon\": \"⤴\",\r\n      \"desc\": \"朝单格深坑移动时，可跨到对面的空地。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"jet\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_boots\": {\r\n      \"id\": \"trial_weapon_boots\",\r\n      \"name\": \"厚底皮靴\",\r\n      \"icon\": \"▣\",\r\n      \"desc\": \"免疫地刺伤害。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"boots\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_echo\": {\r\n      \"id\": \"trial_weapon_echo\",\r\n      \"name\": \"残影\",\r\n      \"icon\": \"◐\",\r\n      \"desc\": \"成功闪避时在原格留下残影。子弹时间内射击，残影从原格同向补射。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"echo\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_luck\": {\r\n      \"id\": \"trial_weapon_luck\",\r\n      \"name\": \"幸运+\",\r\n      \"icon\": \"✧\",\r\n      \"desc\": \"幸运框架测试项。本轮实际幸运值为0。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"luck\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_brace\": {\r\n      \"id\": \"trial_weapon_brace\",\r\n      \"name\": \"防冲姿态\",\r\n      \"icon\": \"⛨\",\r\n      \"desc\": \"阻止怪物挤开玩家，并按当前攻击力反伤该怪物。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"brace\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_runGun\": {\r\n      \"id\": \"trial_weapon_runGun\",\r\n      \"name\": \"边跑边射\",\r\n      \"icon\": \"↝\",\r\n      \"desc\": \"每次主动移动后，从落点上下左右射程内可命中的怪物中随机选取一个，自动攻击一次。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"runGun\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_bulletBonus\": {\r\n      \"id\": \"trial_weapon_bulletBonus\",\r\n      \"name\": \"子弹子弹时间\",\r\n      \"icon\": \"⌛\",\r\n      \"desc\": \"子弹时间内首次击杀本次闪避的怪物，额外延长一步。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"bulletBonus\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_slipStep\": {\r\n      \"id\": \"trial_weapon_slipStep\",\r\n      \"name\": \"闪身步\",\r\n      \"icon\": \"↶\",\r\n      \"desc\": \"成功触发子弹时间后回到原格，原格无法站立时保留落点。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"slipStep\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_counterTime\": {\r\n      \"id\": \"trial_weapon_counterTime\",\r\n      \"name\": \"反杀时间\",\r\n      \"icon\": \"↯\",\r\n      \"desc\": \"成功触发子弹时间时，无视遮挡对其中一个被闪避的怪物反击一次。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"counterTime\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_bombBaby\": {\r\n      \"id\": \"trial_weapon_bombBaby\",\r\n      \"name\": \"炸弹宝宝\",\r\n      \"icon\": \"♧\",\r\n      \"desc\": \"炸弹爆炸时有25%概率在爆点掉落一个炸弹。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"bombBaby\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_bombDecoy\": {\r\n      \"id\": \"trial_weapon_bombDecoy\",\r\n      \"name\": \"炸弹诱饵\",\r\n      \"icon\": \"◎\",\r\n      \"desc\": \"倒计时中的炸弹吸引追击范围内的怪物；怪物仍会优先执行攻击。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"bombDecoy\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_claymore\": {\r\n      \"id\": \"trial_weapon_claymore\",\r\n      \"name\": \"阔剑地雷\",\r\n      \"icon\": \"◬\",\r\n      \"desc\": \"炸弹只向指定方向爆炸。离开放置格时朝移动反方向，推过的炸弹朝推移方向。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"claymore\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_remoteBomb\": {\r\n      \"id\": \"trial_weapon_remoteBomb\",\r\n      \"name\": \"遥控炸弹\",\r\n      \"icon\": \"⌁\",\r\n      \"desc\": \"放置后停住倒计时，再按E手动引爆。可与阔剑地雷组合。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"remoteBomb\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_supplyDrone\": {\r\n      \"id\": \"trial_weapon_supplyDrone\",\r\n      \"name\": \"补给无人机\",\r\n      \"icon\": \"◇\",\r\n      \"desc\": \"累计清空3间房，补充一份当前持有数量最少的金币、钥匙或炸弹。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"supplyDrone\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_backArmor\": {\r\n      \"id\": \"trial_weapon_backArmor\",\r\n      \"name\": \"充能背甲\",\r\n      \"icon\": \"▣\",\r\n      \"desc\": \"每间房可抵挡一次来自背后或斜后方的怪物伤害。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"backArmor\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_timedShield\": {\r\n      \"id\": \"trial_weapon_timedShield\",\r\n      \"name\": \"充能护盾\",\r\n      \"icon\": \"◯\",\r\n      \"desc\": \"占用一个心位，拾取时充满，可抵挡一次伤害。挡伤后归零，每主动移动一格充能一点，20点充满。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"timedShield\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_rageShield\": {\r\n      \"id\": \"trial_weapon_rageShield\",\r\n      \"name\": \"狂暴护盾\",\r\n      \"icon\": \"⬟\",\r\n      \"desc\": \"击杀10只怪物获得一次挡伤。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"rageShield\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_killMove\": {\r\n      \"id\": \"trial_weapon_killMove\",\r\n      \"name\": \"喷气背包充能\",\r\n      \"icon\": \"⇢\",\r\n      \"desc\": \"击杀获得一次额外移动，最多储存一次。使用额外行动时无法再次返还。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"killMove\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_killShot\": {\r\n      \"id\": \"trial_weapon_killShot\",\r\n      \"name\": \"弹药回收\",\r\n      \"icon\": \"⟳\",\r\n      \"desc\": \"击杀获得一次额外射击，最多储存一次。使用额外行动时无法再次返还。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"killShot\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_hurtPill\": {\r\n      \"id\": \"trial_weapon_hurtPill\",\r\n      \"name\": \"浴血药丸\",\r\n      \"icon\": \"♥\",\r\n      \"desc\": \"每次实际受伤使本层攻击力+0.5。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"hurtPill\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_killPill\": {\r\n      \"id\": \"trial_weapon_killPill\",\r\n      \"name\": \"狂暴药丸\",\r\n      \"icon\": \"✦\",\r\n      \"desc\": \"每次击杀使本层攻击力+0.2。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"killPill\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_toxicTrail\": {\r\n      \"id\": \"trial_weapon_toxicTrail\",\r\n      \"name\": \"毒血\",\r\n      \"icon\": \"◈\",\r\n      \"desc\": \"离开的地格留下毒血，持续3步，每步对经过或站立的怪物造成0.5伤害。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"toxicTrail\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_slimeTrail\": {\r\n      \"id\": \"trial_weapon_slimeTrail\",\r\n      \"name\": \"史莱姆化\",\r\n      \"icon\": \"◍\",\r\n      \"desc\": \"离开的地格留下粘液，持续3步。怪物踩上后，下一次移动先停一回合，再执行原定移动。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"slimeTrail\",\"slot\":null}\r\n    },\r\n    \"trial_weapon_lob\": {\r\n      \"id\": \"trial_weapon_lob\",\r\n      \"name\": \"抛射枪管\",\r\n      \"icon\": \"⌒\",\r\n      \"desc\": \"射程+2，沿瞄准方向越过遮挡，优先落向怪物、木箱、岩石，最后为射程末端。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"lob\",\"slot\":\"trajectory\"}\r\n    },\r\n    \"trial_weapon_unstable\": {\r\n      \"id\": \"trial_weapon_unstable\",\r\n      \"name\": \"不稳定的枪\",\r\n      \"icon\": \"✧\",\r\n      \"desc\": \"每第4次主动开火额外发射一次霰弹。幸运暂为0。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"unstable\",\"slot\":\"body\"}\r\n    },\r\n    \"trial_weapon_knockback\": {\r\n      \"id\": \"trial_weapon_knockback\",\r\n      \"name\": \"击退子弹\",\r\n      \"icon\": \"➟\",\r\n      \"desc\": \"直击后将幸存怪物沿射击方向推一格。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"knockback\",\"slot\":\"ammo\"}\r\n    },\r\n    \"trial_weapon_fear\": {\r\n      \"id\": \"trial_weapon_fear\",\r\n      \"name\": \"恐惧子弹\",\r\n      \"icon\": \"☍\",\r\n      \"desc\": \"直击时有35%概率使怪物接下来2步的移动优先远离玩家。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"fear\",\"slot\":\"ammo\"}\r\n    },\r\n    \"trial_weapon_petrify\": {\r\n      \"id\": \"trial_weapon_petrify\",\r\n      \"name\": \"石化子弹\",\r\n      \"icon\": \"◆\",\r\n      \"desc\": \"直击时有35%概率使怪物停动停攻2步。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"petrify\",\"slot\":\"ammo\"}\r\n    },\r\n    \"trial_weapon_sticky\": {\r\n      \"id\": \"trial_weapon_sticky\",\r\n      \"name\": \"粘液子弹\",\r\n      \"icon\": \"●\",\r\n      \"desc\": \"直击时有35%概率减速。叠到2层后停止移动3步，仍可原地攻击。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"sticky\",\"slot\":\"ammo\"}\r\n    },\r\n    \"trial_weapon_ink\": {\r\n      \"id\": \"trial_weapon_ink\",\r\n      \"name\": \"墨汁子弹\",\r\n      \"icon\": \"◉\",\r\n      \"desc\": \"直击时有35%概率让怪物接下来2步只做默认行动。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"ink\",\"slot\":\"ammo\"}\r\n    },\r\n    \"trial_weapon_short\": {\r\n      \"id\": \"trial_weapon_short\",\r\n      \"name\": \"短路子弹\",\r\n      \"icon\": \"ϟ\",\r\n      \"desc\": \"直击时有35%概率阻止怪物接下来2步攻击。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"short\",\"slot\":\"ammo\"}\r\n    },\r\n    \"trial_weapon_parasite\": {\r\n      \"id\": \"trial_weapon_parasite\",\r\n      \"name\": \"寄生爆弹\",\r\n      \"icon\": \"✹\",\r\n      \"desc\": \"直击叠层。满5层或经过5个正常战斗步后引爆，额外伤害宿主。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"parasite\",\"slot\":\"ammo\"}\r\n    },\r\n    \"trial_weapon_acid\": {\r\n      \"id\": \"trial_weapon_acid\",\r\n      \"name\": \"硫酸子弹\",\r\n      \"icon\": \"▽\",\r\n      \"desc\": \"直击时在命中格留下酸液，持续5步，每步对经过或站立的怪物造成1伤害。\",\r\n      \"quality\": \"rare\",\r\n      \"effects\": {},\r\n      \"specials\": [],\r\n      \"weaponTrial\": {\"effect\":\"acid\",\"slot\":\"ammo\"}\r\n    }\r\n  },\r\n  \"items\": {\r\n    \"sad_onion\": {\r\n      \"id\": \"sad_onion\",\r\n      \"name\": \"伤心洋葱\",\r\n      \"icon\": \"🧅\",\r\n      \"desc\": \"射速 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"射速\"],\r\n      \"effects\": { \"fireRate\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"the_belt\": {\r\n      \"id\": \"the_belt\",\r\n      \"name\": \"皮带\",\r\n      \"icon\": \"🟤\",\r\n      \"desc\": \"移动速度 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"移速\"],\r\n      \"effects\": { \"moveSpeed\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"jesus_juice\": {\r\n      \"id\": \"jesus_juice\",\r\n      \"name\": \"耶稣果汁\",\r\n      \"icon\": \"🍷\",\r\n      \"desc\": \"攻击+0.5 射程+1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"射程\"],\r\n      \"effects\": { \"attack\": 0.5, \"range\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"iron_bar\": {\r\n      \"id\": \"iron_bar\",\r\n      \"name\": \"铁块\",\r\n      \"icon\": \"🔩\",\r\n      \"desc\": \"攻击+0.5\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"攻击\"],\r\n      \"effects\": { \"attack\": 0.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"wire_coat_hanger\": {\r\n      \"id\": \"wire_coat_hanger\",\r\n      \"name\": \"铁丝衣架\",\r\n      \"icon\": \"🪝\",\r\n      \"desc\": \"射速 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"射速\"],\r\n      \"effects\": { \"fireRate\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"breakfast\": {\r\n      \"id\": \"breakfast\",\r\n      \"name\": \"早餐\",\r\n      \"icon\": \"🥛\",\r\n      \"desc\": \"HP上限+1 回满血\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\"],\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"lunch\": {\r\n      \"id\": \"lunch\",\r\n      \"name\": \"午餐\",\r\n      \"icon\": \"🍖\",\r\n      \"desc\": \"HP上限+1 回满血\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\"],\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"dinner\": {\r\n      \"id\": \"dinner\",\r\n      \"name\": \"晚餐\",\r\n      \"icon\": \"🍗\",\r\n      \"desc\": \"HP上限+1 回满血\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\"],\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"dessert\": {\r\n      \"id\": \"dessert\",\r\n      \"name\": \"甜点\",\r\n      \"icon\": \"🍰\",\r\n      \"desc\": \"HP上限+1 回满血\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\"],\r\n      \"effects\": { \"maxHp\": 1 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"roid_rage\": {\r\n      \"id\": \"roid_rage\",\r\n      \"name\": \"狂暴针\",\r\n      \"icon\": \"💉\",\r\n      \"desc\": \"移动速度 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"移速\"],\r\n      \"effects\": { \"moveSpeed\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"speed_ball\": {\r\n      \"id\": \"speed_ball\",\r\n      \"name\": \"速度针\",\r\n      \"icon\": \"💊\",\r\n      \"desc\": \"移动速度 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"移速\"],\r\n      \"effects\": { \"moveSpeed\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"screw\": {\r\n      \"id\": \"screw\",\r\n      \"name\": \"螺钉\",\r\n      \"icon\": \"🔧\",\r\n      \"desc\": \"射速 +1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"射速\"],\r\n      \"effects\": { \"fireRate\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"synthol\": {\r\n      \"id\": \"synthol\",\r\n      \"name\": \"合成针\",\r\n      \"icon\": \"💪\",\r\n      \"desc\": \"攻击+0.5 射程+1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"射程\"],\r\n      \"effects\": { \"attack\": 0.5, \"range\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"pentagram\": {\r\n      \"id\": \"pentagram\",\r\n      \"name\": \"五芒星\",\r\n      \"icon\": \"⭐\",\r\n      \"desc\": \"攻击+1\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"攻击\"],\r\n      \"effects\": { \"attack\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"meat\": {\r\n      \"id\": \"meat\",\r\n      \"name\": \"肉！\",\r\n      \"icon\": \"🥩\",\r\n      \"desc\": \"HP上限+1 攻击+0.5\",\r\n      \"quality\": \"common\",\r\n      \"tags\": [\"属性提升\", \"HP\", \"攻击\"],\r\n      \"effects\": { \"maxHp\": 1, \"attack\": 0.5 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n\r\n    \"the_halo\": {\r\n      \"id\": \"the_halo\",\r\n      \"name\": \"光环\",\r\n      \"icon\": \"👼\",\r\n      \"desc\": \"全属性+1 HP上限+1\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"HP\", \"攻击\", \"射速\", \"移速\", \"射程\", \"全属性\"],\r\n      \"effects\": { \"maxHp\": 1, \"attack\": 0.5, \"fireRate\": 0.5, \"moveSpeed\": 0.5, \"range\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"magic_mushroom\": {\r\n      \"id\": \"magic_mushroom\",\r\n      \"name\": \"魔法蘑菇\",\r\n      \"icon\": \"🍄\",\r\n      \"desc\": \"全属性大幅提升 回满血\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"HP\", \"攻击\", \"移速\", \"射程\", \"全属性\", \"回复\"],\r\n      \"effects\": { \"maxHp\": 1, \"attack\": 1, \"moveSpeed\": 0.5, \"range\": 2 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"stigmata\": {\r\n      \"id\": \"stigmata\",\r\n      \"name\": \"圣痕\",\r\n      \"icon\": \"✝️\",\r\n      \"desc\": \"HP上限+1 攻击+0.5\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"HP\", \"攻击\"],\r\n      \"effects\": { \"maxHp\": 1, \"attack\": 0.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"growth_hormones\": {\r\n      \"id\": \"growth_hormones\",\r\n      \"name\": \"生长激素\",\r\n      \"icon\": \"🧬\",\r\n      \"desc\": \"攻击+1 移速+1\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"移速\"],\r\n      \"effects\": { \"attack\": 1, \"moveSpeed\": 1 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"cupids_arrow\": {\r\n      \"id\": \"cupids_arrow\",\r\n      \"name\": \"丘比特之箭\",\r\n      \"icon\": \"🏹\",\r\n      \"desc\": \"攻击+1 子弹穿透敌人\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"穿透\"],\r\n      \"effects\": { \"attack\": 1 },\r\n      \"specials\": [{ \"type\": \"piercing\" }],\r\n      \"price\": 15\r\n    },\r\n    \"champion_belt\": {\r\n      \"id\": \"champion_belt\",\r\n      \"name\": \"冠军腰带\",\r\n      \"icon\": \"🏆\",\r\n      \"desc\": \"攻击+1.5\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"攻击\"],\r\n      \"effects\": { \"attack\": 1.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n    \"the_mark\": {\r\n      \"id\": \"the_mark\",\r\n      \"name\": \"印记\",\r\n      \"icon\": \"👿\",\r\n      \"desc\": \"攻击+1 移速+0.5\",\r\n      \"quality\": \"rare\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"移速\"],\r\n      \"effects\": { \"attack\": 1, \"moveSpeed\": 0.5 },\r\n      \"specials\": [],\r\n      \"price\": 15\r\n    },\r\n\r\n    \"sacred_heart\": {\r\n      \"id\": \"sacred_heart\",\r\n      \"name\": \"圣心\",\r\n      \"icon\": \"❤️\",\r\n      \"desc\": \"攻击大幅提升 回满血\",\r\n      \"quality\": \"legendary\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"HP\", \"回复\"],\r\n      \"effects\": { \"attack\": 2.5, \"maxHp\": 2 },\r\n      \"specials\": [{ \"type\": \"heal_full\" }],\r\n      \"price\": 15\r\n    },\r\n    \"crickets_head\": {\r\n      \"id\": \"crickets_head\",\r\n      \"name\": \"蟋蟀的头\",\r\n      \"icon\": \"🐕\",\r\n      \"desc\": \"攻击+1 伤害×1.5倍\",\r\n      \"quality\": \"legendary\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"伤害倍率\"],\r\n      \"effects\": { \"attack\": 1 },\r\n      \"specials\": [{ \"type\": \"damage_mult\", \"mult\": 1.5 }],\r\n      \"price\": 15\r\n    },\r\n    \"deaths_touch\": {\r\n      \"id\": \"deaths_touch\",\r\n      \"name\": \"死神的镰刀\",\r\n      \"icon\": \"💀\",\r\n      \"desc\": \"攻击+2 子弹穿透\",\r\n      \"quality\": \"legendary\",\r\n      \"tags\": [\"属性提升\", \"攻击\", \"穿透\"],\r\n      \"effects\": { \"attack\": 2 },\r\n      \"specials\": [{ \"type\": \"piercing\" }],\r\n      \"price\": 15\r\n    }\r\n  },\r\n\r\n  \"singleStepItemDropTables\": {\r\n    \"item_drop_default\": { \"mode\": \"pick_one\", \"table\": { \"none\": 0, \"common\": 65, \"rare\": 30, \"legendary\": 5 } },\r\n    \"item_drop_common\": { \"mode\": \"pick_one\", \"table\": { \"none\": 0, \"common\": 65, \"rare\": 30, \"legendary\": 5 } },\r\n    \"item_drop_ranged\": { \"mode\": \"pick_one\", \"table\": { \"none\": 0, \"common\": 65, \"rare\": 30, \"legendary\": 5 } },\r\n    \"item_drop_heavy\": { \"mode\": \"pick_one\", \"table\": { \"none\": 0, \"common\": 65, \"rare\": 30, \"legendary\": 5 } },\r\n    \"item_drop_treasure_room\": { \"mode\": \"pick_one\", \"table\": { \"none\": 0, \"common\": 0, \"rare\": 80, \"legendary\": 20 } },\r\n    \"item_drop_boss_room\": { \"mode\": \"pick_one\", \"table\": { \"none\": 0, \"common\": 0, \"rare\": 65, \"legendary\": 35 } },\r\n    \"item_drop_chest_normal\": { \"mode\": \"pick_one\", \"table\": { \"none\": 0, \"common\": 0, \"rare\": 85, \"legendary\": 15 } },\r\n    \"item_drop_chest_golden\": { \"mode\": \"pick_one\", \"table\": { \"none\": 0, \"common\": 0, \"rare\": 60, \"legendary\": 40 } },\r\n    \"item_drop_shop_stock\": { \"mode\": \"pick_one\", \"table\": { \"none\": 0, \"common\": 45, \"rare\": 45, \"legendary\": 10 } }\r\n  },\r\n  \"itemDropTables\": {\r\n    \"item_drop_default\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"默认道具掉落(通用fallback)\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    },\r\n    \"item_drop_common\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"普通怪物道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    },\r\n    \"item_drop_ranged\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"远程怪物道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    },\r\n    \"item_drop_heavy\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"重型怪物道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    },\r\n    \"item_drop_boss\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"Boss怪物道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 20,\r\n        \"rare\": 45,\r\n        \"legendary\": 35\r\n      }\r\n    },\r\n    \"item_drop_treasure_room\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"宝藏房间道具掉落(无common)\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 0,\r\n        \"rare\": 75,\r\n        \"legendary\": 25\r\n      }\r\n    },\r\n    \"item_drop_boss_room\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"Boss房间清空道具掉落\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 25,\r\n        \"rare\": 45,\r\n        \"legendary\": 30\r\n      }\r\n    },\r\n    \"item_drop_chest_normal\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"普通宝箱道具品质（稀有与传说）\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 0,\r\n        \"rare\": 250,\r\n        \"legendary\": 100\r\n      }\r\n    },\r\n    \"item_drop_chest_golden\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"金宝箱道具品质（稀有与传说）\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 0,\r\n        \"rare\": 60,\r\n        \"legendary\": 40\r\n      }\r\n    },\r\n    \"item_drop_shop_stock\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"商店道具生成\",\r\n      \"table\": {\r\n        \"none\": 0,\r\n        \"common\": 60,\r\n        \"rare\": 30,\r\n        \"legendary\": 10\r\n      }\r\n    }\r\n  }\r\n}\r\n"; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })();
     if (r.ok) {
       const data = await r.json();
       ITEMS_DB = data[catalog] || {};
-      ITEM_DROP_TABLES = data.itemDropTables || {};
+      ITEM_DROP_TABLES = {...data.itemDropTables,
+        ...(catalog === 'singleStepItems' ? data.singleStepItemDropTables : {})};
       _rebuildItemPools();
       console.log('✅ 已从 JSON 加载道具数据库 (' + ITEM_POOL_ALL.length + ' 件 + ' + Object.keys(ITEM_DROP_TABLES).length + ' 张品质表)');
       return true;
@@ -1895,7 +1906,7 @@ let playerResources = {
 
 async function loadResourceDB() {
   try {
-    const r = await (async () => { const d = "{\r\n  \"_schema\": {\r\n    \"_description\": \"资源数据库 — 金币、炸弹、红心、蓝心、宝箱、钥匙等可拾取资源的定义与掉落配置\",\r\n    \"_fields\": {\r\n      \"resources.*.type\": {\r\n        \"_values\": [\"coin\", \"bomb\", \"heart\", \"blue_heart\", \"chest\", \"key\"],\r\n        \"_desc\": \"资源类型\"\r\n      },\r\n      \"resources.*.price\": {\r\n        \"_desc\": \"商店售价（金币），非coin/chest类型默认为5\",\r\n        \"_type\": \"number\"\r\n      },\r\n      \"resourceDropTables\": {\r\n        \"_desc\": \"资源掉落表，每张表结构 { mode, table }。mode: pick_one(权重抽1) / roll_all(每种独立判定) / pick_first(顺序首个命中即停)。被 monster-db.json > loot > entries[].resourceDropTable 引用。table中的数值在pick_one模式下为权重(整数)，在roll_all/pick_first模式下为概率(0~1)。table中应包含 \\\"none\\\" key，默认值为0(不掉落)，需要时可调高表示\\\"什么都不掉\\\"的概率/权重。\",\r\n        \"_tables\": {\r\n          \"resource_drop_monster_default\": \"普通小怪 (threat<3) 掉落 — pick_one\",\r\n          \"resource_drop_monster_heavy\": \"重型小怪 (threat≥3) 掉落 — pick_one\",\r\n          \"resource_drop_boss\": \"Tank怪/Boss怪击杀掉落 — pick_one\",\r\n          \"resource_drop_room_clear_default\": \"普通/商店/起始房间清空奖励 — pick_one\",\r\n          \"resource_drop_room_clear_boss\": \"Boss房间清空奖励 — pick_one(空table)\",\r\n          \"resource_drop_room_clear_treasure\": \"宝藏房间清空奖励 — pick_one(空table)\",\r\n          \"resource_drop_terrain_rock\": \"破坏岩石掉落 — pick_one\",\r\n          \"resource_drop_terrain_poop\": \"破坏便便掉落 — pick_one\",\r\n          \"resource_drop_chest_normal\": \"普通宝箱额外资源 — pick_one\",\r\n          \"resource_drop_chest_golden\": \"金宝箱(需钥匙)额外资源 — pick_one\",\r\n          \"resource_drop_shop_stock\": \"商店商品生成 — pick_one\"\r\n        }\r\n      },\r\n      \"_limits\": {\r\n        \"_desc\": \"玩家资源上限\",\r\n        \"coinMax\": \"金币上限\",\r\n        \"bombMax\": \"炸弹上限\",\r\n        \"keyMax\": \"钥匙上限\"\r\n      }\r\n    }\r\n  },\r\n\r\n  \"resources\": {\r\n    \"coin_gold\": {\r\n      \"type\": \"coin\",\r\n      \"id\": \"coin_gold\",\r\n      \"name\": \"金币(1元)\",\r\n      \"icon\": \"$\",\r\n      \"value\": 1,\r\n      \"color\": \"#ffd700\",\r\n      \"desc\": \"金色硬币，价值1元\"\r\n    },\r\n    \"coin_black\": {\r\n      \"type\": \"coin\",\r\n      \"id\": \"coin_black\",\r\n      \"name\": \"黑币(5元)\",\r\n      \"icon\": \"$\",\r\n      \"value\": 5,\r\n      \"color\": \"#555555\",\r\n      \"desc\": \"黑色硬币，价值5元\"\r\n    },\r\n    \"coin_silver\": {\r\n      \"type\": \"coin\",\r\n      \"id\": \"coin_silver\",\r\n      \"name\": \"银币(10元)\",\r\n      \"icon\": \"$\",\r\n      \"value\": 10,\r\n      \"color\": \"#e8e8e8\",\r\n      \"desc\": \"银白色硬币，价值10元\"\r\n    },\r\n\r\n    \"bomb_single\": {\r\n      \"type\": \"bomb\",\r\n      \"id\": \"bomb_single\",\r\n      \"name\": \"炸弹\",\r\n      \"icon\": \"@\",\r\n      \"amount\": 1,\r\n      \"desc\": \"可放置的炸弹，爆炸造成50伤害\",\r\n      \"damage\": 50,\r\n      \"radius\": 2,\r\n      \"detonateTurns\": 3,\r\n      \"price\": 5\r\n    },\r\n    \"bomb_double\": {\r\n      \"type\": \"bomb\",\r\n      \"id\": \"bomb_double\",\r\n      \"name\": \"双炸弹\",\r\n      \"icon\": \"@@\",\r\n      \"amount\": 2,\r\n      \"desc\": \"两个炸弹，爆炸造成50伤害\",\r\n      \"damage\": 50,\r\n      \"radius\": 2,\r\n      \"detonateTurns\": 3,\r\n      \"price\": 5\r\n    },\r\n\r\n    \"heart_half\": {\r\n      \"type\": \"heart\",\r\n      \"id\": \"heart_half\",\r\n      \"name\": \"半颗红心\",\r\n      \"icon\": \"v\",\r\n      \"heal\": 0.5,\r\n      \"color\": \"#ff4444\",\r\n      \"desc\": \"回复半颗红心生命值\",\r\n      \"price\": 5\r\n    },\r\n    \"heart_full\": {\r\n      \"type\": \"heart\",\r\n      \"id\": \"heart_full\",\r\n      \"name\": \"一颗红心\",\r\n      \"icon\": \"V\",\r\n      \"heal\": 1,\r\n      \"color\": \"#ff3333\",\r\n      \"desc\": \"回复一颗红心生命值\",\r\n      \"price\": 5\r\n    },\r\n    \"heart_double\": {\r\n      \"type\": \"heart\",\r\n      \"id\": \"heart_double\",\r\n      \"name\": \"两颗红心\",\r\n      \"icon\": \"W\",\r\n      \"heal\": 2,\r\n      \"color\": \"#ff2222\",\r\n      \"desc\": \"回复两颗红心生命值\",\r\n      \"price\": 5\r\n    },\r\n\r\n    \"blue_heart_half\": {\r\n      \"type\": \"blue_heart\",\r\n      \"id\": \"blue_heart_half\",\r\n      \"name\": \"半颗蓝心\",\r\n      \"icon\": \"b\",\r\n      \"amount\": 0.5,\r\n      \"color\": \"#4488ff\",\r\n      \"desc\": \"获得半颗临时蓝心，受伤优先扣除\",\r\n      \"price\": 5\r\n    },\r\n    \"blue_heart_full\": {\r\n      \"type\": \"blue_heart\",\r\n      \"id\": \"blue_heart_full\",\r\n      \"name\": \"一颗蓝心\",\r\n      \"icon\": \"B\",\r\n      \"amount\": 1,\r\n      \"color\": \"#3366ff\",\r\n      \"desc\": \"获得一颗临时蓝心，受伤优先扣除\",\r\n      \"price\": 5\r\n    },\r\n    \"blue_heart_double\": {\r\n      \"type\": \"blue_heart\",\r\n      \"id\": \"blue_heart_double\",\r\n      \"name\": \"两颗蓝心\",\r\n      \"icon\": \"8\",\r\n      \"amount\": 2,\r\n      \"color\": \"#2255ff\",\r\n      \"desc\": \"获得两颗临时蓝心，受伤优先扣除\",\r\n      \"price\": 5\r\n    },\r\n\r\n    \"chest_normal\": {\r\n      \"type\": \"chest\",\r\n      \"id\": \"chest_normal\",\r\n      \"name\": \"宝箱\",\r\n      \"icon\": \"c\",\r\n      \"locked\": false,\r\n      \"color\": \"#aa8855\",\r\n      \"resourceDropTable\": \"resource_drop_chest_normal\",\r\n      \"desc\": \"碰触打开，获得随机资源，有概率掉落道具\",\r\n      \"loot\": {\r\n        \"rounds\": [\r\n          {\r\n            \"mode\": \"pick_first\",\r\n            \"_comment\": \"先判断是否掉道具(2%)，命中则停；否则随机掉1~4个资源\",\r\n            \"entries\": [\r\n              { \"type\": \"item\", \"itemDropTable\": \"item_drop_chest_normal\", \"rate\": 0.02,\r\n                \"_desc\": \"2%概率掉1个道具，命中后不再继续\" },\r\n              { \"type\": \"resource\", \"rate\": 1.0,\r\n                \"resourceDropTable\": \"resource_drop_chest_normal\", \"minDrop\": 1, \"maxDrop\": 4,\r\n                \"_desc\": \"没掉道具 → 从resource_drop_chest_normal表随机抽1~4次资源(每次独立pick_one)\" }\r\n            ]\r\n          }\r\n        ]\r\n      }\r\n    },\r\n    \"chest_golden\": {\r\n      \"type\": \"chest\",\r\n      \"id\": \"chest_golden\",\r\n      \"name\": \"上锁金宝箱\",\r\n      \"icon\": \"C\",\r\n      \"locked\": true,\r\n      \"color\": \"#ffcc44\",\r\n      \"resourceDropTable\": \"resource_drop_chest_golden\",\r\n      \"desc\": \"需要1把钥匙才能打开，获得随机资源，有概率掉落道具\",\r\n      \"loot\": {\r\n        \"rounds\": [\r\n          {\r\n            \"mode\": \"pick_first\",\r\n            \"_comment\": \"先判断是否掉道具(50%)，命中则停；否则随机掉1~4个资源\",\r\n            \"entries\": [\r\n              { \"type\": \"item\", \"itemDropTable\": \"item_drop_chest_golden\", \"rate\": 0.50,\r\n                \"_desc\": \"50%概率掉1个道具，命中后不再继续\" },\r\n              { \"type\": \"resource\", \"rate\": 1.0,\r\n                \"resourceDropTable\": \"resource_drop_chest_golden\", \"minDrop\": 1, \"maxDrop\": 4,\r\n                \"_desc\": \"没掉道具 → 从resource_drop_chest_golden表随机抽1~4次资源(每次独立pick_one)\" }\r\n            ]\r\n          }\r\n        ]\r\n      }\r\n    },\r\n\r\n    \"key_single\": {\r\n      \"type\": \"key\",\r\n      \"id\": \"key_single\",\r\n      \"name\": \"钥匙\",\r\n      \"icon\": \"k\",\r\n      \"amount\": 1,\r\n      \"color\": \"#cccc88\",\r\n      \"desc\": \"用来打开上锁的门或宝箱\",\r\n      \"price\": 5\r\n    },\r\n    \"key_double\": {\r\n      \"type\": \"key\",\r\n      \"id\": \"key_double\",\r\n      \"name\": \"双钥匙\",\r\n      \"icon\": \"K\",\r\n      \"amount\": 2,\r\n      \"color\": \"#ddaa44\",\r\n      \"desc\": \"两把钥匙，用来打开上锁的门或宝箱\",\r\n      \"price\": 5\r\n    }\r\n  },\r\n\r\n  \"_limits\": {\r\n    \"coinMax\": 99,\r\n    \"bombMax\": 99,\r\n    \"keyMax\": 99\r\n  },\r\n\r\n  \"resourceDropTables\": {\r\n    \"resource_drop_monster_default\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"普通小怪(威胁<3)掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            780,\r\n        \"coin_gold\":       60,\r\n        \"coin_black\":      30,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     30,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      60,\r\n        \"heart_full\":      20,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      20,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_monster_heavy\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"重型小怪(威胁≥3)掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            780,\r\n        \"coin_gold\":       50,\r\n        \"coin_black\":      30,\r\n        \"coin_silver\":     10,\r\n        \"bomb_single\":     20,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      50,\r\n        \"heart_full\":      20,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 20,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      20,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_boss\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"蓄力魔像类坦克怪掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            820,\r\n        \"coin_gold\":       50,\r\n        \"coin_black\":      30,\r\n        \"coin_silver\":     20,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     10,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      40,\r\n        \"heart_double\":    10,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 10,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      0,\r\n        \"key_double\":      10\r\n      }\r\n    },\r\n\r\n    \"resource_drop_room_clear_default\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"普通/商店/起始房间清空奖励 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            570,\r\n        \"coin_gold\":       120,\r\n        \"coin_black\":      80,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     50,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      120,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      60,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_room_clear_boss\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"Boss房间清空奖励 — 全0(不掉落资源)，需要时改数值即可\",\r\n      \"table\": {\r\n        \"none\":            1000,\r\n        \"coin_gold\":       0,\r\n        \"coin_black\":      0,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      0,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_room_clear_treasure\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"宝藏房间清空奖励 — 全0(不掉落资源)，需要时改数值即可\",\r\n      \"table\": {\r\n        \"none\":            1000,\r\n        \"coin_gold\":       0,\r\n        \"coin_black\":      0,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      0,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n\r\n    \"resource_drop_terrain_rock\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"破坏岩石掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            965,\r\n        \"coin_gold\":       10,\r\n        \"coin_black\":      5,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     5,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      10,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      5,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_terrain_poop\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"破坏便便掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            850,\r\n        \"coin_gold\":       50,\r\n        \"coin_black\":      0,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      40,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 30,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      30,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n\r\n    \"resource_drop_chest_normal\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"打开普通宝箱额外获得的1种资源\",\r\n      \"table\": {\r\n        \"none\":            0,\r\n        \"coin_gold\":       100,\r\n        \"coin_black\":      50,\r\n        \"coin_silver\":     12,\r\n        \"bomb_single\":     30,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      40,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 25,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      25,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_chest_golden\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"打开金宝箱额外获得的1种资源\",\r\n      \"table\": {\r\n        \"none\":            0,\r\n        \"coin_gold\":       100,\r\n        \"coin_black\":      80,\r\n        \"coin_silver\":     100,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     35,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    50,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 40,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      0,\r\n        \"key_double\":      30\r\n      }\r\n    },\r\n\r\n    \"resource_drop_shop_stock\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"商店商品生成 — 按权重抽1种资源，rollShopSlots循环抽3次不重复\",\r\n      \"table\": {\r\n        \"none\":            695,\r\n        \"coin_gold\":       0,\r\n        \"coin_black\":      0,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     40,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      60,\r\n        \"heart_full\":      80,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 40,\r\n        \"blue_heart_full\": 50,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      35,\r\n        \"key_double\":      0\r\n      }\r\n    }\r\n  }\r\n}\r\n"; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })();
+    const r = await (async () => { const d = "{\r\n  \"_schema\": {\r\n    \"_description\": \"资源数据库 — 金币、炸弹、红心、蓝心、宝箱、钥匙等可拾取资源的定义与掉落配置\",\r\n    \"_fields\": {\r\n      \"resources.*.type\": {\r\n        \"_values\": [\"coin\", \"bomb\", \"heart\", \"blue_heart\", \"chest\", \"key\"],\r\n        \"_desc\": \"资源类型\"\r\n      },\r\n      \"resources.*.price\": {\r\n        \"_desc\": \"商店售价（金币），非coin/chest类型默认为5\",\r\n        \"_type\": \"number\"\r\n      },\r\n      \"resourceDropTables\": {\r\n        \"_desc\": \"资源掉落表，每张表结构 { mode, table }。mode: pick_one(权重抽1) / roll_all(每种独立判定) / pick_first(顺序首个命中即停)。被 monster-db.json > loot > entries[].resourceDropTable 引用。table中的数值在pick_one模式下为权重(整数)，在roll_all/pick_first模式下为概率(0~1)。table中应包含 \\\"none\\\" key，默认值为0(不掉落)，需要时可调高表示\\\"什么都不掉\\\"的概率/权重。\",\r\n        \"_tables\": {\r\n          \"resource_drop_monster_default\": \"普通小怪 (threat<3) 掉落 — pick_one\",\r\n          \"resource_drop_monster_heavy\": \"重型小怪 (threat≥3) 掉落 — pick_one\",\r\n          \"resource_drop_boss\": \"Tank怪/Boss怪击杀掉落 — pick_one\",\r\n          \"resource_drop_room_clear_default\": \"普通/商店/起始房间清空奖励 — pick_one\",\r\n          \"resource_drop_room_clear_boss\": \"Boss房间清空奖励 — pick_one(空table)\",\r\n          \"resource_drop_room_clear_treasure\": \"宝藏房间清空奖励 — pick_one(空table)\",\r\n          \"resource_drop_terrain_rock\": \"破坏岩石掉落 — pick_one\",\r\n          \"resource_drop_terrain_poop\": \"破坏便便掉落 — pick_one\",\r\n          \"resource_drop_chest_normal\": \"普通宝箱额外资源 — pick_one\",\r\n          \"resource_drop_chest_golden\": \"金宝箱(需钥匙)额外资源 — pick_one\",\r\n          \"resource_drop_shop_stock\": \"商店商品生成 — pick_one\"\r\n        }\r\n      },\r\n      \"_limits\": {\r\n        \"_desc\": \"玩家资源上限\",\r\n        \"coinMax\": \"金币上限\",\r\n        \"bombMax\": \"炸弹上限\",\r\n        \"keyMax\": \"钥匙上限\"\r\n      }\r\n    }\r\n  },\r\n\r\n  \"resources\": {\r\n    \"coin_gold\": {\r\n      \"type\": \"coin\",\r\n      \"id\": \"coin_gold\",\r\n      \"name\": \"金币(1元)\",\r\n      \"icon\": \"$\",\r\n      \"value\": 1,\r\n      \"color\": \"#ffd700\",\r\n      \"desc\": \"金色硬币，价值1元\"\r\n    },\r\n    \"coin_black\": {\r\n      \"type\": \"coin\",\r\n      \"id\": \"coin_black\",\r\n      \"name\": \"黑币(5元)\",\r\n      \"icon\": \"$\",\r\n      \"value\": 5,\r\n      \"color\": \"#555555\",\r\n      \"desc\": \"黑色硬币，价值5元\"\r\n    },\r\n    \"coin_silver\": {\r\n      \"type\": \"coin\",\r\n      \"id\": \"coin_silver\",\r\n      \"name\": \"银币(10元)\",\r\n      \"icon\": \"$\",\r\n      \"value\": 10,\r\n      \"color\": \"#e8e8e8\",\r\n      \"desc\": \"银白色硬币，价值10元\"\r\n    },\r\n\r\n    \"bomb_single\": {\r\n      \"type\": \"bomb\",\r\n      \"id\": \"bomb_single\",\r\n      \"name\": \"炸弹\",\r\n      \"icon\": \"@\",\r\n      \"amount\": 1,\r\n      \"desc\": \"可放置的炸弹，倒计时5回合，对引爆格及周围8格造成50伤害\",\r\n      \"damage\": 50,\r\n      \"radius\": 1,\r\n      \"detonateTurns\": 5,\r\n      \"price\": 5\r\n    },\r\n    \"bomb_double\": {\r\n      \"type\": \"bomb\",\r\n      \"id\": \"bomb_double\",\r\n      \"name\": \"双炸弹\",\r\n      \"icon\": \"@@\",\r\n      \"amount\": 2,\r\n      \"desc\": \"两个炸弹，各倒计时5回合，对引爆格及周围8格造成50伤害\",\r\n      \"damage\": 50,\r\n      \"radius\": 1,\r\n      \"detonateTurns\": 5,\r\n      \"price\": 5\r\n    },\r\n\r\n    \"heart_half\": {\r\n      \"type\": \"heart\",\r\n      \"id\": \"heart_half\",\r\n      \"name\": \"半颗红心\",\r\n      \"icon\": \"v\",\r\n      \"heal\": 0.5,\r\n      \"color\": \"#ff4444\",\r\n      \"desc\": \"回复半颗红心生命值\",\r\n      \"price\": 5\r\n    },\r\n    \"heart_full\": {\r\n      \"type\": \"heart\",\r\n      \"id\": \"heart_full\",\r\n      \"name\": \"一颗红心\",\r\n      \"icon\": \"V\",\r\n      \"heal\": 1,\r\n      \"color\": \"#ff3333\",\r\n      \"desc\": \"回复一颗红心生命值\",\r\n      \"price\": 5\r\n    },\r\n    \"heart_double\": {\r\n      \"type\": \"heart\",\r\n      \"id\": \"heart_double\",\r\n      \"name\": \"两颗红心\",\r\n      \"icon\": \"W\",\r\n      \"heal\": 2,\r\n      \"color\": \"#ff2222\",\r\n      \"desc\": \"回复两颗红心生命值\",\r\n      \"price\": 5\r\n    },\r\n\r\n    \"blue_heart_half\": {\r\n      \"type\": \"blue_heart\",\r\n      \"id\": \"blue_heart_half\",\r\n      \"name\": \"半颗蓝心\",\r\n      \"icon\": \"b\",\r\n      \"amount\": 0.5,\r\n      \"color\": \"#4488ff\",\r\n      \"desc\": \"获得半颗临时蓝心，受伤优先扣除\",\r\n      \"price\": 5\r\n    },\r\n    \"blue_heart_full\": {\r\n      \"type\": \"blue_heart\",\r\n      \"id\": \"blue_heart_full\",\r\n      \"name\": \"一颗蓝心\",\r\n      \"icon\": \"B\",\r\n      \"amount\": 1,\r\n      \"color\": \"#3366ff\",\r\n      \"desc\": \"获得一颗临时蓝心，受伤优先扣除\",\r\n      \"price\": 5\r\n    },\r\n    \"blue_heart_double\": {\r\n      \"type\": \"blue_heart\",\r\n      \"id\": \"blue_heart_double\",\r\n      \"name\": \"两颗蓝心\",\r\n      \"icon\": \"8\",\r\n      \"amount\": 2,\r\n      \"color\": \"#2255ff\",\r\n      \"desc\": \"获得两颗临时蓝心，受伤优先扣除\",\r\n      \"price\": 5\r\n    },\r\n\r\n    \"chest_normal\": {\r\n      \"type\": \"chest\",\r\n      \"id\": \"chest_normal\",\r\n      \"name\": \"宝箱\",\r\n      \"icon\": \"c\",\r\n      \"locked\": false,\r\n      \"color\": \"#aa8855\",\r\n      \"resourceDropTable\": \"resource_drop_chest_normal\",\r\n      \"desc\": \"碰触打开，获得随机资源，有概率掉落道具\",\r\n      \"loot\": {\r\n        \"rounds\": [\r\n          {\r\n            \"mode\": \"pick_first\",\r\n            \"_comment\": \"先判断是否掉道具(2%)，命中则停；否则随机掉1~4个资源\",\r\n            \"entries\": [\r\n              { \"type\": \"item\", \"itemDropTable\": \"item_drop_chest_normal\", \"rate\": 0.02,\r\n                \"_desc\": \"2%概率掉1个道具，命中后不再继续\" },\r\n              { \"type\": \"resource\", \"rate\": 1.0,\r\n                \"resourceDropTable\": \"resource_drop_chest_normal\", \"minDrop\": 1, \"maxDrop\": 4,\r\n                \"_desc\": \"没掉道具 → 从resource_drop_chest_normal表随机抽1~4次资源(每次独立pick_one)\" }\r\n            ]\r\n          }\r\n        ]\r\n      }\r\n    },\r\n    \"chest_golden\": {\r\n      \"type\": \"chest\",\r\n      \"id\": \"chest_golden\",\r\n      \"name\": \"上锁金宝箱\",\r\n      \"icon\": \"C\",\r\n      \"locked\": true,\r\n      \"color\": \"#ffcc44\",\r\n      \"resourceDropTable\": \"resource_drop_chest_golden\",\r\n      \"desc\": \"需要1把钥匙才能打开，获得随机资源，有概率掉落道具\",\r\n      \"loot\": {\r\n        \"rounds\": [\r\n          {\r\n            \"mode\": \"pick_first\",\r\n            \"_comment\": \"先判断是否掉道具(50%)，命中则停；否则随机掉1~4个资源\",\r\n            \"entries\": [\r\n              { \"type\": \"item\", \"itemDropTable\": \"item_drop_chest_golden\", \"rate\": 0.50,\r\n                \"_desc\": \"50%概率掉1个道具，命中后不再继续\" },\r\n              { \"type\": \"resource\", \"rate\": 1.0,\r\n                \"resourceDropTable\": \"resource_drop_chest_golden\", \"minDrop\": 1, \"maxDrop\": 4,\r\n                \"_desc\": \"没掉道具 → 从resource_drop_chest_golden表随机抽1~4次资源(每次独立pick_one)\" }\r\n            ]\r\n          }\r\n        ]\r\n      }\r\n    },\r\n\r\n    \"key_single\": {\r\n      \"type\": \"key\",\r\n      \"id\": \"key_single\",\r\n      \"name\": \"钥匙\",\r\n      \"icon\": \"k\",\r\n      \"amount\": 1,\r\n      \"color\": \"#cccc88\",\r\n      \"desc\": \"用来打开上锁的门或宝箱\",\r\n      \"price\": 5\r\n    },\r\n    \"key_double\": {\r\n      \"type\": \"key\",\r\n      \"id\": \"key_double\",\r\n      \"name\": \"双钥匙\",\r\n      \"icon\": \"K\",\r\n      \"amount\": 2,\r\n      \"color\": \"#ddaa44\",\r\n      \"desc\": \"两把钥匙，用来打开上锁的门或宝箱\",\r\n      \"price\": 5\r\n    }\r\n  },\r\n\r\n  \"_limits\": {\r\n    \"coinMax\": 99,\r\n    \"bombMax\": 99,\r\n    \"keyMax\": 99\r\n  },\r\n\r\n  \"resourceDropTables\": {\r\n    \"resource_drop_monster_default\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"普通小怪(威胁<3)掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            780,\r\n        \"coin_gold\":       60,\r\n        \"coin_black\":      30,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     30,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      60,\r\n        \"heart_full\":      20,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      20,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_monster_heavy\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"重型小怪(威胁≥3)掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            780,\r\n        \"coin_gold\":       50,\r\n        \"coin_black\":      30,\r\n        \"coin_silver\":     10,\r\n        \"bomb_single\":     20,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      50,\r\n        \"heart_full\":      20,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 20,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      20,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_boss\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"蓄力魔像类坦克怪掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            820,\r\n        \"coin_gold\":       50,\r\n        \"coin_black\":      30,\r\n        \"coin_silver\":     20,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     10,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      40,\r\n        \"heart_double\":    10,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 10,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      0,\r\n        \"key_double\":      10\r\n      }\r\n    },\r\n\r\n    \"resource_drop_room_clear_default\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"普通/商店/起始房间清空奖励 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            570,\r\n        \"coin_gold\":       120,\r\n        \"coin_black\":      80,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     50,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      120,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      60,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_room_clear_boss\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"Boss房间清空奖励 — 全0(不掉落资源)，需要时改数值即可\",\r\n      \"table\": {\r\n        \"none\":            1000,\r\n        \"coin_gold\":       0,\r\n        \"coin_black\":      0,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      0,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_room_clear_treasure\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"宝藏房间清空奖励 — 全0(不掉落资源)，需要时改数值即可\",\r\n      \"table\": {\r\n        \"none\":            1000,\r\n        \"coin_gold\":       0,\r\n        \"coin_black\":      0,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      0,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n\r\n    \"resource_drop_terrain_rock\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"破坏岩石掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            965,\r\n        \"coin_gold\":       10,\r\n        \"coin_black\":      5,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     5,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      10,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      5,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_terrain_poop\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"破坏便便掉落 — 按权重抽1种资源\",\r\n      \"table\": {\r\n        \"none\":            850,\r\n        \"coin_gold\":       50,\r\n        \"coin_black\":      0,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      40,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 30,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      30,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n\r\n    \"resource_drop_chest_normal\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"打开普通宝箱额外获得的1种资源\",\r\n      \"table\": {\r\n        \"none\":            0,\r\n        \"coin_gold\":       100,\r\n        \"coin_black\":      50,\r\n        \"coin_silver\":     12,\r\n        \"bomb_single\":     30,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      40,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 25,\r\n        \"blue_heart_full\": 0,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      25,\r\n        \"key_double\":      0\r\n      }\r\n    },\r\n    \"resource_drop_chest_golden\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"打开金宝箱额外获得的1种资源\",\r\n      \"table\": {\r\n        \"none\":            0,\r\n        \"coin_gold\":       100,\r\n        \"coin_black\":      80,\r\n        \"coin_silver\":     100,\r\n        \"bomb_single\":     0,\r\n        \"bomb_double\":     35,\r\n        \"heart_half\":      0,\r\n        \"heart_full\":      0,\r\n        \"heart_double\":    50,\r\n        \"blue_heart_half\": 0,\r\n        \"blue_heart_full\": 40,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      0,\r\n        \"key_double\":      30\r\n      }\r\n    },\r\n\r\n    \"resource_drop_shop_stock\": {\r\n      \"mode\": \"pick_one\",\r\n      \"_desc\": \"商店商品生成 — 按权重抽1种资源，rollShopSlots循环抽3次不重复\",\r\n      \"table\": {\r\n        \"none\":            695,\r\n        \"coin_gold\":       0,\r\n        \"coin_black\":      0,\r\n        \"coin_silver\":     0,\r\n        \"bomb_single\":     40,\r\n        \"bomb_double\":     0,\r\n        \"heart_half\":      60,\r\n        \"heart_full\":      80,\r\n        \"heart_double\":    0,\r\n        \"blue_heart_half\": 40,\r\n        \"blue_heart_full\": 50,\r\n        \"blue_heart_double\": 0,\r\n        \"chest_normal\":    0,\r\n        \"chest_golden\":    0,\r\n        \"key_single\":      35,\r\n        \"key_double\":      0\r\n      }\r\n    }\r\n  }\r\n}\r\n"; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })();
     if (r.ok) {
       const data = await r.json();
       RESOURCE_DB = data.resources || {};
@@ -2060,6 +2071,8 @@ function spawnResourcesInRoom(resIds) {
   }
 }
 
+let isEligibleItemDrop = () => true;
+
 /**
  * 按掉落表或品质覆盖随机一个道具 cfgId
  * @param {string|null} qualityOverride - 强制品质 (common/rare/legendary)，传 null 则用掉落表随机
@@ -2103,8 +2116,9 @@ function rollItem(qualityOverride, itemDropTable = 'item_drop_default') {
     : quality === 'rare' ? ITEM_POOL_RARE
     : ITEM_POOL_COMMON;
 
-  if (pool.length === 0) return ITEM_POOL_ALL[Math.floor(Math.random() * ITEM_POOL_ALL.length)] || null;
-  return pool[Math.floor(Math.random() * pool.length)];
+  const eligible = pool.filter(isEligibleItemDrop);
+  const candidates = eligible.length ? eligible : ITEM_POOL_ALL.filter(isEligibleItemDrop);
+  return candidates[Math.floor(Math.random() * candidates.length)] || null;
 }
 
 let monsters = [];  // [{id, cfgId, name, col, row, hp, maxHp, predictedPath, moveSpeed, movement, damage, aiType, tint, ...}]
@@ -3393,6 +3407,10 @@ function calcMonsterPath(monster,targetCol,targetRow){
 }
 // ==================== 血量上限系统 ====================
 const MAX_TOTAL_HEARTS = 12;
+let reservedHeartSlots = () => 0;
+function heartCapacity() {
+  return MAX_TOTAL_HEARTS - reservedHeartSlots();
+}
 
 // 计算当前总心数（红心 + 蓝心，向上取整）
 function totalHearts() {
@@ -3403,7 +3421,7 @@ function totalHearts() {
 // 尝试增加红心上限，可能替换蓝心
 function tryAddRedHeart() {
   // 还放得下 1 颗红心 → 直接加
-  if (totalHearts() + 1 <= MAX_TOTAL_HEARTS) return true;
+  if (totalHearts() + 1 <= heartCapacity()) return true;
   // 已到上限：牺牲 1 颗蓝心换红心（红心优先）
   if (playerResources.blueHearts > 0) {
     playerResources.blueHearts = Math.max(0, playerResources.blueHearts - 1);
@@ -3415,7 +3433,7 @@ function tryAddRedHeart() {
 
 // 尝试增加蓝心（按数量精确判定是否放得下，红心优先）
 function tryAddBlueHeart(amount = 1) {
-  return totalHearts() + amount <= MAX_TOTAL_HEARTS;
+  return totalHearts() + amount <= heartCapacity();
 }
 
 // 站在尖刺格且非无敌 → 掉血并进入无敌状态（无敌期内不重复结算）
@@ -3694,6 +3712,10 @@ function updatePlayerStatsUI() {
   if (elLck) elLck.textContent = playerStats.luck;
 }
 // ==================== 炸弹系统 ====================
+function bombFuseTurns() {
+  return RESOURCE_DB.bomb_single?.detonateTurns ?? 5;
+}
+
 function placeBomb(col, row) {
   if (playerResources.bombs <= 0) return;
   playerResources.bombs--;
@@ -3702,7 +3724,7 @@ function placeBomb(col, row) {
   const bomb = {
     id: ++bombIdCounter,
     col, row,
-    timer: RESOURCE_DB['bomb_single']?.detonateTurns ?? 3,
+    timer: bombFuseTurns(),
     roomId: currentRoomId,
   };
   bombs.push(bomb);
@@ -3718,11 +3740,12 @@ function placeBomb(col, row) {
 
   updateResourceUI();
   console.log(`💣 放置炸弹在 (${col},${row})，倒计时 ${bomb.timer}`);
+  return bomb;
 }
 
-// 消耗1个炸弹回合（怪物回合开始时调用）
-function tickBombCountdown() {
-  const currentBombs = bombs.filter(b => b.roomId === currentRoomId);
+// 推进当前房间的倒计时，单步模式从放置后的下一次行动开始计时。
+function tickBombCountdown(placedBomb) {
+  const currentBombs = bombs.filter(b => b.roomId === currentRoomId && b !== placedBomb);
   if (currentBombs.length === 0) return;
 
   for (const bomb of currentBombs) {
@@ -3752,10 +3775,10 @@ function getDiamondRange(cx, cy, radius) {
   return cells;
 }
 
-function detonateBomb(bomb) {
+function detonateBomb(bomb, affectedOverride) {
   const cx = bomb.col, cy = bomb.row;
-  const cfg = RESOURCE_DB['bomb_single'] || { damage: 50, radius: 2 };
-  const damageRadius = cfg.radius || 2;
+  const cfg = RESOURCE_DB.bomb_single;
+  const damageRadius = cfg?.radius ?? 1;
 
   console.log(`💥 炸弹爆炸! (${cx},${cy}) 范围${damageRadius}`);
   SFX.boom();
@@ -3776,30 +3799,25 @@ function detonateBomb(bomb) {
     });
   }
 
-  const affected = getDiamondRange(cx, cy, damageRadius);
-
-  for (const {col, row} of affected) {
-    // 越界检查
-    if (col < 0 || col >= COLS || row < 0 || row >= ROWS) continue;
-
-    // 伤害怪物
-    for (const m of monsters) {
-      if (m.hp <= 0 || m.jumperVanished) continue;
-      const sz = m.size || 1;
-      // 检查炸弹范围是否与怪物占地区域重叠
-      let hitMonster = false;
-      for (let dc = 0; dc < sz; dc++) {
-        for (let dr = 0; dr < sz; dr++) {
-          if (Math.abs((m.col + dc) - cx) + Math.abs((m.row + dr) - cy) <= damageRadius) {
-            hitMonster = true;
-          }
-        }
-      }
-      if (hitMonster) {
-        damageMonster(m, cfg.damage || 50);
+  const affected = affectedOverride || [];
+  if (!affectedOverride) {
+    for (let col = cx - damageRadius; col <= cx + damageRadius; col++) {
+      for (let row = cy - damageRadius; row <= cy + damageRadius; row++) {
+        affected.push({col,row});
       }
     }
+  }
+  const blastCells = affected.filter(({col,row}) => col >= 0 && col < COLS && row >= 0 && row < ROWS);
 
+  // 每只怪物只结算一次，占据多格的怪物命中任一格即可。
+  for (const m of [...monsters]) {
+    if (m.hp <= 0 || m.jumperVanished) continue;
+    if (monsterCells(m).some(cell => blastCells.some(p => p.col === cell.col && p.row === cell.row))) {
+      damageMonster(m, cfg?.damage || 50);
+    }
+  }
+
+  for (const {col, row} of blastCells) {
     noteDangerCell(col, row, -1, "environment");
     // 伤害玩家
     if (col === player.col && row === player.row) {
@@ -3839,6 +3857,7 @@ function detonateBomb(bomb) {
     life: 0.8, maxLife: 0.8,
     vy: -50, vx: 0,
   });
+  return blastCells;
 }
 
 // 子弹/怪物碰撞炸弹推移 (向射击方向推3格)
@@ -3871,10 +3890,14 @@ function pushBomb(bomb, dirX, dirY) {
   console.log(`💣 炸弹被推移到 (${col},${row})`);
 }
 
-function applyItem(cfgId) {
+function canPickupItem(cfgId) {
   const cfg = ITEMS_DB[cfgId];
-  if (!cfg) return;
-  if (playerInventory.includes(cfgId)) return; // 已拥有
+  return !!cfg && (cfg.stackable || !playerInventory.includes(cfgId));
+}
+
+function applyItem(cfgId) {
+  if (!canPickupItem(cfgId)) return;
+  const cfg = ITEMS_DB[cfgId];
 
   playerInventory.push(cfgId);
 
@@ -3936,14 +3959,14 @@ function _hasHealFull(cfg) {
 }
 
 // 重新计算所有属性（遍历所有已拥有道具，同时处理特效注册表）
-function recalcAllStats() {
+function recalcAllStats(baseMaxHp = 3) {
   // 从基准值开始
   playerStats.attack = 3.5;
   playerStats.fireRate = 3;
   playerStats.moveSpeed = 3;
   playerStats.range = 6;
   playerStats.luck = 0;
-  playerStats.maxHp = 3;
+  playerStats.maxHp = baseMaxHp;
 
   // 初始化特效状态
   const effectState = { hasPiercing: false, damageMultiplier: 1.0 };
@@ -3984,9 +4007,10 @@ function recalcAllStats() {
   playerStats.fireRate = Math.max(1, playerStats.fireRate);
   playerStats.moveSpeed = Math.max(1, playerStats.moveSpeed);
   playerStats.range = Math.max(3, playerStats.range);
-  playerStats.maxHp = Math.max(1, Math.min(MAX_TOTAL_HEARTS, playerStats.maxHp));
+  const capacity = heartCapacity();
+  playerStats.maxHp = Math.max(1, Math.min(capacity, playerStats.maxHp));
   // 红+蓝总心数不得超过上限：超出部分优先削蓝心（红心优先）
-  const heartOverflow = playerStats.maxHp + playerResources.blueHearts - MAX_TOTAL_HEARTS;
+  const heartOverflow = playerStats.maxHp + playerResources.blueHearts - capacity;
   if (heartOverflow > 0) {
     playerResources.blueHearts = Math.max(0, playerResources.blueHearts - heartOverflow);
   }
@@ -4176,6 +4200,7 @@ function tryBuyShopItem(col, row) {
 
   const slot = room._shopSlots.find(s => s.col === col && s.row === row);
   if (!slot || slot.sold) return false;
+  if (slot.type === 'item' && !isEligibleItemDrop(slot.cfgId)) return false;
 
   // 金币不足 → 静默不购买
   if (playerResources.coins < slot.price) return false;
@@ -4422,6 +4447,17 @@ function getAttackSideCells(targetCol, targetRow, size, range) {
   return cells;
 }
 
+// 只有攻击配置显式开启时才结算友伤，大体型怪物每次攻击也只受伤一次。
+function damageMonsterAllies(attack, attacker, cells, damage) {
+  if (attack?.hitsAllies !== true) return;
+  for (const target of [...monsters]) {
+    if (target.id === attacker.id || target.hp <= 0 || target.jumperVanished) continue;
+    if (monsterCells(target).some(({col, row}) => cells.has(`${col},${row}`))) {
+      damageMonster(target, damage);
+    }
+  }
+}
+
 // 执行 action 的 after_effect 数组
 function resolveAfterEffects(action, context) {
   if (!action || !action.after_effect || action.after_effect.length === 0) return;
@@ -4435,8 +4471,8 @@ function resolveAfterEffects(action, context) {
 
       const sideCells = getAttackSideCells(targetCol, targetRow, sz, range);
 
-      // 对冲击波范围内角色造成伤害（玩家可能已被落地碰撞触发无敌，自然免疫）
-      let playerHitInSide = false, monsterHitsInSide = new Set();
+      // 玩家可能已被落地碰撞触发无敌。
+      let playerHitInSide = false;
       for (const key of sideCells) {
         const [c, r] = key.split(',').map(Number);
         noteDangerCell(c, r, m.id, "move");
@@ -4444,16 +4480,8 @@ function resolveAfterEffects(action, context) {
           damagePlayer(damage, m.id);
           playerHitInSide = true;
         }
-        for (const om of monsters) {
-          if (om.id === m.id || om.jumperVanished) continue;
-          if (isInMonsterFootprint(om, c, r)) {
-            if (!monsterHitsInSide.has(om.id)) {
-              damageMonster(om, damage);
-              monsterHitsInSide.add(om.id);
-            }
-          }
-        }
       }
+      damageMonsterAllies(effect, m, sideCells, damage);
     } else if (effect.type === 'attack_adjacent') {
       const damage = effect.damage !== undefined ? effect.damage : 0.5;
       const range = effect.range !== undefined ? effect.range : 1;
@@ -4466,12 +4494,14 @@ function resolveAfterEffects(action, context) {
         { dx: 1, dy: 0 }
       ];
       let playerHit = false;
+      const adjacentCells = new Set();
       for (const dir of allDirs) {
         for (let i = 1; i <= range; i++) {
           const ac = m.col + dir.dx * i;
           const ar = m.row + dir.dy * i;
           if (ac < 0 || ac >= COLS || ar < 0 || ar >= ROWS) break;
           if (isWall(ac, ar)) break;
+          adjacentCells.add(`${ac},${ar}`);
           noteDangerCell(ac, ar, m.id, "move");
           // 攻击玩家（只扣血一次）
           if (!playerHit && ac === player.col && ar === player.row) {
@@ -4479,15 +4509,9 @@ function resolveAfterEffects(action, context) {
             playerHit = true;
             if(movementPlanning)scheduleMovementEvent({type:'melee',monsterId:m.id,dx:dir.dx,dy:dir.dy});else{m.meleeFlash=0.25;m.meleeDir={dx:dir.dx,dy:dir.dy};}
           }
-          // 攻击其他怪物
-          for (const om of monsters) {
-            if (om.id === m.id || om.jumperVanished) continue;
-            if (isInMonsterFootprint(om, ac, ar)) {
-              damageMonster(om, damage);
-            }
-          }
         }
       }
+      damageMonsterAllies(effect, m, adjacentCells, damage);
     }
   }
 }
@@ -4719,8 +4743,9 @@ function executeBossLanding() {
   const m = pendingBossLanding.monster;
   if (m && m._charging) return; // 新流程：不在玩家回合结束时处理，等怪物回合处理
 
-  // 旧版兼容：直接落地
-  const { targetCol, targetRow } = pendingBossLanding;
+  // 旧版兼容：直接落地，同样避开怪物占位。
+  const landing = resolveBossLandingPosition(m, pendingBossLanding.targetCol, pendingBossLanding.targetRow);
+  const { col: targetCol, row: targetRow } = landing;
   let { landAction } = pendingBossLanding;
   if (!landAction) {
     const mCfg = MONSTER_DB[m.cfgId];
@@ -4760,12 +4785,6 @@ function doLandingDamage(m, targetCol, targetRow, sz, landAction, oldBossPos = n
         const collisionDmg = m.damage || 0.5;
         damagePlayer(collisionDmg, m.id);
         playerDirectHit = true;
-      }
-      for (const om of monsters) {
-        if (om.id === m.id || om.jumperVanished) continue;
-        if (isInMonsterFootprint(om, tc, tr)) {
-          damageMonster(om, 1);
-        }
       }
     }
   }
@@ -5693,8 +5712,10 @@ function animateMonsters(dt) {
 
 // 伤害飘字
 function updateDamageNumbers(dt) {
+  const now = performance.now();
   for (let i = damageNumbers.length - 1; i >= 0; i--) {
     const d = damageNumbers[i];
+    if (d.showAt > now) continue;
     d.x += d.vx * dt;
     d.y += d.vy * dt;
     d.life -= dt;
@@ -5947,7 +5968,9 @@ function drawGridOverlay(col, row, innerColor, innerAlpha, borderAlpha) {
 
 // --- 射击弹道方格 (蓝色呼吸) ---
 // 预测序列化的规则入口；必须引用原规则函数，不引入显示包装。
-function getDangerSharedRules(){return [gridToPixel,pixelToGrid,isWall,isBlockingBullet,bulletHitWall,isMonsterAt,monsterCells,isValidLandingZone,selectLandingTarget,isInMonsterFootprint,getSpreadDirs,getPlayerPushCandidates,pushPlayerFromMonster,calcDiagonalPathEnd,canMoveMin1,getChargeDirections,pickChargeDir,checkActionCondition,resolveSteps,getEligibleMonsterActions,resolveMonsterAction,getWanderPaths,canMonsterShotHitPlayer,getMonsterShootDirections,chooseMonsterShootDirection,chooseWanderPath,calcAllMonsterPaths,calcMonsterPath,getChargePath,getDiamondRange,tickBombCountdown,detonateBomb,pushBomb,calcJumperSmallJump,calcJumperBigJump,processJumperAction,getAttackSideCells,scrapOriginalResolve,initDukeQuadrant,calcDukePath,updateDukeAnim,executeBossLandingNow,executeBossLanding,doLandingDamage,resolveBossLandingPosition,finishBossLandingPhase2,executeMonsterTurnActions,updateMonsterTurn,applyMonsterTurnAfterEffects,scrapOriginalMonsterBullet,updateBullets,makeMonsterTurnRandom,monsterActionChoiceIndex,hasPendingMonsterAttack];}
+const predictionDetonateBomb = detonateBomb;
+const predictionPushBomb = pushBomb;
+function getDangerSharedRules(){return [gridToPixel,pixelToGrid,isWall,isBlockingBullet,bulletHitWall,isMonsterAt,monsterCells,isValidLandingZone,selectLandingTarget,isInMonsterFootprint,getSpreadDirs,getPlayerPushCandidates,pushPlayerFromMonster,calcDiagonalPathEnd,canMoveMin1,getChargeDirections,pickChargeDir,checkActionCondition,resolveSteps,getEligibleMonsterActions,resolveMonsterAction,getWanderPaths,canMonsterShotHitPlayer,getMonsterShootDirections,chooseMonsterShootDirection,chooseWanderPath,calcAllMonsterPaths,calcMonsterPath,getChargePath,getDiamondRange,tickBombCountdown,predictionDetonateBomb,predictionPushBomb,calcJumperSmallJump,calcJumperBigJump,processJumperAction,getAttackSideCells,damageMonsterAllies,scrapOriginalResolve,initDukeQuadrant,calcDukePath,updateDukeAnim,executeBossLandingNow,executeBossLanding,doLandingDamage,resolveBossLandingPosition,finishBossLandingPhase2,executeMonsterTurnActions,updateMonsterTurn,applyMonsterTurnAfterEffects,scrapOriginalMonsterBullet,updateBullets,makeMonsterTurnRandom,monsterActionChoiceIndex,hasPendingMonsterAttack];}
 // 在独立闭包中运行共享规则，预测不会触碰真实游戏对象、DOM、音效或掉落。
 let dangerSimulationFactory = null;
 function buildDangerRuleBody(shared) {
@@ -6576,7 +6599,9 @@ function updateTextOverlay() {
   // --- 伤害飘字 ---
   let dmgIdx = 0;
   const existingDmgs = overlay.querySelectorAll('.txt-damage');
+  const now = performance.now();
   for (const d of damageNumbers) {
+    if (d.showAt > now) continue;
     const pp = project(d.x, d.y);
     const alpha = Math.max(0, d.life / d.maxLife);
     const sx = Math.round(pp.x * DISPLAY_SCALE);
@@ -6814,8 +6839,9 @@ function preRollLoot(lootConfig) {
 /** 预 roll 单个掉落条目 */
 function preRollDropEntry(entry) {
   if (entry.type === 'item') {
-    const cfgId = rollItem(null, entry.itemDropTable || 'item_drop_default');
-    if (cfgId) return { type: 'item', cfgId };
+    const itemDropTable = entry.itemDropTable || 'item_drop_default';
+    const cfgId = rollItem(null, itemDropTable);
+    if (cfgId) return { type: 'item', cfgId, itemDropTable };
   } else if (entry.type === 'resource') {
     // 新：支持 minDrop/maxDrop 随机次数抽取（每次独立 pick_one）
     if (entry.minDrop !== undefined && entry.maxDrop !== undefined) {
@@ -6843,7 +6869,8 @@ function preRollDropEntry(entry) {
 function applyPreRolledLoot(preRolled, col, row) {
   for (const drop of preRolled) {
     if (drop.type === 'item') {
-      spawnItemOnGrid(col, row, drop.cfgId);
+      const cfgId = isEligibleItemDrop(drop.cfgId) ? drop.cfgId : rollItem(null,drop.itemDropTable);
+      spawnItemOnGrid(col, row, cfgId);
     } else if (drop.type === 'resource') {
       for (const rid of drop.resIds) {
         if (col >= 0 && col < COLS && row >= 0 && row < ROWS && !isWall(col, row)) {
@@ -7711,9 +7738,10 @@ function scrapSetupHUD(){
 }
 let scrapHudKey='';
 function scrapUpdateHUD(){const el=id=>document.getElementById(id);if(!el('scrap-hearts'))return;
- const key=JSON.stringify([playerStats,turnState.mAP,turnState.aAP,turnState.maxMAP,turnState.maxAAP,turnState.phase,turnState.turnNumber,playerResources,currentFloor?.floorNum]);if(key===scrapHudKey)return;scrapHudKey=key;
- let hearts=Array.from({length:Math.min(12,Math.ceil(playerStats.maxHp))},(_,i)=>scrapIcon(playerStats.hp>=i+1?'heart':playerStats.hp>i?'halfHeart':'emptyHeart',22)).join('');
- const blue=Math.max(0,Math.min(playerResources.blueHearts||0,12-Math.ceil(playerStats.maxHp)));
+ const capacity=heartCapacity();
+ const key=JSON.stringify([playerStats,turnState.mAP,turnState.aAP,turnState.maxMAP,turnState.maxAAP,turnState.phase,turnState.turnNumber,playerResources,currentFloor?.floorNum,capacity]);if(key===scrapHudKey)return;scrapHudKey=key;
+ let hearts=Array.from({length:Math.min(capacity,Math.ceil(playerStats.maxHp))},(_,i)=>scrapIcon(playerStats.hp>=i+1?'heart':playerStats.hp>i?'halfHeart':'emptyHeart',22)).join('');
+ const blue=Math.max(0,Math.min(playerResources.blueHearts||0,capacity-Math.ceil(playerStats.maxHp)));
  for(let i=0;i<Math.ceil(blue);i++){const src=SCRAP_ASSETS[blue-i>=1?'blueHeart':'halfBlueHeart'];if(src)hearts+='<img src="'+src+'" width="22" height="22" alt="蓝心">'}
  el('scrap-hearts').innerHTML=hearts;
  el('scrap-floor').innerHTML='<span>楼层 B'+(currentFloor?.floorNum||1)+'</span><small>地图 [M]</small>';el('scrap-atk').textContent=playerStats.attack;el('scrap-range').textContent=playerStats.range;
@@ -7749,11 +7777,11 @@ function staticWorldMonsterKey(m){
  if(m.cfgId==='duke_floater')return 'static-floater';
  return null;
 }
-function drawStaticWorldMonster(m,x,y,size,scale=1){
+function drawStaticWorldMonster(m,x,y,size,scale=1,drawSprite=scrapDraw){
  const key=staticWorldMonsterKey(m);if(!key)return;
  ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
- if(key==='melee0'||key==='ranged0')scrapDraw(key,-30,-38,60,68);
- else{const w=size*((m.size||1)>1?1.15:1.45);scrapDraw(key,-w/2,-w*.58,w,w);}
+ if(key==='melee0'||key==='ranged0')drawSprite(key,-30,-38,60,68);
+ else{const w=size*((m.size||1)>1?1.15:1.45);drawSprite(key,-w/2,-w*.58,w,w);}
  const tier=m.cfgId.endsWith('_iii')?3:m.cfgId.endsWith('_ii')?2:0;
  ctx.fillStyle=tier===3?'#f49067':'#74e1e7';for(let i=0;i<tier;i++)ctx.fillRect(-tier*2+i*4,size*.48,2.5,1.8);
  ctx.restore();
@@ -8068,44 +8096,12 @@ console.log(`  资源库: ${Object.keys(RESOURCE_DB).length} 种资源 (金币/�
 console.log(`  AP=${playerStats.fireRate}  MP=${playerStats.moveSpeed}  HP=${playerStats.hp}/${playerStats.maxHp}`);
 
 // SINGLE_STEP_FORMAL_START
-// 这些配置由自定义场注册，使用同一套正式战斗规则，不进入当前随机掉落池。
-const WEAPON_TRIAL_ITEMS = {
-  dual: ['双管','pattern','同向发射两发，每发造成65%伤害。','Ⅱ'],
-  triple: ['三管','pattern','同向发射三发，每发造成50%伤害。','Ⅲ'],
-  fork: ['分叉管','pattern','向正前方两侧各45°发射一发。','⋎'],
-  trident: ['三叉管','pattern','向正前方及两侧各45°发射一发。','Ψ'],
-  twin: ['双头管','pattern','向正前和正后各发射一发。','↔'],
-  random: ['随机枪管','pattern','向前射击，并从其余方向中随机选不同方向追加发射。','※'],
-  straight: ['普通枪管','trajectory','恢复普通直线射击，覆盖同类发射方式。','→'],
-  burstCharge: ['蓄力枪管（连击）','trajectory','前三次射击行动蓄力，第四次额外连射。移动保留蓄力。','≡'],
-  heavyCharge: ['蓄力枪管（合体）','trajectory','前三次射击行动蓄力，第四次射出高伤重弹。移动保留蓄力。','⬤'],
-  decay: ['能量衰减枪管','trajectory','近距离伤害更高，远距离衰减。','↘'],
-  gain: ['能量增幅枪管','trajectory','近距离伤害较低，远距离伤害增加。','↗'],
-  bullet: ['实弹枪','body','恢复普通实弹枪体，覆盖同类枪体。','●'],
-  shotgun: ['霰弹枪','body','枪体默认射出五发散射弹。另有发射数量道具时，使用该道具的发射方式。','⋰'],
-  laser: ['激光枪','body','发射激光，射程增加2格。','━'],
-  energy: ['能量光速枪','body','发射能量射线，射程增加2格并穿透怪物。','═'],
-  ghost: ['灵体子弹','shell','穿透怪物和阻挡射击的地形，无法穿出房间。','◇'],
-  blast: ['爆炸子弹','shell','每发首次命中敌人或障碍时，对相邻的其他敌人造成范围伤害。','✷'],
-  splash: ['溅射子弹','shell','每发首次命中后，向命中点两侧各飞出一发短程碎片。','✣'],
-  arc: ['电弧子弹','shell','每发首次命中后，在距离2格内的敌人间最多跳跃两次。','ϟ'],
-  tracking: ['追踪子弹','shell','若射线左右45°内有无遮挡的目标，子弹转向最近的一条可命中射线。','⌖'],
-  fold: ['空间折叠子弹','shell','同一发子弹最多从房间边界绕回一次，继续使用剩余射程。','↻'],
-  poison: ['毒性子弹','ammo','命中施毒，接下来3次正常战斗步各造成少量伤害。再次命中刷新。','◈'],
-  shield: ['护盾',null,'拾取时获得1点可耗尽的蓝心。','⬟'],
-  jet: ['喷气背包',null,'朝单格深坑移动时，可跨到对面的空地。','⤴'],
-  boots: ['厚底皮靴',null,'免疫地刺伤害。','▣'],
-  echo: ['残影',null,'成功闪避时在原格留下残影。子弹时间内射击，残影从原格同向补射。','◐'],
-};
+// 正式版与自定义场共用 Configs/item-db.json 的单步道具池。
 const WEAPON_TRIAL_PREFIX = 'trial_weapon_';
 const loadItemCatalog = loadItemDB;
 loadItemDB = () => loadItemCatalog('singleStepItems');
-function registerWeaponTrialItems() {
-  for (const [effect, [name, slot, desc, icon]] of Object.entries(WEAPON_TRIAL_ITEMS)) {
-    const id = WEAPON_TRIAL_PREFIX + effect;
-    ITEMS_DB[id] = {id, name, desc, icon, quality: 'rare', effects: {}, specials: [], weaponTrial: {effect, slot}};
-  }
-}
+isEligibleItemDrop = canPickupItem;
+const stepTestHooks = {};
 function trialPassive(effect) {
   return playerInventory.includes(WEAPON_TRIAL_PREFIX + effect);
 }
@@ -8120,7 +8116,7 @@ applyItem = function(cfgId) {
   if (trial.slot) playerInventory = playerInventory.filter(id => ITEMS_DB[id]?.weaponTrial?.slot !== trial.slot);
   if (trial.slot === 'trajectory') SINGLE_STEP.weaponCharge = 0;
   trialApplyItemBase(cfgId);
-  if (trial.effect === 'shield') {
+  if (trial.effect === 'shield' && tryAddBlueHeart()) {
     playerResources.blueHearts += 1;
     updateResourceUI();
     updateUI();
@@ -8128,7 +8124,12 @@ applyItem = function(cfgId) {
 };
 
 const WEAPON_DIRECTIONS = [[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]];
-function weaponVolley(pattern, body) {
+const SHOTGUN_PELLETS = 20;
+const BURST_INTERVAL = 130;
+function weaponShotgunRange() {
+  return Math.max(1,Math.min(6,Math.floor(playerStats.range*.5)));
+}
+function weaponVolley(pattern) {
   if (pattern === 'dual') return [[0,.65],[0,.65]];
   if (pattern === 'triple') return [[0,.5],[0,.5],[0,.5]];
   if (pattern === 'fork') return [[-1,1],[1,1]];
@@ -8139,86 +8140,224 @@ function weaponVolley(pattern, body) {
     for (let i=0;i<count;i++) rays.push([pool.splice(Math.floor(Math.random()*pool.length),1)[0],1]);
     return rays;
   }
-  if (body === 'shotgun') return [[0,.55],[-1,.55],[1,.55],[0,.55],[0,.55]];
   return [[0,1]];
 }
-function weaponShotDamage(base, trajectory, n, range) {
-  const progress = (n - 1) / Math.max(1, range - 1);
-  if (trajectory === 'decay') return Math.round(base * (1.45 - .9 * progress) * 100) / 100;
-  if (trajectory === 'gain') return Math.round(base * (.55 + .9 * progress) * 100) / 100;
-  return base;
+function weaponEnergyScale(trajectory, distance, range) {
+  const progress = Math.max(0, Math.min(1, (distance - 1) / Math.max(1, range - 1)));
+  if (trajectory === 'decay') return 1.45 - .9 * progress;
+  if (trajectory === 'gain') return .55 + .9 * progress;
+  return 1;
 }
-function weaponBlast(col, row, damage, direct) {
-  const q = gridToPixel(col,row);
-  particles.push({x:q.x,y:q.y,vx:0,vy:0,life:.18,maxLife:.18,size:8,color:'#ffc371'});
+function weaponDamageMonster(m, damage, at, lane) {
+  const firstNumber = damageNumbers.length, firstEvent = stepVisualEvents.length;
+  damageMonster(m, damage);
+  for (const number of damageNumbers.slice(firstNumber)) {
+    number.showAt = at;
+    if (lane) {
+      number.x += lane * 3;
+      number.vx = lane * 2;
+    }
+  }
+  for (const event of stepVisualEvents.slice(firstEvent)) {
+    if (event.type === 'death') {
+      event.at = at;
+      event.weaponHit = true;
+    }
+  }
+  stepVisualEvents.push({type: 'weapon-hit', id: m.id, at});
+}
+function weaponDamageTerrain(col, row, damage) {
+  const terrain = tileData[col+','+row];
+  if (terrain) hitTile(col,row,terrain.type === 'poop' ? terrain.hp : damage);
+}
+function weaponBlast(col, row, damage, direct, at, lane) {
+  stepVisualEvents.push({type: 'blast', col, row, at});
+  for (let dc = -1; dc <= 1; dc++) for (let dr = -1; dr <= 1; dr++) {
+    const terrain = tileData[(col + dc) + ',' + (row + dr)];
+    if (terrain) hitTile(col + dc, row + dr, terrain.hp);
+  }
   for (const m of [...monsters]) {
     if (m === direct || m.hp <= 0 || m.jumperVanished || !monsters.includes(m)) continue;
-    if (monsterCells(m).some(p => Math.abs(p.col-col)+Math.abs(p.row-row)<=1)) damageMonster(m, Math.round(damage * 50) / 100);
+    if (monsterCells(m).some(p => Math.max(Math.abs(p.col-col), Math.abs(p.row-row)) <= 1)) {
+      weaponDamageMonster(m, Math.round(damage * 50) / 100, at, lane);
+    }
   }
 }
-function weaponFirstTarget(origin, dx, dy, range) {
-  for (let n=1;n<=range;n++) {
-    const col=origin.col+dx*n,row=origin.row+dy*n;
-    if (singleStepBlocksBullet(col,row) || (dx && dy &&
-      (singleStepBlocksBullet(col-dx,row) || singleStepBlocksBullet(col,row-dy)))) break;
-    if (monsters.some(m => !m.jumperVanished && isInMonsterFootprint(m,col,row))) return n;
-  }
-  return Infinity;
+function weaponBlockedCorner(cell, dx, dy) {
+  return dx && dy && (singleStepBlocksBullet(cell.col+dx,cell.row) || singleStepBlocksBullet(cell.col,cell.row+dy));
 }
-function weaponArc(origin, damage, direct) {
-  const visited=new Set([direct.id]);
-  let from=origin;
-  for (let jump=0;jump<2;jump++) {
-    const next=monsters.filter(m=>!visited.has(m.id)&&!m.jumperVanished)
-      .map(m=>({m,distance:Math.abs(m.col-from.col)+Math.abs(m.row-from.row)}))
-      .filter(p=>p.distance<=2).sort((a,b)=>a.distance-b.distance||a.m.id-b.m.id)[0]?.m;
-    if(!next)break;
-    visited.add(next.id);
-    singleStepVisualShot(from,next,true,{dx:0,dy:0},[next.id],true);
-    damageMonster(next,Math.round(damage*50)/100);
-    from=next;
+function weaponTrackingDirection(cell, dx, dy, passesTerrain, hit) {
+  const forward = WEAPON_DIRECTIONS.findIndex(([x,y]) => x === dx && y === dy);
+  // 正交邻格优先，再按与当前方向的夹角排序。
+  for (const diagonal of [false,true]) for (const offset of [0,-1,1,-2,2,-3,3,4]) {
+    const [x,y] = WEAPON_DIRECTIONS[(forward+offset+8)%8];
+    if (Boolean(x && y) !== diagonal) continue;
+    const col = cell.col+x, row = cell.row+y;
+    if (!passesTerrain && (singleStepBlocksBullet(col,row) || weaponBlockedCorner(cell,x,y))) continue;
+    if (monsters.some(m => m.hp > 0 && !m.jumperVanished && !hit.has(m.id) && isInMonsterFootprint(m,col,row))) {
+      return [x,y];
+    }
   }
+  return [dx,dy];
 }
-function weaponShootRay(origin, dx, dy, base, range, trajectory, shell, body, ammo) {
+function weaponArcRoute(origin, direct, range) {
+  const targets = monsters.filter(m => m !== direct && m.hp > 0 && !m.jumperVanished);
+  const terrain = Object.keys(tileData).filter(key => key !== origin.col+','+origin.row).map(key => {
+    const [col,row] = key.split(',').map(Number);
+    return {col,row,key};
+  });
+  const nodes = targets.flatMap(m => monsterCells(m).map(cell => ({...cell,m,key:m.id}))).concat(terrain);
+  for (let i = nodes.length-1; i > 0; i--) {
+    const pick = Math.floor(Math.random()*(i+1));
+    [nodes[i],nodes[pick]] = [nodes[pick],nodes[i]];
+  }
+  const neighbors = new Map(), visited = new Set(), route = [];
+  let best = [], bestScore = 0;
+
+  function search(from, hits) {
+    const endsOnTerrain = route.length > 0 && !from.m;
+    const score = hits*2 + Number(endsOnTerrain);
+    if (score > bestScore) {
+      bestScore = score;
+      best = [...route];
+    }
+    const remaining = 4-route.length;
+    const moreHits = Math.min(remaining,targets.length-hits);
+    // 先最大化不同怪物的命中数，同样多时优先能额外伤害末端障碍的路线。
+    const upperBound = (hits+moreHits)*2 + Number(terrain.length > 0 && remaining > moreHits);
+    if (!remaining || upperBound <= bestScore) return;
+    if (!neighbors.has(from)) {
+      neighbors.set(from,nodes.filter(node => Math.abs(node.col-from.col)+Math.abs(node.row-from.row) <= range));
+    }
+    for (const next of neighbors.get(from)) {
+      if (visited.has(next.key)) continue;
+      visited.add(next.key);
+      route.push(next);
+      search(next,hits+Number(!!next.m));
+      route.pop();
+      visited.delete(next.key);
+      if (bestScore >= upperBound) break;
+    }
+  }
+  search(origin,0);
+  return best;
+}
+function weaponArc(origin, damage, direct, at, lane, range) {
+  const route = weaponArcRoute(origin,direct,range);
+  const arcDamage = Math.round(damage*50)/100;
+  let from = origin;
+  for (const next of route) {
+    singleStepVisualShot(from,next,true,{dx:0,dy:0},{beam:true,start:at});
+    if (next.m) weaponDamageMonster(next.m,arcDamage,at,lane);
+    from = next;
+  }
+  if (route.length && !from.m) weaponDamageTerrain(from.col,from.row,arcDamage);
+}
+function weaponShootRay(origin, dx, dy, base, range, {
+  trajectory, shell, body, ammo, start, lane, size = 1, spreadStep, spreadSide = 0,
+}) {
   const ignoresTerrain = shell === 'ghost';
-  const pierces = shell === 'pierce' || ignoresTerrain || body === 'energy' || (!shell && player.hasPiercing);
+  const passesTerrain = ignoresTerrain || body === 'energy';
+  const pierces = shell === 'pierce' || passesTerrain || (!shell && player.hasPiercing);
   const hit = new Set();
-  let segment = origin, end = origin, col = origin.col, row = origin.row, wrapped = false, exploded = false;
-  const beam = body === 'laser' || body === 'energy';
-  for (let n = 1; n <= range; n++) {
-    const prevCol = col, prevRow = row;
-    col += dx; row += dy;
-    if (col < 0 || col >= COLS || row < 0 || row >= ROWS) {
-      if (shell !== 'fold' || wrapped) break;
-      singleStepVisualShot(segment,end,true,{dx,dy},[...hit],beam);
-      col = (col + COLS) % COLS; row = (row + ROWS) % ROWS;
-      segment = {col,row};
+  const lob = trajectory === 'lob' && stepTestHooks.lobTarget?.(origin,dx,dy,range);
+  const beam = !lob && (body === 'laser' || body === 'energy');
+  const forwardDx = dx, forwardDy = dy;
+  let segment = origin, cell = origin, at = start, wrapped = false, triggered = false;
+  let segmentDistance = 0, distance = 0;
+  const emit = (end, impact = true, endDistance = distance) => {
+    singleStepVisualShot(segment,end,true,{dx,dy},{
+      beam,start,lane,impact,arcHeight:lob ? CELL : 0,
+      fromScale:size*weaponEnergyScale(trajectory,segmentDistance,range),
+      toScale:size*weaponEnergyScale(trajectory,endDistance,range),
+    });
+  };
+  const trigger = (damage, direct, impactAt = at) => {
+    if (triggered) return;
+    triggered = true;
+    if (shell === 'blast') weaponBlast(cell.col,cell.row,damage,direct,impactAt,lane);
+    if (shell === 'arc') weaponArc(cell,damage,direct,impactAt,lane,Math.max(1,Math.floor(range*.5)));
+    if (shell === 'splash') {
+      const pool = [...WEAPON_DIRECTIONS];
+      const count = Math.max(1,Math.min(8,1+Math.floor(playerStats.luck)));
+      const splashRange = Math.max(1,Math.floor(range*.4));
+      for (let i = 0; i < count; i++) {
+        const [x,y] = pool.splice(Math.floor(Math.random()*pool.length),1)[0];
+        weaponShootRay(cell,x,y,Math.round(damage*50)/100,splashRange,{shell:'fragment',body,start:impactAt,lane,size});
+      }
+    }
+  };
+  const flightRange = lob ? lob.steps : range;
+  for (let n = 1; n <= flightRange; n++) {
+    let nextDx = dx, nextDy = dy;
+    if (!lob && spreadStep !== undefined) {
+      const side = n === spreadStep ? spreadSide : 0;
+      nextDx = forwardDx-forwardDy*side;
+      nextDy = forwardDy+forwardDx*side;
+    }
+    if (!lob && shell === 'tracking' && n > 1) {
+      [nextDx,nextDy] = weaponTrackingDirection(cell,nextDx,nextDy,passesTerrain,hit);
+    }
+    if (dx !== nextDx || dy !== nextDy) {
+      if (distance > segmentDistance) emit(cell,false);
+      segment = cell;
+      segmentDistance = distance;
+      start = at;
+      dx = nextDx;
+      dy = nextDy;
+    }
+    const travel = beam ? 0 : Math.hypot(dx,dy) * CELL / CFG.BULLET_SPEED * 1000;
+    const damage = trajectory === 'decay' || trajectory === 'gain'
+      ? Math.round(base*weaponEnergyScale(trajectory,n,range)*100)/100 : base;
+    let col = cell.col+dx, row = cell.row+dy;
+    const wall = col < 0 || col >= COLS || row < 0 || row >= ROWS;
+    if (wall) {
+      const edge = {col:cell.col+dx/2,row:cell.row+dy/2};
+      if (shell === 'blast') {
+        trigger(damage,null,at+travel/2);
+        emit(edge,false,n-.5);
+        return;
+      }
+      if (shell !== 'fold') break;
+      emit(edge,false,n-.5);
+      if (wrapped) return;
+      col = (col + COLS) % COLS;
+      row = (row + ROWS) % ROWS;
+      segment = {col:col-dx/2,row:row-dy/2};
+      segmentDistance = n-.5;
+      start = at+travel/2;
       wrapped = true;
-    } else if (dx && dy && !ignoresTerrain && (singleStepBlocksBullet(prevCol,row) || singleStepBlocksBullet(col,prevRow))) break;
-    end = {col,row};
-    const damage = weaponShotDamage(base,trajectory,n,range);
+    } else if (!lob && !passesTerrain && weaponBlockedCorner(cell,dx,dy)) break;
+    cell = {col,row};
+    distance = n;
+    at += travel;
+    if (lob && n < flightRange) continue;
     if (!ignoresTerrain && singleStepBlocksBullet(col,row)) {
-      if (tileData[col+','+row]) hitTile(col,row,damage);
-      if (shell === 'blast' && !exploded) weaponBlast(col,row,damage,null);
-      break;
+      if (shell !== 'blast' || triggered) weaponDamageTerrain(col,row,damage);
+      trigger(damage,null);
+      if (lob || !passesTerrain) {
+        emit(cell);
+        return;
+      }
+      continue;
     }
     const m = monsters.find(unit => !unit.jumperVanished && !hit.has(unit.id) && isInMonsterFootprint(unit,col,row));
     if (!m) continue;
     hit.add(m.id);
-    damageMonster(m,damage);
+    weaponDamageMonster(m,damage,at,lane);
     if (ammo === 'poison' && m.hp > 0 && monsters.includes(m)) {
       m.weaponPoison = {steps:3, firstStep:m.weaponPoison?.firstStep ?? SINGLE_STEP.step+1,
-        damage:Math.max(.25,Math.round(damage*.25*100)/100)};
+        damage:Math.max(.25,Math.round(damage*.25*100)/100), appliedAt:at};
     }
-    if (shell === 'blast' && !exploded) { exploded = true; weaponBlast(col,row,damage,m); }
-    if (shell === 'splash' && !exploded) {
-      exploded = true;
-      for (const side of [-1,1]) weaponShootRay(end,-dy*side,dx*side,Math.round(damage*50)/100,2,null,'fragment',null,null);
+    trigger(damage,m);
+    stepTestHooks.onWeaponHit?.(m,cell,{dx,dy,damage,at,lane,ammo});
+    if (lob || !pierces) {
+      emit(cell);
+      return;
     }
-    if (shell === 'arc' && !exploded) { exploded = true; weaponArc(end,damage,m); }
-    if (!pierces) break;
   }
-  singleStepVisualShot(segment,end,true,{dx,dy},[...hit],beam);
+  if (lob && shell === 'blast' && distance) trigger(base,null);
+  emit(cell,shell !== 'fold');
 }
 function weaponPrepareShot() {
   const trajectory = equippedWeaponTrial('trajectory');
@@ -8231,29 +8370,46 @@ function weaponPrepareShot() {
   SINGLE_STEP.weaponCharge=0;
   return trajectory==='burstCharge' ? {repetitions:3,scale:1} : {repetitions:1,scale:3};
 }
+function weaponShotgunVolley(origin, {dx,dy}, damage, range, options, start) {
+  const pelletDamage = Math.round(damage*(2.75/SHOTGUN_PELLETS)*100)/100;
+  for (let pellet = 0; pellet < SHOTGUN_PELLETS; pellet++) {
+    weaponShootRay(origin,dx,dy,pelletDamage,range,{
+      ...options,size:.3,spreadStep:Math.floor(range/2)+1,spreadSide:Math.floor(Math.random()*3)-1,
+      start:start+pellet*2,lane:(pellet%5-2)*1.1,
+    });
+  }
+}
 function fireSingleStepWeapon(origin, direction, charge) {
   const pattern = equippedWeaponTrial('pattern'), body = equippedWeaponTrial('body'),
     trajectory = equippedWeaponTrial('trajectory'), shell = equippedWeaponTrial('shell'), ammo = equippedWeaponTrial('ammo');
   const start = WEAPON_DIRECTIONS.findIndex(([dx,dy]) => direction.dx === dx && direction.dy === dy);
-  const range = Math.floor(playerStats.range) + (['laser','energy'].includes(body) ? 2 : 0);
-  for (let i=0;i<charge.repetitions;i++) for (const [offset, scale] of weaponVolley(pattern,body)) {
-    const aim=(start+offset+8)%8;
-    let [dx,dy] = WEAPON_DIRECTIONS[aim];
-    if(shell==='tracking'){
-      let distance=weaponFirstTarget(origin,dx,dy,range);
-      for(const side of [-1,1]){
-        const [x,y]=WEAPON_DIRECTIONS[(aim+side+8)%8], n=weaponFirstTarget(origin,x,y,range);
-        if(n<distance){distance=n;dx=x;dy=y;}
-      }
+  const extraRange = stepTestHooks.rangeBonus?.(trajectory) ?? 0;
+  const range = body === 'shotgun' ? Math.min(6,weaponShotgunRange()+extraRange)
+    : Math.floor(playerStats.range) + (['laser','energy'].includes(body) ? 2 : 0) + extraRange;
+  const firedAt = performance.now();
+  const stagger = pattern === 'dual' || pattern === 'triple';
+  for (let i=0;i<charge.repetitions;i++) {
+    const volleyStart = firedAt+i*BURST_INTERVAL;
+    const options = {trajectory,shell,body,ammo};
+    if (body === 'shotgun' && !pattern) {
+      weaponShotgunVolley(origin,direction,playerStats.attack*charge.scale,range,options,volleyStart);
+      continue;
     }
-    const damage=playerStats.attack*scale*charge.scale;
-    weaponShootRay(origin,dx,dy,scale===1&&charge.scale===1?damage:Math.round(damage*100)/100,range,trajectory,shell,body,ammo);
+    for (const [index, [offset, scale]] of weaponVolley(pattern).entries()) {
+      const aim = (start+offset+8)%8;
+      const [dx,dy] = WEAPON_DIRECTIONS[aim];
+      const damage = playerStats.attack*scale*charge.scale;
+      const lane = stagger ? (index - (pattern === 'dual' ? .5 : 1)) * 4 : 0;
+      weaponShootRay(origin,dx,dy,scale===1&&charge.scale===1?damage:Math.round(damage*100)/100,range,
+        {...options,start:volleyStart+(stagger ? index*20 : 0),lane});
+    }
   }
 }
 function tickWeaponPoison() {
   for (const m of [...monsters]) {
     const poison = m.weaponPoison;
     if (!poison || SINGLE_STEP.step<poison.firstStep || m.hp <= 0 || m.jumperVanished || !monsters.includes(m)) continue;
+    m.weaponPoisonFlashAt = performance.now();
     if (--poison.steps === 0) delete m.weaponPoison;
     damageMonster(m,poison.damage);
   }
@@ -8294,7 +8450,18 @@ function singleStepLegacyPlan(m){
  const path=result.dukeFrames.get(m.id)?.length?result.dukeFrames.get(m.id):result.trace.get(m.id)||end.predictedPath?.map(p=>({col:p.toCol,row:p.toRow}))||[];
  const jump=m.aiType==='boss_jumper',burst=m.aiType==='charge'&&end._turnAction?.type==='charge_line',queue=[];
  // 普通移动拆成每步一格；冲刺和跳跃保留为一次有预告的特殊动作。
- if(jump||burst)queue.push({type:jump?'legacy-jump':'legacy-charge',path:path.length?path:[{col:end.col,row:end.row}],cells,friendly:jump&&!!state?.landing});
+ if(jump||burst){
+  const plan={type:jump?'legacy-jump':'legacy-charge',path:path.length?path:[{col:end.col,row:end.row}],cells};
+  if(jump&&state?.landing&&!result.pendingBossLanding&&end.jumpType==='big_land'&&end.jumpTo){
+   plan.slam=true;
+   const action=state.landing.landAction||MONSTER_DB[m.cfgId]?.actions?.find(a=>a.type==='jump_big_land');
+   if(Array.isArray(action?.after_effect)){
+    const effects=action.after_effect.filter(e=>e.type==='attack_side'&&e.hitsAllies===true);
+    if(effects.length)plan.allyShockwave={position:end.jumpTo,effects};
+   }
+  }
+  queue.push(plan);
+ }
  else{
   const shoot=[...(result.areasByPhase.get(m.id)?.shoot||[])].map(k=>{const [col,row]=k.split(',').map(Number);return {col,row};});
   if(shoot.length)queue.push({type:'legacy-attack',path:[],cells:shoot});
@@ -8302,7 +8469,7 @@ function singleStepLegacyPlan(m){
   for(const effect of Array.isArray(end._turnAction?.after_effect)?end._turnAction.after_effect:[]){
    if(effect.type!=='attack_adjacent')continue;const area=[];
    for(const [dx,dy]of [[1,0],[-1,0],[0,1],[0,-1]])for(let n=1;n<=(effect.range??1);n++){const col=end.col+dx*n,row=end.row+dy*n;if(isWall(col,row))break;area.push({col,row});}
-   queue.push({type:'legacy-attack',cells:area,path:[],damage:effect.damage??.5,friendly:true});
+   queue.push({type:'legacy-attack',cells:area,path:[],damage:effect.damage??.5,melee:true,hitsAllies:effect.hitsAllies===true});
   }
   if(!queue.length)queue.push({type:'legacy-action',path:[],cells:[]});
  }
@@ -8325,21 +8492,28 @@ function singleStepApplyPlan(m,p){
  const before={col:player.col,row:player.row},origin={col:m.col,row:m.row};let hit=false;
  if(p.type==='shot'||p.type==='legacy-attack'||p.type==='legacy-action'||p.type==='legacy-jump'){
   if(p.cells.some(c=>c.col===player.col&&c.row===player.row)){damagePlayer(p.damage??(m.damage||1),m.id);hit=true;}
-  if(p.friendly)for(const other of [...monsters])if(other!==m&&p.cells.some(c=>isInMonsterFootprint(other,c.col,c.row)))damageMonster(other,p.damage??.5);
+  if(p.hitsAllies)damageMonsterAllies(p,m,new Set(p.cells.map(c=>`${c.col},${c.row}`)),p.damage??.5);
+  if(p.allyShockwave){
+   const {position,effects}=p.allyShockwave;
+   for(const effect of effects){
+    const cells=getAttackSideCells(position.col,position.row,m.size||2,effect.range??1);
+    damageMonsterAllies(effect,m,cells,effect.damage??1);
+   }
+  }
   if(p.type==='shot'){scrapEffects.monsterActed(m.id);singleStepVisualShot(m,p.cells.at(-1),false,p.dir);}
-  if(p.type==='legacy-attack'&&!p.friendly){const rays=new Map();for(const cell of p.cells){const dx=Math.sign(cell.col-m.col),dy=Math.sign(cell.row-m.row),key=dx+','+dy;if(!dx&&!dy)continue;const old=rays.get(key);if(!old||Math.hypot(cell.col-m.col,cell.row-m.row)>Math.hypot(old.col-m.col,old.row-m.row))rays.set(key,cell);}for(const [key,to]of rays){const [dx,dy]=key.split(',').map(Number);singleStepVisualShot(m,to,false,{dx,dy});}scrapEffects.monsterActed(m.id);}
+  if(p.type==='legacy-attack'&&!p.melee){const rays=new Map();for(const cell of p.cells){const dx=Math.sign(cell.col-m.col),dy=Math.sign(cell.row-m.row),key=dx+','+dy;if(!dx&&!dy)continue;const old=rays.get(key);if(!old||Math.hypot(cell.col-m.col,cell.row-m.row)>Math.hypot(old.col-m.col,old.row-m.row))rays.set(key,cell);}for(const [key,to]of rays){const [dx,dy]=key.split(',').map(Number);singleStepVisualShot(m,to,false,{dx,dy});}scrapEffects.monsterActed(m.id);}
  }
  for(const dest of p.path||[]){
   for(const push of dest.pushed||[]){const other=monsters.find(o=>o.id===push.id);if(!other||!singleStepLegal(other,push.col,push.row)||(push.col===player.col&&push.row===player.row))continue;other.col=push.col;other.row=push.row;(other._visualPath||(other._visualPath=[])).push({col:push.col,row:push.row});}
   const legal=p.type==='legacy-jump'?isValidLandingZone(dest.col,dest.row,m.size||1)&&!singleStepFootprint(m,dest.col,dest.row).some(c=>monsters.some(o=>o!==m&&isInMonsterFootprint(o,c.col,c.row))):singleStepLegal(m,dest.col,dest.row);
   if(!legal)break;
   const overlap=singleStepFootprint(m,dest.col,dest.row).some(c=>c.col===player.col&&c.row===player.row);
-  if(overlap){if(!hit){damagePlayer(m.damage||1,m.id);hit=true;}if(!singleStepPush(m,dest.col,dest.row,p.dir))break;}
+  if(overlap){if(stepTestHooks.blockPush?.(m))break;if(!hit){damagePlayer(m.damage||1,m.id);hit=true;}if(!singleStepPush(m,dest.col,dest.row,p.dir))break;}
   m.col=dest.col;m.row=dest.row;(m._visualPath||(m._visualPath=[])).push({col:m.col,row:m.row});
   if(currentRoomGrid[m.col]?.[m.row]===TILE.SPIKE&&!m.movementTags?.includes('飞行'))damageMonster(m,5);
  }
  if(p.type==='charge'){
-  for(const dest of p.cells){if(!singleStepLegal(m,dest.col,dest.row))break;if(dest.col===player.col&&dest.row===player.row){if(!hit){damagePlayer(m.damage||1,m.id);hit=true;}if(!singleStepPush(m,dest.col,dest.row,p.dir))break;}m.col=dest.col;m.row=dest.row;(m._visualPath||(m._visualPath=[])).push({...dest});}
+  for(const dest of p.cells){if(!singleStepLegal(m,dest.col,dest.row))break;if(dest.col===player.col&&dest.row===player.row){if(stepTestHooks.blockPush?.(m))break;if(!hit){damagePlayer(m.damage||1,m.id);hit=true;}if(!singleStepPush(m,dest.col,dest.row,p.dir))break;}m.col=dest.col;m.row=dest.row;(m._visualPath||(m._visualPath=[])).push({...dest});}
  }
   if(p.complete){
   const state=SINGLE_STEP.legacy.get(m.id);if(state)state.landing=p.landing;
@@ -8350,49 +8524,70 @@ function singleStepApplyPlan(m,p){
  if(p.type==='legacy-jump'&&(origin.col!==m.col||origin.row!==m.row)){m.jumpFrom=origin;m.jumpTo={col:m.col,row:m.row};m.jumpType=p.commit?.jumpType||'small';m.jumpAnimTimer=m.jumpType==='big_land'?.55:.4;m._visualPath=[];}
  return before;
 }
-function singleStepVisualShot(source,to,playerShot,dir,hitIds=[],beam=false){if(!to)return;const a=gridToPixel(source.col,source.row),b=gridToPixel(to.col,to.row);SINGLE_STEP.shots.push({from:a,to:b,start:performance.now(),player:playerShot,owner:playerShot?null:source.id,dir,hitIds,beam,travel:beam?0:Math.hypot(b.x-a.x,b.y-a.y)/(CFG.BULLET_SPEED*(playerShot?1:.6))*1000});}
-function singleStepPickup(){autoPickupResources();for(let i=itemsOnGround.length-1;i>=0;i--){const item=itemsOnGround[i];if(item.col!==player.col||item.row!==player.row)continue;if(isShopSlotCell(item.col,item.row)){tryBuyShopItem(item.col,item.row);continue;}if(!playerInventory.includes(item.cfgId)){applyItem(item.cfgId);itemsOnGround.splice(i,1);updateItemBar();}}}
+function singleStepVisualShot(source,to,playerShot,dir,{
+ beam=false,start=performance.now(),lane=0,impact=true,fromScale=1,toScale=1,arcHeight=0,
+}={}){
+ if(!to)return;
+ const from=gridToPixel(source.col,source.row),end=gridToPixel(to.col,to.row);
+ const travel=beam?0:Math.hypot(end.x-from.x,end.y-from.y)/(CFG.BULLET_SPEED*(playerShot?1:.6))*1000;
+ const offsetX=-dir.dy*lane,offsetY=dir.dx*lane;
+ from.x+=offsetX;from.y+=offsetY;end.x+=offsetX;end.y+=offsetY;
+ SINGLE_STEP.shots.push({from,to:end,start,player:playerShot,owner:playerShot?null:source.id,dir,beam,travel,impact,fromScale,toScale,arcHeight});
+}
+function singleStepPickup(){autoPickupResources();for(let i=itemsOnGround.length-1;i>=0;i--){const item=itemsOnGround[i];if(item.col!==player.col||item.row!==player.row)continue;if(isShopSlotCell(item.col,item.row)){tryBuyShopItem(item.col,item.row);continue;}if(canPickupItem(item.cfgId)){applyItem(item.cfgId);itemsOnGround.splice(i,1);updateItemBar();}}}
 function singleStepAct(type,dir){
  if(!gameStarted||gameOver||worldMapOpen||transition?.active||floorFadeBusy||SINGLE_STEP.busy)return false;
  if(SINGLE_STEP.room!==currentRoomId)singleStepReset();
  const old={col:player.col,row:player.row},frozen=SINGLE_STEP.bonus>0;SINGLE_STEP.damaged=false;const v=DIR_VEC[dir];
+ stepTestHooks.beginAction?.();
+ let extraAction=false,placedBomb;
  if(type==='move'){
   if(tryWalkIntoDoor(player.col,player.row,dir))return true;
   let col=player.col+v.dx,row=player.row+v.dy;
   if(trialPassive('jet')&&currentRoomGrid[col]?.[row]===TILE.PIT&&currentRoomGrid[col+v.dx]?.[row+v.dy]===TILE.FLOOR){col+=v.dx;row+=v.dy;}
   if(isWall(col,row)||monsters.some(m=>isInMonsterFootprint(m,col,row)))return false;
+  extraAction=!frozen&&stepTestHooks.consumeExtra?.(type);
   const bomb=bombs.find(b=>b.roomId===currentRoomId&&b.col===col&&b.row===row);if(bomb)pushBomb(bomb,v.dx,v.dy);
   player.col=col;player.row=row;const q=gridToPixel(col,row);player.targetPx=q.x;player.targetPy=q.y;player.animTime=0;player.shootTimer=0;
  }else if(type==='shoot'){
   const echo=frozen&&SINGLE_STEP.echo;
   const shot=weaponPrepareShot();
   if(shot){
+   extraAction=!frozen&&stepTestHooks.consumeExtra?.(type);
    SINGLE_STEP.error=null;
    SFX.shoot();totalShots++;fireSingleStepWeapon(old,v,shot);
+   stepTestHooks.onShot?.(old,v,shot);
    if(echo)fireSingleStepWeapon(echo,v,shot);
    player.shootTimer=.4;
   }
- }else if(type==='bomb'){if(playerResources.bombs<=0)return false;placeBomb(player.col,player.row);}
+ }else if(type==='bomb'){
+  const handled=stepTestHooks.bombAction?.(dir);
+  if(handled===false)return false;
+  if(handled===undefined){if(playerResources.bombs<=0)return false;placedBomb=placeBomb(player.col,player.row);}
+ }
  else return false;
  player.facing=dir||player.facing;
  SINGLE_STEP.busy=true;
  try{
+  if(type==='move')stepTestHooks.onMove?.(old,v);
   if(player.invincibleSteps>0)player.invincibleSteps--;
   if(!trialPassive('boots'))checkSpikeUnderPlayer();
   let dodged=false;
-  if(!frozen){
-   tickBombCountdown();
+  const avoided=stepTestHooks.onDodge?[]:null;
+  if(!frozen&&!extraAction){
+   tickBombCountdown(placedBomb);
    tickWeaponPoison();
+   stepTestHooks.beforeEnemies?.();
    for(const m of [...monsters]){if(!monsters.includes(m))continue;const saved=SINGLE_STEP.plans.get(m.id);if(!saved)continue;const plan=singleStepResolvePlan(m,saved);
     const wasHit=plan.cells.some(p=>p.col===old.col&&p.row===old.row),nowHit=plan.cells.some(p=>p.col===player.col&&p.row===player.row);
-    if(type==='move'&&wasHit&&!nowHit)dodged=true;
+    if(type==='move'&&wasHit&&!nowHit){dodged=true;avoided?.push(m);}
     singleStepApplyPlan(m,plan);SINGLE_STEP.plans.delete(m.id);
     if(singleStepRecovery(m,plan))SINGLE_STEP.plans.set(m.id,{type:'recover',cells:[]});
    }
   }
   singleStepPickup();updateRoomCombatState();SINGLE_STEP.step++;turnState.turnNumber=SINGLE_STEP.step;
   if(frozen)SINGLE_STEP.bonus=SINGLE_STEP.damaged?0:SINGLE_STEP.bonus-1;
-  else if(dodged&&!SINGLE_STEP.damaged&&!gameOver){SINGLE_STEP.bonus=2;if(trialPassive('echo'))SINGLE_STEP.echo=old;}
+  else if(dodged&&!SINGLE_STEP.damaged&&!gameOver){SINGLE_STEP.bonus=2;if(trialPassive('echo'))SINGLE_STEP.echo=old;stepTestHooks.onDodge?.(old,avoided);}
   if(!SINGLE_STEP.bonus)SINGLE_STEP.echo=null;
   singleStepPlan();
   if(currentRoomGrid[player.col]?.[player.row]===TILE.LADDER){const next=currentFloor.floorNum+1;if(next>Object.keys(FLOOR_CONFIG).length)triggerVictoryScreen();else enterFloor(next);}
@@ -8424,24 +8619,74 @@ document.addEventListener('keydown',e=>{
    else if(e.code==='KeyR'){resetGameToFloor1();showStartMenu();}
 });
 drawReachableOverlay=function(){};
-drawDangerOverlay=function(){if(!gameStarted||worldMapOpen)return;const seen=new Set();for(const m of monsters){const p=SINGLE_STEP.plans.get(m.id);for(const cell of p?.cells||[]){const k=cell.col+','+cell.row;if(seen.has(k))continue;seen.add(k);const q=cellRect(cell.col,cell.row);scrapDraw('redGrid',q.xL,q.yT,q.w,q.h,.55);}}};
+function singleStepAttackPreview(m){
+ const plan=SINGLE_STEP.plans.get(m.id);
+ if(m.hp<=0||m.jumperVanished||!singleStepIsAttackPlan(plan))return null;
+ const resolved=singleStepResolvePlan(m,plan,{preview:true});
+ return singleStepIsAttackPlan(resolved)?resolved:null;
+}
+function singleStepIsAttackPlan(plan){
+ return ['shot','fan','strike','charge','blast','legacy-attack','legacy-charge'].includes(plan?.type)
+  || (plan?.type==='legacy-jump'&&plan.slam===true);
+}
+drawDangerOverlay=function(){
+ if(!gameStarted||worldMapOpen)return;
+ const seen=new Set();
+ for(const m of monsters)for(const cell of singleStepAttackPreview(m)?.cells||[]){
+  const key=cell.col+','+cell.row;
+  if(seen.has(key))continue;
+  seen.add(key);
+  const q=cellRect(cell.col,cell.row);
+  scrapDraw('redGrid',q.xL,q.yT,q.w,q.h,.55);
+ }
+};
 drawBullets=function(){
  const now=performance.now();
- SINGLE_STEP.shots=SINGLE_STEP.shots.filter(s=>now-s.start<s.travel+250);
+ SINGLE_STEP.shots=SINGLE_STEP.shots.filter(s=>now-s.start<s.travel+(s.beam||s.impact?250:0));
  for(const s of SINGLE_STEP.shots){
-  const age=now-s.start,t=Math.min(1,age/Math.max(1,s.travel)),x=s.from.x+(s.to.x-s.from.x)*t,y=s.from.y+(s.to.y-s.from.y)*t;
+  const age=now-s.start;
+  if(age<0)continue;
+  const t=Math.min(1,age/Math.max(1,s.travel)),x=s.from.x+(s.to.x-s.from.x)*t;
+  const y=s.from.y+(s.to.y-s.from.y)*t-Math.sin(Math.PI*t)*s.arcHeight;
+  const scale=s.fromScale+(s.toScale-s.fromScale)*t;
   if(s.beam){
    const a=project(s.from.x,s.from.y),b=project(s.to.x,s.to.y);
-   ctx.save();ctx.globalAlpha=Math.max(0,1-age/250);ctx.strokeStyle='#77edff';ctx.lineWidth=4;
-   ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.restore();
+   const length=Math.hypot(b.x-a.x,b.y-a.y);
+   if(!length)continue;
+   const nx=-(b.y-a.y)*2/length,ny=(b.x-a.x)*2/length;
+   ctx.save();ctx.globalAlpha=Math.max(0,1-age/250);ctx.fillStyle='#77edff';
+   ctx.beginPath();ctx.moveTo(a.x+nx*s.fromScale,a.y+ny*s.fromScale);
+   ctx.lineTo(b.x+nx*s.toScale,b.y+ny*s.toScale);ctx.lineTo(b.x-nx*s.toScale,b.y-ny*s.toScale);
+   ctx.lineTo(a.x-nx*s.fromScale,a.y-ny*s.fromScale);ctx.closePath();ctx.fill();ctx.restore();
   }else if(age<s.travel){
-   if(s.player){const dir=Math.abs(s.dir.dx)>Math.abs(s.dir.dy)?s.dir.dx<0?'left':'right':s.dir.dy<0?'up':'down';scrapDraw('bullet-'+dir+Math.floor(age/70)%3,x-12,y-10.6,24,21.2);}
+   if(s.player){
+    const frame=Math.floor(age/70)%3,{dx,dy}=s.dir;
+    if(dx&&dy){
+     ctx.save();ctx.translate(x,y);ctx.rotate(Math.atan2(dy,dx));
+     scrapDraw('bullet-right'+frame,-12*scale,-10.6*scale,24*scale,21.2*scale);ctx.restore();
+    }else{
+     const dir=dx?dx<0?'left':'right':dy<0?'up':'down';
+     scrapDraw('bullet-'+dir+frame,x-12*scale,y-10.6*scale,24*scale,21.2*scale);
+    }
+   }
    else{ctx.save();ctx.translate(x,y);ctx.rotate(Math.atan2(s.dir.dy,s.dir.dx));scrapDraw('remote',-4.4,-5,8.8,10);ctx.restore();}
-  }else scrapDraw('impact'+Math.min(3,Math.floor((age-s.travel)/250*4)),x-10,y-15,20,30);
+  }else if(s.impact) scrapDraw('impact'+Math.min(3,Math.floor((age-s.travel)/250*4)),x-10*scale,y-15*scale,20*scale,30*scale);
  }
 };
 const stepOldHUD=scrapUpdateHUD;
-scrapUpdateHUD=function(){stepOldHUD();const ap=document.getElementById('scrap-ap'),mp=document.getElementById('scrap-mp');if(ap)ap.textContent=SINGLE_STEP.bonus?'额外行动 '+SINGLE_STEP.bonus+'/2':'单步行动';if(mp)mp.textContent=SINGLE_STEP.bonus?'子弹时间':'移动 / 射击';const phase=document.getElementById('scrap-phase');if(phase)phase.textContent=SINGLE_STEP.bonus?'子弹时间':'自由思考';const rewind=document.getElementById('ui-rewind-info');if(rewind)rewind.style.display='none';};
+scrapUpdateHUD=function(){
+ stepOldHUD();
+ const ap=document.getElementById('scrap-ap'),mp=document.getElementById('scrap-mp');
+ if(ap)ap.textContent=SINGLE_STEP.bonus?'额外行动 '+SINGLE_STEP.bonus+'/2':'单步行动';
+ if(mp)mp.textContent=SINGLE_STEP.bonus?'子弹时间':'移动 / 射击';
+ const phase=document.getElementById('scrap-phase');
+ if(phase)phase.textContent=SINGLE_STEP.bonus?'子弹时间':'自由思考';
+ const rewind=document.getElementById('ui-rewind-info');
+ if(rewind)rewind.style.display='none';
+ const range=document.getElementById('scrap-range');
+ const displayedRange=String(equippedWeaponTrial('body')==='shotgun'?weaponShotgunRange():playerStats.range);
+ if(range&&range.textContent!==displayedRange)range.textContent=displayedRange;
+};
 const stepOldTextOverlay=updateTextOverlay;
 updateTextOverlay=function(){stepOldTextOverlay();for(const badge of document.querySelectorAll('.txt-aap'))badge.style.display='none';};
 updateActionBar=function(){const bar=document.getElementById('action-bar');bar.textContent=SINGLE_STEP.error||'WASD移动一格 · 方向键射击 · E炸弹 · M地图'+(SINGLE_STEP.bonus?' · 子弹时间剩余 '+SINGLE_STEP.bonus+' 次':'');};
@@ -8479,7 +8724,10 @@ const stepSpawnOriginal=spawnMonsterAtRandomPos;
 spawnMonsterAtRandomPos=function(id,tags,anchor){const mapped=stepEnemyAlias(id);return stepSpawnOriginal(mapped,STEP_ENEMIES[mapped.replace(/^step_/,'')]?['地面']:tags,anchor);};
 const stepSummonOriginal=handleDukeSummon;
 handleDukeSummon=function(m){if(m._turnAfterAction?.monsterId)m._turnAfterAction.monsterId=stepEnemyAlias(m._turnAfterAction.monsterId);return stepSummonOriginal(m);};
-function stepEnemyRay(m,dx,dy,range){return singleStepRay(m,dx,dy,range);}
+function stepEnemyRay(m,dx,dy,range){
+ const d=stepEnemyDefinition(m);
+ return singleStepRay(m,dx,dy,range,d.hitsAllies===true&&d.mode!=='charge');
+}
 function stepEnemyCells(m,target=player){
  const d=stepEnemyDefinition(m),dx=target.col-m.col,dy=target.row-m.row;
  if(d.mode==='blast')return [...STEP_CARDINAL,...STEP_DIAGONAL].map(([x,y])=>({col:m.col+x,row:m.row+y})).filter(p=>p.col>=0&&p.row>=0&&p.col<COLS&&p.row<ROWS);
@@ -8487,20 +8735,20 @@ function stepEnemyCells(m,target=player){
  if(dx&&dy||!dx&&!dy||Math.abs(dx)+Math.abs(dy)>d.range)return [];
  return stepEnemyRay(m,Math.sign(dx),Math.sign(dy),d.range);
 }
-function stepEnemyChaseDirections(m){
- const dx=player.col-m.col,dy=player.row-m.row,axes=[];
+function stepEnemyChaseDirections(m,target=player){
+ const dx=target.col-m.col,dy=target.row-m.row,axes=[];
  if(dx)axes.push({col:m.col+Math.sign(dx),row:m.row,distance:Math.abs(dx)});
  if(dy)axes.push({col:m.col,row:m.row+Math.sign(dy),distance:Math.abs(dy)});
  axes.sort((a,b)=>b.distance-a.distance);
  if(axes.length===2&&Math.abs(dx)===Math.abs(dy)&&singleStepPick([false,true]))axes.reverse();
  return axes.map(({col,row})=>({col,row}));
 }
-function stepEnemyChase(m){
+function stepEnemyChase(m,target=player){
  // 同长最短路线优先较长轴；绕障允许先远离，无法贴近时走向最近可达位置。
- const preferred=stepEnemyChaseDirections(m).map(p=>[p.col-m.col,p.row-m.row]),dirs=[...preferred,...STEP_CARDINAL].filter((p,i,all)=>all.findIndex(o=>o[0]===p[0]&&o[1]===p[1])===i);
- const queue=[{col:m.col,row:m.row,first:null}],seen=new Set([m.col+','+m.row]);let best=Math.abs(m.col-player.col)+Math.abs(m.row-player.row),fallback=null;
+ const preferred=stepEnemyChaseDirections(m,target).map(p=>[p.col-m.col,p.row-m.row]),dirs=[...preferred,...STEP_CARDINAL].filter((p,i,all)=>all.findIndex(o=>o[0]===p[0]&&o[1]===p[1])===i);
+ const queue=[{col:m.col,row:m.row,first:null}],seen=new Set([m.col+','+m.row]);let best=Math.abs(m.col-target.col)+Math.abs(m.row-target.row),fallback=null;
  for(let i=0;i<queue.length;i++){
-  const p=queue[i],distance=Math.abs(p.col-player.col)+Math.abs(p.row-player.row);if(distance===1)return p.first;
+  const p=queue[i],distance=Math.abs(p.col-target.col)+Math.abs(p.row-target.row);if(distance===1)return p.first;
   if(distance<best){best=distance;fallback=p.first;}
   for(const [dx,dy]of dirs){const col=p.col+dx,row=p.row+dy,k=col+','+row;if(seen.has(k)||!singleStepLegal(m,col,row)||col===player.col&&row===player.row)continue;seen.add(k);queue.push({col,row,first:p.first||{col,row}});}
  }return fallback;
@@ -8520,7 +8768,17 @@ function stepEnemyPlan(m){
  return {type:chase?'chase':'wander',cells:[],path:next?[next]:[],jump:d.jump};
 }
 // 射线探针按id排除自身，兼容跳跃选点。
-singleStepRay=function(m,dx,dy,range){const out=[];for(let n=1;n<=range;n++){const col=m.col+dx*n,row=m.row+dy*n;if(singleStepBlocksBullet(col,row)||(dx&&dy&&(singleStepBlocksBullet(col-dx,row)||singleStepBlocksBullet(col,row-dy))))break;if(monsters.some(o=>o.id!==m.id&&o.hp>0&&isInMonsterFootprint(o,col,row)))break;out.push({col,row});}return out;};
+singleStepRay=function(m,dx,dy,range,hitsAllies=false){
+ const out=[];
+ for(let n=1;n<=range;n++){
+  const col=m.col+dx*n,row=m.row+dy*n;
+  if(singleStepBlocksBullet(col,row)||(dx&&dy&&(singleStepBlocksBullet(col-dx,row)||singleStepBlocksBullet(col,row-dy))))break;
+  const occupied=monsters.some(o=>o.id!==m.id&&o.hp>0&&isInMonsterFootprint(o,col,row));
+  if(!occupied||hitsAllies)out.push({col,row});
+  if(occupied)break;
+ }
+ return out;
+};
 singleStepPlan=function(){
  for(const id of SINGLE_STEP.plans.keys())if(!monsters.some(m=>m.id===id))SINGLE_STEP.plans.delete(id);
  for(const m of monsters){if(SINGLE_STEP.plans.has(m.id))continue;const d=stepEnemyDefinition(m);SINGLE_STEP.plans.set(m.id,d?stepEnemyPlan(m):singleStepLegacyPlan(m));}
@@ -8537,6 +8795,7 @@ singleStepApplyPlan=function(m,p){
  const from={col:m.col,row:m.row};m._stepAction={type:p.type,at:performance.now(),from,cells:cloneHistoryValue(p.cells),dir:p.dir};
  if(['shot','fan','strike','blast'].includes(p.type)){
   if(p.cells.some(c=>c.col===player.col&&c.row===player.row))damagePlayer(1,m.id);
+  if(d.hitsAllies===true)damageMonsterAllies(d,m,new Set(p.cells.map(c=>`${c.col},${c.row}`)),1);
   if(p.type==='shot'||p.type==='fan'){
    const rays=new Map();for(const cell of p.cells){const dx=Math.sign(cell.col-m.col),dy=Math.sign(cell.row-m.row),k=dx+','+dy,old=rays.get(k);if(!old||Math.hypot(cell.col-m.col,cell.row-m.row)>Math.hypot(old.col-m.col,old.row-m.row))rays.set(k,cell);}
    for(const[k,to]of rays){const[dx,dy]=k.split(',').map(Number);singleStepVisualShot(m,to,false,{dx,dy});}
@@ -8573,6 +8832,40 @@ damageMonster=function(m,amount){
 
 // 正式版单步表现：规则立即生效，输入只等实际动作到位，余效独立消散。
 const stepVisualEvents=[],stepTimeFx={active:false,enter:null,release:null};
+const stepDetonateBombBase = detonateBomb;
+detonateBomb = function(bomb, affected) {
+ const cells = stepDetonateBombBase(bomb, affected);
+ stepVisualEvents.push({type:'bomb-blast', col:bomb.col, row:bomb.row, cells, directional:!!affected, at:performance.now()});
+ return cells;
+};
+const stepDrawBombsBase = drawBombs;
+drawBombs = function() {
+ stepDrawBombsBase();
+ const now = performance.now();
+ for (const event of stepVisualEvents) {
+  const age = now-event.at;
+  if (event.type !== 'bomb-blast' || age < 0 || age >= 480 || !event.cells.length) continue;
+  const alpha = Math.min(1,(480-age)/300);
+  const tiles = event.cells.map(({col,row}) => cellRect(col,row));
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = '#f77b2666';
+  ctx.strokeStyle = '#ffcd86b3';
+  ctx.lineWidth = .8;
+  for (const tile of tiles) {
+   ctx.fillRect(tile.xL,tile.yT,tile.w,tile.h);
+   ctx.strokeRect(tile.xL+.5,tile.yT+.5,tile.w-1,tile.h-1);
+  }
+  if (!event.directional) {
+   const {cx,cy} = cellRect(event.col,event.row), size = CELL*3;
+   ctx.beginPath();
+   for (const tile of tiles) ctx.rect(tile.xL,tile.yT,tile.w,tile.h);
+   ctx.clip();
+   scrapDraw('unit-effects-blast',cx-size/2,cy-size/2,size,size,alpha);
+  }
+  ctx.restore();
+ }
+};
 let stepInputUntil=0;
 function stepSetTimeEffect(active,now=performance.now()){
  if(active===stepTimeFx.active)return;stepTimeFx.active=active;
@@ -8590,18 +8883,20 @@ singleStepAct=function(type,dir){
  const positions=new Map(monsters.map(m=>[m.id,{col:m.col,row:m.row}]));
  const accepted=stepActOriginal(type,dir);if(!accepted||room!==currentRoomId||transition?.active)return accepted;
  let duration=type==='move'?CELL/CFG.EXEC_MOVE_SPEED*1000:100;
- const ownShot=SINGLE_STEP.shots.slice(shots).find(s=>s.player),delay=ownShot?.travel||0;
- for(const s of SINGLE_STEP.shots.slice(shots))duration=Math.max(duration,s.travel);
+ const newShots=SINGLE_STEP.shots.slice(shots),events=stepVisualEvents.slice(eventStart);
+ const delay=newShots.find(s=>s.player)?.travel||0,hitTimes=new Map();
+ for(const s of newShots)duration=Math.max(duration,s.start-now+s.travel);
+ for(const e of events)if(e.type==='weapon-hit')hitTimes.set(e.id,Math.min(hitTimes.get(e.id)??Infinity,e.at));
  for(const m of monsters){
-  const hit=ownShot?.hitIds.includes(m.id),wait=hit||!positions.has(m.id)?delay:0;
-  if(hit){m._stepMoveAfter=now+delay;m._stepHitAt=now+delay;if(m._stepAction)m._stepAction.at+=delay;}
+  const hitAt=hitTimes.get(m.id),wait=hitAt!==undefined?Math.max(0,hitAt-now):!positions.has(m.id)?delay:0;
+  if(hitAt!==undefined){m._stepMoveAfter=hitAt;m._stepHitAt=hitAt;if(m._stepAction)m._stepAction.at+=wait;}
   if(m._stepJump){m._stepJump.at+=wait;duration=Math.max(duration,m._stepJump.duration+wait);}
   else{let previous=positions.get(m.id)||{col:m.col,row:m.row},distance=0;for(const p of m._visualPath||[]){distance+=Math.hypot(p.col-previous.col,p.row-previous.row)*CELL;previous=p;}duration=Math.max(duration,wait+distance/MONSTER_ANIM_SPEED*1000);}
  }
  duration=Math.max(duration,Math.hypot((player.targetPx??player.px)-player.px,(player.targetPy??player.py)-player.py)/CFG.EXEC_MOVE_SPEED*1000);
- for(const e of stepVisualEvents.slice(eventStart))if(e.type==='death')e.at+=delay;
- for(const e of stepVisualEvents.slice(eventStart))if(e.type==='hurt'){
-  const shot=SINGLE_STEP.shots.slice(shots).find(s=>!s.player&&s.owner===e.attackerId),target=gridToPixel(e.col,e.row);
+ for(const e of events)if(e.type==='death'&&!e.weaponHit)e.at+=delay;
+ for(const e of events)if(e.type==='hurt'){
+  const shot=newShots.find(s=>!s.player&&s.owner===e.attackerId),target=gridToPixel(e.col,e.row);
   if(shot)e.at=shot.start+Math.hypot(target.x-shot.from.x,target.y-shot.from.y)/(CFG.BULLET_SPEED*.6)*1000;
   else{const m=monsters.find(m=>m.id===e.attackerId),a=m?._stepAction;if(a?.type==='charge')e.at=a.at+Math.hypot(e.col-a.from.col,e.row-a.from.row)*CELL/MONSTER_ANIM_SPEED*1000;}
  }
@@ -8633,32 +8928,94 @@ function stepDrawTimeField(now=performance.now()){
  }
  c.globalAlpha=1;c.globalCompositeOperation='source-over';ctx.drawImage(surface,FLOOR_L,FLOOR_T);
 }
+drawItemsOnGround = function() {
+  ctx.save();
+  ctx.font = 'bold 6px "Microsoft YaHei UI", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (const item of itemsOnGround) {
+    const {cx, cy, w} = cellRect(item.col, item.row);
+    const lines = item.name.match(/.{1,3}/gu);
+    const width = w - 2, height = lines.length * 6 + 2;
+    const x = cx - width / 2, y = cy - height / 2;
+    ctx.fillStyle = '#122d37';
+    ctx.fillRect(x, y, width, height);
+    ctx.strokeStyle = '#68929b';
+    ctx.lineWidth = .65;
+    ctx.strokeRect(x, y, width, height);
+    ctx.fillStyle = '#f1f8f9';
+    lines.forEach((line, index) => ctx.fillText(line, cx, y + 4 + index * 6, width - 2));
+    const slot = getShopSlotAt(item.col,item.row);
+    if (slot && item.col === player.col && item.row === player.row && playerResources.coins < slot.price) {
+      ctx.fillStyle = '#ffb17b';
+      ctx.fillText('金币不足',cx,y-3);
+    }
+  }
+  ctx.restore();
+};
 const stepTilesOriginal=drawTiles;
 drawTiles=function(){stepTilesOriginal();stepDrawTimeField();};
 scrapCoveredMonster=function(m){return !!stepEnemyDefinition(m);};
-function stepMonsterArt(m,now){
+function stepMonsterArt(m,now,ready=!!singleStepAttackPreview(m)){
  const kind=m.cfgId.replace('step_',''),sheet={fixed:'turret',big:'slime',small:'slime',bomber:'bomber',charger:'charger',x:'x',cross:'cross'}[kind];if(!sheet)return null;
- const action=m._stepAction,acting=action&&now>=action.at&&now-action.at<240,p=SINGLE_STEP.plans.get(m.id);
+ const action=m._stepAction,acting=action&&now>=action.at&&now-action.at<240;
  if(m._stepJump&&(kind==='x'||kind==='cross'))return 'unit-'+sheet+'-jump';
  if(acting&&['shot','fan'].includes(action.type))return 'unit-'+sheet+'-shoot';
  if(acting&&action.type==='charge'&&['big','small'].includes(kind))return 'unit-slime-charge';
- if(p?.cells.length&&['big','small','bomber'].includes(kind))return 'unit-'+sheet+'-ready';
+ if(ready&&['big','small','bomber'].includes(kind))return 'unit-'+sheet+'-ready';
  return 'unit-'+sheet+'-idle';
 }
+function stepPoisonAlpha(m, now) {
+ const age = now - m.weaponPoisonFlashAt;
+ if(age >= 0 && age < 160) return .72 - age / 160 * .46;
+ return m.weaponPoison?.appliedAt <= now ? .26 : 0;
+}
+const stepPoisonMasks = new Map();
+function stepDrawMonsterSprite(key,x,y,w,h,alpha) {
+ scrapDraw(key,x,y,w,h);
+ const image = scrapImages[key];
+ if(!alpha || !image?.complete || !image.naturalWidth) return;
+ let mask = stepPoisonMasks.get(key);
+ if(!mask) {
+  mask = document.createElement('canvas');
+  mask.width = image.naturalWidth;
+  mask.height = image.naturalHeight;
+  const paint = mask.getContext('2d');
+  paint.drawImage(image,0,0);
+  paint.globalCompositeOperation = 'source-in';
+  paint.fillStyle = '#68e742';
+  paint.fillRect(0,0,mask.width,mask.height);
+  stepPoisonMasks.set(key,mask);
+ }
+ ctx.save();
+ ctx.globalAlpha *= alpha;
+ ctx.drawImage(mask,x,y,w,h);
+ ctx.restore();
+}
+const stepStaticMonsterOriginal = drawStaticWorldMonster;
+drawStaticWorldMonster = function(m,x,y,size,scale) {
+ const poison = m.jumperVanished ? 0 : stepPoisonAlpha(m,performance.now());
+ return stepStaticMonsterOriginal(m,x,y,size,scale,
+  (key,sx,sy,w,h) => stepDrawMonsterSprite(key,sx,sy,w,h,poison));
+};
 drawMonsters=function(){
- scrapDrawLegacyMonsters();const now=performance.now();
- for(const m of monsters){const d=stepEnemyDefinition(m);if(!d)continue;const p=project(m.px,m.py),key=stepMonsterArt(m,now),action=m._stepAction,plan=SINGLE_STEP.plans.get(m.id);
-  if(key){const size=CELL*(m.cfgId==='step_small'?.55:m.cfgId==='step_big'?1.05:.95),shake=m.cfgId==='step_charger'&&plan?.cells.length&&!SINGLE_STEP.bonus?Math.sin(now*.09)*CELL*.025:0;scrapDraw(key,p.x-size/2+shake,p.y-size*.66,size,size);}
-  else{const kind=m.cfgId==='step_mobile'?'ranged':'melee';let frame=SINGLE_STEP.bonus?0:Math.floor(now/180)%3;if(action&&now>=action.at&&now-action.at<240&&['shot','strike'].includes(action.type))frame=3+Math.min(1,Math.floor((now-action.at)/120));if(!(m._stepHitAt>now)&&(m.hitFlash>0||now-m._stepHitAt<120))frame=5;scrapDraw(kind+frame,p.x-30,p.y-38,60,68);}
+ scrapDrawLegacyMonsters();const now=performance.now(),threats=[];
+ for(const m of monsters){
+  const ready=!!singleStepAttackPreview(m);
+  if(ready)threats.push(m);
+  if(!stepEnemyDefinition(m))continue;
+  const p=project(m.px,m.py),key=stepMonsterArt(m,now,ready),action=m._stepAction;
+  const poison=stepPoisonAlpha(m,now);
+  if(key){const size=CELL*(m.cfgId==='step_small'?.55:m.cfgId==='step_big'?1.05:.95),shake=m.cfgId==='step_charger'&&ready&&!SINGLE_STEP.bonus?Math.sin(now*.09)*CELL*.025:0;stepDrawMonsterSprite(key,p.x-size/2+shake,p.y-size*.66,size,size,poison);}
+  else{const kind=m.cfgId==='step_mobile'?'ranged':'melee';let frame=SINGLE_STEP.bonus?0:Math.floor(now/180)%3;if(action&&now>=action.at&&now-action.at<240&&['shot','strike'].includes(action.type))frame=3+Math.min(1,Math.floor((now-action.at)/120));if(!(m._stepHitAt>now)&&(m.hitFlash>0||now-m._stepHitAt<120))frame=5;stepDrawMonsterSprite(kind+frame,p.x-30,p.y-38,60,68,poison);}
   if(m.cfgId==='step_charger'&&action?.type==='charge'&&now>=action.at&&now-action.at<400){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(action.dir.dy,action.dir.dx));scrapDraw('unit-effects-charge',-CELL*1.375,-CELL*.375,CELL*1.5,CELL*.75);ctx.restore();}
   drawMonsterHealthPreview(m,p.x-10,p.y+10,20,3);
-  if(m.weaponPoison){
+  if(m.weaponPoison?.appliedAt<=now){
    ctx.save();ctx.fillStyle='#9bea74';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
    ctx.fillText('毒 '+m.weaponPoison.steps,p.x,p.y-20);ctx.restore();
   }
  }
- // 所有准备攻击的单位（含Boss）均显示正式版约定位置的感叹号。
- for(const m of monsters)if(SINGLE_STEP.plans.get(m.id)?.cells.length&&!m.jumperVanished){const p=project(m.px,m.py);scrapDraw('alert',p.x+3.2,p.y-10.4,5.6,8.8);}
+ for(const m of threats){const p=project(m.px,m.py);scrapDraw('alert',p.x+3.2,p.y-10.4,5.6,8.8);}
  for(const e of stepVisualEvents){const age=now-e.at;if(e.type==='death'&&age<360){const p=project(e.x,e.y),kind=e.cfgId==='step_mobile'?'ranged':e.cfgId==='step_fighter'?'melee':null;
    if(age<0){const m={cfgId:e.cfgId},key=stepMonsterArt(m,now);if(key){const size=CELL*(e.cfgId==='step_small'?.55:e.cfgId==='step_big'?1.05:.95);scrapDraw(key,p.x-size/2,p.y-size*.66,size,size);}else scrapDraw(kind+'0',p.x-30,p.y-38,60,68);}
    else if(kind)scrapDraw(kind+(age<180?6:7),p.x-30,p.y-38,60,68);
@@ -8666,8 +9023,6 @@ drawMonsters=function(){
   }else if(e.type==='blast'&&age>=0&&age<360){const q=gridToPixel(e.col,e.row),p=project(q.x,q.y);scrapDraw('unit-effects-blast',p.x-CELL*1.5,p.y-CELL*1.5,CELL*3,CELL*3);}
  }
 };
-const stepDangerOriginal=drawDangerOverlay;
-drawDangerOverlay=function(){stepDangerOriginal();if(!gameStarted||worldMapOpen)return;for(const m of monsters){const p=SINGLE_STEP.plans.get(m.id);if(stepEnemyDefinition(m)&&!p?.jump)for(const cell of p?.path||[]){const q=cellRect(cell.col,cell.row);scrapDraw('blueGrid',q.xL,q.yT,q.w,q.h,.28);}}};
 function stepDrawDodge(now=performance.now()){
  for(const e of stepVisualEvents){if(e.type!=='dodge')continue;const age=now-e.at,ms=e.duration,a=gridToPixel(e.from.col,e.from.row),b=gridToPixel(e.to.col,e.to.row);
   if(age<ms+360){ctx.save();ctx.globalCompositeOperation='screen';ctx.filter='brightness(1.8)';for(let i=5;i>=1;i--){const sample=ms*(5-i)/5,life=age-sample;if(life<0||life>=360)continue;const t=sample/ms,p=project(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t);scrapDraw('hero-'+e.dir+'-move'+(1+Math.min(2,Math.floor(sample/50))),p.x-19.8,p.y-24,39.6,41.8,.68*(1-Math.max(0,life-80)/280));}ctx.restore();}
@@ -8675,6 +9030,23 @@ function stepDrawDodge(now=performance.now()){
  }
 }
 const stepPlayerOriginal=drawPlayer;
+function stepDrawChargeRing() {
+ const trajectory = equippedWeaponTrial('trajectory');
+ if (playerStats.hp <= 0 || (trajectory !== 'burstCharge' && trajectory !== 'heavyCharge')) return;
+ const {col,row} = pixelToGrid(player.px,player.py);
+ const tile = cellRect(col,row), radius = 2;
+ const cx = tile.xR-3.5, cy = tile.yT+3.5;
+ const top = -Math.PI/2;
+ ctx.save();
+ ctx.lineWidth = 1;
+ ctx.strokeStyle = '#15303b';
+ ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.stroke();
+ if (SINGLE_STEP.weaponCharge > 0) {
+  ctx.strokeStyle = '#78efff';
+  ctx.beginPath();ctx.arc(cx,cy,radius,top,top+Math.PI*2*SINGLE_STEP.weaponCharge/3);ctx.stroke();
+ }
+ ctx.restore();
+}
 drawPlayer=function(){
  stepDrawDodge();const now=performance.now(),hurt=stepVisualEvents.filter(e=>e.type==='hurt').at(-1),flash=player.hitFlash;
  if(SINGLE_STEP.bonus&&SINGLE_STEP.echo){
@@ -8684,6 +9056,7 @@ drawPlayer=function(){
  // 规则即时扣血，受击帧等弹体或冲锋画面到达后播放；不延长输入锁定。
  if(hurt)player.hitFlash=now>=hurt.at&&now<hurt.at+240?1:0;
  try{stepPlayerOriginal();}finally{player.hitFlash=flash;}
+ stepDrawChargeRing();
  for(let i=stepVisualEvents.length-1;i>=0;i--)if(now-stepVisualEvents[i].at>1000)stepVisualEvents.splice(i,1);
 };
 // 受伤导致的提前解除同样立即反馈，不等本次动画结束。
@@ -8693,10 +9066,665 @@ damagePlayer=function(amount,id){
  if(playerStats.hp+(playerResources.blueHearts||0)<hp){stepSetTimeEffect(false);stepVisualEvents.push({type:'hurt',attackerId:id,col:player.col,row:player.row,at:performance.now()});}
 };
 
+// 正式版和自定义场共用的道具效果。限时地格和怪物状态只随正常步推进。
+const ARENA_STATUS_CHANCE = .35;
+const ARENA_SHIELD_CHARGE = 20;
+const arenaEffects = {};
+reservedHeartSlots = () => Number(trialPassive('timedShield'));
+
+function arenaResetEffects() {
+  Object.assign(arenaEffects,{
+    turn:0, ground:new Map(), avoided:new Set(), extended:false,
+    moveCredit:0, shootCredit:0, freeAction:false, enemyActing:false,
+    armorReady:false, timedCharge:0, rageKills:0, rageReady:false,
+    roomsCleared:0, roomClearRecorded:false, roomHadEnemies:false, floorAttack:0, unstableShots:0,
+    notice:'',
+  });
+}
+arenaResetEffects();
+
+function arenaEffectNotice(message) {
+  arenaEffects.notice = message;
+  if (!document.body.classList.contains('custom-arena-page')) {
+    damageNumbers.push({x:player.px,y:player.py-8,text:message,life:1.5,maxLife:1.5,vx:0,vy:-12,color:'#b5fbf4'});
+  }
+}
+
+function resetItemRoomEffects() {
+  arenaEffects.ground.clear();
+  arenaEffects.avoided.clear();
+  arenaEffects.roomClearRecorded = false;
+  arenaEffects.roomHadEnemies = hasMonstersAlive();
+  arenaEffects.armorReady = trialPassive('backArmor');
+  arenaEffects.freeAction = false;
+  arenaEffects.notice = '';
+}
+
+const resetItemGameBase = resetGameToFloor1;
+resetGameToFloor1 = function({preserveItemEffects=false}={}) {
+  if (!preserveItemEffects) arenaResetEffects();
+  return resetItemGameBase();
+};
+
+const enterItemRoomBase = finishTransition;
+finishTransition = function() {
+  if (!transition) return;
+  enterItemRoomBase();
+  resetItemRoomEffects();
+};
+
+const enterItemFloorBase = enterFloor;
+enterFloor = function(floor) {
+  if (arenaEffects.floorAttack) {
+    arenaEffects.floorAttack = 0;
+    recalcAllStats();
+  }
+  enterItemFloorBase(floor);
+  resetItemRoomEffects();
+};
+
+const arenaRecalcStatsBase = recalcAllStats;
+let arenaBaseMaxHp = playerStats.maxHp;
+recalcAllStats = function() {
+  arenaRecalcStatsBase(arenaBaseMaxHp);
+  playerStats.attack = Math.round((playerStats.attack+arenaEffects.floorAttack)*10)/10;
+};
+
+const arenaTrialApplyBase = applyItem;
+applyItem = function(id) {
+  const effect = ITEMS_DB[id]?.weaponTrial?.effect;
+  const hadItem = playerInventory.includes(id);
+  const result = arenaTrialApplyBase(id);
+  if (!hadItem && playerInventory.includes(id)) {
+    if (effect === 'backArmor') arenaEffects.armorReady = true;
+    if (effect === 'timedShield') arenaEffects.timedCharge = ARENA_SHIELD_CHARGE;
+    if (effect === 'supplyDrone') {
+      arenaEffectNotice('补给无人机已启动。累计清空 3 间房后发放补给。');
+    }
+    if (effect === 'unstable') arenaEffects.unstableShots = 0;
+    if (effect === 'luck') arenaEffectNotice('幸运框架：当前有效值 0');
+  }
+  return result;
+};
+
+function arenaRecordKill(monster) {
+  if (trialPassive('killPill')) {
+    arenaEffects.floorAttack += .2;
+    recalcAllStats();
+  }
+  if (trialPassive('rageShield') && !arenaEffects.rageReady && ++arenaEffects.rageKills === 10) {
+    arenaEffects.rageKills = 0;
+    arenaEffects.rageReady = true;
+    arenaEffectNotice('狂暴护盾已充能');
+  }
+  if (!arenaEffects.freeAction) {
+    if (trialPassive('killMove')) arenaEffects.moveCredit = 1;
+    if (trialPassive('killShot')) arenaEffects.shootCredit = 1;
+  }
+  if (SINGLE_STEP.bonus && trialPassive('bulletBonus') && !arenaEffects.extended &&
+      arenaEffects.avoided.has(monster.id)) {
+    SINGLE_STEP.bonus++;
+    arenaEffects.extended = true;
+    arenaEffectNotice('击杀被闪避的怪物，子弹时间 +1');
+  }
+}
+
+const arenaTrialDamageMonster = damageMonster;
+damageMonster = function(monster,damage,...args) {
+  const alive = monster.hp > 0 && monsters.includes(monster);
+  const result = arenaTrialDamageMonster(monster,damage,...args);
+  if (alive && monster.hp <= 0 && !arenaEffects.enemyActing) arenaRecordKill(monster);
+  return result;
+};
+
+function arenaDamageFromBehind(attacker) {
+  if (!attacker) return false;
+  const facing = DIR_VEC[player.facing];
+  const dx = attacker.col + ((attacker.size||1)-1)/2 - player.col;
+  const dy = attacker.row + ((attacker.size||1)-1)/2 - player.row;
+  return facing.dx*dx+facing.dy*dy < 0;
+}
+
+const arenaTrialDamagePlayer = damagePlayer;
+damagePlayer = function(amount,attackerId) {
+  if (amount > 0 && player.invincibleSteps <= 0) {
+    if (trialPassive('backArmor') && arenaEffects.armorReady &&
+        arenaDamageFromBehind(monsters.find(m=>m.id===attackerId))) {
+      arenaEffects.armorReady = false;
+      arenaEffectNotice('充能背甲挡住了背后攻击');
+      return;
+    }
+    if (trialPassive('timedShield') && arenaEffects.timedCharge === ARENA_SHIELD_CHARGE) {
+      arenaEffects.timedCharge = 0;
+      arenaEffectNotice('充能护盾挡住了伤害');
+      return;
+    }
+    if (trialPassive('rageShield') && arenaEffects.rageReady) {
+      arenaEffects.rageReady = false;
+      arenaEffectNotice('狂暴护盾挡住了伤害');
+      return;
+    }
+  }
+  const hp = playerStats.hp + playerResources.blueHearts;
+  const result = arenaTrialDamagePlayer(amount,attackerId);
+  if (trialPassive('hurtPill') && playerStats.hp+playerResources.blueHearts < hp) {
+    arenaEffects.floorAttack += .5;
+    recalcAllStats();
+  }
+  return result;
+};
+
+function arenaRoomCleared() {
+  if (!arenaEffects.roomHadEnemies || arenaEffects.roomClearRecorded) return;
+  arenaEffects.roomClearRecorded = true;
+  if (!trialPassive('supplyDrone')) return;
+  if (++arenaEffects.roomsCleared < 3) {
+    arenaEffectNotice('清房进度 '+arenaEffects.roomsCleared+'/3'+
+      (document.body.classList.contains('custom-arena-page')?'。点击「下一间」继续。':''));
+    return;
+  }
+  arenaEffects.roomsCleared = 0;
+  const supplies = [['coins','coin_gold','金币'],['keys','key_single','钥匙'],['bombs','bomb_single','炸弹']];
+  const least = Math.min(...supplies.map(([key])=>playerResources[key]));
+  const candidates = supplies.filter(([key])=>playerResources[key]===least);
+  const [,id,name] = candidates[Math.floor(Math.random()*candidates.length)];
+  handleResourcePickup({cfgId:id,col:player.col,row:player.row,px:player.px,py:player.py});
+  arenaEffectNotice('补给无人机送来'+name);
+}
+
+const arenaTrialRoomCombat = updateRoomCombatState;
+updateRoomCombatState = function() {
+  const hadEnemies = inCombat;
+  const result = arenaTrialRoomCombat();
+  if (hadEnemies && !stepSplitting && !hasMonstersAlive()) arenaRoomCleared();
+  return result;
+};
+
+function arenaCanMoveMonster(m,col,row) {
+  return singleStepLegal(m,col,row) && !singleStepFootprint(m,col,row)
+    .some(cell=>cell.col===player.col&&cell.row===player.row);
+}
+
+function arenaKnockback(m,dx,dy) {
+  if (m.arenaDummy || !arenaCanMoveMonster(m,m.col+dx,m.row+dy)) return;
+  m.col += dx;
+  m.row += dy;
+  (m._visualPath ||= []).push({col:m.col,row:m.row});
+}
+
+function arenaStatusUntil(m,key,steps) {
+  const statuses = m.arenaStatuses ||= {};
+  statuses[key] = Math.max(statuses[key]??0,arenaEffects.turn+steps);
+}
+
+function arenaStatusActive(m,key,turn=arenaEffects.turn) {
+  return (m.arenaStatuses?.[key]??-1) >= turn;
+}
+
+function arenaGroundEffect(cell,key,steps) {
+  const id = cell.col+','+cell.row;
+  if (!arenaEffects.ground.has(id)) arenaEffects.ground.set(id,{...cell,effects:{}});
+  arenaEffects.ground.get(id).effects[key] = arenaEffects.turn+steps;
+}
+
+function arenaParasiteBlast(m,at,lane) {
+  const charge = m.arenaParasite;
+  if (!charge) return;
+  delete m.arenaParasite;
+  stepVisualEvents.push({type:'blast',col:m.col,row:m.row,at});
+  weaponDamageMonster(m,charge.damage,at,lane);
+}
+
+stepTestHooks.onWeaponHit = function(m,cell,{dx,dy,damage,at,lane,ammo}) {
+  if (ammo === 'acid') arenaGroundEffect(cell,'acid',5);
+  if (m.hp <= 0 || !monsters.includes(m)) return;
+  if (ammo === 'knockback') {
+    arenaKnockback(m,dx,dy);
+  } else if (ammo === 'parasite') {
+    const charge = m.arenaParasite ||= {stacks:0,expires:arenaEffects.turn+5,damage};
+    if (++charge.stacks >= 5) arenaParasiteBlast(m,at,lane);
+  } else if (['fear','petrify','sticky','ink','short'].includes(ammo) && Math.random() < ARENA_STATUS_CHANCE) {
+    if (ammo === 'sticky') {
+      if (arenaStatusActive(m,'sticky')) {
+        delete m.arenaStatuses.sticky;
+        arenaStatusUntil(m,'rooted',3);
+      } else if (!arenaStatusActive(m,'rooted')) {
+        arenaStatusUntil(m,'sticky',3);
+        m.arenaSkipMove = true;
+      }
+    } else {
+      arenaStatusUntil(m,ammo,2);
+    }
+  }
+};
+
+function arenaApplyGround(m,cells) {
+  if (m.hp <= 0 || m.jumperVanished || m.movementTags?.includes('飞行')) return;
+  if (m.arenaGroundTurn !== arenaEffects.turn) {
+    m.arenaGroundTurn = arenaEffects.turn;
+    m.arenaGroundApplied = new Set();
+  }
+  const slimeContacts = new Set();
+  for (const {col,row} of cells) {
+    const cell = col+','+row;
+    const effects = arenaEffects.ground.get(cell)?.effects;
+    for (const [key,expires] of Object.entries(effects||{})) {
+      if (expires < arenaEffects.turn || m.hp <= 0) continue;
+      if (key === 'slime') {
+        if (!m.arenaSlimeContacts?.has(cell)) m.arenaSlimeSlow = true;
+        if (isInMonsterFootprint(m,col,row)) slimeContacts.add(cell);
+      } else if (!m.arenaGroundApplied.has(key)) {
+        m.arenaGroundApplied.add(key);
+        damageMonster(m,key==='acid'?1:.5);
+      }
+    }
+  }
+  m.arenaSlimeContacts = slimeContacts;
+}
+
+stepTestHooks.beforeEnemies = function() {
+  arenaEffects.turn++;
+  for (const m of [...monsters]) {
+    if (m.arenaParasite?.expires <= arenaEffects.turn) arenaParasiteBlast(m,performance.now(),0);
+    if (monsters.includes(m)) arenaApplyGround(m,monsterCells(m));
+  }
+  for (const [id,field] of arenaEffects.ground) {
+    if (Object.values(field.effects).every(expires=>expires<arenaEffects.turn)) arenaEffects.ground.delete(id);
+  }
+};
+
+function arenaDefaultEnemyPlan(m) {
+  const config = stepEnemyDefinition(m);
+  if (!config || config.id === 'step_fixed') return {type:'wait',cells:[]};
+  const choices = config.jump
+    ? Array.from({length:COLS*ROWS},(_,i)=>({col:i%COLS,row:Math.floor(i/COLS)}))
+    : STEP_CARDINAL.map(([dx,dy])=>({col:m.col+dx,row:m.row+dy}));
+  const next = singleStepPick(choices.filter(({col,row})=>
+    (col!==m.col||row!==m.row)&&arenaCanMoveMonster(m,col,row)));
+  return {type:'wander',cells:[],path:next?[next]:[],jump:config.jump};
+}
+
+const arenaTrialResolvePlan = singleStepResolvePlan;
+const itemEffectPlanBase = singleStepPlan;
+singleStepPlan = function() {
+  for (const m of monsters) {
+    if (m.arenaDelayedMove) SINGLE_STEP.plans.set(m.id,m.arenaDelayedMove);
+  }
+  itemEffectPlanBase();
+};
+
+singleStepResolvePlan = function(m,plan,{preview=false}={}) {
+  if (m.arenaDummy) return plan;
+  // 实际行动前会先推进场内回合。绘制预警时只读取这一步的状态。
+  const turn = arenaEffects.turn + Number(preview);
+  if (arenaStatusActive(m,'petrify',turn)) return {type:'wait',cells:[]};
+  if (m.arenaDelayedMove) {
+    if (arenaStatusActive(m,'rooted',turn)) return {type:'wait',cells:[]};
+    const saved = m.arenaDelayedMove;
+    if (!preview) {
+      delete m.arenaDelayedMove;
+      if (arenaStatusActive(m,'sticky',turn)) m.arenaSkipMove = true;
+    }
+    return arenaTrialResolvePlan(m,saved);
+  }
+  const attack = plan.cells.length && !['wander','chase','legacy-move'].includes(plan.type);
+  if (arenaStatusActive(m,'ink',turn) || (attack && arenaStatusActive(m,'short',turn))) {
+    if (preview) return {type:'wait',cells:[]};
+    plan = arenaDefaultEnemyPlan(m);
+  } else if (!attack && plan.type !== 'recover') {
+    if (arenaStatusActive(m,'fear',turn)) {
+      if (preview) return {type:'wait',cells:[]};
+      const dist = (col,row)=>Math.abs(col-player.col)+Math.abs(row-player.row);
+      const away = STEP_CARDINAL.map(([x,y])=>({col:m.col+x,row:m.row+y}))
+        .filter(({col,row})=>arenaCanMoveMonster(m,col,row)&&dist(col,row)>dist(m.col,m.row));
+      const next = singleStepPick(away);
+      plan = {type:'wander',cells:[],path:next?[next]:[]};
+    } else if (!preview && trialPassive('bombDecoy') && stepEnemyDefinition(m)?.id !== 'step_fixed') {
+      const dist = b=>Math.abs(b.col-m.col)+Math.abs(b.row-m.row);
+      const range = stepEnemyDefinition(m)?.chase ?? 0;
+      const decoy = bombs.filter(b=>b.roomId===currentRoomId&&Number.isFinite(b.timer)&&dist(b)<=range)
+        .sort((a,b)=>dist(a)-dist(b))[0];
+      if (decoy) {
+        const next = stepEnemyChase(m,decoy);
+        plan = {type:'chase',cells:[],path:next?[next]:[]};
+      }
+    }
+  }
+  const moves = plan.path?.length || plan.type === 'charge';
+  if (moves && m.arenaSlimeSlow) {
+    if (!preview) {
+      m.arenaSlimeSlow = false;
+      m.arenaDelayedMove = plan;
+    }
+    return {type:'wait',cells:[]};
+  }
+  if (moves && (m.arenaSkipMove || arenaStatusActive(m,'rooted',turn))) {
+    if (!preview) m.arenaSkipMove = false;
+    return {type:'wait',cells:[]};
+  }
+  if (!preview && moves && arenaStatusActive(m,'sticky')) m.arenaSkipMove = true;
+  return arenaTrialResolvePlan(m,plan);
+};
+
+const arenaTrialEnemyAction = singleStepApplyPlan;
+singleStepApplyPlan = function(m,plan) {
+  const from = {col:m.col,row:m.row};
+  const pathLength = m._visualPath?.length ?? 0;
+  arenaEffects.enemyActing = true;
+  let result;
+  try { result = arenaTrialEnemyAction(m,plan); }
+  finally { arenaEffects.enemyActing = false; }
+  if (monsters.includes(m) && (m.col!==from.col || m.row!==from.row)) {
+    const traversed = [...(m._visualPath||[]).slice(pathLength),m];
+    arenaApplyGround(m,traversed.flatMap(p=>singleStepFootprint(m,p.col,p.row)));
+  }
+  return result;
+};
+
+stepTestHooks.blockPush = function(m) {
+  if (!trialPassive('brace')) return false;
+  const wasEnemy = arenaEffects.enemyActing;
+  arenaEffects.enemyActing = false;
+  try { damageMonster(m,playerStats.attack); }
+  finally { arenaEffects.enemyActing = wasEnemy; }
+  arenaEffectNotice('防冲姿态挡住挤出并反伤');
+  return true;
+};
+
+stepTestHooks.beginAction = () => { arenaEffects.freeAction = false; };
+stepTestHooks.consumeExtra = function(type) {
+  const key = type==='move'?'moveCredit':'shootCredit';
+  if (!arenaEffects[key]) return false;
+  arenaEffects[key] = 0;
+  arenaEffects.freeAction = true;
+  return true;
+};
+
+stepTestHooks.rangeBonus = trajectory => trajectory==='lob'?2:0;
+stepTestHooks.lobTarget = function(origin,dx,dy,range) {
+  let last = 0, crate = 0, rock = 0;
+  for (let steps=1;steps<=range;steps++) {
+    const col=origin.col+dx*steps,row=origin.row+dy*steps;
+    if (col<0||col>=COLS||row<0||row>=ROWS) break;
+    last = steps;
+    if (monsters.some(m=>m.hp>0&&!m.jumperVanished&&isInMonsterFootprint(m,col,row))) return {steps,monster:true};
+    const tile = currentRoomGrid[col][row];
+    if (!crate&&tile===TILE.POOP) crate=steps;
+    if (!rock&&tile===TILE.ROCK) rock=steps;
+  }
+  return {steps:crate||rock||last};
+};
+
+function arenaAutoTarget(origin,dx,dy,range,lob) {
+  if (lob) return !!stepTestHooks.lobTarget(origin,dx,dy,range).monster;
+  const body = equippedWeaponTrial('body'), shell = equippedWeaponTrial('shell');
+  const piercesTerrain = body==='energy'||shell==='ghost';
+  for (let steps=1;steps<=range;steps++) {
+    const from={col:origin.col+dx*(steps-1),row:origin.row+dy*(steps-1)};
+    const col=from.col+dx,row=from.row+dy;
+    if (!piercesTerrain && (singleStepBlocksBullet(col,row)||weaponBlockedCorner(from,dx,dy))) return false;
+    if (monsters.some(m=>m.hp>0&&!m.jumperVanished&&isInMonsterFootprint(m,col,row))) return true;
+  }
+  return false;
+}
+
+stepTestHooks.onMove = function(old,{dx,dy}) {
+  if (trialPassive('timedShield')) {
+    const distance = Math.abs(player.col-old.col)+Math.abs(player.row-old.row);
+    arenaEffects.timedCharge = Math.min(ARENA_SHIELD_CHARGE,arenaEffects.timedCharge+distance);
+  }
+  if (trialPassive('toxicTrail')) arenaGroundEffect(old,'toxic',3);
+  if (trialPassive('slimeTrail')) arenaGroundEffect(old,'slime',3);
+  for (const bomb of bombs) {
+    if (bomb.roomId===currentRoomId&&bomb.claymore&&bomb.awaitDeparture&&bomb.col===old.col&&bomb.row===old.row) {
+      bomb.claymore = {dx:-dx,dy:-dy};
+      bomb.awaitDeparture = false;
+    }
+  }
+  if (!trialPassive('runGun')) return;
+  const body=equippedWeaponTrial('body'), trajectory=equippedWeaponTrial('trajectory');
+  const lob=trajectory==='lob', bonus=lob?2:0;
+  const range=body==='shotgun'?Math.min(6,weaponShotgunRange()+bonus)
+    :Math.floor(playerStats.range)+bonus+(['energy','laser'].includes(body)?2:0);
+  const choices=STEP_CARDINAL.filter(([x,y])=>arenaAutoTarget(player,x,y,range,lob));
+  if (choices.length) {
+    const [x,y] = choices[Math.floor(Math.random()*choices.length)];
+    SFX.shoot();
+    fireSingleStepWeapon(player,{dx:x,dy:y},{repetitions:1,scale:1});
+  }
+};
+
+stepTestHooks.onShot = function(origin,dir,charge) {
+  if (equippedWeaponTrial('body')!=='unstable' || ++arenaEffects.unstableShots<4) return;
+  arenaEffects.unstableShots = 0;
+  const range = weaponShotgunRange();
+  const shell = equippedWeaponTrial('shell'), ammo = equippedWeaponTrial('ammo');
+  weaponShotgunVolley(origin,dir,playerStats.attack*charge.scale,range,{shell,ammo,body:'shotgun'},performance.now()+45);
+  arenaEffectNotice('不稳定的枪额外发射霰弹');
+};
+
+stepTestHooks.onDodge = function(old,avoided) {
+  arenaEffects.avoided = new Set(avoided.map(m=>m.id));
+  arenaEffects.extended = false;
+  if (trialPassive('slipStep') && !isWall(old.col,old.row) && !isMonsterAt(old.col,old.row)) {
+    const pos = gridToPixel(old.col,old.row);
+    Object.assign(player,{...old,targetPx:pos.x,targetPy:pos.y});
+    if (!trialPassive('boots')) checkSpikeUnderPlayer();
+    singleStepPickup();
+  }
+  if (SINGLE_STEP.damaged || !trialPassive('counterTime')) return;
+  const target = avoided.find(m=>monsters.includes(m)&&m.hp>0&&!m.jumperVanished);
+  if (!target) return;
+  const start = performance.now();
+  const dir = {dx:Math.sign(target.col-player.col),dy:Math.sign(target.row-player.row)};
+  const travel = Math.hypot(target.col-player.col,target.row-player.row)*CELL/CFG.BULLET_SPEED*1000;
+  singleStepVisualShot(player,target,true,dir,{start});
+  weaponDamageMonster(target,playerStats.attack,start+travel,0);
+};
+
+const arenaTrialPlaceBomb = placeBomb;
+placeBomb = function(col,row) {
+  const bomb = arenaTrialPlaceBomb(col,row);
+  if (!bomb) return;
+  if (trialPassive('claymore')) {
+    const {dx,dy} = DIR_VEC[player.facing];
+    bomb.claymore = {dx:-dx,dy:-dy};
+    bomb.awaitDeparture = true;
+  }
+  if (trialPassive('remoteBomb')) {
+    bomb.remote = true;
+    bomb.timer = Infinity;
+  }
+  return bomb;
+};
+
+const arenaTrialPushBomb = pushBomb;
+pushBomb = function(bomb,dx,dy) {
+  const {col,row} = bomb;
+  const result = arenaTrialPushBomb(bomb,dx,dy);
+  if (bomb.claymore && (bomb.col!==col || bomb.row!==row)) {
+    bomb.claymore = {dx:Math.sign(bomb.col-col),dy:Math.sign(bomb.row-row)};
+    bomb.awaitDeparture = false;
+  }
+  return result;
+};
+
+const arenaTrialDetonate = detonateBomb;
+detonateBomb = function(bomb) {
+  const claymoreRadius = 2;
+  const affected = bomb.claymore && getDiamondRange(bomb.col,bomb.row,claymoreRadius).filter(({col,row})=>{
+    if (col<0||col>=COLS||row<0||row>=ROWS) return false;
+    const dx=col-bomb.col,dy=row-bomb.row;
+    const {dx:fx,dy:fy}=bomb.claymore;
+    const forward=dx*fx+dy*fy;
+    return forward>0 && forward>=Math.abs(dx*fy-dy*fx);
+  });
+  arenaTrialDetonate(bomb,affected);
+  if (trialPassive('bombBaby') && Math.random()<.25) {
+    spawnResourceOnGrid(bomb.col,bomb.row,'bomb_single');
+    arenaEffectNotice('炸弹宝宝掉落了一个炸弹');
+  }
+};
+
+stepTestHooks.bombAction = function() {
+  const remote = bombs.filter(b=>b.roomId===currentRoomId&&b.remote);
+  if (!remote.length) return undefined;
+  bombs = bombs.filter(b=>!remote.includes(b));
+  for (const bomb of remote) detonateBomb(bomb);
+  arenaEffectNotice('遥控炸弹已引爆');
+  return true;
+};
+
+const arenaLiquidColors = {
+  toxic:{dark:'#163e23',base:'#43b84f',rim:'#8ce982',shine:'#d5ffbb'},
+  slime:{dark:'#a2b1b5',base:'#e8f0ed',rim:'#ffffff',shine:'#ffffff'},
+  acid:{dark:'#65501c',base:'#d6ac23',rim:'#ffe65d',shine:'#fff8b2'},
+};
+
+function arenaDrawPuddle(tile,colors,index,count,seed) {
+  const width = tile.w*(count===1 ? .9 : .52), height = tile.h*.51;
+  const centerX = tile.cx + (index-(count-1)/2)*tile.w*.23;
+  const centerY = tile.cy+tile.h*(.14+index*.045);
+  ctx.save();
+  ctx.translate(centerX,centerY);
+  ctx.scale(seed%2 ? width : -width,height);
+  const depth = ctx.createLinearGradient(0,-.5,0,.5);
+  depth.addColorStop(0,colors.rim);
+  depth.addColorStop(.32,colors.base);
+  depth.addColorStop(1,colors.dark);
+  ctx.beginPath();
+  ctx.moveTo(-.46,.03);
+  ctx.bezierCurveTo(-.49,-.21,-.30,-.31,-.20,-.30);
+  ctx.bezierCurveTo(-.06,-.30,-.03,-.48,.14,-.43);
+  ctx.bezierCurveTo(.29,-.39,.25,-.18,.40,-.13);
+  ctx.bezierCurveTo(.54,-.07,.47,.26,.30,.32);
+  ctx.bezierCurveTo(.15,.39,.06,.29,-.08,.36);
+  ctx.bezierCurveTo(-.24,.44,-.43,.29,-.46,.03);
+  ctx.closePath();
+  ctx.fillStyle = depth;
+  ctx.globalAlpha = .9;
+  ctx.fill();
+  ctx.strokeStyle = colors.dark;
+  ctx.lineWidth = .055;
+  ctx.stroke();
+  ctx.globalAlpha = .7;
+  ctx.strokeStyle = colors.shine;
+  ctx.lineWidth = .044;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-.36,-.06);
+  ctx.quadraticCurveTo(-.28,-.21,-.12,-.19);
+  ctx.moveTo(.06,-.31);
+  ctx.quadraticCurveTo(.14,-.37,.20,-.27);
+  ctx.stroke();
+  ctx.fillStyle = colors.rim;
+  for (const [x,y,rx,ry] of [[.36,.06,.045,.068],[-.11,.11,.036,.059],[-.34,.43,.044,.055]]) {
+    ctx.beginPath();
+    ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+const arenaTrialDrawTiles = drawTiles;
+drawTiles = function() {
+  arenaTrialDrawTiles();
+  for (const {col,row,effects} of arenaEffects.ground.values()) {
+    const tile = cellRect(col,row);
+    const active = Object.keys(arenaLiquidColors).filter(key=>effects[key]>=arenaEffects.turn);
+    active.forEach((key,index)=>arenaDrawPuddle(tile,arenaLiquidColors[key],index,active.length,col+row));
+  }
+};
+
+const arenaTrialDrawPlayer = drawPlayer;
+drawPlayer = function() {
+  arenaTrialDrawPlayer();
+  if (playerStats.hp<=0 || !arenaEffects.armorReady || !trialPassive('backArmor')) return;
+  const {dx,dy} = DIR_VEC[player.facing];
+  const {x,y} = project(player.px,player.py);
+  ctx.save();
+  ctx.translate(x-dx*CELL*.65,y-5-dy*CELL*.72);
+  ctx.rotate(Math.atan2(-dy,-dx));
+  ctx.beginPath();
+  ctx.moveTo(-2,-9);
+  ctx.quadraticCurveTo(9,0,-2,9);
+  ctx.quadraticCurveTo(4,0,-2,-9);
+  ctx.closePath();
+  ctx.shadowColor = '#5af8f4';
+  ctx.shadowBlur = 5;
+  ctx.fillStyle = '#2ebdcca8';
+  ctx.fill();
+  ctx.strokeStyle = '#bcfffa';
+  ctx.lineWidth = 1.15;
+  ctx.stroke();
+  ctx.restore();
+};
+
+function arenaDrawTrialStatuses() {
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 5px "Microsoft YaHei UI", sans-serif';
+  ctx.fillStyle = '#f6d98b';
+  const names = {fear:'恐',petrify:'石',sticky:'缓',rooted:'缚',ink:'盲',short:'断'};
+  for (const m of monsters) {
+    if (m.jumperVanished) continue;
+    const tags = Object.keys(names).filter(key=>arenaStatusActive(m,key)).map(key=>names[key]);
+    if (m.arenaParasite) tags.push('寄 '+m.arenaParasite.stacks+'/5');
+    if (tags.length) {
+      const {x,y} = project(m.px,m.py);
+      ctx.fillText(tags.join(' '),x,y-15);
+    }
+  }
+  for (const b of bombs) {
+    if (b.roomId!==currentRoomId || !b.claymore && !b.remote) continue;
+    const {x,y} = gridToPixel(b.col,b.row);
+    if (b.remote) ctx.fillText('遥控',x,y+10);
+    if (b.claymore) {
+      ctx.strokeStyle='#ffc36d';
+      ctx.lineWidth=1.6;
+      ctx.beginPath();ctx.moveTo(x+b.claymore.dx*7,y+b.claymore.dy*7);
+      ctx.lineTo(x+b.claymore.dx*12,y+b.claymore.dy*12);ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+const arenaScrapHUD = scrapUpdateHUD;
+scrapUpdateHUD = function() {
+  arenaScrapHUD();
+  if (!trialPassive('timedShield')) return;
+  const hearts = document.getElementById('scrap-hearts');
+  if (!hearts) return;
+  let shield = hearts.querySelector('.arena-heart-shield');
+  if (!shield) {
+    shield = document.createElement('span');
+    shield.className = 'arena-heart-shield';
+    shield.setAttribute('role','img');
+    const shape = 'M11 2 L19 5 V10 C19 15 15 18.5 11 21 C7 18.5 3 15 3 10 V5 Z';
+    shield.innerHTML = '<svg viewBox="0 0 22 22" aria-hidden="true">'+
+      '<defs><clipPath id="arena-shield-clip"><path d="'+shape+'"/></clipPath></defs>'+
+      '<path d="'+shape+'" fill="#0c252f"/><rect class="arena-shield-energy" x="3" width="16" clip-path="url(#arena-shield-clip)"/>'+
+      '<path d="'+shape+'" fill="none" stroke="#9ee9f4" stroke-width="1.3"/></svg>';
+    hearts.append(shield);
+  }
+  const charge = arenaEffects.timedCharge;
+  if (shield.dataset.charge === String(charge)) return;
+  shield.dataset.charge = charge;
+  shield.classList.toggle('ready',charge===ARENA_SHIELD_CHARGE);
+  const fill = shield.querySelector('.arena-shield-energy');
+  const height = 19*charge/ARENA_SHIELD_CHARGE;
+  fill.setAttribute('y',21-height);
+  fill.setAttribute('height',height);
+  shield.title = '充能护盾 '+charge+'/'+ARENA_SHIELD_CHARGE;
+  shield.setAttribute('aria-label',shield.title);
+};
+
 // SINGLE_STEP_FORMAL_END
 
 // 独立测试入口。布置记录与试玩状态分离，每次开测从原布置复原。
-const arena = { editing: true, start: {col: 2, row: 3}, placements: new Map(), hits: 0, total: 0, last: 0 };
+const arena = { editing: true, start: {col: 2, row: 3}, placements: new Map(), hits: 0, total: 0, last: 0, floor:1, room:1 };
+const arenaSetup = {maxHp:playerStats.maxHp,hp:playerStats.hp,blueHearts:0,coins:0,bombs:0,keys:0};
+const arenaSetupLabels = {maxHp:'血量上限',hp:'当前血量',blueHearts:'蓝心',coins:'金币',bombs:'炸弹',keys:'钥匙'};
 const arenaRoomId = 'custom-arena';
 const arenaKey = (col, row) => col + ',' + row;
 const arenaInside = (col, row) => col >= 0 && col < COLS && row >= 0 && row < ROWS;
@@ -8716,19 +9744,79 @@ arenaPanel.innerHTML = `
     <button id="arena-start" disabled>开始测试</button><button id="arena-edit" disabled>返回布置</button>
     <button id="arena-restart" disabled>重试本场</button><button id="arena-clear" disabled>清空布置</button>
     <button id="arena-zero" disabled>清零伤害</button>
+    <button id="arena-next-room" disabled>下一间（同布局）</button><button id="arena-next-floor" disabled>下一层（同布局）</button>
   </div>
+  <details id="arena-setup">
+    <summary>资源与血量配置</summary>
+    <p id="arena-setup-hint"></p>
+    <div class="arena-setup-fields">
+      ${Object.entries(arenaSetupLabels).map(([key,label])=>`
+        <label>${label}<input id="arena-setup-${key}" type="number" inputmode="decimal"></label>
+      `).join('')}
+    </div>
+  </details>
   <p id="arena-details"></p><p id="arena-status" role="status">正在加载战斗配置…</p>
-  <p id="arena-damage">木桩命中 0 次 · 总伤害 0 · 最近一次 0</p>`;
+  <p id="arena-damage">木桩命中 0 次 · 总伤害 0 · 最近一次 0</p>
+  <p id="arena-effects" aria-live="polite"></p>`;
 document.body.classList.add('custom-arena-page');
 document.getElementById('top-content-row').append(arenaPanel);
 const arenaControl = id => document.getElementById('arena-' + id);
 const arenaTerrain = new Map([[TILE.ROCK,'岩石'],[TILE.POOP,'可破坏障碍'],[TILE.PIT,'深坑'],[TILE.SPIKE,'尖刺']]);
 const arenaStatus = message => { arenaControl('status').textContent = message; };
 
+function arenaCurrentSetup() {
+  const {hp,maxHp} = playerStats;
+  const {blueHearts,coins,bombs,keys} = playerResources;
+  return {maxHp,hp,blueHearts,coins,bombs,keys};
+}
+function arenaSetupBounds(maxHp) {
+  const capacity = heartCapacity();
+  return {
+    maxHp:[1,capacity,1],hp:[.5,maxHp,.5],blueHearts:[0,capacity-maxHp,.5],
+    coins:[0,RES_LIMITS.coinMax||99,1],bombs:[0,RES_LIMITS.bombMax||99,1],keys:[0,RES_LIMITS.keyMax||99,1],
+  };
+}
+function arenaSyncSetupInputs(force = false) {
+  const values = arena.editing ? arenaSetup : arenaCurrentSetup();
+  for (const [key,[min,max,step]] of Object.entries(arenaSetupBounds(values.maxHp))) {
+    const input = arenaControl('setup-'+key);
+    if (!force && input === document.activeElement) continue;
+    input.min = min;
+    input.max = max;
+    input.step = step;
+    input.value = values[key];
+  }
+}
+function arenaApplySetup({maxHp,hp,blueHearts,coins,bombs,keys}) {
+  if (maxHp !== playerStats.maxHp) {
+    const itemHp = playerInventory.reduce((total,id)=>total+(ITEMS_DB[id]?.effects?.maxHp||0),0);
+    arenaBaseMaxHp = maxHp-itemHp;
+    recalcAllStats();
+    buildHearts(playerStats.maxHp);
+  }
+  playerStats.hp = hp;
+  Object.assign(playerResources,{blueHearts,coins,bombs,keys});
+  updateUI();
+  scrapUpdateHUD();
+}
+function arenaChangeSetup(key, number) {
+  const values = arena.editing ? {...arenaSetup} : arenaCurrentSetup();
+  if (Number.isFinite(number)) {
+    const [min,max,step] = arenaSetupBounds(values.maxHp)[key];
+    values[key] = Math.max(min,Math.min(max,Math.round(number/step)*step));
+    values.hp = Math.min(values.hp,values.maxHp);
+    values.blueHearts = Math.min(values.blueHearts,heartCapacity()-values.maxHp);
+    if (arena.editing) Object.assign(arenaSetup,values);
+    arenaApplySetup(values);
+  }
+  arenaSyncSetupInputs(true);
+}
+
 function arenaOptions() {
   const kind = arenaControl('kind').value, entry = arenaControl('entry');
   const entries = kind === 'terrain' ? [...arenaTerrain] :
-    Object.entries({item: ITEMS_DB, monster: MONSTER_DB, resource: RESOURCE_DB}[kind] || {})
+    kind === 'monster' ? MONSTER_POOL_ALL.map(id => [id, MONSTER_DB[id].name]) :
+    Object.entries({item: ITEMS_DB, resource: RESOURCE_DB}[kind] || {})
       .filter(([id, cfg]) => !id.startsWith('_') && cfg?.name).map(([id, cfg]) => [id, cfg.name]);
   entry.replaceChildren(...entries.map(([id, name]) => new Option(name, id)));
   arenaControl('entry-label').hidden = !entries.length;
@@ -8748,6 +9836,22 @@ function arenaResetDamage() {
   arena.hits = arena.total = arena.last = 0;
   arenaDamageText();
 }
+function arenaEffectReadout() {
+  const effects = [];
+  if (trialPassive('backArmor')) effects.push('背甲 '+Number(arenaEffects.armorReady)+'/1');
+  if (trialPassive('timedShield')) effects.push('充能护盾 '+arenaEffects.timedCharge+'/'+ARENA_SHIELD_CHARGE);
+  if (trialPassive('rageShield')) effects.push('狂暴护盾 '+(arenaEffects.rageReady?'就绪':arenaEffects.rageKills+'/10'));
+  if (trialPassive('killMove')) effects.push('额外移动 '+arenaEffects.moveCredit);
+  if (trialPassive('killShot')) effects.push('额外射击 '+arenaEffects.shootCredit);
+  if (trialPassive('supplyDrone')) effects.push('补给无人机 '+arenaEffects.roomsCleared+'/3');
+  if (trialPassive('hurtPill') || trialPassive('killPill')) effects.push('本层攻击 +'+arenaEffects.floorAttack.toFixed(1));
+  if (equippedWeaponTrial('body')==='unstable') effects.push('不稳定的枪 '+arenaEffects.unstableShots+'/4');
+  if (trialPassive('luck')) effects.push('幸运 0');
+  if (arenaEffects.notice) effects.push(arenaEffects.notice);
+  const element = arenaControl('effects'), text = effects.join(' · ');
+  if (element.textContent !== text) element.textContent = text;
+}
+
 function arenaOccupant(col, row) {
   return [...arena.placements.values()].find(p =>
     col >= p.col && col < p.col + p.size && row >= p.row && row < p.row + p.size);
@@ -8773,14 +9877,38 @@ function arenaPlace(col, row, remove = false) {
   }
   arenaLoad(true);
 }
-function arenaLoad(editing) {
+function arenaLoad(editing, advance) {
+  const carry = advance && {
+    inventory:[...playerInventory], resources:{...playerResources}, hp:playerStats.hp,
+    kills:monstersKilled, collected:[...itemsCollected],
+  };
+  if (carry) {
+    if (advance==='floor') {
+      arena.floor++;
+      arena.room = 1;
+      arenaEffects.floorAttack = 0;
+    } else arena.room++;
+  } else {
+    arena.floor = arena.room = 1;
+    arenaBaseMaxHp = arenaSetup.maxHp;
+    arenaResetEffects();
+  }
   arena.editing = editing;
   document.body.classList.toggle('arena-editing', editing);
   const grid = Array.from({length: COLS}, () => Array(ROWS).fill(TILE.FLOOR));
   for (const p of arena.placements.values()) if (p.kind === 'terrain') grid[p.col][p.row] = Number(p.id);
   const room = {id: arenaRoomId, type: 'start', tplKey: '自定义场', grid, doors: {}};
-  allFloors[1] = {floorNum: 1, name: '战斗测试', rooms: [room], startRoomId: room.id, layout: {[room.id]: {gx: 0, gy: 0}}};
-  resetGameToFloor1();
+  allFloors[1] = {floorNum: arena.floor, name: '战斗测试', rooms: [room], startRoomId: room.id, layout: {[room.id]: {gx: 0, gy: 0}}};
+  resetGameToFloor1({preserveItemEffects:true});
+  if (carry) {
+    playerInventory = carry.inventory;
+    Object.assign(playerResources,carry.resources);
+    recalcAllStats();
+    playerStats.hp = Math.min(carry.hp,playerStats.maxHp);
+    monstersKilled = carry.kills;
+    itemsCollected = carry.collected;
+    updateItemBar();
+  } else arenaApplySetup(arenaSetup);
   pendingBossLanding = null;
   floorFadeBusy = false;
   document.getElementById('floor-fade').style.opacity = '0';
@@ -8790,7 +9918,7 @@ function arenaLoad(editing) {
   const {col, row} = arena.start, q = gridToPixel(col, row);
   Object.assign(player, {col, row, px: q.x, py: q.y});
   for (const p of arena.placements.values()) {
-    if (p.kind === 'item') spawnItemOnGrid(p.col, p.row, p.id);
+    if (p.kind === 'item' && !carry) spawnItemOnGrid(p.col, p.row, p.id);
     if (p.kind === 'resource') spawnResourceOnGrid(p.col, p.row, p.id);
     if (p.kind === 'monster') stepSpawnOriginal(p.id, MONSTER_DB[p.id].movementTags, null, p);
     if (p.kind === 'dummy') {
@@ -8802,13 +9930,19 @@ function arenaLoad(editing) {
   }
   gameStarted = true;
   inCombat = monsters.some(m => !m.arenaDummy);
+  resetItemRoomEffects();
   singleStepReset();
   updateUI();
   updateActionBar();
   arenaResetDamage();
   for (const id of ['kind', 'entry', 'clear', 'start']) arenaControl(id).disabled = !editing;
-  for (const id of ['edit', 'restart', 'zero']) arenaControl(id).disabled = editing;
-  arenaStatus(editing ? '布置中 · 已放置 '+arena.placements.size+' 个对象' : '测试中 · 返回布置可继续修改原场景');
+  for (const id of ['edit', 'restart', 'zero','next-room','next-floor']) arenaControl(id).disabled = editing;
+  arenaStatus(editing ? '布置中 · 已放置 '+arena.placements.size+' 个对象' : '测试中 · 第 '+arena.floor+' 层 · 第 '+arena.room+' 间');
+  arenaControl('setup-hint').textContent = editing
+    ? '修改开局值，开始测试与重试时使用。'
+    : '修改即时生效，重试恢复布置时的开局值。';
+  arenaSyncSetupInputs(true);
+  arenaEffectReadout();
 }
 
 const arenaPlanOriginal = singleStepPlan;
@@ -8835,17 +9969,45 @@ drawMonsters = function() {
   monsters = all.filter(m => !m.arenaDummy);
   try { arenaDrawOriginal(); } finally { monsters = all; }
   ctx.save();
+  const now = performance.now();
   for (const m of dummies) {
-    const p = project(m.px, m.py), s = CELL, hit = m.arenaHitUntil > performance.now();
+    const p = project(m.px, m.py), s = CELL, hit = m.arenaHitUntil > now;
     ctx.fillStyle = '#38271f';ctx.fillRect(p.x-s*.24,p.y+s*.12,s*.48,s*.16);
     ctx.fillStyle = '#855233';ctx.fillRect(p.x-s*.10,p.y-s*.19,s*.20,s*.36);
     ctx.fillStyle = hit ? '#ffdf95' : '#be874d';ctx.fillRect(p.x-s*.22,p.y-s*.28,s*.44,s*.31);
+    const poison = stepPoisonAlpha(m,now);
+    if (poison) {
+      ctx.save();ctx.globalAlpha = poison;ctx.fillStyle = '#68e742';
+      ctx.fillRect(p.x-s*.10,p.y+s*.03,s*.20,s*.14);
+      ctx.fillRect(p.x-s*.22,p.y-s*.28,s*.44,s*.31);
+      ctx.restore();
+    }
     ctx.font = 'bold '+Math.round(s*.28)+'px sans-serif';
     ctx.textAlign = 'center';ctx.fillStyle = '#fff3cc';ctx.fillText('∞',p.x,p.y-s*.34);
   }
   ctx.restore();
+  arenaDrawTrialStatuses();
+};
+const arenaActBase = singleStepAct;
+singleStepAct = function(type,dir) {
+  const result = arenaActBase(type,dir);
+  if (result) {
+    arenaEffectReadout();
+    if (arenaControl('setup').open) arenaSyncSetupInputs();
+  }
+  return result;
 };
 
+arenaControl('setup').addEventListener('toggle',() => {
+  if (arenaControl('setup').open) arenaSyncSetupInputs();
+});
+for (const key of Object.keys(arenaSetupLabels)) {
+  const input = arenaControl('setup-'+key);
+  input.addEventListener('change',() => arenaChangeSetup(key,input.valueAsNumber));
+  input.addEventListener('keydown',event => {
+    if (event.key === 'Enter') input.blur();
+  });
+}
 arenaControl('kind').addEventListener('change', arenaOptions);
 arenaControl('entry').addEventListener('change', arenaDescribe);
 arenaControl('start').addEventListener('click', () => arenaLoad(false));
@@ -8856,6 +10018,8 @@ arenaControl('clear').addEventListener('click', () => {
   arenaLoad(true);
 });
 arenaControl('zero').addEventListener('click', arenaResetDamage);
+arenaControl('next-room').addEventListener('click', () => arenaLoad(false,'room'));
+arenaControl('next-floor').addEventListener('click', () => arenaLoad(false,'floor'));
 function arenaBoardClick(event, remove) {
   if (!arena.editing || arenaControl('kind').disabled) return;
   event.preventDefault();
@@ -8884,7 +10048,6 @@ function arenaReady() {
     requestAnimationFrame(arenaReady);
     return;
   }
-  registerWeaponTrialItems();
   arenaOptions();
   arenaLoad(true);
 }

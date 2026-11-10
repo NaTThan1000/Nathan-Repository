@@ -151,6 +151,8 @@ function spawnResourcesInRoom(resIds) {
   }
 }
 
+let isEligibleItemDrop = () => true;
+
 /**
  * 按掉落表或品质覆盖随机一个道具 cfgId
  * @param {string|null} qualityOverride - 强制品质 (common/rare/legendary)，传 null 则用掉落表随机
@@ -194,8 +196,9 @@ function rollItem(qualityOverride, itemDropTable = 'item_drop_default') {
     : quality === 'rare' ? ITEM_POOL_RARE
     : ITEM_POOL_COMMON;
 
-  if (pool.length === 0) return ITEM_POOL_ALL[Math.floor(Math.random() * ITEM_POOL_ALL.length)] || null;
-  return pool[Math.floor(Math.random() * pool.length)];
+  const eligible = pool.filter(isEligibleItemDrop);
+  const candidates = eligible.length ? eligible : ITEM_POOL_ALL.filter(isEligibleItemDrop);
+  return candidates[Math.floor(Math.random() * candidates.length)] || null;
 }
 
 let monsters = [];  // [{id, cfgId, name, col, row, hp, maxHp, predictedPath, moveSpeed, movement, damage, aiType, tint, ...}]

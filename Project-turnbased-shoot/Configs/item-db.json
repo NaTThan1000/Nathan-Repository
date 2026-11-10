@@ -3,7 +3,8 @@
     "_description": "道具数据库 — 所有可拾取道具的属性与效果定义 + 道具掉落表",
     "_structure": {
       "items": "已退出当前道具池的旧配置，仅供回溯回归包使用",
-      "singleStepItems": "当前单步版正式掉落与商店的道具定义 (key=cgId, value=道具属性)",
+      "singleStepItems": "单步正式版和自定义战斗场共用的道具目录，同时用于正式掉落与商店。",
+      "singleStepItemDropTables": "单步正式版的来源品质权重，按表名覆盖基础表。",
       "itemDropTables": "道具掉落表，每张表结构 { mode, table }。mode 当前统一为 pick_one(权重抽1个品质，再从品质池均匀随机具体道具)。table 中 key=品质(none/common/rare/legendary)，value=权重(整数)。"
     },
     "_fields": {
@@ -22,6 +23,10 @@
       "effects": {
         "_keys": ["maxHp", "attack", "fireRate", "moveSpeed", "range"],
         "_desc": "追加的属性修正值"
+      },
+      "stackable": {
+        "_type": "boolean",
+        "_desc": "允许重复获得，并累计每份道具的属性修正"
       },
       "price": {
         "_desc": "商店售价（金币），默认15",
@@ -42,6 +47,7 @@
     "single_step_attack": {
       "id": "single_step_attack",
       "name": "攻击力+",
+      "stackable": true,
       "icon": "⚔",
       "desc": "攻击力 +0.5",
       "quality": "common",
@@ -52,6 +58,7 @@
     "single_step_range": {
       "id": "single_step_range",
       "name": "射程+",
+      "stackable": true,
       "icon": "➜",
       "desc": "射程 +1 格",
       "quality": "common",
@@ -62,6 +69,7 @@
     "single_step_health": {
       "id": "single_step_health",
       "name": "生命+",
+      "stackable": true,
       "icon": "♥",
       "desc": "最大生命 +1，当前生命随上限提升",
       "quality": "common",
@@ -79,6 +87,581 @@
       "specials": [],
       "weaponTrial": { "effect": "pierce", "slot": "shell" },
       "price": 20
+    },
+    "trial_weapon_dual": {
+      "id": "trial_weapon_dual",
+      "name": "双管",
+      "icon": "Ⅱ",
+      "desc": "同向发射两发，每发造成65%伤害。",
+      "quality": "common",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"dual","slot":"pattern"},
+      "price": 15
+    },
+    "trial_weapon_triple": {
+      "id": "trial_weapon_triple",
+      "name": "三管",
+      "icon": "Ⅲ",
+      "desc": "同向发射三发，每发造成50%伤害。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"triple","slot":"pattern"},
+      "price": 20
+    },
+    "trial_weapon_trident": {
+      "id": "trial_weapon_trident",
+      "name": "三叉管",
+      "icon": "Ψ",
+      "desc": "向正前方及两侧各45°发射一发。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"trident","slot":"pattern"},
+      "price": 20
+    },
+    "trial_weapon_burstCharge": {
+      "id": "trial_weapon_burstCharge",
+      "name": "蓄力枪管（连击）",
+      "icon": "≡",
+      "desc": "前三次射击行动蓄力，第四次额外连射。移动保留蓄力。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"burstCharge","slot":"trajectory"},
+      "price": 20
+    },
+    "trial_weapon_heavyCharge": {
+      "id": "trial_weapon_heavyCharge",
+      "name": "蓄力枪管（合体）",
+      "icon": "⬤",
+      "desc": "前三次射击行动蓄力，第四次射出高伤重弹。移动保留蓄力。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"heavyCharge","slot":"trajectory"},
+      "price": 20
+    },
+    "trial_weapon_decay": {
+      "id": "trial_weapon_decay",
+      "name": "能量衰减枪管",
+      "icon": "↘",
+      "desc": "近距离伤害更高，远距离衰减。",
+      "quality": "common",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"decay","slot":"trajectory"},
+      "price": 15
+    },
+    "trial_weapon_gain": {
+      "id": "trial_weapon_gain",
+      "name": "能量增幅枪管",
+      "icon": "↗",
+      "desc": "近距离伤害较低，远距离伤害增加。",
+      "quality": "common",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"gain","slot":"trajectory"},
+      "price": 15
+    },
+    "trial_weapon_shotgun": {
+      "id": "trial_weapon_shotgun",
+      "name": "霰弹枪",
+      "icon": "⋰",
+      "desc": "射程减半并向下取整，最多6格。20颗低伤弹丸前半程沿一列飞行，后半程随机分散到三列。数量类枪管可覆盖散射。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"shotgun","slot":"body"},
+      "price": 20
+    },
+    "trial_weapon_energy": {
+      "id": "trial_weapon_energy",
+      "name": "能量光速枪",
+      "icon": "═",
+      "desc": "发射能量射线，射程增加2格，可穿过怪物、木箱和岩石。",
+      "quality": "legendary",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"energy","slot":"body"},
+      "price": 25
+    },
+    "trial_weapon_blast": {
+      "id": "trial_weapon_blast",
+      "name": "爆炸子弹",
+      "icon": "✷",
+      "desc": "每发首次命中时爆炸，覆盖命中格及周围8格。撞墙时以墙边的房内格为中心。",
+      "quality": "legendary",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"blast","slot":"shell"},
+      "price": 25
+    },
+    "trial_weapon_splash": {
+      "id": "trial_weapon_splash",
+      "name": "溅射子弹",
+      "icon": "✣",
+      "desc": "首次命中怪物或障碍时，随机向1–8个方向溅射。幸运决定方向数，距离为射程的40%。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"splash","slot":"shell"},
+      "price": 20
+    },
+    "trial_weapon_arc": {
+      "id": "trial_weapon_arc",
+      "name": "电弧子弹",
+      "icon": "ϟ",
+      "desc": "最多传导四次，每跳距离为射程的50%。随机选择能命中最多不同怪物的路线，末端障碍也承受伤害。",
+      "quality": "legendary",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"arc","slot":"shell"},
+      "price": 25
+    },
+    "trial_weapon_tracking": {
+      "id": "trial_weapon_tracking",
+      "name": "追踪子弹",
+      "icon": "⌖",
+      "desc": "飞行中检测当前位置周围8格，发现可命中的怪物就转向。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"tracking","slot":"shell"},
+      "price": 20
+    },
+    "trial_weapon_fold": {
+      "id": "trial_weapon_fold",
+      "name": "空间折叠子弹",
+      "icon": "↻",
+      "desc": "同一发子弹最多从房间边界绕回一次，继续使用剩余射程。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"fold","slot":"shell"},
+      "price": 20
+    },
+    "trial_weapon_poison": {
+      "id": "trial_weapon_poison",
+      "name": "毒性子弹",
+      "icon": "◈",
+      "desc": "命中施毒，接下来3次正常战斗步各造成少量伤害。再次命中刷新。",
+      "quality": "common",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"poison","slot":"ammo"},
+      "price": 15
+    },
+    "trial_weapon_fork": {
+      "id": "trial_weapon_fork",
+      "name": "分叉管",
+      "icon": "⋎",
+      "desc": "向正前方两侧各45°发射一发。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"fork","slot":"pattern"}
+    },
+    "trial_weapon_twin": {
+      "id": "trial_weapon_twin",
+      "name": "双头管",
+      "icon": "↔",
+      "desc": "向正前和正后各发射一发。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"twin","slot":"pattern"}
+    },
+    "trial_weapon_random": {
+      "id": "trial_weapon_random",
+      "name": "随机枪管",
+      "icon": "※",
+      "desc": "向前射击，并从其余方向中随机选不同方向追加发射。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"random","slot":"pattern"}
+    },
+    "trial_weapon_straight": {
+      "id": "trial_weapon_straight",
+      "name": "普通枪管",
+      "icon": "→",
+      "desc": "恢复普通直线射击，覆盖同类发射方式。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"straight","slot":"trajectory"}
+    },
+    "trial_weapon_bullet": {
+      "id": "trial_weapon_bullet",
+      "name": "实弹枪",
+      "icon": "●",
+      "desc": "恢复普通实弹枪体，覆盖同类枪体。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"bullet","slot":"body"}
+    },
+    "trial_weapon_laser": {
+      "id": "trial_weapon_laser",
+      "name": "激光枪",
+      "icon": "━",
+      "desc": "发射激光，射程增加2格。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"laser","slot":"body"}
+    },
+    "trial_weapon_ghost": {
+      "id": "trial_weapon_ghost",
+      "name": "灵体子弹",
+      "icon": "◇",
+      "desc": "穿透怪物和阻挡射击的地形，无法穿出房间。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"ghost","slot":"shell"}
+    },
+    "trial_weapon_shield": {
+      "id": "trial_weapon_shield",
+      "name": "护盾",
+      "icon": "⬟",
+      "desc": "拾取时获得1点可耗尽的蓝心。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"shield","slot":null}
+    },
+    "trial_weapon_jet": {
+      "id": "trial_weapon_jet",
+      "name": "喷气背包",
+      "icon": "⤴",
+      "desc": "朝单格深坑移动时，可跨到对面的空地。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"jet","slot":null}
+    },
+    "trial_weapon_boots": {
+      "id": "trial_weapon_boots",
+      "name": "厚底皮靴",
+      "icon": "▣",
+      "desc": "免疫地刺伤害。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"boots","slot":null}
+    },
+    "trial_weapon_echo": {
+      "id": "trial_weapon_echo",
+      "name": "残影",
+      "icon": "◐",
+      "desc": "成功闪避时在原格留下残影。子弹时间内射击，残影从原格同向补射。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"echo","slot":null}
+    },
+    "trial_weapon_luck": {
+      "id": "trial_weapon_luck",
+      "name": "幸运+",
+      "icon": "✧",
+      "desc": "幸运框架测试项。本轮实际幸运值为0。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"luck","slot":null}
+    },
+    "trial_weapon_brace": {
+      "id": "trial_weapon_brace",
+      "name": "防冲姿态",
+      "icon": "⛨",
+      "desc": "阻止怪物挤开玩家，并按当前攻击力反伤该怪物。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"brace","slot":null}
+    },
+    "trial_weapon_runGun": {
+      "id": "trial_weapon_runGun",
+      "name": "边跑边射",
+      "icon": "↝",
+      "desc": "每次主动移动后，从落点上下左右射程内可命中的怪物中随机选取一个，自动攻击一次。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"runGun","slot":null}
+    },
+    "trial_weapon_bulletBonus": {
+      "id": "trial_weapon_bulletBonus",
+      "name": "子弹子弹时间",
+      "icon": "⌛",
+      "desc": "子弹时间内首次击杀本次闪避的怪物，额外延长一步。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"bulletBonus","slot":null}
+    },
+    "trial_weapon_slipStep": {
+      "id": "trial_weapon_slipStep",
+      "name": "闪身步",
+      "icon": "↶",
+      "desc": "成功触发子弹时间后回到原格，原格无法站立时保留落点。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"slipStep","slot":null}
+    },
+    "trial_weapon_counterTime": {
+      "id": "trial_weapon_counterTime",
+      "name": "反杀时间",
+      "icon": "↯",
+      "desc": "成功触发子弹时间时，无视遮挡对其中一个被闪避的怪物反击一次。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"counterTime","slot":null}
+    },
+    "trial_weapon_bombBaby": {
+      "id": "trial_weapon_bombBaby",
+      "name": "炸弹宝宝",
+      "icon": "♧",
+      "desc": "炸弹爆炸时有25%概率在爆点掉落一个炸弹。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"bombBaby","slot":null}
+    },
+    "trial_weapon_bombDecoy": {
+      "id": "trial_weapon_bombDecoy",
+      "name": "炸弹诱饵",
+      "icon": "◎",
+      "desc": "倒计时中的炸弹吸引追击范围内的怪物；怪物仍会优先执行攻击。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"bombDecoy","slot":null}
+    },
+    "trial_weapon_claymore": {
+      "id": "trial_weapon_claymore",
+      "name": "阔剑地雷",
+      "icon": "◬",
+      "desc": "炸弹只向指定方向爆炸。离开放置格时朝移动反方向，推过的炸弹朝推移方向。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"claymore","slot":null}
+    },
+    "trial_weapon_remoteBomb": {
+      "id": "trial_weapon_remoteBomb",
+      "name": "遥控炸弹",
+      "icon": "⌁",
+      "desc": "放置后停住倒计时，再按E手动引爆。可与阔剑地雷组合。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"remoteBomb","slot":null}
+    },
+    "trial_weapon_supplyDrone": {
+      "id": "trial_weapon_supplyDrone",
+      "name": "补给无人机",
+      "icon": "◇",
+      "desc": "累计清空3间房，补充一份当前持有数量最少的金币、钥匙或炸弹。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"supplyDrone","slot":null}
+    },
+    "trial_weapon_backArmor": {
+      "id": "trial_weapon_backArmor",
+      "name": "充能背甲",
+      "icon": "▣",
+      "desc": "每间房可抵挡一次来自背后或斜后方的怪物伤害。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"backArmor","slot":null}
+    },
+    "trial_weapon_timedShield": {
+      "id": "trial_weapon_timedShield",
+      "name": "充能护盾",
+      "icon": "◯",
+      "desc": "占用一个心位，拾取时充满，可抵挡一次伤害。挡伤后归零，每主动移动一格充能一点，20点充满。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"timedShield","slot":null}
+    },
+    "trial_weapon_rageShield": {
+      "id": "trial_weapon_rageShield",
+      "name": "狂暴护盾",
+      "icon": "⬟",
+      "desc": "击杀10只怪物获得一次挡伤。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"rageShield","slot":null}
+    },
+    "trial_weapon_killMove": {
+      "id": "trial_weapon_killMove",
+      "name": "喷气背包充能",
+      "icon": "⇢",
+      "desc": "击杀获得一次额外移动，最多储存一次。使用额外行动时无法再次返还。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"killMove","slot":null}
+    },
+    "trial_weapon_killShot": {
+      "id": "trial_weapon_killShot",
+      "name": "弹药回收",
+      "icon": "⟳",
+      "desc": "击杀获得一次额外射击，最多储存一次。使用额外行动时无法再次返还。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"killShot","slot":null}
+    },
+    "trial_weapon_hurtPill": {
+      "id": "trial_weapon_hurtPill",
+      "name": "浴血药丸",
+      "icon": "♥",
+      "desc": "每次实际受伤使本层攻击力+0.5。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"hurtPill","slot":null}
+    },
+    "trial_weapon_killPill": {
+      "id": "trial_weapon_killPill",
+      "name": "狂暴药丸",
+      "icon": "✦",
+      "desc": "每次击杀使本层攻击力+0.2。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"killPill","slot":null}
+    },
+    "trial_weapon_toxicTrail": {
+      "id": "trial_weapon_toxicTrail",
+      "name": "毒血",
+      "icon": "◈",
+      "desc": "离开的地格留下毒血，持续3步，每步对经过或站立的怪物造成0.5伤害。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"toxicTrail","slot":null}
+    },
+    "trial_weapon_slimeTrail": {
+      "id": "trial_weapon_slimeTrail",
+      "name": "史莱姆化",
+      "icon": "◍",
+      "desc": "离开的地格留下粘液，持续3步。怪物踩上后，下一次移动先停一回合，再执行原定移动。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"slimeTrail","slot":null}
+    },
+    "trial_weapon_lob": {
+      "id": "trial_weapon_lob",
+      "name": "抛射枪管",
+      "icon": "⌒",
+      "desc": "射程+2，沿瞄准方向越过遮挡，优先落向怪物、木箱、岩石，最后为射程末端。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"lob","slot":"trajectory"}
+    },
+    "trial_weapon_unstable": {
+      "id": "trial_weapon_unstable",
+      "name": "不稳定的枪",
+      "icon": "✧",
+      "desc": "每第4次主动开火额外发射一次霰弹。幸运暂为0。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"unstable","slot":"body"}
+    },
+    "trial_weapon_knockback": {
+      "id": "trial_weapon_knockback",
+      "name": "击退子弹",
+      "icon": "➟",
+      "desc": "直击后将幸存怪物沿射击方向推一格。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"knockback","slot":"ammo"}
+    },
+    "trial_weapon_fear": {
+      "id": "trial_weapon_fear",
+      "name": "恐惧子弹",
+      "icon": "☍",
+      "desc": "直击时有35%概率使怪物接下来2步的移动优先远离玩家。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"fear","slot":"ammo"}
+    },
+    "trial_weapon_petrify": {
+      "id": "trial_weapon_petrify",
+      "name": "石化子弹",
+      "icon": "◆",
+      "desc": "直击时有35%概率使怪物停动停攻2步。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"petrify","slot":"ammo"}
+    },
+    "trial_weapon_sticky": {
+      "id": "trial_weapon_sticky",
+      "name": "粘液子弹",
+      "icon": "●",
+      "desc": "直击时有35%概率减速。叠到2层后停止移动3步，仍可原地攻击。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"sticky","slot":"ammo"}
+    },
+    "trial_weapon_ink": {
+      "id": "trial_weapon_ink",
+      "name": "墨汁子弹",
+      "icon": "◉",
+      "desc": "直击时有35%概率让怪物接下来2步只做默认行动。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"ink","slot":"ammo"}
+    },
+    "trial_weapon_short": {
+      "id": "trial_weapon_short",
+      "name": "短路子弹",
+      "icon": "ϟ",
+      "desc": "直击时有35%概率阻止怪物接下来2步攻击。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"short","slot":"ammo"}
+    },
+    "trial_weapon_parasite": {
+      "id": "trial_weapon_parasite",
+      "name": "寄生爆弹",
+      "icon": "✹",
+      "desc": "直击叠层。满5层或经过5个正常战斗步后引爆，额外伤害宿主。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"parasite","slot":"ammo"}
+    },
+    "trial_weapon_acid": {
+      "id": "trial_weapon_acid",
+      "name": "硫酸子弹",
+      "icon": "▽",
+      "desc": "直击时在命中格留下酸液，持续5步，每步对经过或站立的怪物造成1伤害。",
+      "quality": "rare",
+      "effects": {},
+      "specials": [],
+      "weaponTrial": {"effect":"acid","slot":"ammo"}
     }
   },
   "items": {
@@ -361,6 +944,17 @@
     }
   },
 
+  "singleStepItemDropTables": {
+    "item_drop_default": { "mode": "pick_one", "table": { "none": 0, "common": 65, "rare": 30, "legendary": 5 } },
+    "item_drop_common": { "mode": "pick_one", "table": { "none": 0, "common": 65, "rare": 30, "legendary": 5 } },
+    "item_drop_ranged": { "mode": "pick_one", "table": { "none": 0, "common": 65, "rare": 30, "legendary": 5 } },
+    "item_drop_heavy": { "mode": "pick_one", "table": { "none": 0, "common": 65, "rare": 30, "legendary": 5 } },
+    "item_drop_treasure_room": { "mode": "pick_one", "table": { "none": 0, "common": 0, "rare": 80, "legendary": 20 } },
+    "item_drop_boss_room": { "mode": "pick_one", "table": { "none": 0, "common": 0, "rare": 65, "legendary": 35 } },
+    "item_drop_chest_normal": { "mode": "pick_one", "table": { "none": 0, "common": 0, "rare": 85, "legendary": 15 } },
+    "item_drop_chest_golden": { "mode": "pick_one", "table": { "none": 0, "common": 0, "rare": 60, "legendary": 40 } },
+    "item_drop_shop_stock": { "mode": "pick_one", "table": { "none": 0, "common": 45, "rare": 45, "legendary": 10 } }
+  },
   "itemDropTables": {
     "item_drop_default": {
       "mode": "pick_one",

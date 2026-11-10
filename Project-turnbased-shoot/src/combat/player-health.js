@@ -1,5 +1,9 @@
 // ==================== 血量上限系统 ====================
 const MAX_TOTAL_HEARTS = 12;
+let reservedHeartSlots = () => 0;
+function heartCapacity() {
+  return MAX_TOTAL_HEARTS - reservedHeartSlots();
+}
 
 // 计算当前总心数（红心 + 蓝心，向上取整）
 function totalHearts() {
@@ -10,7 +14,7 @@ function totalHearts() {
 // 尝试增加红心上限，可能替换蓝心
 function tryAddRedHeart() {
   // 还放得下 1 颗红心 → 直接加
-  if (totalHearts() + 1 <= MAX_TOTAL_HEARTS) return true;
+  if (totalHearts() + 1 <= heartCapacity()) return true;
   // 已到上限：牺牲 1 颗蓝心换红心（红心优先）
   if (playerResources.blueHearts > 0) {
     playerResources.blueHearts = Math.max(0, playerResources.blueHearts - 1);
@@ -22,7 +26,7 @@ function tryAddRedHeart() {
 
 // 尝试增加蓝心（按数量精确判定是否放得下，红心优先）
 function tryAddBlueHeart(amount = 1) {
-  return totalHearts() + amount <= MAX_TOTAL_HEARTS;
+  return totalHearts() + amount <= heartCapacity();
 }
 
 // 站在尖刺格且非无敌 → 掉血并进入无敌状态（无敌期内不重复结算）

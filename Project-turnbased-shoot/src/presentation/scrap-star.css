@@ -34,3 +34,9 @@ body,body *,button,input,select,textarea{font-family:var(--game-font)!important}
 @media(max-width:580px){#scrap-hud{grid-template-columns:minmax(166px,1fr) minmax(100px,1fr)}.scrap-point-panel{grid-column:1/-1}.scrap-res{grid-column:1/-1}.world-map-card{padding:10px}#world-map-modal{padding:12px}.world-map-card header{align-items:flex-start}.world-map-card button{padding:7px;font-size:12px}}
 #game-container{width:954px!important;max-width:100%!important;height:auto!important}#game{width:100%!important;height:auto!important}#text-overlay{transform-origin:top left}
 #scrap-footer .scrap-items{display:flex;align-items:center;padding:12px}#scrap-footer #item-bar{align-items:center;gap:6px;padding:0}#item-bar-label,#item-bar-empty{color:#a7bec0!important;line-height:24px}
+
+.arena-heart-shield{display:block;width:20px;height:20px}
+.arena-heart-shield svg{display:block;width:100%;height:100%;overflow:visible}
+.arena-heart-shield .arena-shield-energy{fill:#45bcd5}
+.arena-heart-shield.ready{filter:drop-shadow(0 0 3px #5df6ff)}
+.arena-heart-shield.ready .arena-shield-energy{fill:#a0f9ff}

@@ -104,7 +104,8 @@ async function loadItemDB(catalog = 'items') {
     if (r.ok) {
       const data = await r.json();
       ITEMS_DB = data[catalog] || {};
-      ITEM_DROP_TABLES = data.itemDropTables || {};
+      ITEM_DROP_TABLES = {...data.itemDropTables,
+        ...(catalog === 'singleStepItems' ? data.singleStepItemDropTables : {})};
       _rebuildItemPools();
       console.log('✅ 已从 JSON 加载道具数据库 (' + ITEM_POOL_ALL.length + ' 件 + ' + Object.keys(ITEM_DROP_TABLES).length + ' 张品质表)');
       return true;

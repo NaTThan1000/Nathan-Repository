@@ -226,8 +226,9 @@ function executeBossLanding() {
   const m = pendingBossLanding.monster;
   if (m && m._charging) return; // 新流程：不在玩家回合结束时处理，等怪物回合处理
 
-  // 旧版兼容：直接落地
-  const { targetCol, targetRow } = pendingBossLanding;
+  // 旧版兼容：直接落地，同样避开怪物占位。
+  const landing = resolveBossLandingPosition(m, pendingBossLanding.targetCol, pendingBossLanding.targetRow);
+  const { col: targetCol, row: targetRow } = landing;
   let { landAction } = pendingBossLanding;
   if (!landAction) {
     const mCfg = MONSTER_DB[m.cfgId];
@@ -267,12 +268,6 @@ function doLandingDamage(m, targetCol, targetRow, sz, landAction, oldBossPos = n
         const collisionDmg = m.damage || 0.5;
         damagePlayer(collisionDmg, m.id);
         playerDirectHit = true;
-      }
-      for (const om of monsters) {
-        if (om.id === m.id || om.jumperVanished) continue;
-        if (isInMonsterFootprint(om, tc, tr)) {
-          damageMonster(om, 1);
-        }
       }
     }
   }

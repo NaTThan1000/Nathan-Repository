@@ -20,8 +20,10 @@ function animateMonsters(dt) {
 
 // 伤害飘字
 function updateDamageNumbers(dt) {
+  const now = performance.now();
   for (let i = damageNumbers.length - 1; i >= 0; i--) {
     const d = damageNumbers[i];
+    if (d.showAt > now) continue;
     d.x += d.vx * dt;
     d.y += d.vy * dt;
     d.life -= dt;
