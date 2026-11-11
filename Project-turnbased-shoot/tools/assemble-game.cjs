@@ -27,7 +27,7 @@ async function assembleGame(options={}){
   return read('src/'+file);
  }).join('')+(!options.playtest&&!options.legacy?'\n// SINGLE_STEP_FORMAL_START\n'+['combat/weapon-upgrades.js','combat/single-step-mode.js','combat/single-step-enemies.js','presentation/single-step-presentation.js','combat/single-step-item-effects.js'].map(f=>read('src/'+f)).join('\n')+'\n// SINGLE_STEP_FORMAL_END\n':'');
  let html=read('src/game.html');
- if(options.sandbox)html=html.replace('</head>',()=>'<style>'+read('src/playtest/custom-arena.css')+'</style></head>').replace('/* GAME_SCRIPT */',()=> '/* GAME_SCRIPT */\n'+read('src/playtest/custom-arena.js'));
+ if(options.sandbox)html=html.replace('</head>',()=>'<style>'+read('src/playtest/custom-arena.css')+'</style></head>').replace('/* GAME_SCRIPT */',()=> '/* GAME_SCRIPT */\n'+read('src/playtest/custom-arena-enemies.js')+'\n'+read('src/playtest/custom-arena.js'));
  if(html.split('/* GAME_SCRIPT */').length!==2||html.split('<!-- GAME_PRESENTATION_STYLE -->').length!==2)throw Error('页面模板插入点必须唯一');
  html=html.replace('/* GAME_SCRIPT */',()=>script).replace('<!-- GAME_PRESENTATION_STYLE -->',()=>'<style id="scrap-star-game-style">'+read('src/presentation/scrap-star.css')+'</style>');
  new vm.Script(html.match(/<script>([\s\S]*?)<\/script>/)[1]);

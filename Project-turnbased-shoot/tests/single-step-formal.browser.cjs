@@ -5,7 +5,20 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
 (async()=>{const browser=await chromium.launch({headless:true,channel:'chrome'});try{
  const page=await browser.newPage({viewport:{width:1280,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(pathToFileURL(path.resolve(__dirname,'../dist/turnbased-shoot-demo-pack.html')).href);
- await page.waitForFunction(()=>currentFloor&&MONSTER_DB.step_mobile&&Object.keys(RESOURCE_DB).length);await page.evaluate(()=>startGameFromMenu());
+ await page.waitForFunction(()=>currentFloor&&MONSTER_DB.step_mobile&&Object.keys(RESOURCE_DB).length);
+ const floorSounds=await page.evaluate(()=>{
+  const playFloorSound=SFX.floor;
+  let menuSounds=0,playingSounds=0;
+  try{
+   SFX.floor=()=>{if(gameStarted)playingSounds++;else menuSounds++;};
+   enterFloor(1);
+   startGameFromMenu();
+   enterFloor(2);
+   enterFloor(1);
+   return {menuSounds,playingSounds};
+  }finally{SFX.floor=playFloorSound;}
+ });
+ assert.deepEqual(floorSounds,{menuSounds:0,playingSounds:2},'菜单初始化静音，游戏内切层正常播放');
  await page.evaluate(singleStepItems=>{
   const check=(v,msg)=>{if(!v)throw Error(msg);};
   const approved=new Set(Object.keys(singleStepItems));
@@ -93,17 +106,18 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   m=stepFixture('step_mobile',3,6);check(JSON.stringify(stepEnemyChase(m))===JSON.stringify({col:3,row:5}),'纵向距离较大先沿纵轴靠近');
   m=stepFixture('step_mobile',2,2);Object.assign(player,{col:5,row:4});check(JSON.stringify(stepEnemyChase(m))===JSON.stringify({col:3,row:2}),'正方向按较长轴靠近');
   Object.assign(player,{col:4,row:4});const random=monsterActionRandom;try{monsterActionRandom=()=>.1;const a=stepEnemyChase(m);monsterActionRandom=()=>.9;const b=stepEnemyChase(m);check(a.col!==b.col&&a.row!==b.row,'相等距离随机选择不同轴');}finally{monsterActionRandom=random;}
-  m=stepFixture('step_mobile',5,5);currentRoomGrid[4][5]=TILE.ROCK;check(JSON.stringify(stepEnemyChase(m))===JSON.stringify({col:5,row:4}),'较长轴被墙挡住时尝试另一个靠近方向');
+  m=stepFixture('step_mobile',5,5);currentRoomGrid[4][5]=TILE.ROCK;check(JSON.stringify(stepEnemyChase(m))===JSON.stringify({col:4,row:5}),'飞行射手沿较长轴越过障碍');
+  m=stepFixture('step_fighter',5,5);currentRoomGrid[4][5]=TILE.ROCK;check(JSON.stringify(stepEnemyChase(m))===JSON.stringify({col:5,row:4}),'地面怪较长轴被墙挡住时尝试另一个方向');
   m=stepFixture('step_mobile',5,5);spawnMonsterAtRandomPos('step_small');Object.assign(monsters.at(-1),{col:4,row:5});check(JSON.stringify(stepEnemyChase(m))===JSON.stringify({col:5,row:4}),'其他怪物同样作为寻路障碍');
-  m=stepFixture('step_mobile',4,4);currentRoomGrid[3][4]=currentRoomGrid[4][3]=TILE.ROCK;check(JSON.stringify(stepEnemyChase(m))===JSON.stringify({col:4,row:5}),'两条靠近方向受阻时允许先远离绕路');
+  m=stepFixture('step_fighter',4,4);currentRoomGrid[3][4]=currentRoomGrid[4][3]=TILE.ROCK;check(JSON.stringify(stepEnemyChase(m))===JSON.stringify({col:4,row:5}),'两条靠近方向受阻时允许先远离绕路');
   const visited=new Set([m.col+','+m.row]);for(let i=0;i<8&&Math.abs(m.col-player.col)+Math.abs(m.row-player.row)>1;i++){const next=stepEnemyChase(m);check(next&&!visited.has(next.col+','+next.row),'寻路持续推进，不折返振荡');Object.assign(m,next);visited.add(m.col+','+m.row);}check(Math.abs(m.col-player.col)+Math.abs(m.row-player.row)===1,'绕过拐角最终到达玩家邻格');
-  m=stepFixture('step_mobile',6,3);for(const[c,r]of [[1,3],[3,3],[2,2],[2,4]])currentRoomGrid[c][r]=TILE.ROCK;check(JSON.stringify(stepEnemyChase(m))===JSON.stringify({col:5,row:3}),'暂时无法接触玩家时接近最近可达位置');m.col=4;check(stepEnemyChase(m)===null,'已在最近可达位置时才等待');
+  m=stepFixture('step_fighter',6,3);for(const[c,r]of [[1,3],[3,3],[2,2],[2,4]])currentRoomGrid[c][r]=TILE.ROCK;check(JSON.stringify(stepEnemyChase(m))===JSON.stringify({col:5,row:3}),'暂时无法接触玩家时接近最近可达位置');m.col=4;check(stepEnemyChase(m)===null,'已在最近可达位置时才等待');
   m=stepFixture('step_mobile',6,3);const shotOrigin=m.px;singleStepAct('shoot','right');animateMonsters(.05);check(m.hp===3.5&&m.px===shotOrigin&&m.col===5,'玩家射击先命中，怪物表现等弹体到达后再移动');
   m=stepFixture('step_fighter',4,3);check(SINGLE_STEP.plans.get(m.id).type==='strike','近战两格攻击');singleStepAct('move','up');check(m.col===4&&SINGLE_STEP.plans.get(m.id).type==='recover','近战原地攻击后恢复一回合');
   m=stepFixture('step_fixed',8,3);check(!SINGLE_STEP.plans.get(m.id).path.length,'固定炮台射程外原地不动');
   for(const id of ['step_x','step_cross']){m=stepFixture(id,4,6);const plan=SINGLE_STEP.plans.get(m.id);check(plan.jump&&plan.path.length===1,id+'追击跳跃');const probe={...m,...plan.path[0]};check(stepEnemyCells(probe).some(p=>p.col===player.col&&p.row===player.row),id+'追击落点能够射到玩家');singleStepAct('shoot','left');check(m._stepJump&&SINGLE_STEP.plans.get(m.id).type==='fan',id+'落地后锁定攻击');}
   m=stepFixture('step_big',4,3);m.hp=1;SINGLE_STEP.bonus=2;singleStepAct('shoot','right');check(monsters.length===2&&monsters.every(m=>m.cfgId==='step_small'&&m._stepJump),'击杀最后一只大史莱姆先分裂再判清房');check(inCombat&&SINGLE_STEP.bonus===1,'分裂不能提前清房或中止子弹时间');const children=JSON.stringify(monsters.map(m=>[m.col,m.row]));singleStepAct('shoot','left');check(children===JSON.stringify(monsters.map(m=>[m.col,m.row])),'奖励期间新生小史莱姆冻结');
-  m=stepFixture('step_bomber',3,3);singleStepAct('move','left');check(!monsters.length&&playerStats.hp===5&&SINGLE_STEP.bonus===2,'自爆八格锁定、闪避与自身死亡');
+  m=stepFixture('step_bomber',3,3);singleStepAct('move','left');check(!monsters.length&&playerStats.hp===5&&SINGLE_STEP.bonus===0,'躲开最后一只怪物的自爆后清房取消子弹时间');
   const placeAlly=(col,row)=>{
    spawnMonsterAtRandomPos('step_fixed');
    const ally=monsters.at(-1);
@@ -111,9 +125,13 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   };
   m=stepFixture('step_mobile',5,5);placeAlly(4,5);
   check(stepEnemyPlan(m).type!=='shot','射手不因射程内有其他怪物而锁定攻击');
-  m=stepFixture('step_bomber',3,3);const blastAlly=placeAlly(3,4),blastAllyHp=blastAlly.hp;
+  m=stepFixture('step_bomber',3,3);const blastAlly=placeAlly(3,4),outside=placeAlly(5,4);
+  const outsideHp=outside.hp;
+  currentRoomGrid[4][2]=TILE.ROCK;initTileData();
   singleStepAct('shoot','up');
-  check(playerStats.hp===4&&!monsters.includes(m)&&blastAlly.hp===blastAllyHp,'自爆伤害玩家和自身，附近怪物不受伤');
+  check(playerStats.hp===4&&!monsters.includes(m)&&!monsters.includes(blastAlly)&&outside.hp===outsideHp&&
+   currentRoomGrid[4][2]===TILE.FLOOR&&stepVisualEvents.some(e=>e.type==='bomb-blast'&&e.cells.length===9),
+   '自爆复用九格炸弹伤害与表现，摧毁障碍并伤到其他怪物');
   m=stepFixture('step_fixed',4,3);const meleeAlly=placeAlly(5,3),meleeAllyHp=meleeAlly.hp;
   const adjacent={type:'attack_adjacent',range:2,damage:1};
   const context={monster:m,targetCol:m.col,targetRow:m.row,sz:1};
@@ -128,9 +146,85 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
    try{drawDangerOverlay();drawMonsters();return calls;}
    finally{scrapDraw=draw;}
   };
+  m=stepFixture('step_fixed',5,2);
+  singleStepAct('move','up');
+  check(playerStats.hp===5&&m.col===5&&m.row===2&&SINGLE_STEP.plans.get(m.id).type==='shot','移动进射程时怪物留在原格预告攻击');
+  singleStepAct('shoot','left');
+  check(playerStats.hp===4,'预告的攻击在下一次正常行动结算');
+
+  m=stepFixture('step_fixed',5,3);
+  const opposite=placeAlly(0,3);
+  SINGLE_STEP.plans.set(opposite.id,stepEnemyPlan(opposite));
+  singleStepAct('move','up');
+  check(SINGLE_STEP.bonus===2&&arenaEffects.avoided.size===2&&arenaEffects.avoided.has(m.id)&&arenaEffects.avoided.has(opposite.id),'同一步闪避的怪物全部标记');
+  damageMonster(opposite,opposite.hp);
+  m.hp=1;Object.assign(player,{col:2,row:3});
+  singleStepAct('shoot','right');
+  check(!hasMonstersAlive()&&SINGLE_STEP.bonus===0,'冻结期间击杀最后一只怪立即结束子弹时间');
+
+  m=stepFixture('step_fixed',10,5);
+  currentRoomGrid[2][3]=TILE.SPIKE;
+  SINGLE_STEP.spikeTurn=1;
+  const spikeImage=()=>{
+   ctx.clearRect(0,0,GAME_W,GAME_H);
+   const q=cellRect(2,3);
+   drawWorldSpike(q,2,3);
+   const scale=ctx.getTransform().a;
+   return Array.from(ctx.getImageData(q.xL*scale,q.yT*scale,q.w*scale,q.h*scale).data).join(',');
+  };
+  const extendedArt=spikeImage(),phases=[],images=[];
+  for(let i=0;i<3;i++){
+   singleStepAct('shoot','left');phases.push(singleStepSpikeAt(2,3));images.push(spikeImage());
+  }
+  check(images[0]===images[1]&&images[0]!==images[2]&&images[0]!==extendedArt,'地刺缩回两步使用稳定孔板，预警和伸出显示不同画面');
+  check(phases.join(',')==='retracted,retracted,warning'&&playerStats.hp===5&&threatArt().join(',')==='redGrid,alert','缩回两步，准备伸出时脚下显示红格和感叹号');
+  singleStepAct('move','up');
+  check(SINGLE_STEP.bonus===2&&playerStats.hp===5&&singleStepSpikeAt(2,3)==='extended'&&threatArt().length===0,'离开即将伸出的尖刺触发子弹时间');
+  singleStepAct('shoot','left');
+  check(SINGLE_STEP.spikeTurn===0,'子弹时间冻结尖刺');
+
+  m=stepFixture('step_mobile',5,3);
+  currentRoomGrid[5][3]=TILE.ROCK;initTileData();
+  const rockHp=tileData['5,3'].hp;
+  SINGLE_STEP.bonus=2;singleStepAct('shoot','right');
+  check(m.hp===m.maxHp&&tileData['5,3'].hp===rockHp,'岩石挡住对同格飞行怪的射击，自身不受伤');
+  currentRoomGrid[5][3]=TILE.SPIKE;
+  m._killLoot=[{type:'item',cfgId:'trial_weapon_dual'}];damageMonster(m,m.hp);
+  check(itemsOnGround.some(i=>i.cfgId==='trial_weapon_dual'&&Math.abs(i.col-5)+Math.abs(i.row-3)===1&&currentRoomGrid[i.col][i.row]===TILE.FLOOR),'尖刺上的怪物死亡时道具移到邻近空地');
+  monsters=[];
+  for(let i=0;i<12;i++)spawnMonsterAtRandomPos(i%2?'step_mobile':'step_fighter');
+  check(monsters.length===12&&monsters.every(o=>Math.abs(o.col-player.col)+Math.abs(o.row-player.row)>4&&currentRoomGrid[o.col][o.row]!==TILE.SPIKE),'随机刷怪避开入口四格及尖刺');
+
+  m=stepFixture('duke_fly',8,3);
+  for(let c=7;c<=10;c++)for(let r=2;r<=5;r++)currentRoomGrid[c][r]=TILE.ROCK;
+  initTileData();
+  const dukeNext={col:9,row:3};
+  SINGLE_STEP.plans.set(m.id,{type:'legacy-move',path:[dukeNext],cells:singleStepFootprint(m,dukeNext.col,dukeNext.row)});
+  check(m.movementTags.includes('飞行')&&threatArt().filter(k=>k==='redGrid').length===4,'飞行公爵在障碍上仍预告整个移动伤害范围');
+  singleStepAct('shoot','left');
+  check(m.col===9&&currentRoomGrid[m.col][m.row]===TILE.ROCK,'公爵可移动到障碍物上');
+  for(let c=8;c<=11;c++)for(let r=2;r<=5;r++)currentRoomGrid[c][r]=TILE.ROCK;
+  m._turnAfterAction={type:'summon',monsterId:'duke_floater',chance:1};
+  handleDukeSummon(m);
+  const summoned=monsters.find(o=>o!==m);
+  check(summoned?.movementTags.includes('飞行')&&currentRoomGrid[summoned.col][summoned.row]===TILE.ROCK,'公爵召唤物能落在障碍物上');
+
+  m=stepFixture('step_fixed',4,3);
+  m.hp=1;placeBomb(10,5);
+  const doorSound=SFX.door;let doorSounds=0;
+  SFX.door=()=>{doorSounds++;};
+  try{
+   singleStepAct('shoot','right');
+   updateRoomCombatState();updateRoomCombatState();
+   check(!inCombat&&bombs.length===1&&doorSounds===1,'留有未爆炸弹的清房只播放一次开门音效');
+   check(singleStepInputAction('move','right'),'清房移动不受上一发子弹余效阻塞');
+   updateMove(CELL*.6/singleStepMoveSpeed(),singleStepMoveSpeed());
+   check(player.targetPx!==null&&singleStepInputAction('move','right')&&player.col===4,'探索移动可以衔接尚未完全播放的步伐');
+  }finally{SFX.door=doorSound;}
+
   m=stepFixture('boss_jumper_i',8,4);
   const smallJump=SINGLE_STEP.plans.get(m.id);
-  check(smallJump.type==='legacy-jump'&&smallJump.cells.length>0&&threatArt().length===0,'Boss普通跳跃有落点也不显示红格或感叹号');
+  check(smallJump.type==='legacy-jump'&&smallJump.cells.length>0&&threatArt().includes('redGrid')&&threatArt().includes('alert'),'Boss普通跳跃显示落点红格和感叹号');
   const shockwaveAlly=placeAlly(7,3);
   const landAction=MONSTER_DB[m.cfgId].actions.find(action=>action.type==='jump_big_land');
   Object.assign(player,{col:5,row:3});
@@ -152,11 +246,59 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   placeAlly(4,5);
   SINGLE_STEP.plans.set(m.id,stepEnemyPlan(m));
   check(threatArt().length===0,'只有其他怪物在射程内时不会锁定射击或显示预警');
-  for(const [col,row,type] of [[4,5,'chase'],[9,5,'wander']]){
+  for(const [col,row] of [[4,5],[9,5]]){
    m=stepFixture('step_mobile',col,row);
    const movement=SINGLE_STEP.plans.get(m.id);
-   check(movement.type===type&&movement.path.length===1&&threatArt().length===0,'追击和游走有移动落点也不显示蓝格');
+   check(movement.type==='chase'&&movement.path.length===1&&threatArt().length===0,'唯一可移动的怪物会追击，普通移动不显示蓝格');
   }
+  m=stepFixture('step_fighter',5,3);
+  spawnMonsterAtRandomPos('step_fighter');
+  const replacement=Object.assign(monsters.at(-1),{col:10,row:5});
+  singleStepPlan();
+  check(SINGLE_STEP.plans.get(replacement.id).type==='wander','已有追击者时保留其他怪物的游走');
+  m.hp=1;SINGLE_STEP.bonus=2;singleStepAct('shoot','right');
+  check(SINGLE_STEP.plans.get(replacement.id).type==='chase'&&replacement.col===10&&replacement.row===5,
+   '追击者死亡后补选追击计划，子弹时间内仍保持冻结');
+
+  m=stepFixture('step_fighter',5,3);
+  spawnMonsterAtRandomPos('step_fighter');
+  const nextChaser=Object.assign(monsters.at(-1),{col:10,row:5});
+  singleStepPlan();
+  m.hp=1;singleStepAct('shoot','right');
+  check(nextChaser.col===9&&nextChaser.row===5,'普通步中击杀唯一追击者后，候补当步接替追击');
+
+  m=stepFixture('step_fighter',5,3);
+  applyItem('trial_weapon_knockback');
+  singleStepAct('shoot','right');
+  check(m.col===6&&m.row===3,'击退后跳过本步原定追击');
+  playerInventory=[];recalcAllStats();updateItemBar();
+
+  m=stepFixture('step_fighter',4,3);
+  Object.assign(player,{col:6,row:3});
+  const strike=stepEnemyAttackPlan(m,player);
+  SINGLE_STEP.plans.set(m.id,strike);
+  SINGLE_STEP.bonus=1;
+  arenaKnockback(m,1,0);
+  check(singleStepAttackPreview(m).cells.map(p=>p.col).join(',')==='6,7','位移后按原方向和两格射程更新近战红格');
+  Object.assign(player,{col:7,row:3});
+  singleStepAct('shoot','up');
+  check(playerStats.hp===5,'最后一次子弹时间行动不执行位移后的攻击');
+  singleStepAct('shoot','up');
+  check(playerStats.hp===4&&m.col===5,'恢复后从新位置向原方向执行近战');
+
+  m=stepFixture('duke_fly',7,3);
+  SINGLE_STEP.plans.set(m.id,{type:'legacy-move',path:[{col:8,row:3}],cells:singleStepFootprint(m,8,3)});
+  SINGLE_STEP.bonus=1;arenaKnockback(m,1,0);
+  check(singleStepAttackPreview(m).cells.every(c=>c.col===9||c.col===10),'苍蝇公爵移动红格跟随位移');
+  singleStepAct('shoot','left');singleStepAct('shoot','left');
+  check(m.col===9,'公爵恢复后执行同方向移动');
+
+  m=stepFixture('boss_jumper_i',6,3);
+  SINGLE_STEP.plans.set(m.id,{type:'legacy-jump',path:[{col:5,row:3}],cells:singleStepFootprint(m,5,3),attackCells:[]});
+  SINGLE_STEP.bonus=1;arenaKnockback(m,0,1);
+  check(singleStepAttackPreview(m).cells.every(c=>c.row===4||c.row===5),'跳跃 Boss 的落地红格跟随位移');
+  singleStepAct('shoot','left');singleStepAct('shoot','left');
+  check(m.col===5&&m.row===4,'跳跃 Boss 实际落点跟随位移');
   for(const hitsAllies of [false,true]){
    m=stepFixture('boss_jumper_i',8,4);
    const shockwaveAlly=placeAlly(7,3),shockwaveAllyHp=shockwaveAlly.hp;

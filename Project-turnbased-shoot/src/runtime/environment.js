@@ -15,18 +15,24 @@ canvas.height = GAME_H;
 const SFX = (() => {
   let actx = null;
   let muted = false;
+  let unlocked = false;
   const lastAt = {};
 
   function ac() {
+    if (!unlocked || document.hidden) return null;
     if (!actx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
       actx = new AC();
     }
-    if (actx.state === 'suspended') actx.resume();
     return actx;
   }
-  function unlock() { ac(); }
+  function unlock(event) {
+    if (!event.isTrusted) return;
+    unlocked = true;
+    const audio = ac();
+    if (audio?.state === 'suspended') audio.resume().catch(() => {});
+  }
 
   // 单音：type 波形 / vol 音量 / throttle 同种音效最小间隔(ms)
   function tone(key, freq, opts = {}) {
@@ -36,7 +42,7 @@ const SFX = (() => {
     if (lastAt[key] && now - lastAt[key] < throttle) return;
     lastAt[key] = now;
     const a = ac();
-    if (!a) return;
+    if (a?.state !== 'running') return;
     const t = a.currentTime;
     const osc = a.createOscillator();
     const gain = a.createGain();
@@ -54,7 +60,7 @@ const SFX = (() => {
   function noise(dur = 0.3, vol = 0.18) {
     if (muted) return;
     const a = ac();
-    if (!a) return;
+    if (a?.state !== 'running') return;
     const len = Math.floor(a.sampleRate * dur);
     const buf = a.createBuffer(1, len, a.sampleRate);
     const data = buf.getChannelData(0);
@@ -114,8 +120,8 @@ const SFX = (() => {
 
 // 音效开关 + 首次交互解锁 AudioContext（浏览器自动播放策略）
 document.getElementById('sound-btn')?.addEventListener('click', () => SFX.toggle());
-document.addEventListener('keydown', () => SFX.unlock(), { once: true });
-document.addEventListener('pointerdown', () => SFX.unlock(), { once: true });
+document.addEventListener('keydown', SFX.unlock, { capture: true });
+document.addEventListener('pointerdown', SFX.unlock, { capture: true });
 canvas.style.width  = (GAME_W * DISPLAY_SCALE) + 'px';
 canvas.style.height = (GAME_H * DISPLAY_SCALE) + 'px';
 ctx.imageSmoothingEnabled = false;

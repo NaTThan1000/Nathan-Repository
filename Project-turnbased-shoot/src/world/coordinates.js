@@ -29,8 +29,7 @@ function isBlockingBullet(col,row){
   if(col<0||col>=COLS||row<0||row>=ROWS)return true;
   if(currentRoomGrid&&currentRoomGrid[col]&&currentRoomGrid[col][row]!==undefined){
     const t=currentRoomGrid[col][row];
-    // ROCK 完全阻挡；POOP 也让子弹击中的效果在 updateBullets 中处理
-    if(t===TILE.ROCK||t===TILE.POOP){hitTile(col,row,1);return true;}
+    if(t===TILE.POOP)hitTile(col,row,1);
     return TILE_BLOCKS_BULLET[t]||false;
   }
   return false;

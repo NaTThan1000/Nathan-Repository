@@ -1,11 +1,12 @@
 // 正式版单步表现：规则立即生效，输入只等实际动作到位，余效独立消散。
 const stepVisualEvents=[],stepTimeFx={active:false,enter:null,release:null};
 const stepDetonateBombBase = detonateBomb;
-detonateBomb = function(bomb, affected) {
- const cells = stepDetonateBombBase(bomb, affected);
- stepVisualEvents.push({type:'bomb-blast', col:bomb.col, row:bomb.row, cells, directional:!!affected, at:performance.now()});
+function stepDetonateBomb(bomb,affected,{source=null}={}) {
+ const cells = stepDetonateBombBase(bomb,affected,{terrainFirst:true,source});
+ stepVisualEvents.push({type:'bomb-blast',col:bomb.col,row:bomb.row,cells,directional:!!affected&&!source,at:performance.now()});
  return cells;
-};
+}
+detonateBomb=stepDetonateBomb;
 const stepDrawBombsBase = drawBombs;
 drawBombs = function() {
  stepDrawBombsBase();
@@ -42,7 +43,11 @@ function stepSetTimeEffect(active,now=performance.now()){
 const stepResetOriginal=singleStepReset;
 singleStepReset=function(){stepResetOriginal();stepInputUntil=0;stepVisualEvents.length=0;stepTimeFx.active=false;stepTimeFx.enter=null;stepTimeFx.release=null;};
 function singleStepInputAction(type,dir){
- if(performance.now()<stepInputUntil||player.targetPx!==null||monsters.some(m=>m._visualPath?.length||m._stepJump))return false;
+ const freeMove=type==='move'&&!hasMonstersAlive()&&!SINGLE_STEP.bonus;
+ if(freeMove){
+  const remaining=Math.hypot((player.targetPx??player.px)-player.px,(player.targetPy??player.py)-player.py);
+  if(remaining>CELL*.5)return false;
+ }else if(performance.now()<stepInputUntil||player.targetPx!==null||monsters.some(m=>m._visualPath?.length||m._stepJump))return false;
  return singleStepAct(type,dir);
 }
 const stepActOriginal=singleStepAct;
@@ -50,7 +55,8 @@ singleStepAct=function(type,dir){
  const now=performance.now(),room=currentRoomId,old={col:player.col,row:player.row,px:player.px,py:player.py},bonus=SINGLE_STEP.bonus,shots=SINGLE_STEP.shots.length,eventStart=stepVisualEvents.length;
  const positions=new Map(monsters.map(m=>[m.id,{col:m.col,row:m.row}]));
  const accepted=stepActOriginal(type,dir);if(!accepted||room!==currentRoomId||transition?.active)return accepted;
- let duration=type==='move'?CELL/CFG.EXEC_MOVE_SPEED*1000:100;
+ const moveSpeed=singleStepMoveSpeed();
+ let duration=type==='move'?CELL/moveSpeed*1000:100;
  const newShots=SINGLE_STEP.shots.slice(shots),events=stepVisualEvents.slice(eventStart);
  const delay=newShots.find(s=>s.player)?.travel||0,hitTimes=new Map();
  for(const s of newShots)duration=Math.max(duration,s.start-now+s.travel);
@@ -61,16 +67,19 @@ singleStepAct=function(type,dir){
   if(m._stepJump){m._stepJump.at+=wait;duration=Math.max(duration,m._stepJump.duration+wait);}
   else{let previous=positions.get(m.id)||{col:m.col,row:m.row},distance=0;for(const p of m._visualPath||[]){distance+=Math.hypot(p.col-previous.col,p.row-previous.row)*CELL;previous=p;}duration=Math.max(duration,wait+distance/MONSTER_ANIM_SPEED*1000);}
  }
- duration=Math.max(duration,Math.hypot((player.targetPx??player.px)-player.px,(player.targetPy??player.py)-player.py)/CFG.EXEC_MOVE_SPEED*1000);
+ duration=Math.max(duration,Math.hypot((player.targetPx??player.px)-player.px,(player.targetPy??player.py)-player.py)/moveSpeed*1000);
  for(const e of events)if(e.type==='death'&&!e.weaponHit)e.at+=delay;
  for(const e of events)if(e.type==='hurt'){
   const shot=newShots.find(s=>!s.player&&s.owner===e.attackerId),target=gridToPixel(e.col,e.row);
   if(shot)e.at=shot.start+Math.hypot(target.x-shot.from.x,target.y-shot.from.y)/(CFG.BULLET_SPEED*.6)*1000;
-  else{const m=monsters.find(m=>m.id===e.attackerId),a=m?._stepAction;if(a?.type==='charge')e.at=a.at+Math.hypot(e.col-a.from.col,e.row-a.from.row)*CELL/MONSTER_ANIM_SPEED*1000;}
+  else{const m=monsters.find(m=>m.id===e.attackerId),a=m?._stepAction;
+   if(m?._stepJump?.burrow)e.at=m._stepJump.at+m._stepJump.duration*.65;
+   else if(a?.type==='charge')e.at=a.at+Math.hypot(e.col-a.from.col,e.row-a.from.row)*CELL/MONSTER_ANIM_SPEED*1000;
+  }
  }
  stepInputUntil=now+duration;
  stepSetTimeEffect(SINGLE_STEP.bonus>0,now);
- if(type==='move'&&!bonus&&SINGLE_STEP.bonus>0)stepVisualEvents.push({type:'dodge',at:now,from:old,to:{col:old.col+DIR_VEC[dir].dx,row:old.row+DIR_VEC[dir].dy},dir,duration:CELL/CFG.EXEC_MOVE_SPEED*1000});
+ if(type==='move'&&!bonus&&SINGLE_STEP.bonus>0)stepVisualEvents.push({type:'dodge',at:now,from:old,to:{col:old.col+DIR_VEC[dir].dx,row:old.row+DIR_VEC[dir].dy},dir,duration:CELL/moveSpeed*1000});
  return accepted;
 };
 // 跳跃使用固定腾空帧与抛物线，不沿长路径逐格走动。
@@ -78,7 +87,9 @@ const stepAnimateOriginal=animateMonsters;
 animateMonsters=function(dt){
  const now=performance.now(),jumpers=monsters.filter(m=>m._stepJump),saved=monsters;
  try{monsters=monsters.filter(m=>!m._stepJump&&!(m._stepMoveAfter>now));stepAnimateOriginal(dt);}finally{monsters=saved;}
- for(const m of jumpers){const j=m._stepJump,t=Math.max(0,Math.min(1,(now-j.at)/j.duration)),a=gridToPixel(j.from.col,j.from.row),b=gridToPixel(j.to.col,j.to.row);m.px=a.x+(b.x-a.x)*t;m.py=a.y+(b.y-a.y)*t-Math.sin(Math.PI*t)*CELL*.65;if(t>=1)delete m._stepJump;}
+ for(const m of jumpers){const j=m._stepJump,t=Math.max(0,Math.min(1,(now-j.at)/j.duration)),a=gridToPixel(j.from.col,j.from.row),b=gridToPixel(j.to.col,j.to.row);if(j.burrow){
+  const p=t<.5?a:b;m.px=p.x;m.py=p.y;
+ }else{m.px=a.x+(b.x-a.x)*t;m.py=a.y+(b.y-a.y)*t-Math.sin(Math.PI*t)*CELL*.65;}if(t>=1)delete m._stepJump;}
 };
 function stepDrawTimeField(now=performance.now()){
  const image=scrapImages['time-freeze-board'],fx=stepTimeFx;if(!image?.complete||!fx.active&&!fx.release)return;
@@ -171,11 +182,16 @@ drawMonsters=function(){
  for(const m of monsters){
   const ready=!!singleStepAttackPreview(m);
   if(ready)threats.push(m);
+  if(SINGLE_STEP.bonus&&arenaEffects.avoided.has(m.id)){
+   const p=project(m.px,m.py), radius=CELL*(m.size||1)*.37;
+   ctx.save();ctx.strokeStyle='#7ae7ec';ctx.lineWidth=1;
+   ctx.beginPath();ctx.ellipse(p.x,p.y+3,radius,radius*.52,0,0,Math.PI*2);ctx.stroke();ctx.restore();
+  }
   if(!stepEnemyDefinition(m))continue;
   const p=project(m.px,m.py),key=stepMonsterArt(m,now,ready),action=m._stepAction;
   const poison=stepPoisonAlpha(m,now);
   if(key){const size=CELL*(m.cfgId==='step_small'?.55:m.cfgId==='step_big'?1.05:.95),shake=m.cfgId==='step_charger'&&ready&&!SINGLE_STEP.bonus?Math.sin(now*.09)*CELL*.025:0;stepDrawMonsterSprite(key,p.x-size/2+shake,p.y-size*.66,size,size,poison);}
-  else{const kind=m.cfgId==='step_mobile'?'ranged':'melee';let frame=SINGLE_STEP.bonus?0:Math.floor(now/180)%3;if(action&&now>=action.at&&now-action.at<240&&['shot','strike'].includes(action.type))frame=3+Math.min(1,Math.floor((now-action.at)/120));if(!(m._stepHitAt>now)&&(m.hitFlash>0||now-m._stepHitAt<120))frame=5;stepDrawMonsterSprite(kind+frame,p.x-30,p.y-38,60,68,poison);}
+  else{const kind=stepEnemyDefinition(m)?.sprite==='ranged'||m.cfgId==='step_mobile'?'ranged':'melee';let frame=SINGLE_STEP.bonus?0:Math.floor(now/180)%3;if(action&&now>=action.at&&now-action.at<240&&['shot','strike'].includes(action.type))frame=3+Math.min(1,Math.floor((now-action.at)/120));if(!(m._stepHitAt>now)&&(m.hitFlash>0||now-m._stepHitAt<120))frame=5;if(!stepTestHooks.drawArenaMonster?.(m,p,now,kind,poison))stepDrawMonsterSprite(kind+frame,p.x-30,p.y-38,60,68,poison);}
   if(m.cfgId==='step_charger'&&action?.type==='charge'&&now>=action.at&&now-action.at<400){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(action.dir.dy,action.dir.dx));scrapDraw('unit-effects-charge',-CELL*1.375,-CELL*.375,CELL*1.5,CELL*.75);ctx.restore();}
   drawMonsterHealthPreview(m,p.x-10,p.y+10,20,3);
   if(m.weaponPoison?.appliedAt<=now){
@@ -183,8 +199,16 @@ drawMonsters=function(){
    ctx.fillText('毒 '+m.weaponPoison.steps,p.x,p.y-20);ctx.restore();
   }
  }
+ for(const m of monsters)if(m.arenaParasite&&!m.jumperVanished)arenaDrawParasite(m);
+ if(STEP_SPIKE_CYCLE[SINGLE_STEP.spikeTurn]==='warning'){
+  for(let col=0;col<COLS;col++)for(let row=0;row<ROWS;row++){
+   if(singleStepSpikeAt(col,row)!=='warning')continue;
+   const q=cellRect(col,row);
+   scrapDraw('alert',q.xR-6,q.yT+1,5.6,8.8);
+  }
+ }
  for(const m of threats){const p=project(m.px,m.py);scrapDraw('alert',p.x+3.2,p.y-10.4,5.6,8.8);}
- for(const e of stepVisualEvents){const age=now-e.at;if(e.type==='death'&&age<360){const p=project(e.x,e.y),kind=e.cfgId==='step_mobile'?'ranged':e.cfgId==='step_fighter'?'melee':null;
+ for(const e of stepVisualEvents){const age=now-e.at;if(e.type==='death'&&age<360){const p=project(e.x,e.y),kind=stepEnemyDefinition(e)?.sprite||(e.cfgId==='step_mobile'?'ranged':e.cfgId==='step_fighter'?'melee':null);
    if(age<0){const m={cfgId:e.cfgId},key=stepMonsterArt(m,now);if(key){const size=CELL*(e.cfgId==='step_small'?.55:e.cfgId==='step_big'?1.05:.95);scrapDraw(key,p.x-size/2,p.y-size*.66,size,size);}else scrapDraw(kind+'0',p.x-30,p.y-38,60,68);}
    else if(kind)scrapDraw(kind+(age<180?6:7),p.x-30,p.y-38,60,68);
    else scrapDraw('unit-effects-destroy',p.x-CELL*.6,p.y-CELL*.792,CELL*1.2,CELL*1.2);
@@ -223,7 +247,11 @@ drawPlayer=function(){
  }
  // 规则即时扣血，受击帧等弹体或冲锋画面到达后播放；不延长输入锁定。
  if(hurt)player.hitFlash=now>=hurt.at&&now<hurt.at+240?1:0;
- try{stepPlayerOriginal();}finally{player.hitFlash=flash;}
+ const recoil=stepVisualEvents.findLast(e=>e.type==='unstable-recoil');
+ const age=recoil ? now-recoil.at : -1;
+ const shake=age>=0&&age<165 ? Math.sin(age*.15)*(1-age/165)*2.4 : 0;
+ ctx.save();
+ try{ctx.translate(shake,0);stepPlayerOriginal();}finally{ctx.restore();player.hitFlash=flash;}
  stepDrawChargeRing();
  for(let i=stepVisualEvents.length-1;i>=0;i--)if(now-stepVisualEvents[i].at>1000)stepVisualEvents.splice(i,1);
 };

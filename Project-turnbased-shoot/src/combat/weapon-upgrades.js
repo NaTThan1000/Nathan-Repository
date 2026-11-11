@@ -52,7 +52,7 @@ function weaponEnergyScale(trajectory, distance, range) {
 }
 function weaponDamageMonster(m, damage, at, lane) {
   const firstNumber = damageNumbers.length, firstEvent = stepVisualEvents.length;
-  damageMonster(m, damage);
+  damageMonster(m, damage, {at,lane});
   for (const number of damageNumbers.slice(firstNumber)) {
     number.showAt = at;
     if (lane) {
@@ -68,25 +68,26 @@ function weaponDamageMonster(m, damage, at, lane) {
   }
   stepVisualEvents.push({type: 'weapon-hit', id: m.id, at});
 }
-function weaponDamageTerrain(col, row, damage) {
+function weaponDamageTerrain(col, row) {
   const terrain = tileData[col+','+row];
-  if (terrain) hitTile(col,row,terrain.type === 'poop' ? terrain.hp : damage);
+  if (terrain?.type === 'poop') hitTile(col,row,terrain.hp);
 }
-function weaponBlast(col, row, damage, direct, at, lane) {
+function weaponBlast(col, row, damage, at, lane, {breakRock=false}={}) {
+  const blocked = new Set();
   stepVisualEvents.push({type: 'blast', col, row, at});
   for (let dc = -1; dc <= 1; dc++) for (let dr = -1; dr <= 1; dr++) {
     const terrain = tileData[(col + dc) + ',' + (row + dr)];
-    if (terrain) hitTile(col + dc, row + dr, terrain.hp);
-  }
-  for (const m of [...monsters]) {
-    if (m === direct || m.hp <= 0 || m.jumperVanished || !monsters.includes(m)) continue;
-    if (monsterCells(m).some(p => Math.max(Math.abs(p.col-col), Math.abs(p.row-row)) <= 1)) {
-      weaponDamageMonster(m, Math.round(damage * 50) / 100, at, lane);
+    if (terrain) {
+      blocked.add((col+dc)+','+(row+dr));
+      if (terrain.type !== 'rock' || breakRock) hitTile(col+dc,row+dr,terrain.hp);
     }
   }
-}
-function weaponBlockedCorner(cell, dx, dy) {
-  return dx && dy && (singleStepBlocksBullet(cell.col+dx,cell.row) || singleStepBlocksBullet(cell.col,cell.row+dy));
+  for (const m of [...monsters]) {
+    if (m.hp <= 0 || m.jumperVanished || !monsters.includes(m)) continue;
+    if (monsterCells(m).some(p => Math.max(Math.abs(p.col-col), Math.abs(p.row-row)) <= 1 && !blocked.has(p.col+','+p.row))) {
+      weaponDamageMonster(m, damage, at, lane);
+    }
+  }
 }
 function weaponTrackingDirection(cell, dx, dy, passesTerrain, hit) {
   const forward = WEAPON_DIRECTIONS.findIndex(([x,y]) => x === dx && y === dy);
@@ -95,7 +96,7 @@ function weaponTrackingDirection(cell, dx, dy, passesTerrain, hit) {
     const [x,y] = WEAPON_DIRECTIONS[(forward+offset+8)%8];
     if (Boolean(x && y) !== diagonal) continue;
     const col = cell.col+x, row = cell.row+y;
-    if (!passesTerrain && (singleStepBlocksBullet(col,row) || weaponBlockedCorner(cell,x,y))) continue;
+    if (!passesTerrain && singleStepBlocksBullet(col,row)) continue;
     if (monsters.some(m => m.hp > 0 && !m.jumperVanished && !hit.has(m.id) && isInMonsterFootprint(m,col,row))) {
       return [x,y];
     }
@@ -125,7 +126,7 @@ function weaponArcRoute(origin, direct, range) {
     }
     const remaining = 4-route.length;
     const moreHits = Math.min(remaining,targets.length-hits);
-    // 先最大化不同怪物的命中数，同样多时优先能额外伤害末端障碍的路线。
+    // 优先命中更多不同怪物；命中数相同时，可以再传到末端障碍。
     const upperBound = (hits+moreHits)*2 + Number(terrain.length > 0 && remaining > moreHits);
     if (!remaining || upperBound <= bestScore) return;
     if (!neighbors.has(from)) {
@@ -150,10 +151,13 @@ function weaponArc(origin, damage, direct, at, lane, range) {
   let from = origin;
   for (const next of route) {
     singleStepVisualShot(from,next,true,{dx:0,dy:0},{beam:true,start:at});
-    if (next.m) weaponDamageMonster(next.m,arcDamage,at,lane);
+    if (next.m?.hp > 0) {
+      if (tileData[next.col+','+next.row]) weaponDamageTerrain(next.col,next.row);
+      else weaponDamageMonster(next.m,arcDamage,at,lane);
+    }
     from = next;
   }
-  if (route.length && !from.m) weaponDamageTerrain(from.col,from.row,arcDamage);
+  if (route.length && !from.m) weaponDamageTerrain(from.col,from.row);
 }
 function weaponShootRay(origin, dx, dy, base, range, {
   trajectory, shell, body, ammo, start, lane, size = 1, spreadStep, spreadSide = 0,
@@ -177,8 +181,8 @@ function weaponShootRay(origin, dx, dy, base, range, {
   const trigger = (damage, direct, impactAt = at) => {
     if (triggered) return;
     triggered = true;
-    if (shell === 'blast') weaponBlast(cell.col,cell.row,damage,direct,impactAt,lane);
-    if (shell === 'arc') weaponArc(cell,damage,direct,impactAt,lane,Math.max(1,Math.floor(range*.5)));
+    if (shell === 'blast') weaponBlast(cell.col,cell.row,Math.round(damage*150)/100,impactAt,lane,{breakRock:true});
+    if (shell === 'arc') weaponArc(cell,damage,direct,impactAt,lane,range*.5);
     if (shell === 'splash') {
       const pool = [...WEAPON_DIRECTIONS];
       const count = Math.max(1,Math.min(8,1+Math.floor(playerStats.luck)));
@@ -189,6 +193,9 @@ function weaponShootRay(origin, dx, dy, base, range, {
       }
     }
   };
+  const burstsOnExpiry = shell === 'blast' || shell === 'splash';
+  const damageAt = n => trajectory === 'decay' || trajectory === 'gain'
+    ? Math.round(base*weaponEnergyScale(trajectory,n,range)*100)/100 : base;
   const flightRange = lob ? lob.steps : range;
   for (let n = 1; n <= flightRange; n++) {
     let nextDx = dx, nextDy = dy;
@@ -209,14 +216,13 @@ function weaponShootRay(origin, dx, dy, base, range, {
       dy = nextDy;
     }
     const travel = beam ? 0 : Math.hypot(dx,dy) * CELL / CFG.BULLET_SPEED * 1000;
-    const damage = trajectory === 'decay' || trajectory === 'gain'
-      ? Math.round(base*weaponEnergyScale(trajectory,n,range)*100)/100 : base;
+    const damage = damageAt(n);
     let col = cell.col+dx, row = cell.row+dy;
     const wall = col < 0 || col >= COLS || row < 0 || row >= ROWS;
     if (wall) {
       const edge = {col:cell.col+dx/2,row:cell.row+dy/2};
-      if (shell === 'blast') {
-        trigger(damage,null,at+travel/2);
+      if (burstsOnExpiry) {
+        trigger(damageAt(Math.max(1,distance)),null,at+travel/2);
         emit(edge,false,n-.5);
         return;
       }
@@ -229,13 +235,13 @@ function weaponShootRay(origin, dx, dy, base, range, {
       segmentDistance = n-.5;
       start = at+travel/2;
       wrapped = true;
-    } else if (!lob && !passesTerrain && weaponBlockedCorner(cell,dx,dy)) break;
+    }
     cell = {col,row};
     distance = n;
     at += travel;
     if (lob && n < flightRange) continue;
     if (!ignoresTerrain && singleStepBlocksBullet(col,row)) {
-      if (shell !== 'blast' || triggered) weaponDamageTerrain(col,row,damage);
+      if (shell !== 'blast' || triggered) weaponDamageTerrain(col,row);
       trigger(damage,null);
       if (lob || !passesTerrain) {
         emit(cell);
@@ -243,8 +249,12 @@ function weaponShootRay(origin, dx, dy, base, range, {
       }
       continue;
     }
-    const m = monsters.find(unit => !unit.jumperVanished && !hit.has(unit.id) && isInMonsterFootprint(unit,col,row));
+    const m = monsters.find(unit => unit.hp > 0 && !unit.jumperVanished && !hit.has(unit.id) && isInMonsterFootprint(unit,col,row));
     if (!m) continue;
+    if (tileData[col+','+row]) {
+      weaponDamageTerrain(col,row);
+      continue;
+    }
     hit.add(m.id);
     weaponDamageMonster(m,damage,at,lane);
     if (ammo === 'poison' && m.hp > 0 && monsters.includes(m)) {
@@ -258,7 +268,7 @@ function weaponShootRay(origin, dx, dy, base, range, {
       return;
     }
   }
-  if (lob && shell === 'blast' && distance) trigger(base,null);
+  if (burstsOnExpiry && distance) trigger(damageAt(distance),null);
   emit(cell,shell !== 'fold');
 }
 function weaponPrepareShot() {

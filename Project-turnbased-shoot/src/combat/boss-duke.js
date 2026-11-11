@@ -281,7 +281,7 @@ function doLandingDamage(m, targetCol, targetRow, sz, landAction, oldBossPos = n
 }
 
 // 公爵召唤浮游眼（概率判定 + 上限检查 + 相邻格随机空格生成）
-function handleDukeSummon(m) {
+function handleDukeSummon(m, {allowObstacles=false}={}) {
   const ae = m._turnAfterAction;
   if (!ae) return;
   const chance = ae.chance !== undefined ? ae.chance : 0.3;
@@ -309,7 +309,7 @@ function handleDukeSummon(m) {
       if (isMonsterAt(nc, nr)) continue;
       if (nc === player.col && nr === player.row) continue;
       // 飞行单位：不检查地形，但检查是否是墙壁
-      if (!TILE_WALKABLE[currentRoomGrid[nc][nr]]) continue;
+      if (allowObstacles ? currentRoomGrid[nc][nr]===TILE.SPIKE : !TILE_WALKABLE[currentRoomGrid[nc][nr]]) continue;
       adjacentCandidates.push({ col: nc, row: nr });
     }
   }
