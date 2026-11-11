@@ -48,7 +48,6 @@ function hitTile(col,row,dmg){
 }
 
 function hasMonstersAlive(){return monsters.length>0&&monsters.some(m=>m.hp>0);}
-let keepCombatForBombs = true;
 function updateRoomCombatState(){
   if(actionHistoryActive()&&!hasMonstersAlive())return;
   const wasInCombat=inCombat;
@@ -65,7 +64,7 @@ function updateRoomCombatState(){
     rollRoomClearDrop();
     SFX.door();
     // 战斗模式下清空怪物后如果还有炸弹，保持战斗模式（但门已开）
-    if (keepCombatForBombs && bombs.some(b => b.roomId === currentRoomId)) {
+    if (bombs.some(b => b.roomId === currentRoomId)) {
       inCombat = true;
       // 保持移动行动力（炸弹房间玩家仍可移动和射击）
       turnState.maxMAP = Math.floor(playerStats.moveSpeed);
@@ -229,7 +228,7 @@ function enterFloor(floorNum){
   updateUI();updateFloorUI();
   showFloorBanner(`第 ${floorNum} 层`);
   playFloorFade();
-  if(gameStarted)SFX.floor();
+  SFX.floor();
 }
 
 function switchRoom(dir, fromPos){

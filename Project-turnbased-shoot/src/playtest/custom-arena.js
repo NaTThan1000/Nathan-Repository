@@ -197,7 +197,7 @@ function arenaLoad(editing, advance) {
   for (const p of arena.placements.values()) {
     if (p.kind === 'item' && !carry) spawnItemOnGrid(p.col, p.row, p.id);
     if (p.kind === 'resource') spawnResourceOnGrid(p.col, p.row, p.id);
-    if (p.kind === 'monster') stepSpawnOriginal(p.id, MONSTER_DB[p.id].aiType==='boss_duke'?['飞行']:MONSTER_DB[p.id].movementTags, null, p);
+    if (p.kind === 'monster') stepSpawnOriginal(p.id, MONSTER_DB[p.id].movementTags, null, p);
     if (p.kind === 'dummy') {
       const pos = gridToPixel(p.col, p.row);
       monsters.push({id: ++monsterIdCounter, cfgId: 'arena-dummy', arenaDummy: true, name: '训练木桩',
@@ -325,7 +325,6 @@ function arenaReady() {
     requestAnimationFrame(arenaReady);
     return;
   }
-  registerArenaStageEnemies();
   arenaOptions();
   arenaLoad(true);
 }

@@ -62,15 +62,7 @@ function getDiamondRange(cx, cy, radius) {
   return cells;
 }
 
-function bombBlastCells(cx,cy,radius=RESOURCE_DB.bomb_single?.radius??1) {
-  const cells=[];
-  for(let col=Math.max(0,cx-radius);col<=Math.min(COLS-1,cx+radius);col++){
-    for(let row=Math.max(0,cy-radius);row<=Math.min(ROWS-1,cy+radius);row++)cells.push({col,row});
-  }
-  return cells;
-}
-
-function detonateBomb(bomb, affectedOverride, {terrainFirst=false,source=null}={}) {
+function detonateBomb(bomb, affectedOverride) {
   const cx = bomb.col, cy = bomb.row;
   const cfg = RESOURCE_DB.bomb_single;
   const damageRadius = cfg?.radius ?? 1;
@@ -94,15 +86,20 @@ function detonateBomb(bomb, affectedOverride, {terrainFirst=false,source=null}={
     });
   }
 
-  const blastCells = affectedOverride
-    ? affectedOverride.filter(({col,row}) => col >= 0 && col < COLS && row >= 0 && row < ROWS)
-    : bombBlastCells(cx,cy,damageRadius);
+  const affected = affectedOverride || [];
+  if (!affectedOverride) {
+    for (let col = cx - damageRadius; col <= cx + damageRadius; col++) {
+      for (let row = cy - damageRadius; row <= cy + damageRadius; row++) {
+        affected.push({col,row});
+      }
+    }
+  }
+  const blastCells = affected.filter(({col,row}) => col >= 0 && col < COLS && row >= 0 && row < ROWS);
 
   // 每只怪物只结算一次，占据多格的怪物命中任一格即可。
-  const protectedCells = new Set(terrainFirst ? blastCells.filter(({col,row})=>tileData[col+','+row]).map(({col,row})=>col+','+row) : []);
   for (const m of [...monsters]) {
-    if (m===source || m.hp <= 0 || m.jumperVanished) continue;
-    if (monsterCells(m).some(cell => !protectedCells.has(cell.col+','+cell.row) && blastCells.some(p => p.col === cell.col && p.row === cell.row))) {
+    if (m.hp <= 0 || m.jumperVanished) continue;
+    if (monsterCells(m).some(cell => blastCells.some(p => p.col === cell.col && p.row === cell.row))) {
       damageMonster(m, cfg?.damage || 50);
     }
   }
@@ -110,8 +107,8 @@ function detonateBomb(bomb, affectedOverride, {terrainFirst=false,source=null}={
   for (const {col, row} of blastCells) {
     noteDangerCell(col, row, -1, "environment");
     // 伤害玩家
-    if (col === player.col && row === player.row && !protectedCells.has(col+','+row)) {
-      damagePlayer(1,source?.id??null);
+    if (col === player.col && row === player.row) {
+      damagePlayer(1);
     }
 
     // 破坏地形

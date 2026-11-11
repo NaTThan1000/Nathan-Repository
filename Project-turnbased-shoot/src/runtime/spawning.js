@@ -5,12 +5,11 @@
  * @param {string} cfgId - 怪物配置ID
  * @returns {boolean} 是否成功生成
  */
-function spawnMonsterAtRandomPos(cfgId, overrideMovementTags, anchorPos, exactPosition, {roomSpawn=false}={}) {
+function spawnMonsterAtRandomPos(cfgId, overrideMovementTags, anchorPos, exactPosition) {
   const cfg = MONSTER_DB[cfgId];
   if (!cfg) return false;
 
   const sz = cfg.size || 1;
-  const flying = roomSpawn && overrideMovementTags?.includes('飞行');
   const occupied = new Set();
   occupied.add(`${player.col},${player.row}`);
   for (const m of monsters) {
@@ -27,11 +26,9 @@ function spawnMonsterAtRandomPos(cfgId, overrideMovementTags, anchorPos, exactPo
           const nc = c + dc, nr = r + dr;
           if (nc >= COLS || nr >= ROWS) { valid = false; break; }
           if (occupied.has(`${nc},${nr}`)) { valid = false; break; }
-          const tile = currentRoomGrid[nc][nr];
-          if (roomSpawn && (tile===TILE.SPIKE || Math.abs(nc-player.col)+Math.abs(nr-player.row)<=4)) { valid = false; break; }
-          if (!flying && !TILE_WALKABLE[tile]) { valid = false; break; }
+          if (!TILE_WALKABLE[currentRoomGrid[nc][nr]]) { valid = false; break; }
         }
-      if (valid && (flying || isValidLandingZone(c, r, sz))) candidates.push({ col: c, row: r });
+      if (valid && isValidLandingZone(c, r, sz)) candidates.push({ col: c, row: r });
     }
 
   if (candidates.length === 0) return false;

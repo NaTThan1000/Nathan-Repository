@@ -229,11 +229,7 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         const rock = terrain(4,3,TILE.ROCK), crate = terrain(5,3,TILE.POOP);
         const through = shoot([dummy(3,3),rock,crate,dummy(6,3)],'energy');
         check(through.length===1&&through[0].beam&&arena.hits===2,'能量射线穿过木桩、岩石和木箱');
-        check(tileData['4,3']?.hp===99&&currentRoomGrid[5][3]===TILE.FLOOR,'能量射线穿过岩石时岩石不掉血，木箱一击摧毁');
-        load([rock]);
-        tileData['4,3'].hp=1;
-        fire();fire();
-        check(tileData['4,3']?.hp===1,'普通射击反复命中也不会损伤岩石');
+        check(currentRoomGrid[4][3]===TILE.ROCK&&currentRoomGrid[5][3]===TILE.FLOOR,'穿透时岩石承伤，木箱一击摧毁');
         shoot([terrain(3,3,TILE.POOP),dummy(4,3)],'dual');
         check(currentRoomGrid[3][3]===TILE.FLOOR&&arena.hits===1,'双管先破木箱，第二发继续命中木桩');
         load([terrain(3,3,TILE.POOP),{kind:'monster',id:'step_fixed',col:4,row:3,size:1},dummy(5,3)],'triple');
@@ -245,12 +241,12 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
           endpoints.every((x,index)=>x===gridToPixel(3+index,3).x),'三管依次破箱、击杀怪物、命中后方木桩');
 
         shoot([dummy(4,3),dummy(5,4),dummy(6,4),terrain(3,2,TILE.ROCK),terrain(4,4,TILE.POOP)],'blast');
-        check(arena.hits===3&&arena.total===14,'爆炸叠加直击，中心与对角格承受额外伤害，范围外不受伤');
+        check(arena.hits===2&&arena.total===5.25,'爆炸命中中心和对角格，范围外不受伤');
         check(currentRoomGrid[3][2]===TILE.FLOOR&&currentRoomGrid[4][4]===TILE.FLOOR,'爆炸一次摧毁周围岩石和木箱');
         shoot([rock,terrain(5,4,TILE.POOP),dummy(5,2)],'blast');
         check(currentRoomGrid[4][3]===TILE.FLOOR&&currentRoomGrid[5][4]===TILE.FLOOR&&arena.hits===1,'直接命中地形也引爆完整范围');
         shoot([dummy(4,3),terrain(6,3,TILE.ROCK),dummy(6,4)],'energy','blast');
-        check(arena.hits===2&&stepVisualEvents.filter(e=>e.type==='blast').length===1,'穿透射线只在首次命中引爆');
+        check(arena.hits===1&&stepVisualEvents.filter(e=>e.type==='blast').length===1,'穿透射线只在首次命中引爆');
         arena.start = {col:10,row:3};
         shoot([dummy(11,4),terrain(12,4,TILE.ROCK),dummy(10,4)],'blast');
         const wallBlast = stepVisualEvents.find(e=>e.type==='blast');
@@ -272,8 +268,6 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
           const shots = splash(splashLayout,body);
           check(shots.length===3&&shots.every(shot=>shot.beam===beam)&&arena.hits===hits,'随机溅射继承当前枪体的弹体与穿透规则');
         }
-        const expirySplash=splash([dummy(7,2)],null,0,5);
-        check(expirySplash.length===2&&arena.hits===1&&expirySplash[0].from.x===gridToPixel(7,3).x,'未命中的溅射弹从最远格发射碎弹');
         const rockSplash = splash([rock,dummy(4,2),dummy(5,2)],'energy');
         check(rockSplash.length===3&&rockSplash.every(shot=>shot.beam)&&arena.hits===2,'击中岩石后向不同方向溅射光束');
         splash([terrain(4,3,TILE.POOP),dummy(4,2),dummy(5,2)],null);
@@ -283,14 +277,6 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         const maximum = splash([dummy(4,3)],null,20,10).slice(0,-1);
         check(new Set(maximum.map(shot=>shot.dir.dx+','+shot.dir.dy)).size===8&&
           maximum.find(shot=>shot.dir.dx===1&&shot.dir.dy===0).to.x===gridToPixel(8,3).x,'高幸运八向无重复，10格射程的溅射为4格');
-
-        load([dummy(7,2),dummy(7,4)],'blast');
-        Object.assign(playerStats,{attack:6,range:5});fire();
-        check(arena.hits===2&&arena.total===18,'射程末端爆炸，范围伤害随攻击力增长');
-        shoot([terrain(3,3,TILE.ROCK),terrain(2,2,TILE.ROCK),terrain(2,4,TILE.ROCK),dummy(4,1),dummy(4,5)],'fork');
-        check(arena.hits===2,'分叉射线越过相邻横竖障碍');
-        shoot([terrain(3,2,TILE.ROCK),dummy(4,1),dummy(4,5)],'fork');
-        check(arena.hits===1,'斜向射线由路径上的对角障碍阻挡');
 
         const arc = shoot([rock,terrain(5,4,TILE.POOP),dummy(7,4)],'arc').filter(shot=>shot.beam);
         check(arc.length===2&&arc[0].to.x===gridToPixel(5,4).x&&arc[1].to.x===gridToPixel(7,4).x&&
@@ -303,16 +289,12 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
           fire();
           check(arena.hits===(range===8?2:1),'电弧每跳按当前射程的一半向下取整');
         }
-        load([dummy(3,3),dummy(3,4)],'arc');
-        playerStats.range=1;
-        fire();
-        check(arena.hits===1,'射程一格时传导上限半格，无法跳到相邻单位');
         const longArc = shoot([4,5,6,7,8,9].map(col=>dummy(col,3)),'arc').filter(shot=>shot.beam);
         check(longArc.length===4&&arena.hits===5&&arena.last===1.75&&
           new Set(stepVisualEvents.filter(event=>event.type==='weapon-hit').map(event=>event.id)).size===5,
           '电弧最多四跳，第四跳同样伤害末端怪物');
         const rockEnd = shoot([dummy(4,3),terrain(5,3,TILE.ROCK)],'arc').filter(shot=>shot.beam);
-        check(rockEnd.length===1&&tileData['5,3'].hp===99,'岩石可接收传导但不掉血');
+        check(rockEnd.length===1&&tileData['5,3'].hp===99-1.75,'提前停止时末端岩石也受电弧伤害');
         const crateEnd = shoot([4,5,6,7].map(col=>dummy(col,3)).concat(terrain(8,3,TILE.POOP)),'arc')
           .filter(shot=>shot.beam);
         check(crateEnd.length===4&&currentRoomGrid[8][3]===TILE.FLOOR,'第四跳落在木箱时也能击碎木箱');
@@ -398,50 +380,6 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         check(slowed.col===3&&slowed.row===4&&playerStats.hp===safeHp&&SINGLE_STEP.plans.get(slowed.id).type==='strike',
           '下一回合先完成原定移动，再锁定近战攻击');
 
-        const stagePlan=()=>SINGLE_STEP.plans.get(monsters[0].id);
-        const lockedCells=()=>singleStepAttackPreview(monsters[0])?.cells.map(p=>arenaKey(p.col,p.row)).sort().join(';');
-        const advanceStage=random=>withRandom(()=>random,()=>singleStepAct('shoot','up'));
-        const overlayCounts=()=>{
-          const stroke=ctx.strokeRect,draw=scrapDraw,counts={yellow:0,red:0};
-          ctx.strokeRect=()=>counts.yellow++;
-          scrapDraw=key=>{if(key==='redGrid')counts.red++;};
-          try{drawDangerOverlay();}finally{ctx.strokeRect=stroke;scrapDraw=draw;}
-          return counts;
-        };
-        load([foe(4,3,'step_fighter2')]);
-        const warning=stagePlan();
-        check(warning.type==='arena-windup'&&!singleStepAttackPreview(monsters[0])&&
-          arenaStageWarning(monsters[0],warning.dir,warning.kind).map(p=>p.col).join(',')==='3,2,1','近战者2 向左三格亮黄，未标记攻击');
-        const yellowOverlay=overlayCounts();
-        check(yellowOverlay.yellow===3&&yellowOverlay.red===0,'初始画面只画三格黄区');
-        const startHp=playerStats.hp;
-        advanceStage(0);
-        const redOverlay=overlayCounts();
-        check(redOverlay.yellow===0&&redOverlay.red===2,'锁定后画面只保留两格红区');
-        check(stagePlan().variant==='sweep'&&lockedCells()==='2,3;3,3'&&playerStats.hp===startHp,'挥击锁定靠近怪物的前两格');
-        singleStepAct('move','down');
-        check(SINGLE_STEP.bonus===2&&playerStats.hp===startHp,'离开挥击红格触发子弹时间');
-        load([foe(4,3,'step_fighter2')]);
-        withRandom(()=>0,()=>singleStepAct('move','down'));
-        check(SINGLE_STEP.bonus===0&&stagePlan().variant==='sweep','离开黄格时只推进锁定阶段');
-
-        load([foe(5,3,'step_fighter2')]);
-        advanceStage(.99);
-        check(stagePlan().variant==='burrow'&&lockedCells()==='2,3','钻地只锁定第三格');
-        advanceStage(.99);
-        check(monsters[0].col===2&&monsters[0].row===3&&monsters[0]._stepJump?.burrow&&
-          player.col===2&&player.row!==3&&playerStats.hp===startHp-1,'钻地在第三格冒出，挤开玩家并造成伤害');
-
-        for(const [random,variant,expected,rays] of [[0,'center-shot','2,3;3,3;4,3',1],[.99,'side-shot','2,2;2,4;3,2;3,4;4,2;4,4',2]]){
-          load([foe(5,3,'step_mobile2')]);
-          check(arenaStageWarning(monsters[0],stagePlan().dir,stagePlan().kind).length===9,'移动射手2 亮出对称三乘三黄区');
-          advanceStage(random);
-          check(stagePlan().variant===variant&&lockedCells()===expected&&playerStats.hp===startHp,'射击只锁定对应列');
-          advanceStage(random);
-          check(SINGLE_STEP.shots.filter(shot=>!shot.player).length===rays&&
-            playerStats.hp===startHp-Number(variant==='center-shot'),'中路或两翼实际射击与红格一致');
-        }
-
         load([foe(4,3)],'knockback');
         SINGLE_STEP.bonus=1;
         fire();
@@ -464,11 +402,6 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         shoot([dummy(4,3)],'parasite');
         for(let i=0;i<4;i++)singleStepAct('shoot','up');
         check(arena.hits===2&&!monsters[0].arenaParasite,'寄生未满五层时在五步后引爆');
-        load([foe(4,3),dummy(5,4),dummy(6,4),terrain(4,2,TILE.ROCK)],'parasite');
-        const host=monsters.find(m=>!m.arenaDummy);
-        SINGLE_STEP.bonus=2;host.hp=6;
-        fire();fire();
-        check(!monsters.includes(host)&&arena.hits===1&&arena.last===1.75&&tileData['4,2']?.hp===99,'寄生死亡爆炸伤害九格内的敌人，岩石保持完整');
         shoot([dummy(4,3)],'acid');
         for(let i=0;i<5;i++)singleStepAct('shoot','up');
         check(arena.hits===6&&arena.last===1&&!arenaEffects.ground.size,'酸液在五个正常步扣血后消失');
@@ -477,12 +410,12 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         check(lob.length===1&&lob[0].arcHeight>0&&arena.hits===1&&tileData['3,3'].hp===99,'抛射越障并能命中延伸射程的怪物');
         load([dummy(4,3)],'unstable');
         for(let i=0;i<4;i++)withRandom(()=>.5,fire);
-        check(arena.hits===24&&arenaEffects.unstableShots===0&&stepVisualEvents.some(e=>e.type==='unstable-recoil')&&!arenaEffects.notice,'不稳定的枪追加霰弹只提示震动');
+        check(arena.hits===24&&arenaEffects.unstableShots===0,'不稳定的枪第四发额外发射20颗霰弹');
 
         load([foe(5,3)],'slipStep','counterTime','bulletBonus');
         monsters[0].hp=1;
         singleStepAct('move','up');
-        check(player.row===3&&monsters.length===0&&SINGLE_STEP.bonus===0,'闪身反击清房后取消子弹时间');
+        check(player.row===3&&monsters.length===0&&SINGLE_STEP.bonus===3,'闪身回原位、反击击杀并延长子弹时间可叠加');
         load([foe(6,3,'step_charger')],'brace');
         const braced = monsters[0], braceHp = braced.hp, playerHp=playerStats.hp;
         singleStepAct('shoot','up');
@@ -496,14 +429,6 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         singleStepAct('move','down');
         singleStepAct('shoot','left');
         check(arenaEffects.turn===normalTurn&&!arenaEffects.moveCredit&&!arenaEffects.shootCredit,'额外移动和射击不推进正常步');
-
-        load([foe(4,3),foe(5,4),foe(9,3)],'killShot','blast');
-        for(const enemy of monsters)enemy.hp=1;
-        fire();
-        check(monsters.length===1&&arenaEffects.shootCredit===1,'一次攻击击杀多个怪物只返还一次');
-        const recycleTurn=arenaEffects.turn;
-        fire();
-        check(!monsters.length&&arenaEffects.shootCredit===1&&arenaEffects.turn===recycleTurn,'额外射击击杀可再次返还');
 
         load([foe(2,1)],'backArmor','hurtPill');
         const armoredHp=playerStats.hp;
@@ -629,7 +554,7 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
     await page.locator('#arena-edit').click();
     await pick('monster','boss_jumper_i');
     assert.deepEqual(await page.locator('#arena-entry option').evaluateAll(options=>options.map(option=>option.value)),
-      await page.evaluate(()=>[...MONSTER_POOL_NORMAL,'boss_jumper_i','boss_jumper_ii','boss_jumper_iii','duke_fly','step_fighter2','step_mobile2']),
+      await page.evaluate(()=>[...MONSTER_POOL_NORMAL,'boss_jumper_i','boss_jumper_ii','boss_jumper_iii','duke_fly']),
       '怪物列表使用正式普通怪和两类Boss');
     await at(9,1);
     await pick('monster','duke_fly');

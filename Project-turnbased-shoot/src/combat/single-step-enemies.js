@@ -17,20 +17,16 @@ loadMonsterDB=async function(){
 const stepLoadSquadsOriginal=loadSquadTemplates;
 loadSquadTemplates=async function(){const ok=await stepLoadSquadsOriginal();SQUAD_TEMPLATES.squads={...Object.fromEntries(Object.entries(SQUAD_TEMPLATES.squads||{}).filter(([,s])=>s.roomTypes?.includes('boss'))),...window.stepSquads};return ok;};
 const stepSpawnOriginal=spawnMonsterAtRandomPos;
-spawnMonsterAtRandomPos=function(id,tags,anchor){
- const mapped=stepEnemyAlias(id), cfg=MONSTER_DB[mapped];
- const movement=cfg?.movementTags || (cfg?.aiType==='boss_duke'?['飞行']:tags);
- return stepSpawnOriginal(mapped,movement,anchor,undefined,{roomSpawn:true});
-};
+spawnMonsterAtRandomPos=function(id,tags,anchor){const mapped=stepEnemyAlias(id);return stepSpawnOriginal(mapped,STEP_ENEMIES[mapped.replace(/^step_/,'')]?['地面']:tags,anchor);};
 const stepSummonOriginal=handleDukeSummon;
-handleDukeSummon=function(m){if(m._turnAfterAction?.monsterId)m._turnAfterAction.monsterId=stepEnemyAlias(m._turnAfterAction.monsterId);return stepSummonOriginal(m,{allowObstacles:true});};
+handleDukeSummon=function(m){if(m._turnAfterAction?.monsterId)m._turnAfterAction.monsterId=stepEnemyAlias(m._turnAfterAction.monsterId);return stepSummonOriginal(m);};
 function stepEnemyRay(m,dx,dy,range){
  const d=stepEnemyDefinition(m);
  return singleStepRay(m,dx,dy,range,d.hitsAllies===true&&d.mode!=='charge');
 }
 function stepEnemyCells(m,target=player){
  const d=stepEnemyDefinition(m),dx=target.col-m.col,dy=target.row-m.row;
- if(d.mode==='blast')return bombBlastCells(m.col,m.row);
+ if(d.mode==='blast')return [...STEP_CARDINAL,...STEP_DIAGONAL].map(([x,y])=>({col:m.col+x,row:m.row+y})).filter(p=>p.col>=0&&p.row>=0&&p.col<COLS&&p.row<ROWS);
  if(d.mode==='fan')return (d.diagonal?STEP_DIAGONAL:STEP_CARDINAL).flatMap(([x,y])=>stepEnemyRay(m,x,y,d.range));
  if(dx&&dy||!dx&&!dy||Math.abs(dx)+Math.abs(dy)>d.range)return [];
  return stepEnemyRay(m,Math.sign(dx),Math.sign(dy),d.range);
@@ -53,18 +49,10 @@ function stepEnemyChase(m,target=player){
   for(const [dx,dy]of dirs){const col=p.col+dx,row=p.row+dy,k=col+','+row;if(seen.has(k)||!singleStepLegal(m,col,row)||col===player.col&&row===player.row)continue;seen.add(k);queue.push({col,row,first:p.first||{col,row}});}
  }return fallback;
 }
-function stepEnemyAttackPlan(m,target){
- const d=stepEnemyDefinition(m);
- if(!d)return null;
- const cells=stepEnemyCells(m,target);
- if(!cells.some(p=>p.col===target.col&&p.row===target.row))return null;
- return {type:d.mode,cells,origin:{col:m.col,row:m.row},dir:{dx:Math.sign(target.col-m.col),dy:Math.sign(target.row-m.row)}};
-}
-function stepEnemyPlan(m,forceChase=false){
- const attack=stepEnemyAttackPlan(m,player);
- if(attack)return attack;
- const d=stepEnemyDefinition(m),dx=player.col-m.col,dy=player.row-m.row;
- const chase=forceChase||(d.jump?Math.max(Math.abs(dx),Math.abs(dy)):Math.abs(dx)+Math.abs(dy))<=d.chase;
+function stepEnemyPlan(m){
+ const d=stepEnemyDefinition(m),dx=player.col-m.col,dy=player.row-m.row,cells=stepEnemyCells(m);
+ if(cells.some(p=>p.col===player.col&&p.row===player.row))return {type:d.mode,cells,dir:{dx:Math.sign(dx),dy:Math.sign(dy)}};
+ const chase=(d.jump?Math.max(Math.abs(dx),Math.abs(dy)):Math.abs(dx)+Math.abs(dy))<=d.chase;
  let next=null;
  if(d.jump){
   const choices=[];for(let col=0;col<COLS;col++)for(let row=0;row<ROWS;row++){
@@ -72,7 +60,6 @@ function stepEnemyPlan(m,forceChase=false){
    // 探针与原单位使用同一id，原位置不会成为假障碍。
    const probe={...m,col,row};if(chase&&!stepEnemyCells(probe).some(p=>p.col===player.col&&p.row===player.row))continue;choices.push({col,row});
   }next=singleStepPick(choices);
-  if(!next&&forceChase)next=stepEnemyChase(m);
  }else if(d.id!=='step_fixed')next=chase?stepEnemyChase(m):singleStepPick(STEP_CARDINAL.map(([x,y])=>({col:m.col+x,row:m.row+y})).filter(p=>singleStepLegal(m,p.col,p.row)&&!(p.col===player.col&&p.row===player.row)));
  return {type:chase?'chase':'wander',cells:[],path:next?[next]:[],jump:d.jump};
 }
@@ -81,7 +68,7 @@ singleStepRay=function(m,dx,dy,range,hitsAllies=false){
  const out=[];
  for(let n=1;n<=range;n++){
   const col=m.col+dx*n,row=m.row+dy*n;
-  if(singleStepBlocksBullet(col,row))break;
+  if(singleStepBlocksBullet(col,row)||(dx&&dy&&(singleStepBlocksBullet(col-dx,row)||singleStepBlocksBullet(col,row-dy))))break;
   const occupied=monsters.some(o=>o.id!==m.id&&o.hp>0&&isInMonsterFootprint(o,col,row));
   if(!occupied||hitsAllies)out.push({col,row});
   if(occupied)break;
@@ -91,61 +78,25 @@ singleStepRay=function(m,dx,dy,range,hitsAllies=false){
 singleStepPlan=function(){
  for(const id of SINGLE_STEP.plans.keys())if(!monsters.some(m=>m.id===id))SINGLE_STEP.plans.delete(id);
  for(const m of monsters){if(SINGLE_STEP.plans.has(m.id))continue;const d=stepEnemyDefinition(m);SINGLE_STEP.plans.set(m.id,d?stepEnemyPlan(m):singleStepLegacyPlan(m));}
- singleStepEnsurePursuit();
 };
-function singleStepEnsurePursuit(turn){
- const active=monsters.filter(m=>m.hp>0&&!m.jumperVanished);
- const preview=(m,plan)=>singleStepResolvePlan(m,plan,{preview:true,turn});
- if(active.some(m=>{
-  const saved=SINGLE_STEP.plans.get(m.id);
-  if(saved?.type!=='chase')return false;
-  const plan=preview(m,saved);
-  return plan.type==='chase'&&plan.path?.length;
- }))return;
- // 从可游走的怪物中补位，已经锁定的攻击和击退停步照常结算。
- const candidates=active.filter(m=>{
-  const saved=SINGLE_STEP.plans.get(m.id);
-  const canTakeOver=saved?.type==='wander'||(saved?.type==='chase'&&!saved.path?.length);
-  return stepEnemyDefinition(m)?.chase>0&&canTakeOver&&!m.arenaDelayedMove&&
-   preview(m,saved).type===saved.type;
- });
- while(candidates.length){
-  const m=singleStepPick(candidates);
-  const chase=stepEnemyPlan(m,true);
-  if(chase.type==='chase'&&chase.path.length){SINGLE_STEP.plans.set(m.id,chase);break;}
-  candidates.splice(candidates.indexOf(m),1);
- }
-}
 function singleStepRecovery(m,p){const d=stepEnemyDefinition(m);return d?d.recover&&['shot','fan','strike','charge'].includes(p.type):singleStepBasic(m)&&['shot','charge'].includes(p.type);}
 function singleStepResolvePlan(m,p){
- const d=stepEnemyDefinition(m);
- if(!d)return singleStepResolveLegacyPlan(m,p);
- const displaced=p.origin&&(p.origin.col!==m.col||p.origin.row!==m.row);
- if(p.type==='blast')return displaced?{...p,cells:bombBlastCells(m.col,m.row)}:p;
- if(!['shot','fan','strike','charge'].includes(p.type))return p;
- const dirs=p.type==='fan'?(d.diagonal?STEP_DIAGONAL:STEP_CARDINAL):[[p.dir.dx,p.dir.dy]];
- const cells=dirs.flatMap(([dx,dy])=>stepEnemyRay(m,dx,dy,d.range));
- if(displaced)return {...p,cells};
- const valid=new Set(cells.map(c=>c.col+','+c.row));
+ const d=stepEnemyDefinition(m);if(!d||!['shot','fan','strike','charge'].includes(p.type))return p;
+ const dirs=p.type==='fan'?(d.diagonal?STEP_DIAGONAL:STEP_CARDINAL):[[p.dir.dx,p.dir.dy]],valid=new Set(dirs.flatMap(([dx,dy])=>stepEnemyRay(m,dx,dy,d.range)).map(c=>c.col+','+c.row));
  return {...p,cells:p.cells.filter(c=>valid.has(c.col+','+c.row))};
 }
 const stepApplyOriginal=singleStepApplyPlan;
 singleStepApplyPlan=function(m,p){
  const d=stepEnemyDefinition(m);if(!d)return stepApplyOriginal(m,p);
  const from={col:m.col,row:m.row};m._stepAction={type:p.type,at:performance.now(),from,cells:cloneHistoryValue(p.cells),dir:p.dir};
- if(p.type==='blast'){
-  stepDetonateBomb(m,p.cells,{source:m});
-  if(m.hp>0)damageMonster(m,m.hp);
- }else if(['shot','fan','strike'].includes(p.type)){
-  if(p.cells.some(c=>c.col===player.col&&c.row===player.row)){
-   if(tileData[player.col+','+player.row])weaponDamageTerrain(player.col,player.row);
-   else damagePlayer(1,m.id);
-  }
+ if(['shot','fan','strike','blast'].includes(p.type)){
+  if(p.cells.some(c=>c.col===player.col&&c.row===player.row))damagePlayer(1,m.id);
   if(d.hitsAllies===true)damageMonsterAllies(d,m,new Set(p.cells.map(c=>`${c.col},${c.row}`)),1);
   if(p.type==='shot'||p.type==='fan'){
    const rays=new Map();for(const cell of p.cells){const dx=Math.sign(cell.col-m.col),dy=Math.sign(cell.row-m.row),k=dx+','+dy,old=rays.get(k);if(!old||Math.hypot(cell.col-m.col,cell.row-m.row)>Math.hypot(old.col-m.col,old.row-m.row))rays.set(k,cell);}
    for(const[k,to]of rays){const[dx,dy]=k.split(',').map(Number);singleStepVisualShot(m,to,false,{dx,dy});}
   }
+  if(p.type==='blast'){stepVisualEvents.push({type:'blast',col:m.col,row:m.row,at:performance.now()});damageMonster(m,m.hp);}
  }else if(p.type==='charge')stepApplyOriginal(m,p);
  else if(p.jump&&p.path?.length){
   const to=p.path[0];if(singleStepLegal(m,to.col,to.row)&&!(to.col===player.col&&to.row===player.row)){
@@ -161,14 +112,14 @@ function stepSpawnChild(parent,col,row){
 const stepRoomUpdateOriginal=updateRoomCombatState;
 updateRoomCombatState=function(){if(stepSplitting)return;return stepRoomUpdateOriginal();};
 const stepDamageOriginal=damageMonster;
-damageMonster=function(m,amount,...args){
- const d=stepEnemyDefinition(m),alive=m.hp>0;if(!d||!alive)return stepDamageOriginal(m,amount,...args);
+damageMonster=function(m,amount){
+ const d=stepEnemyDefinition(m),alive=m.hp>0;if(!d||!alive)return stepDamageOriginal(m,amount);
  const splitting=m.cfgId==='step_big'&&amount>=m.hp,previous=stepSplitting;if(splitting)stepSplitting=true;
  try{
-  stepDamageOriginal(m,amount,...args);
+  stepDamageOriginal(m,amount);
   if(m.hp<=0){stepVisualEvents.push({type:'death',cfgId:m.cfgId,col:m.col,row:m.row,x:m.px,y:m.py,at:performance.now()});
    if(splitting){let count=0;for(let radius=1;radius<COLS+ROWS&&count<2;radius++)for(let row=0;row<ROWS&&count<2;row++)for(let col=0;col<COLS&&count<2;col++){
-    if(Math.abs(col-m.col)+Math.abs(row-m.row)!==radius||isWall(col,row)||currentRoomGrid[col][row]===TILE.SPIKE||col===player.col&&row===player.row||monsters.some(o=>isInMonsterFootprint(o,col,row)))continue;stepSpawnChild(m,col,row);count++;
+    if(Math.abs(col-m.col)+Math.abs(row-m.row)!==radius||isWall(col,row)||col===player.col&&row===player.row||monsters.some(o=>isInMonsterFootprint(o,col,row)))continue;stepSpawnChild(m,col,row);count++;
    }}
   }
  }finally{stepSplitting=previous;}

@@ -26,7 +26,6 @@
     },
     "mobile": {
       "id": "step_mobile",
-      "movementTags": ["飞行"],
       "name": "移动射手",
       "hp": 7,
       "damage": 1,

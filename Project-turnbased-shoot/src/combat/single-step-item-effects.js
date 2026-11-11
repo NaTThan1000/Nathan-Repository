@@ -7,7 +7,7 @@ reservedHeartSlots = () => Number(trialPassive('timedShield'));
 function arenaResetEffects() {
   Object.assign(arenaEffects,{
     turn:0, ground:new Map(), avoided:new Set(), extended:false,
-    moveCredit:0, shootCredit:0, shotRewarded:false, freeAction:false, enemyActing:false,
+    moveCredit:0, shootCredit:0, freeAction:false, enemyActing:false,
     armorReady:false, timedCharge:0, rageKills:0, rageReady:false,
     roomsCleared:0, roomClearRecorded:false, roomHadEnemies:false, floorAttack:0, unstableShots:0,
     notice:'',
@@ -89,16 +89,15 @@ function arenaRecordKill(monster) {
     arenaEffects.rageReady = true;
     arenaEffectNotice('狂暴护盾已充能');
   }
-  if (!arenaEffects.freeAction && trialPassive('killMove')) arenaEffects.moveCredit = 1;
-  if (trialPassive('killShot') && !arenaEffects.shotRewarded) {
-    arenaEffects.shootCredit++;
-    arenaEffects.shotRewarded = true;
+  if (!arenaEffects.freeAction) {
+    if (trialPassive('killMove')) arenaEffects.moveCredit = 1;
+    if (trialPassive('killShot')) arenaEffects.shootCredit = 1;
   }
   if (SINGLE_STEP.bonus && trialPassive('bulletBonus') && !arenaEffects.extended &&
       arenaEffects.avoided.has(monster.id)) {
     SINGLE_STEP.bonus++;
     arenaEffects.extended = true;
-    arenaEffectNotice('额外回合');
+    arenaEffectNotice('击杀被闪避的怪物，子弹时间 +1');
   }
 }
 
@@ -106,11 +105,7 @@ const arenaTrialDamageMonster = damageMonster;
 damageMonster = function(monster,damage,...args) {
   const alive = monster.hp > 0 && monsters.includes(monster);
   const result = arenaTrialDamageMonster(monster,damage,...args);
-  if (alive && monster.hp <= 0) {
-    if (!arenaEffects.enemyActing) arenaRecordKill(monster);
-    const {at=performance.now(),lane=0} = args[0] || {};
-    arenaParasiteBlast(monster,at,lane);
-  }
+  if (alive && monster.hp <= 0 && !arenaEffects.enemyActing) arenaRecordKill(monster);
   return result;
 };
 
@@ -184,7 +179,9 @@ function arenaCanMoveMonster(m,col,row) {
 
 function arenaKnockback(m,dx,dy) {
   if (m.arenaDummy || !arenaCanMoveMonster(m,m.col+dx,m.row+dy)) return;
-  singleStepDisplaceMonster(m,m.col+dx,m.row+dy);
+  m.col += dx;
+  m.row += dy;
+  (m._visualPath ||= []).push({col:m.col,row:m.row});
 }
 
 function arenaStatusUntil(m,key,steps) {
@@ -206,17 +203,17 @@ function arenaParasiteBlast(m,at,lane) {
   const charge = m.arenaParasite;
   if (!charge) return;
   delete m.arenaParasite;
-  const damage = Math.round(playerStats.attack * charge.stacks * 50) / 100;
-  weaponBlast(m.col,m.row,damage,at,lane);
+  stepVisualEvents.push({type:'blast',col:m.col,row:m.row,at});
+  weaponDamageMonster(m,charge.damage,at,lane);
 }
 
-stepTestHooks.onWeaponHit = function(m,cell,{dx,dy,at,lane,ammo}) {
+stepTestHooks.onWeaponHit = function(m,cell,{dx,dy,damage,at,lane,ammo}) {
   if (ammo === 'acid') arenaGroundEffect(cell,'acid',5);
   if (m.hp <= 0 || !monsters.includes(m)) return;
   if (ammo === 'knockback') {
     arenaKnockback(m,dx,dy);
   } else if (ammo === 'parasite') {
-    const charge = m.arenaParasite ||= {stacks:0,expires:arenaEffects.turn+5};
+    const charge = m.arenaParasite ||= {stacks:0,expires:arenaEffects.turn+5,damage};
     if (++charge.stacks >= 5) arenaParasiteBlast(m,at,lane);
   } else if (['fear','petrify','sticky','ink','short'].includes(ammo) && Math.random() < ARENA_STATUS_CHANCE) {
     if (ammo === 'sticky') {
@@ -288,9 +285,10 @@ singleStepPlan = function() {
   itemEffectPlanBase();
 };
 
-singleStepResolvePlan = function(m,plan,{preview=false,turn=arenaEffects.turn+Number(preview)}={}) {
-  if (m.arenaDummy || plan.type==='displaced-wait') return plan;
+singleStepResolvePlan = function(m,plan,{preview=false}={}) {
+  if (m.arenaDummy) return plan;
   // 实际行动前会先推进场内回合。绘制预警时只读取这一步的状态。
+  const turn = arenaEffects.turn + Number(preview);
   if (arenaStatusActive(m,'petrify',turn)) return {type:'wait',cells:[]};
   if (m.arenaDelayedMove) {
     if (arenaStatusActive(m,'rooted',turn)) return {type:'wait',cells:[]};
@@ -299,9 +297,9 @@ singleStepResolvePlan = function(m,plan,{preview=false,turn=arenaEffects.turn+Nu
       delete m.arenaDelayedMove;
       if (arenaStatusActive(m,'sticky',turn)) m.arenaSkipMove = true;
     }
-    return {...arenaTrialResolvePlan(m,saved),delayedMove:true};
+    return arenaTrialResolvePlan(m,saved);
   }
-  const attack = stepTestHooks.isEnemyWindup?.(plan) || (plan.cells.length && !['wander','chase','legacy-move'].includes(plan.type));
+  const attack = plan.cells.length && !['wander','chase','legacy-move'].includes(plan.type);
   if (arenaStatusActive(m,'ink',turn) || (attack && arenaStatusActive(m,'short',turn))) {
     if (preview) return {type:'wait',cells:[]};
     plan = arenaDefaultEnemyPlan(m);
@@ -365,11 +363,11 @@ stepTestHooks.blockPush = function(m) {
   return true;
 };
 
-stepTestHooks.beginAction = () => { arenaEffects.freeAction = false; arenaEffects.shotRewarded = false; };
+stepTestHooks.beginAction = () => { arenaEffects.freeAction = false; };
 stepTestHooks.consumeExtra = function(type) {
   const key = type==='move'?'moveCredit':'shootCredit';
   if (!arenaEffects[key]) return false;
-  arenaEffects[key]--;
+  arenaEffects[key] = 0;
   arenaEffects.freeAction = true;
   return true;
 };
@@ -394,8 +392,9 @@ function arenaAutoTarget(origin,dx,dy,range,lob) {
   const body = equippedWeaponTrial('body'), shell = equippedWeaponTrial('shell');
   const piercesTerrain = body==='energy'||shell==='ghost';
   for (let steps=1;steps<=range;steps++) {
-    const col=origin.col+dx*steps,row=origin.row+dy*steps;
-    if (!piercesTerrain && singleStepBlocksBullet(col,row)) return false;
+    const from={col:origin.col+dx*(steps-1),row:origin.row+dy*(steps-1)};
+    const col=from.col+dx,row=from.row+dy;
+    if (!piercesTerrain && (singleStepBlocksBullet(col,row)||weaponBlockedCorner(from,dx,dy))) return false;
     if (monsters.some(m=>m.hp>0&&!m.jumperVanished&&isInMonsterFootprint(m,col,row))) return true;
   }
   return false;
@@ -433,7 +432,7 @@ stepTestHooks.onShot = function(origin,dir,charge) {
   const range = weaponShotgunRange();
   const shell = equippedWeaponTrial('shell'), ammo = equippedWeaponTrial('ammo');
   weaponShotgunVolley(origin,dir,playerStats.attack*charge.scale,range,{shell,ammo,body:'shotgun'},performance.now()+45);
-  stepVisualEvents.push({type:'unstable-recoil',at:performance.now()+45});
+  arenaEffectNotice('不稳定的枪额外发射霰弹');
 };
 
 stepTestHooks.onDodge = function(old,avoided) {
@@ -593,24 +592,6 @@ drawPlayer = function() {
   ctx.restore();
 };
 
-function arenaDrawParasite(m) {
-  const center = CELL*((m.size||1)-1)/2;
-  const {x,y} = project(m.px+center,m.py+center);
-  const r = CELL*(.08+.055*m.arenaParasite.stacks);
-  ctx.save();
-  ctx.fillStyle = '#141019';
-  ctx.strokeStyle = '#6f607d';
-  ctx.lineWidth = .8;
-  ctx.beginPath();
-  ctx.moveTo(x-r,y);
-  ctx.bezierCurveTo(x-r*1.1,y-r*.8,x-r*.12,y-r,x+r*.48,y-r*.64);
-  ctx.bezierCurveTo(x+r*1.25,y-r*.85,x+r*1.18,y+r*.55,x+r*.46,y+r*.68);
-  ctx.bezierCurveTo(x-r*.4,y+r,x-r*1.15,y+r*.62,x-r,y);
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-}
-
 function arenaDrawTrialStatuses() {
   ctx.save();
   ctx.textAlign = 'center';
@@ -620,7 +601,7 @@ function arenaDrawTrialStatuses() {
   for (const m of monsters) {
     if (m.jumperVanished) continue;
     const tags = Object.keys(names).filter(key=>arenaStatusActive(m,key)).map(key=>names[key]);
-    if (m.arenaDummy && m.arenaParasite) arenaDrawParasite(m);
+    if (m.arenaParasite) tags.push('寄 '+m.arenaParasite.stacks+'/5');
     if (tags.length) {
       const {x,y} = project(m.px,m.py);
       ctx.fillText(tags.join(' '),x,y-15);
