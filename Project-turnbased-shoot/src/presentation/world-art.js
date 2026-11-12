@@ -18,7 +18,25 @@ function drawStaticWorldMonster(m,x,y,size,scale=1,drawSprite=scrapDraw){
  ctx.restore();
 }
 const worldBaseTiles=drawTiles;
-drawTiles=function(){worldBaseTiles();if(!currentRoomGrid)return;for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++)if(currentRoomGrid[c][r]===TILE.SPIKE){const q=cellRect(c,r);scrapDraw('static-spikes',q.xL,q.yT-2,q.w,q.h+2);}};
+drawTiles=function(){worldBaseTiles();if(!currentRoomGrid)return;for(let c=0;c<COLS;c++)for(let r=0;r<ROWS;r++)if(currentRoomGrid[c][r]===TILE.SPIKE){const q=cellRect(c,r);drawWorldSpike(q,c,r);}};
+function drawWorldSpike(q,col,row){
+ const phase=typeof singleStepSpikeAt==='function'?singleStepSpikeAt(col,row):'extended';
+ if(phase==='extended'){
+  scrapDraw('static-spikes',q.xL,q.yT-2,q.w,q.h+2);
+  return;
+ }
+ // 缩回时保留可辨认的底座和尖刺孔，预警时孔缘亮起。
+ ctx.fillStyle='#4d4549';
+ ctx.fillRect(q.xL+3,q.yT+4,q.w-6,q.h-8);
+ ctx.fillStyle='#211d22';
+ ctx.fillRect(q.xL+4,q.yT+5,q.w-8,q.h-10);
+ for(const dy of [-3,3])for(const dx of [-5,0,5]){
+  ctx.fillStyle=phase==='warning'?'#bb7656':'#62565b';
+  ctx.fillRect(q.cx+dx-1,q.cy+dy-1,3,3);
+  ctx.fillStyle='#151319';
+  ctx.fillRect(q.cx+dx-1,q.cy+dy-1,2,2);
+ }
+}
 function resourceWorldArt(res){
  const cfg=RESOURCE_DB[res.cfgId];if(!cfg)return null;
  if(cfg.type==='coin')return res.cfgId.includes('silver')?'coin-silver':res.cfgId.includes('black')?'coin-black':'coin';

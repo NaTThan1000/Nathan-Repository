@@ -1,12 +1,29 @@
 // 正式版单步调度：保留楼层、配置、掉落与道具；不再进入旧 MP/AP 与回溯循环。
 // 普通怪物由 single-step-enemies 接入新规则；Boss通过旧规则模拟获得锁定行动。
-const SINGLE_STEP={bonus:0,step:0,room:null,plans:new Map(),legacy:new Map(),damaged:false,busy:false,shots:[],error:null};
+const SINGLE_STEP={bonus:0,step:0,spikeTurn:0,room:null,plans:new Map(),legacy:new Map(),damaged:false,busy:false,shots:[],error:null};
 const stepOldLoadMonsterDB=loadMonsterDB;
+const STEP_STARTING_HP=10;
+playerStats.hp=playerStats.maxHp=STEP_STARTING_HP;
+scrapNumericHealth=true;
+const stepLoadResourceBase=loadResourceDB;
+loadResourceDB=()=>stepLoadResourceBase({singleStep:true});
+keepCombatForBombs=false;
+const STEP_SPIKE_CYCLE = ['extended','extended','retracted','retracted','warning'];
+function singleStepSpikeAt(col,row) {
+ return currentRoomGrid?.[col]?.[row]===TILE.SPIKE ? STEP_SPIKE_CYCLE[SINGLE_STEP.spikeTurn] : null;
+}
+checkSpikeUnderPlayer=function(){
+ if(!trialPassive('boots') && singleStepSpikeAt(player.col,player.row)==='extended')damagePlayer(1);
+};
 function singleStepBasic(m){return m.cfgId==='crack_maw_i'?'melee':m.cfgId==='flying_eye_i'?'ranged':null;}
 function singleStepBlocksBullet(col,row){return col<0||row<0||col>=COLS||row>=ROWS||!!TILE_BLOCKS_BULLET[currentRoomGrid?.[col]?.[row]];}
 function singleStepFootprint(m,col=m.col,row=m.row){const out=[];for(let x=0;x<(m.size||1);x++)for(let y=0;y<(m.size||1);y++)out.push({col:col+x,row:row+y});return out;}
-function singleStepLegal(m,col,row){return singleStepFootprint(m,col,row).every(p=>!isWall(p.col,p.row)&&!monsters.some(o=>o!==m&&o.hp>0&&isInMonsterFootprint(o,p.col,p.row)));}
-function singleStepRay(m,dx,dy,range){const out=[];for(let n=1;n<=range;n++){const col=m.col+dx*n,row=m.row+dy*n;if(singleStepBlocksBullet(col,row)||(dx&&dy&&(singleStepBlocksBullet(col-dx,row)||singleStepBlocksBullet(col,row-dy))))break;if(monsters.some(o=>o!==m&&isInMonsterFootprint(o,col,row)))break;out.push({col,row});}return out;}
+function singleStepLegal(m,col,row){
+ const flying=m.movementTags?.includes('飞行');
+ return singleStepFootprint(m,col,row).every(p=>p.col>=0&&p.col<COLS&&p.row>=0&&p.row<ROWS&&
+  (flying||!isWall(p.col,p.row))&&!monsters.some(o=>o.id!==m.id&&o.hp>0&&isInMonsterFootprint(o,p.col,p.row)));
+}
+function singleStepRay(m,dx,dy,range){const out=[];for(let n=1;n<=range;n++){const col=m.col+dx*n,row=m.row+dy*n;if(singleStepBlocksBullet(col,row))break;if(monsters.some(o=>o!==m&&isInMonsterFootprint(o,col,row)))break;out.push({col,row});}return out;}
 function singleStepPick(cells){return cells.length?cells[Math.floor(monsterActionRandom()*cells.length)]:null;}
 function singleStepBasicPlan(m,kind){
  const dx=player.col-m.col,dy=player.row-m.row,ax=Math.abs(dx),ay=Math.abs(dy);
@@ -43,6 +60,14 @@ function singleStepLegacyPlan(m){
     if(effects.length)plan.allyShockwave={position:end.jumpTo,effects};
    }
   }
+  if(jump && !end.jumperVanished) {
+   plan.attackCells=plan.cells;
+   const cellsByKey=new Map(plan.cells.map(c=>[c.col+','+c.row,c]));
+   for(const dest of plan.path)if(dest.col!==m.col||dest.row!==m.row){
+    for(const c of singleStepFootprint(m,dest.col,dest.row))cellsByKey.set(c.col+','+c.row,c);
+   }
+   plan.cells=[...cellsByKey.values()];
+  }
   queue.push(plan);
  }
  else{
@@ -64,17 +89,57 @@ function singleStepPlan(){
  for(const id of SINGLE_STEP.plans.keys())if(!monsters.some(m=>m.id===id))SINGLE_STEP.plans.delete(id);
  for(const m of monsters){if(SINGLE_STEP.plans.has(m.id))continue;const kind=singleStepBasic(m);const plan=kind?singleStepBasicPlan(m,kind):singleStepLegacyPlan(m);SINGLE_STEP.plans.set(m.id,plan);}
 }
-function singleStepReset(){SINGLE_STEP.bonus=0;SINGLE_STEP.echo=null;SINGLE_STEP.weaponCharge=0;SINGLE_STEP.step=0;SINGLE_STEP.room=currentRoomId;SINGLE_STEP.plans.clear();SINGLE_STEP.legacy.clear();SINGLE_STEP.shots=[];SINGLE_STEP.error=null;historyOpen=false;actionHistory=[];provisionalDefeats=[];turnState.phase='player_select';pendingPlayerTurnEnd=false;dangerForecast=null;dangerForecastJob=null;dangerReveal=null;singleStepPlan();}
+function singleStepReset(){SINGLE_STEP.bonus=0;SINGLE_STEP.echo=null;SINGLE_STEP.weaponCharge=0;SINGLE_STEP.step=0;SINGLE_STEP.spikeTurn=0;SINGLE_STEP.room=currentRoomId;SINGLE_STEP.plans.clear();SINGLE_STEP.legacy.clear();SINGLE_STEP.shots=[];SINGLE_STEP.error=null;historyOpen=false;actionHistory=[];provisionalDefeats=[];turnState.phase='player_select';pendingPlayerTurnEnd=false;dangerForecast=null;dangerForecastJob=null;dangerReveal=null;singleStepPlan();}
 function singleStepPush(m,col,row,dir){
  const sz=m.size||1;let groups;
  if(sz===1&&dir)groups=[[[-dir.dy,dir.dx],[dir.dy,-dir.dx]],[[dir.dx,dir.dy]],[[-dir.dx,-dir.dy]]];else groups=[[[0,-1],[0,1],[-1,0],[1,0]]];
  for(const dirs of groups){const options=dirs.map(([dx,dy])=>({col:player.col+dx,row:player.row+dy})).filter(p=>!isWall(p.col,p.row)&&!(p.col>=col&&p.col<col+sz&&p.row>=row&&p.row<row+sz)&&!monsters.some(o=>o!==m&&isInMonsterFootprint(o,p.col,p.row)));const p=singleStepPick(options);if(p){player.col=p.col;player.row=p.row;const q=gridToPixel(p.col,p.row);player.targetPx=q.x;player.targetPy=q.y;if(!trialPassive('boots'))checkSpikeUnderPlayer();return true;}}
  SINGLE_STEP.error='挤出无合法落点';return false;
 }
+function singleStepJumpLegal(m,dest){
+ return isValidLandingZone(dest.col,dest.row,m.size||1)&&
+  !singleStepFootprint(m,dest.col,dest.row).some(c=>monsters.some(o=>o!==m&&isInMonsterFootprint(o,c.col,c.row)));
+}
+function singleStepResolveLegacyPlan(m,plan){
+ if(!plan.displaced)return plan;
+ const inRoom=p=>p.col>=0&&p.row>=0&&p.col<COLS&&p.row<ROWS;
+ const path=plan.path||[];
+ const canMove=path.every(dest=>plan.type==='legacy-jump'?singleStepJumpLegal(m,dest):singleStepLegal(m,dest.col,dest.row));
+ const cells=canMove?plan.cells.filter(inRoom):[];
+ return {...plan,cells,path:canMove?path:[],attackCells:plan.attackCells?(canMove?plan.attackCells.filter(inRoom):[]):undefined,
+  allyShockwave:canMove?plan.allyShockwave:undefined};
+}
+function singleStepDisplaceMonster(m,col,row){
+ const dx=col-m.col,dy=row-m.row;
+ if(!dx&&!dy)return;
+ const shift=cell=>({...cell,col:cell.col+dx,row:cell.row+dy});
+ const shiftLanding=landing=>landing&&{...landing,targetCol:landing.targetCol+dx,targetRow:landing.targetRow+dy};
+ const shiftPlan=plan=>({...plan,displaced:true,cells:plan.cells.map(shift),
+  attackCells:plan.attackCells?.map(shift),path:plan.path?.map(dest=>shift({col:dest.col,row:dest.row})),
+  landing:shiftLanding(plan.landing),
+  allyShockwave:plan.allyShockwave&&{...plan.allyShockwave,position:shift(plan.allyShockwave.position)}});
+ const saved=SINGLE_STEP.plans.get(m.id);
+ if(['chase','wander'].includes(saved?.type)||m.arenaDelayedMove){
+  delete m.arenaDelayedMove;
+  SINGLE_STEP.plans.set(m.id,{type:'displaced-wait',cells:[]});
+ }else if(saved?.type.startsWith('legacy-')){
+  SINGLE_STEP.plans.set(m.id,shiftPlan(saved));
+ }
+ const legacy=SINGLE_STEP.legacy.get(m.id);
+ if(legacy){
+  legacy.queue=legacy.queue.map(shiftPlan);
+  legacy.landing=shiftLanding(legacy.landing);
+ }
+ m.col=col;m.row=row;
+ (m._visualPath ||= []).push({col,row});
+}
 function singleStepApplyPlan(m,p){
  const before={col:player.col,row:player.row},origin={col:m.col,row:m.row};let hit=false;
  if(p.type==='shot'||p.type==='legacy-attack'||p.type==='legacy-action'||p.type==='legacy-jump'){
-  if(p.cells.some(c=>c.col===player.col&&c.row===player.row)){damagePlayer(p.damage??(m.damage||1),m.id);hit=true;}
+  if((p.attackCells||p.cells).some(c=>c.col===player.col&&c.row===player.row)){
+   if(tileData[player.col+','+player.row])weaponDamageTerrain(player.col,player.row);
+   else{damagePlayer(p.damage??(m.damage||1),m.id);hit=true;}
+  }
   if(p.hitsAllies)damageMonsterAllies(p,m,new Set(p.cells.map(c=>`${c.col},${c.row}`)),p.damage??.5);
   if(p.allyShockwave){
    const {position,effects}=p.allyShockwave;
@@ -87,13 +152,17 @@ function singleStepApplyPlan(m,p){
   if(p.type==='legacy-attack'&&!p.melee){const rays=new Map();for(const cell of p.cells){const dx=Math.sign(cell.col-m.col),dy=Math.sign(cell.row-m.row),key=dx+','+dy;if(!dx&&!dy)continue;const old=rays.get(key);if(!old||Math.hypot(cell.col-m.col,cell.row-m.row)>Math.hypot(old.col-m.col,old.row-m.row))rays.set(key,cell);}for(const [key,to]of rays){const [dx,dy]=key.split(',').map(Number);singleStepVisualShot(m,to,false,{dx,dy});}scrapEffects.monsterActed(m.id);}
  }
  for(const dest of p.path||[]){
-  for(const push of dest.pushed||[]){const other=monsters.find(o=>o.id===push.id);if(!other||!singleStepLegal(other,push.col,push.row)||(push.col===player.col&&push.row===player.row))continue;other.col=push.col;other.row=push.row;(other._visualPath||(other._visualPath=[])).push({col:push.col,row:push.row});}
-  const legal=p.type==='legacy-jump'?isValidLandingZone(dest.col,dest.row,m.size||1)&&!singleStepFootprint(m,dest.col,dest.row).some(c=>monsters.some(o=>o!==m&&isInMonsterFootprint(o,c.col,c.row))):singleStepLegal(m,dest.col,dest.row);
+  for(const push of dest.pushed||[]){const other=monsters.find(o=>o.id===push.id);if(!other||!singleStepLegal(other,push.col,push.row)||(push.col===player.col&&push.row===player.row))continue;singleStepDisplaceMonster(other,push.col,push.row);}
+  const legal=p.type==='legacy-jump'?singleStepJumpLegal(m,dest):singleStepLegal(m,dest.col,dest.row);
   if(!legal)break;
   const overlap=singleStepFootprint(m,dest.col,dest.row).some(c=>c.col===player.col&&c.row===player.row);
-  if(overlap){if(stepTestHooks.blockPush?.(m))break;if(!hit){damagePlayer(m.damage||1,m.id);hit=true;}if(!singleStepPush(m,dest.col,dest.row,p.dir))break;}
+  if(overlap){if(stepTestHooks.blockPush?.(m))break;if(!hit){
+   if(tileData[player.col+','+player.row])weaponDamageTerrain(player.col,player.row);
+   else damagePlayer(m.damage||1,m.id);
+   hit=true;
+  }if(!singleStepPush(m,dest.col,dest.row,p.dir))break;}
   m.col=dest.col;m.row=dest.row;(m._visualPath||(m._visualPath=[])).push({col:m.col,row:m.row});
-  if(currentRoomGrid[m.col]?.[m.row]===TILE.SPIKE&&!m.movementTags?.includes('飞行'))damageMonster(m,5);
+
  }
  if(p.type==='charge'){
   for(const dest of p.cells){if(!singleStepLegal(m,dest.col,dest.row))break;if(dest.col===player.col&&dest.row===player.row){if(stepTestHooks.blockPush?.(m))break;if(!hit){damagePlayer(m.damage||1,m.id);hit=true;}if(!singleStepPush(m,dest.col,dest.row,p.dir))break;}m.col=dest.col;m.row=dest.row;(m._visualPath||(m._visualPath=[])).push({...dest});}
@@ -117,11 +186,12 @@ function singleStepVisualShot(source,to,playerShot,dir,{
  from.x+=offsetX;from.y+=offsetY;end.x+=offsetX;end.y+=offsetY;
  SINGLE_STEP.shots.push({from,to:end,start,player:playerShot,owner:playerShot?null:source.id,dir,beam,travel,impact,fromScale,toScale,arcHeight});
 }
+function singleStepMoveSpeed(){return hasMonstersAlive() ? CFG.EXEC_MOVE_SPEED : CFG.EXEC_MOVE_SPEED*1.5;}
 function singleStepPickup(){autoPickupResources();for(let i=itemsOnGround.length-1;i>=0;i--){const item=itemsOnGround[i];if(item.col!==player.col||item.row!==player.row)continue;if(isShopSlotCell(item.col,item.row)){tryBuyShopItem(item.col,item.row);continue;}if(canPickupItem(item.cfgId)){applyItem(item.cfgId);itemsOnGround.splice(i,1);updateItemBar();}}}
 function singleStepAct(type,dir){
  if(!gameStarted||gameOver||worldMapOpen||transition?.active||floorFadeBusy||SINGLE_STEP.busy)return false;
  if(SINGLE_STEP.room!==currentRoomId)singleStepReset();
- const old={col:player.col,row:player.row},frozen=SINGLE_STEP.bonus>0;SINGLE_STEP.damaged=false;const v=DIR_VEC[dir];
+ const old={col:player.col,row:player.row},frozen=SINGLE_STEP.bonus>0,hadEnemies=hasMonstersAlive();SINGLE_STEP.damaged=false;const v=DIR_VEC[dir];
  stepTestHooks.beginAction?.();
  let extraAction=false,placedBomb;
  if(type==='move'){
@@ -154,24 +224,49 @@ function singleStepAct(type,dir){
  try{
   if(type==='move')stepTestHooks.onMove?.(old,v);
   if(player.invincibleSteps>0)player.invincibleSteps--;
-  if(!trialPassive('boots'))checkSpikeUnderPlayer();
-  let dodged=false;
-  const avoided=stepTestHooks.onDodge?[]:null;
-  if(!frozen&&!extraAction){
+  const normalStep=!frozen&&!extraAction;
+  const leftSpike=normalStep&&type==='move'&&!trialPassive('boots')&&
+   singleStepSpikeAt(old.col,old.row)==='warning'&&(player.col!==old.col||player.row!==old.row);
+  if(normalStep)SINGLE_STEP.spikeTurn=(SINGLE_STEP.spikeTurn+1)%STEP_SPIKE_CYCLE.length;
+  if(normalStep||type==='move')checkSpikeUnderPlayer();
+  let dodged=leftSpike;
+  const avoided=[];
+  if(normalStep){
    tickBombCountdown(placedBomb);
    tickWeaponPoison();
    stepTestHooks.beforeEnemies?.();
+   singleStepEnsurePursuit(arenaEffects.turn);
+   const movedTo={col:player.col,row:player.row};
    for(const m of [...monsters]){if(!monsters.includes(m))continue;const saved=SINGLE_STEP.plans.get(m.id);if(!saved)continue;const plan=singleStepResolvePlan(m,saved);
-    const wasHit=plan.cells.some(p=>p.col===old.col&&p.row===old.row),nowHit=plan.cells.some(p=>p.col===player.col&&p.row===player.row);
-    if(type==='move'&&wasHit&&!nowHit){dodged=true;avoided?.push(m);}
-    singleStepApplyPlan(m,plan);SINGLE_STEP.plans.delete(m.id);
-    if(singleStepRecovery(m,plan))SINGLE_STEP.plans.set(m.id,{type:'recover',cells:[]});
+    // 已经锁定的攻击照常结算。移动中的普通怪先检查新落点，再决定是否转入预告。
+    let attack=type==='move'&&['chase','wander'].includes(plan.type)&&!plan.delayedMove
+     ? stepEnemyAttackPlan(m,movedTo) : null;
+    if(attack){
+     const preview=singleStepResolvePlan(m,attack,{preview:true,turn:arenaEffects.turn});
+     if(!singleStepIsAttackPlan(preview)&&!stepTestHooks.isEnemyWindup?.(preview))attack=null;
+    }
+    if(attack){
+     SINGLE_STEP.plans.set(m.id,attack);
+    }else{
+     const wasHit=plan.cells.some(p=>p.col===old.col&&p.row===old.row),nowHit=plan.cells.some(p=>p.col===player.col&&p.row===player.row);
+     if(type==='move'&&wasHit&&!nowHit&&plan.attackColor!=='yellow'){dodged=true;avoided.push(m);}
+     singleStepApplyPlan(m,plan);SINGLE_STEP.plans.delete(m.id);
+     const nextPlan=stepTestHooks.nextEnemyPlan?.(m,plan);
+     if(nextPlan)SINGLE_STEP.plans.set(m.id,nextPlan);
+     else if(singleStepRecovery(m,plan))SINGLE_STEP.plans.set(m.id,{type:'recover',cells:[]});
+    }
+    if(m.hp>0&&monsters.includes(m)&&!m.jumperVanished&&!m.movementTags?.includes('飞行')&&
+       singleStepFootprint(m).some(c=>singleStepSpikeAt(c.col,c.row)==='extended')){
+     arenaEffects.enemyActing=true;
+     try{damageMonster(m,5);}finally{arenaEffects.enemyActing=false;}
+    }
    }
   }
   singleStepPickup();updateRoomCombatState();SINGLE_STEP.step++;turnState.turnNumber=SINGLE_STEP.step;
-  if(frozen)SINGLE_STEP.bonus=SINGLE_STEP.damaged?0:SINGLE_STEP.bonus-1;
-  else if(dodged&&!SINGLE_STEP.damaged&&!gameOver){SINGLE_STEP.bonus=2;if(trialPassive('echo'))SINGLE_STEP.echo=old;stepTestHooks.onDodge?.(old,avoided);}
-  if(!SINGLE_STEP.bonus)SINGLE_STEP.echo=null;
+  if(frozen)SINGLE_STEP.bonus=SINGLE_STEP.damaged?0:Math.max(0,SINGLE_STEP.bonus-1);
+  else if(dodged&&!SINGLE_STEP.damaged&&!gameOver&&(hasMonstersAlive()||leftSpike)){SINGLE_STEP.bonus=2;if(trialPassive('echo'))SINGLE_STEP.echo=old;stepTestHooks.onDodge?.(old,avoided);}
+  if(hadEnemies&&!hasMonstersAlive())SINGLE_STEP.bonus=0;
+  if(!SINGLE_STEP.bonus){SINGLE_STEP.echo=null;arenaEffects.avoided.clear();}
   singleStepPlan();
   if(currentRoomGrid[player.col]?.[player.row]===TILE.LADDER){const next=currentFloor.floorNum+1;if(next>Object.keys(FLOOR_CONFIG).length)triggerVictoryScreen();else enterFloor(next);}
   updateDoorsLocked();updateUI();updateActionBar();return true;
@@ -204,24 +299,34 @@ document.addEventListener('keydown',e=>{
 drawReachableOverlay=function(){};
 function singleStepAttackPreview(m){
  const plan=SINGLE_STEP.plans.get(m.id);
- if(m.hp<=0||m.jumperVanished||!singleStepIsAttackPlan(plan))return null;
+ if(m.hp<=0||!singleStepIsAttackPlan(plan)||(m.jumperVanished&&plan.type!=='legacy-jump'))return null;
  const resolved=singleStepResolvePlan(m,plan,{preview:true});
+ if(resolved.type==='legacy-move' && !resolved.path?.some(p=>p.pushed?.length||singleStepLegal(m,p.col,p.row)))return null;
  return singleStepIsAttackPlan(resolved)?resolved:null;
 }
 function singleStepIsAttackPlan(plan){
- return ['shot','fan','strike','charge','blast','legacy-attack','legacy-charge'].includes(plan?.type)
-  || (plan?.type==='legacy-jump'&&plan.slam===true);
+ return stepTestHooks.isArenaAttack?.(plan) || ['shot','fan','strike','charge','blast','legacy-attack','legacy-charge','legacy-move'].includes(plan?.type)
+  || (plan?.type==='legacy-jump'&&plan.cells.length>0);
 }
 drawDangerOverlay=function(){
  if(!gameStarted||worldMapOpen)return;
- const seen=new Set();
- for(const m of monsters)for(const cell of singleStepAttackPreview(m)?.cells||[]){
+ const seen=new Set(),yellow=[];
+ const danger=monsters.flatMap(m=>{
+  const plan=singleStepAttackPreview(m);
+  if(plan?.attackColor!=='yellow')return plan?.cells||[];
+  yellow.push(...plan.cells);
+  return [];
+ });
+ if(singleStepSpikeAt(player.col,player.row)==='warning')danger.push(player);
+ stepTestHooks.drawEnemyWindups?.([...danger,...yellow]);
+ for(const cell of danger){
   const key=cell.col+','+cell.row;
   if(seen.has(key))continue;
   seen.add(key);
   const q=cellRect(cell.col,cell.row);
   scrapDraw('redGrid',q.xL,q.yT,q.w,q.h,.55);
  }
+ stepTestHooks.drawInterruptThreats?.(yellow,seen);
 };
 drawBullets=function(){
  const now=performance.now();
@@ -260,7 +365,7 @@ const stepOldHUD=scrapUpdateHUD;
 scrapUpdateHUD=function(){
  stepOldHUD();
  const ap=document.getElementById('scrap-ap'),mp=document.getElementById('scrap-mp');
- if(ap)ap.textContent=SINGLE_STEP.bonus?'额外行动 '+SINGLE_STEP.bonus+'/2':'单步行动';
+ if(ap)ap.textContent=SINGLE_STEP.bonus?'额外行动 '+SINGLE_STEP.bonus:'单步行动';
  if(mp)mp.textContent=SINGLE_STEP.bonus?'子弹时间':'移动 / 射击';
  const phase=document.getElementById('scrap-phase');
  if(phase)phase.textContent=SINGLE_STEP.bonus?'子弹时间':'自由思考';
@@ -277,10 +382,24 @@ const stepOldGameLoop=gameLoop;
 gameLoop=function(timestamp){
  if(transition?.active){stepOldGameLoop(timestamp);return;}
  const dt=Math.min(.1,Math.max(0,(timestamp-lastTime)/1000));lastTime=timestamp;
- if(gameStarted&&!gameOver&&!worldMapOpen){updateMove(dt);animateMonsters(dt);updateParticles(dt);updateDamageNumbers(dt);player.shootTimer=Math.max(0,player.shootTimer-dt);player.hitFlash=Math.max(0,player.hitFlash-dt);for(const m of monsters){m.hitFlash=Math.max(0,(m.hitFlash||0)-dt);m.jumpAnimTimer=Math.max(0,(m.jumpAnimTimer||0)-dt);}battleStartAnim.active=false;updateTextOverlay();}
+ if(gameStarted&&!gameOver&&!worldMapOpen){updateMove(dt,singleStepMoveSpeed());animateMonsters(dt);updateParticles(dt);updateDamageNumbers(dt);player.shootTimer=Math.max(0,player.shootTimer-dt);player.hitFlash=Math.max(0,player.hitFlash-dt);for(const m of monsters){m.hitFlash=Math.max(0,(m.hitFlash||0)-dt);m.jumpAnimTimer=Math.max(0,(m.jumpAnimTimer||0)-dt);}battleStartAnim.active=false;updateTextOverlay();}
  render();requestAnimationFrame(gameLoop);
 };
-// 旧说明只在新正式包中替换；配置中的移速/射速仍保留，但不再增加行动次数。
-for(const el of document.querySelectorAll('p,li,small,.help-text'))if(el.childElementCount===0&&/Esc.*(回溯|重置)|空格.*(回合|结束)|Space.*回合/.test(el.textContent))el.textContent='WASD移动一格，方向键射击；安全闪避获得2次额外行动。E炸弹，M地图，R重新开始。';
+const stepHelpSummaries=[...document.querySelectorAll('p,li,small,.help-text')].filter(el=>
+ el.childElementCount===0&&/Esc.*(回溯|重置)|空格.*(回合|结束)|Space.*回合/.test(el.textContent));
+const stepHelpRows=[...document.querySelectorAll('.help-row')];
+function updateStepCombatHelp(variants=false){
+ const dodge=variants?'闪避红格可获得2次额外行动':'安全闪避可获得2次额外行动';
+ const shoot=variants?'射击命中可打断黄招':'瞬发射击一次';
+ for(const el of stepHelpSummaries)el.textContent='WASD移动一格，方向键射击。'+(variants?'黄招可打断，':'')+dodge+'。E炸弹，M地图，R重新开始。';
+ for(const row of stepHelpRows){
+  const keys=row.querySelector('.help-keys')?.textContent||'',desc=row.querySelector('.help-desc');
+  if(!desc)continue;
+  if(/Space/.test(keys))row.style.display='none';
+  else if(/Esc/.test(keys))desc.textContent='关闭地图';
+  else if(/[↑↓←→]/.test(keys))desc.textContent=shoot+'。普通行动推进一步。';
+  else if(/W|A|S|D/.test(keys))desc.textContent='移动一格。'+dodge+'。';
+ }
+}
 const stepEnd=document.getElementById('scrap-end');if(stepEnd)stepEnd.style.display='none';
-for(const row of document.querySelectorAll('.help-row')){const keys=row.querySelector('.help-keys')?.textContent||'',desc=row.querySelector('.help-desc');if(!desc)continue;if(/Space/.test(keys)){row.style.display='none';continue;}if(/Esc/.test(keys))desc.textContent='关闭地图；战斗操作不可回溯';else if(/[↑↓←→]/.test(keys))desc.textContent='瞬发射击一次；普通行动时场景推进一步';else if(/W|A|S|D/.test(keys))desc.textContent='移动一格；安全闪避确定攻击获得2次额外行动';}
+updateStepCombatHelp();

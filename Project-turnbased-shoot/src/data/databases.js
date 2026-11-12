@@ -127,13 +127,19 @@ let playerResources = {
   blueHearts: 0,     // 蓝心HP
 };
 
-async function loadResourceDB() {
+async function loadResourceDB({singleStep=false}={}) {
   try {
     const r = await fetch('Configs/resource-db.json?' + Date.now());
     if (r.ok) {
       const data = await r.json();
       RESOURCE_DB = data.resources || {};
       RES_DROP_TABLES = data.resourceDropTables || {};
+      if (singleStep) {
+        for (const [id,weights] of Object.entries(data.singleStepResourceDropWeights || {})) {
+          const base=RES_DROP_TABLES[id];
+          RES_DROP_TABLES[id]={...base,table:{...base.table,...weights}};
+        }
+      }
       RES_LIMITS = data._limits || { coinMax: 99, bombMax: 99, keyMax: 99 };
       console.log('✅ 已加载资源数据库 (' + Object.keys(RESOURCE_DB).length + ' 种资源)');
       return true;

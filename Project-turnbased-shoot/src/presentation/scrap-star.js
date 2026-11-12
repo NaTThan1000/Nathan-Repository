@@ -84,13 +84,24 @@ function scrapSetupHUD(){
  document.getElementById('scrap-end').onclick=()=>document.dispatchEvent(new KeyboardEvent('keydown',{code:'Space',key:' ',bubbles:true,cancelable:true}));document.getElementById('scrap-help').onclick=()=>document.getElementById('help-modal').classList.add('open');
 }
 let scrapHudKey='';
+let scrapNumericHealth=false;
 function scrapUpdateHUD(){const el=id=>document.getElementById(id);if(!el('scrap-hearts'))return;
  const capacity=heartCapacity();
  const key=JSON.stringify([playerStats,turnState.mAP,turnState.aAP,turnState.maxMAP,turnState.maxAAP,turnState.phase,turnState.turnNumber,playerResources,currentFloor?.floorNum,capacity]);if(key===scrapHudKey)return;scrapHudKey=key;
- let hearts=Array.from({length:Math.min(capacity,Math.ceil(playerStats.maxHp))},(_,i)=>scrapIcon(playerStats.hp>=i+1?'heart':playerStats.hp>i?'halfHeart':'emptyHeart',22)).join('');
  const blue=Math.max(0,Math.min(playerResources.blueHearts||0,capacity-Math.ceil(playerStats.maxHp)));
- for(let i=0;i<Math.ceil(blue);i++){const src=SCRAP_ASSETS[blue-i>=1?'blueHeart':'halfBlueHeart'];if(src)hearts+='<img src="'+src+'" width="22" height="22" alt="蓝心">'}
- el('scrap-hearts').innerHTML=hearts;
+ const health=el('scrap-hearts');
+ health.classList.toggle('scrap-health-panel',scrapNumericHealth);
+ if(scrapNumericHealth){
+  const hp=playerStats.hp,maxHp=playerStats.maxHp;
+  const percent=Math.min(100,Math.max(0,hp/Math.max(1,maxHp)*100));
+  health.innerHTML='<div class="scrap-health-meter" role="meter" aria-label="生命" aria-valuemin="0" aria-valuemax="'+maxHp+'" aria-valuenow="'+hp+'">'+
+   '<span class="scrap-health-fill" style="width:'+percent+'%"></span><span class="scrap-health-value">'+hp+' / '+maxHp+'</span></div>'+
+   (blue>0?'<span class="scrap-blue-health" aria-label="蓝心 '+blue+'">'+scrapIcon('blueHeart',16)+' +'+blue+'</span>':'');
+ }else{
+  let hearts=Array.from({length:Math.min(capacity,Math.ceil(playerStats.maxHp))},(_,i)=>scrapIcon(playerStats.hp>=i+1?'heart':playerStats.hp>i?'halfHeart':'emptyHeart',22)).join('');
+  for(let i=0;i<Math.ceil(blue);i++){const src=SCRAP_ASSETS[blue-i>=1?'blueHeart':'halfBlueHeart'];if(src)hearts+='<img src="'+src+'" width="22" height="22" alt="蓝心">'}
+  health.innerHTML=hearts;
+ }
  el('scrap-floor').innerHTML='<span>楼层 B'+(currentFloor?.floorNum||1)+'</span><small>地图 [M]</small>';el('scrap-atk').textContent=playerStats.attack;el('scrap-range').textContent=playerStats.range;
  for(const [id,name,value,max]of [['scrap-mp','MP',turnState.mAP,turnState.maxMAP],['scrap-ap','AP',turnState.aAP,turnState.maxAAP]])el(id).innerHTML='<span>'+name+'</span>'+Array.from({length:Math.max(0,max)},(_,i)=>scrapIcon(i<value?(name==='MP'?'mp':'ap'):(name==='MP'?'mpEmpty':'apEmpty'),17,20)).join('');
  el('scrap-turn').textContent=turnState.turnNumber;el('scrap-phase').textContent=turnState.phase==='monster_turn'?'怪物行动':'你的回合';el('scrap-phase').style.color=turnState.phase==='monster_turn'?'#ff7e72':'#65def6';

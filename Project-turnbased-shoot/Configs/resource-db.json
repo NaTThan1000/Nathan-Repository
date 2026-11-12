@@ -230,6 +230,11 @@
     "keyMax": 99
   },
 
+  "singleStepResourceDropWeights": {
+    "resource_drop_monster_default": {"none":465,"coin_gold":180,"coin_black":45,"heart_half":160,"heart_full":100},
+    "resource_drop_monster_heavy": {"none":445,"coin_gold":180,"coin_black":45,"heart_half":150,"heart_full":110},
+    "resource_drop_terrain_poop": {"none":630,"coin_gold":130,"heart_half":120,"heart_full":60}
+  },
   "resourceDropTables": {
     "resource_drop_monster_default": {
       "mode": "pick_one",

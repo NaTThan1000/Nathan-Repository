@@ -12,6 +12,10 @@ arenaPanel.innerHTML = `
   <h1>自定义战斗场</h1>
   <p>布置时左键点棋盘放置，右键删除。开始测试后，用 WASD 移动、方向键攻击、E 放炸弹。R 从原布置重试。</p>
   <div class="arena-controls">
+    <label>玩法<select id="arena-rules" disabled>
+      <option value="classic">红格闪避版</option>
+      <option value="interrupt" selected>黄格打断红格闪避版</option>
+    </select></label>
     <label>类别<select id="arena-kind" disabled>
       <option value="dummy">无限生命木桩</option><option value="item">道具</option><option value="terrain">地形／障碍</option>
       <option value="monster">怪物</option><option value="resource">补给</option><option value="start">玩家起点</option>
@@ -197,7 +201,7 @@ function arenaLoad(editing, advance) {
   for (const p of arena.placements.values()) {
     if (p.kind === 'item' && !carry) spawnItemOnGrid(p.col, p.row, p.id);
     if (p.kind === 'resource') spawnResourceOnGrid(p.col, p.row, p.id);
-    if (p.kind === 'monster') stepSpawnOriginal(p.id, MONSTER_DB[p.id].movementTags, null, p);
+    if (p.kind === 'monster') stepSpawnOriginal(p.id, MONSTER_DB[p.id].aiType==='boss_duke'?['飞行']:MONSTER_DB[p.id].movementTags, null, p);
     if (p.kind === 'dummy') {
       const pos = gridToPixel(p.col, p.row);
       monsters.push({id: ++monsterIdCounter, cfgId: 'arena-dummy', arenaDummy: true, name: '训练木桩',
@@ -285,6 +289,7 @@ for (const key of Object.keys(arenaSetupLabels)) {
     if (event.key === 'Enter') input.blur();
   });
 }
+arenaControl('rules').addEventListener('change', selectArenaAttackRules);
 arenaControl('kind').addEventListener('change', arenaOptions);
 arenaControl('entry').addEventListener('change', arenaDescribe);
 arenaControl('start').addEventListener('click', () => arenaLoad(false));
@@ -325,6 +330,8 @@ function arenaReady() {
     requestAnimationFrame(arenaReady);
     return;
   }
+  registerArenaStageEnemies();
+  arenaControl('rules').disabled = false;
   arenaOptions();
   arenaLoad(true);
 }

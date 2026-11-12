@@ -1,17 +1,38 @@
 // ==================== 掉落系统 ====================
 // 击杀怪物掉落 (读 monster-db.json > loot 配置)
 function rollMonsterKillDrop(m) {
+  const firstItem = itemsOnGround.length;
   // 优先使用怪物生成时预 roll 的掉落（保证 Esc 回溯后再次击杀结果一致）
   // _killLoot 可能是 [] (预roll结果=无掉落)，必须用 !==null/undefined 判断而非 truthy check
   if (m._killLoot !== undefined && m._killLoot !== null) {
     if (m._killLoot.length > 0) {
       applyPreRolledLoot(m._killLoot, m.col, m.row);
+      relocateSpikeDrops(m,firstItem);
     }
     return;
   }
   const mCfg = MONSTER_DB[m.cfgId];
   if (!mCfg || !mCfg.loot) return;
   rollLoot(mCfg.loot, m.col, m.row);
+  relocateSpikeDrops(m,firstItem);
+}
+
+function relocateSpikeDrops(m,firstItem){
+  if(typeof singleStepSpikeAt!=='function'||!singleStepSpikeAt(m.col,m.row)||firstItem===itemsOnGround.length)return;
+  const floors=[];
+  for(let col=0;col<COLS;col++)for(let row=0;row<ROWS;row++){
+    if(currentRoomGrid[col][row]===TILE.FLOOR)floors.push({col,row});
+  }
+  const distance=p=>Math.abs(p.col-m.col)+Math.abs(p.row-m.row);
+  floors.sort((a,b)=>distance(a)-distance(b));
+  for(const item of itemsOnGround.slice(firstItem)){
+    const dest=floors.find(p=>!monsters.some(o=>o.hp>0&&isInMonsterFootprint(o,p.col,p.row))&&
+      !itemsOnGround.some(i=>i.col===p.col&&i.row===p.row)&&!(player.col===p.col&&player.row===p.row));
+    const landing=dest||floors[0];
+    if(!landing)continue;
+    const {x,y}=gridToPixel(landing.col,landing.row);
+    Object.assign(item,landing,{px:x,py:y});
+  }
 }
 
 /** 预 roll 怪物掉落（生成时调用），返回可重复执行的掉落指令列表 */
