@@ -4,10 +4,11 @@
 
 双击本目录的 **甜界逃生.html** 即可离线试玩，无需安装或运行服务器。
 
-- Enter 开始闯关；T 进入全餐具、全人类开放的试招庭院。
-- 方向键 / WASD 移动与朝向；J 普攻，K 重击，L 跳跃，空格闪避。
+- Enter 开始闯关。第二波打完后，从两套餐具搭配里选一套。每关清完三波护卫后，再按 Enter 挑战领主。
+- 方向键 / WASD 移动与朝向。J 轻击，K 跳跃，L 重击，空格闪避。
 - X 切换餐具搭配，R 查看招式，C 选择合体搭档，Q 发动合体。
-- 支持三段连击、闪避派生、精准闪避反击、普通打断、霸体与 Boss 破势。
+- T 进入庭院，开放全部餐具和合体。按 B 在木桩、打断和闪避练习之间切换。
+- 轻击可接三段。六套双餐具各有一条命中后才能接出的专属连招，提示会出现在操作栏。
 - 四套单持、六套双餐具变体、三种双人合体与三关 Boss 流程。
 
 详细玩法、已知限制与美术来源见 [试玩说明](试玩说明.md)。当前是可继续迭代的 Demo，没有存档、局外成长或联网功能。
@@ -23,8 +24,8 @@ node tests/browser-check.cjs
 
 构建脚本将源码和美术嵌入单个 HTML。浏览器测试目前使用 Windows 本机 Chrome 路径和 Node.js 内置 WebSocket，不需要第三方 Node 包；其他环境需修改测试脚本的浏览器启动路径。
 
-当前运行入口是 src/action-game.js 与 src/presentation-v3.js，界面是 src/index.html。src/game.js 和旧版测试保留供历史参考，不参与当前构建入口。
+当前运行入口是 src/action-game.js，src/presentation-v3.js 负责画面，src/weapon-presentation.js 绘制独立武器图层，src/index.html 提供界面。src/game.js 和旧版测试保留供历史参考，不参与当前构建入口。
 
-测试报告见 tests/v3-report.json。通关检查使用测试控制加速；报告不代表自然玩法的完整难度平衡验证。
+浏览器检查会输出报告和截图。可设置 `SUGAR_BREAK_TEST_OUTPUT` 将结果写到指定目录。通关回归使用测试接口加速流程。
 
-![当前战斗画面](tests/v3-10-skirmish.png)
+![奶油荒原战斗画面（v3）](tests/v3-10-skirmish.png)
