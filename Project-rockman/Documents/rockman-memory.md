@@ -1,7 +1,7 @@
 # Rockman X4 操作原型 - 项目记忆
 
 > 项目记忆文件，记录决策过程、方案演变、问题攻克。
-> 与 global-rules.md 互补：global-rules = 跨项目通用规范，本文档 = 本项目专属记忆。
+> 本文件保存本项目专属历史。通用规范见[AGENTS.md](../../codex-setup/AGENTS.md)。
 
 ---
 
