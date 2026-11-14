@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>游戏开发工作台</title>
+<style>
+:root{font:14px/1.6 Inter,"Microsoft YaHei UI",sans-serif;background:#f3f6fa;color:#182842;--border:#dce5ef;--blue:#205bb2}
+*{box-sizing:border-box}body{margin:0}header{background:#fff;border-bottom:1px solid var(--border)}main,.bar{max-width:1320px;margin:auto;padding:18px clamp(14px,3vw,34px)}.bar,.row,.tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.bar strong,.row h2{margin-right:auto}.bar strong{font-size:18px}h1,h2,p{margin:0}h2{font-size:18px}small,.muted{color:#4e617c}button,input,select,textarea{font:inherit;color:inherit;background:#fff;border:1px solid #bccbdd;border-radius:7px;padding:7px 10px}button{cursor:pointer}button:hover{background:#eaf2ff}button:disabled{cursor:default;opacity:.55}.primary{background:var(--blue);color:#fff;border-color:var(--blue)}.primary:hover{background:#164989}.card{background:#fff;border:1px solid var(--border);border-radius:12px;margin:14px 0;overflow:hidden}.pad{padding:15px 17px}.hero{background:#192e4e;color:white}.hero small{color:#c3d8f5}.hero p{white-space:pre-wrap}.hero .row{margin-top:10px}.stages{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}.stage{text-align:left}.stage small{display:block}.stage[aria-current=true]{border-color:#2461bd;background:#e7f0ff}.tools{padding:0 17px 12px}.tools input{flex:1;min-width:120px}.scroll{overflow:auto}table{width:100%;min-width:720px;border-collapse:collapse;text-align:left}td,th{padding:8px 10px;border-top:1px solid var(--border);vertical-align:top}th{background:#f7fafe;color:#4e617c;font-size:12px}.title{border:0;padding:0;color:#1a52a4;font-weight:650;text-align:left}.badge{padding:2px 7px;background:#eaf0f8;border-radius:5px;white-space:nowrap}.done{background:#ddf3e7;color:#125d3d}.recheck,.review,.fix{background:#fff0cc;color:#724c0c}.blocked{background:#fae5e4;color:#842b30}.error{color:#922938}.notice{min-height:1.5em;white-space:pre-wrap}dialog{max-width:calc(100% - 24px);width:650px;border:1px solid var(--border);border-radius:12px;padding:16px;max-height:90vh;overflow:auto}dialog::backdrop{background:#16284480}form,#fields,label{display:grid;gap:8px}.cols{display:grid;grid-template-columns:1fr 1fr;gap:8px}textarea{resize:vertical;min-height:60px}.history{white-space:pre-wrap;overflow-wrap:anywhere;margin:0}button.toggle{padding:0 6px;margin-right:6px}a{color:#1753ab}p{overflow-wrap:anywhere}@media(max-width:760px){.stages{grid-template-columns:repeat(2,1fr)}}@media(max-width:420px){.cols{grid-template-columns:1fr}}
+.hero-heading{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;margin:3px 0 5px}
+.hero .metrics{gap:8px;margin-top:12px}
+.metric{background:#ffffff18;border-radius:6px;padding:3px 9px;color:#e9f2ff;white-space:nowrap}
+.metric strong{color:#fff;font-variant-numeric:tabular-nums}
+.stage{display:grid;align-content:start;gap:3px}
+.stage-summary{line-height:1.45}
+.task-table{table-layout:fixed;min-width:820px}
+.task-table th:nth-child(2){width:35%}
+.task-table th:nth-child(3){width:112px}
+.task-table th:nth-child(4){width:74px}
+.task-table th:nth-child(5){width:122px}
+.task-table td:nth-child(n+3),.task-table th:nth-child(n+3){white-space:nowrap}
+.child-task{background:#f3f8fb}
+.child-task .title{color:#225760;background:transparent}
+.title{overflow-wrap:anywhere}
+.task-summary{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;border:0;padding:0;background:transparent;color:#465973}
+dialog{padding:0;overflow:hidden;max-height:90dvh}
+#form{display:flex;flex-direction:column;gap:0;max-height:90dvh}
+.dialog-head,.dialog-foot{flex:none;padding:12px 16px}
+.dialog-head{flex-wrap:nowrap;border-bottom:1px solid var(--border)}
+.dialog-head h2{min-width:0;overflow-wrap:anywhere}
+.dialog-head button{flex:none}
+.dialog-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:16px}
+.dialog-foot{border-top:1px solid var(--border)}
+.dialog-foot:not(:has(#save:not([hidden]),#error:not(:empty))){display:none}
+#error:empty{display:none}
+.task-content{min-height:165px;display:block;width:100%}.task-text{white-space:pre-wrap;overflow-wrap:anywhere}.task-record{background:#f4f7fb;padding:12px;border-radius:8px}.task-record>*+*{margin-top:8px}.task-record h3{margin:0;font-size:14px}
+.task-content{field-sizing:content}
+</style>
+<style>
+.asset-preview{display:block;max-width:100%;max-height:320px;margin:8px auto}.asset-review{padding:12px;border:1px solid var(--border);border-radius:8px}.asset-review>*+*{margin-top:8px}
+</style>
+<header><div class="bar">
+  <strong>游戏开发工作台</strong>
+  <button id="choose">打开项目计划</button><button id="reload" disabled>重新读取文件</button>
+  <input type="file" id="file" accept=".json,application/json" hidden>
+</div></header>
+<main>
+  <p class="notice" id="notice" role="status"></p>
+  <section class="card hero pad">
+    <small id="current"></small>
+    <div class="hero-heading"><h1 id="next">打开项目计划</h1><span id="current-state" class="metric" hidden></span></div>
+    <p id="next-detail">选择项目目录里的 project-plan.json，即可查看和更新进度。</p>
+    <div class="row metrics" id="metrics"></div>
+  </section>
+  <nav class="stages" id="stages" aria-label="开发阶段"></nav>
+  <section class="card">
+    <div class="row pad"><h2 id="stage-title">任务</h2><button id="add" class="primary" hidden>新增任务</button></div>
+    <div class="tools">
+      <input id="search" type="search" placeholder="搜索任务" aria-label="搜索任务">
+      <select id="filter" aria-label="状态筛选"><option value="">全部状态</option></select>
+      <select id="type-filter" aria-label="类型筛选"><option value="">全部类型</option></select>
+    </div>
+    <div class="scroll"><table class="task-table"><thead><tr><th>名称</th><th>具体内容</th><th>类型</th><th>优先级</th><th>状态</th></tr></thead><tbody id="rows"></tbody></table></div>
+  </section>
+</main>
+<dialog id="dialog" aria-labelledby="dialog-title"><form id="form">
+  <div class="row dialog-head"><h2 id="dialog-title"></h2><button id="close" type="button" autofocus>关闭</button></div>
+  <div id="dialog-body" class="dialog-body"><div id="fields"></div></div>
+  <div class="row dialog-foot"><p id="error" class="error" role="alert"></p><button id="save" class="primary" type="submit">保存</button></div>
+</form></dialog>
+<script src="plan.js"></script>
+<script>
+"use strict";
+(function () {
+const api=globalThis.GamePlan;
+const $=id=>document.getElementById(id);
+if (!api) {
+  $("next").textContent="工作台脚本加载失败";
+  $("notice").textContent="请将 workbench.html 和 plan.js 放在同一目录，再重新打开页面。";
+  return;
+}
+const expanded=new Set();
+const stageStatus={pending:"待通过",passed:"已通过",recheck:"待复核"};
+const snapshotKey="nathan-game-workbench:last-plan";
+let plan,revision,fileHandle,fileName,view,onSave;
+let live=false;
+let busy=false;
+
+function el(tag,label="",className=""){
+  const node=document.createElement(tag);
+  node.textContent=label;
+  if(className) node.className=className;
+  return node;
+}
+function option(value,label){const node=el("option",label);node.value=value;return node;}
+function button(label,action){const node=el("button",label);node.type="button";node.onclick=action;return node;}
+async function remember(mode,value,key="last"){
+  const db=await new Promise((resolve,reject)=>{
+    const request=indexedDB.open("nathan-game-workbench",1);
+    request.onupgradeneeded=()=>request.result.createObjectStore("files");
+    request.onsuccess=()=>resolve(request.result);
+    request.onerror=()=>reject(request.error);
+  });
+  try {
+    return await new Promise((resolve,reject)=>{
+      const transaction=db.transaction("files",mode);
+      const files=transaction.objectStore("files");
+      const request=mode==="readonly" ? files.get(key) : files.put(value,key);
+      transaction.oncomplete=()=>resolve(request.result);
+      transaction.onabort=()=>reject(transaction.error);
+    });
+  } finally { db.close(); }
+}
+function display(raw,name,selectedHandle,isLive){
+  const updated=api.validate(JSON.parse(raw));
+  if(!plan || plan.current!==updated.current || fileHandle!==selectedHandle) view=updated.current;
+  plan=updated;revision=raw;fileHandle=selectedHandle;fileName=name;live=isLive;
+  expanded.clear();
+  for(const task of plan.tasks){
+    if(task.stage===view && !task.parent && task.status!=="done") expanded.add(task.id);
+  }
+  $("reload").disabled=false;
+  $("notice").textContent=live
+    ? "已读取 "+name+"。工作台或项目有更新时，点「重新读取文件」。"
+    : "正在显示上次读取的 "+name+" 快照。点「重新读取文件」读取原文件。";
+  render();
+}
+async function persist(){
+  const snapshot={name:fileName,raw:revision};
+  try { localStorage.setItem(snapshotKey,JSON.stringify(snapshot)); } catch {}
+  await remember("readwrite",{handle:fileHandle,snapshot}).catch(()=>{});
+}
+async function load(file,selectedHandle){
+  display(await file.text(),file.name,selectedHandle,Boolean(selectedHandle));
+  await persist();
+}
+async function save(change){
+  const updated=structuredClone(plan);
+  change(updated);
+  api.validate(updated);
+  if(!fileHandle || await fileHandle.requestPermission({mode:"readwrite"})!=="granted") throw Error("需要允许写入项目计划，才能保存修改。");
+  const raw=JSON.stringify(updated,null,2)+"\n";
+  const stream=await fileHandle.createWritable();
+  try {
+    if(await (await fileHandle.getFile()).text()!==revision) throw Error("文件已更新。请复制当前输入，关闭窗口并重新读取文件后再保存。");
+    await stream.write(raw);
+    await stream.close();
+  } catch(error) {
+    await stream.abort().catch(()=>{});
+    throw error;
+  }
+  if(plan.current!==updated.current) view=updated.current;
+  plan=updated;revision=raw;
+  await persist();
+  $("notice").textContent="已保存到项目计划文件。";
+  render();
+}
+const priorities={P0:"高",P1:"普通",P2:"低"};
+function contentOf(task){
+  return task.content ?? [task.acceptance,task.note].filter(Boolean).join("\n\n");
+}
+function excerptOf(task){
+  const sentence=contentOf(task).trim().match(/^[^。！？\r\n]+[。！？]?/)?.[0] || "";
+  return sentence.length>52 ? sentence.slice(0,52)+"…" : sentence;
+}
+function stageSummary(stage,tasks,status){
+  if(stage.status!=="passed"){
+    for(const state of ["recheck","fix","active","review"]){
+      const task=tasks.filter(task=>status(task)===state).sort(api.compare)[0];
+      if(task) return api.statuses[state]+" · "+task.title;
+    }
+  }
+  return stage.summary;
+}
+function render(){
+  const model=api.model(plan);
+  const {children,tasks,status}=model;
+  const currentStage=plan.stages[plan.current];
+  const currentTasks=tasks.filter(task=>task.stage===plan.current);
+  const passed=Object.values(plan.stages).filter(stage=>stage.status==="passed").length;
+  $("current").textContent=plan.name+" · "+passed+"/"+Object.keys(api.stages).length+" 阶段已通过";
+  $("next").textContent=plan.current+" · "+api.stages[plan.current][0];
+  const underway=currentTasks.some(task=>["active","fix","review"].includes(status(task)));
+  $("current-state").textContent=currentStage.status==="pending" && underway ? "进行中" : stageStatus[currentStage.status];
+  $("current-state").hidden=false;
+  $("next-detail").textContent=plan.vision || "";
+  const counts=[
+    ["已完成",currentTasks.filter(task=>status(task)==="done").length+"/"+currentTasks.length],
+    ["可推进",currentTasks.filter(task=>!["done","deferred","clarify"].includes(status(task))).length],
+    ["待确认",currentTasks.filter(task=>status(task)==="clarify").length]
+  ];
+  $("metrics").replaceChildren(...counts.map(([label,count])=>{
+    const node=el("span","","metric");
+    node.append(el("strong",String(count))," "+label);
+    return node;
+  }));
+  $("stages").replaceChildren(...Object.entries(api.stages).map(([id,[label,goal]])=>{
+    const stage=plan.stages[id];
+    const stageTasks=tasks.filter(task=>task.stage===id);
+    const node=button(id+" · "+label,()=>{view=id;render();});
+    node.className="stage";
+    node.setAttribute("aria-current",String(view===id));
+    node.append(el("small",stageStatus[stage.status]+" · "+stageTasks.filter(task=>status(task)==="done").length+"/"+stageTasks.length+" 项完成"));
+    node.append(el("small",stageSummary(stage,stageTasks,status) || goal,"stage-summary"));
+    return node;
+  }));
+  $("stage-title").textContent=view+" · "+api.stages[view][0]+"任务";
+  $("add").hidden=!live;
+  const query=$("search").value.trim().toLowerCase();
+  const filter=$("filter").value;
+  const typeFilter=$("type-filter").value;
+  const visible=[];
+  const matches=task=>(!query || [api.label(task),contentOf(task),task.reason || "",...task.history].some(text=>text.toLowerCase().includes(query))) &&
+    (!filter || status(task)===filter) && (!typeFilter || task.type===typeFilter);
+  const filtering=Boolean(query || filter || typeFilter);
+  function walk(task,depth){
+    const child=children.get(task.id).sort(api.compare);
+    const first=visible.length;
+    if(filtering || expanded.has(task.id)) for(const item of child) walk(item,depth+1);
+    if(!filtering || matches(task) || visible.length>first) visible.splice(first,0,{task,depth,child});
+  }
+  for(const task of tasks.filter(task=>task.stage===view && !task.parent).sort(api.compare)) walk(task,0);
+  $("rows").replaceChildren(...visible.map(({task,depth,child})=>{
+    const tr=el("tr","",depth ? "child-task" : "");
+    const title=el("td");
+    title.style.paddingLeft=10+depth*38+"px";
+    if(child.length){
+      const toggle=button(expanded.has(task.id) ? "−" : "+",()=>{if(!expanded.delete(task.id))expanded.add(task.id);render();});
+      toggle.className="toggle";
+      toggle.setAttribute("aria-label","展开或折叠 "+api.numberedTitle(task));
+      toggle.setAttribute("aria-expanded",String(filtering || expanded.has(task.id)));
+      title.append(toggle);
+    }
+    const link=button(api.label(task),()=>edit(task));link.className="title";title.append(link);
+    const badge=el("td");
+    const state=status(task);
+    badge.append(el("span",api.statuses[state]+(state==="done" ? " · 100%" : ""),"badge "+state));
+    const content=el("td");
+    const preview=button(excerptOf(task) || "查看详情",()=>edit(task));
+    preview.className="task-summary";
+    content.append(preview);
+    tr.append(title,content,el("td",api.types[task.type]),el("td",priorities[task.priority]),badge);
+    return tr;
+  }));
+  if(!visible.length){
+    const tr=el("tr");const td=el("td","没有符合条件的任务。");td.colSpan=5;tr.append(td);$("rows").append(tr);
+  }
+}
+function input(name,value="",kind="text"){
+  const node=el(kind==="textarea" ? "textarea" : "input");
+  if(kind!=="textarea") node.type=kind;
+  node.name=name;node.value=value;return node;
+}
+function select(name,value,options){
+  const node=el("select");node.name=name;
+  for(const entry of options) node.append(option(...entry));
+  node.value=value;return node;
+}
+function field(label,node){const wrapper=el("label",label);wrapper.append(node);return wrapper;}
+function cols(...nodes){const box=el("div","","cols");box.append(...nodes);return box;}
+function show(title,fields,handler){
+  $("dialog-title").textContent=title;$("error").textContent="";
+  $("fields").replaceChildren(...fields);onSave=handler;$("save").hidden=!handler;
+  if(!$("dialog").open) $("dialog").showModal();
+  $("dialog-body").scrollTop=0;
+}
+const decisions={pending:"待审阅",adopted:"采用",changes:"退回修改",rejected:"拒绝"};
+let previewUrl;
+function clearPreview(){
+  if(previewUrl) URL.revokeObjectURL(previewUrl);
+  previewUrl=undefined;
+}
+function mediaTag(file){
+  const tags={image:"img",audio:"audio",video:"video"};
+  const tag=tags[file.type.split("/")[0]];
+  if(!tag) throw Error("请选择浏览器支持的图片、音频或视频。");
+  return tag;
+}
+async function mediaHash(file){
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256",await file.arrayBuffer()))]
+    .map(byte=>byte.toString(16).padStart(2,"0")).join("");
+}
+async function pickMedia(){
+  if(!window.showOpenFilePicker) throw Error("请用支持本地文件授权的 Chrome 或 Edge 选择候选素材。");
+  const [handle]=await window.showOpenFilePicker({id:"game-art-candidate"});
+  return {handle,file:await handle.getFile()};
+}
+function assetReview(task,editable){
+  const section=el("section","","asset-review");
+  const assets=task.assets || [];
+  const adopted=assets.filter(asset=>asset.decision==="adopted");
+  const getTask=updated=>updated.tasks.find(item=>item.id===task.id);
+  section.append(el("h2","美术审阅"));
+  if(adopted.length && task.status!=="done"){
+    section.append(el("p","已采用 "+adopted.map(asset=>"v"+asset.version+" "+asset.name).join("、")+"。任务验收时填写实际构建的接入复验结果。","muted"));
+  }
+  const media=el("div");
+  const message=el("p","","muted");
+  const picker=el("select");picker.setAttribute("aria-label","候选版本");
+  picker.append(...assets.map((asset,i)=>option(i,"素材 v"+asset.version+" · "+asset.name+" · "+decisions[asset.decision])));
+  picker.selectedIndex=assets.length-1;
+  const current=()=>assets[Number(picker.value)];
+  async function preview(file,asset){
+    if(await mediaHash(file)!==asset.hash) throw Error("文件内容与登记版本不一致，请选择对应版本或登记新候选。");
+    if(current()!==asset || !section.isConnected) return;
+    const node=el(mediaTag(file),"","asset-preview");
+    clearPreview();
+    previewUrl=URL.createObjectURL(file);
+    node.src=previewUrl;
+    if(node.tagName==="IMG") node.alt=asset.name;
+    else node.controls=true;
+    media.replaceChildren(node);
+  }
+  const report=error=>{if(error.name!=="AbortError") message.textContent=error.message;};
+  async function refresh(){
+    clearPreview();
+    media.replaceChildren();
+    const asset=current();
+    message.textContent=asset.path+(asset.note ? " · "+asset.note : "");
+    const remembered=await remember("readonly",null,"asset:"+asset.hash).catch(()=>null);
+    if(remembered && current()===asset && await remembered.queryPermission({mode:"read"})==="granted") await preview(await remembered.getFile(),asset);
+  }
+  if(assets.length){
+    picker.onchange=()=>refresh().catch(report);
+    section.append(picker,button("读取此候选的预览文件",async()=>{
+      const asset=current();
+      try {
+        const remembered=await remember("readonly",null,"asset:"+asset.hash).catch(()=>null);
+        if(remembered && await remembered.requestPermission({mode:"read"})==="granted"){
+          await preview(await remembered.getFile(),asset);
+          return;
+        }
+        const {handle,file}=await pickMedia();
+        await preview(file,asset);
+        await remember("readwrite",handle,"asset:"+asset.hash).catch(()=>{});
+      }catch(error){report(error);}
+    }),media,message);
+    refresh().catch(report);
+    if(editable) section.append(button("填写审阅意见",()=>{
+      const asset=current();
+      const notes=input("review-note","","textarea");
+      const choice=select("decision","adopted",Object.entries(decisions).filter(([id])=>id!=="pending"));
+      const summary=el("p","素材 v"+asset.version+" · "+asset.name);
+      show("审核候选版本",[summary,media,field("审核结果",choice),field("意见与采用范围",notes)],data=>save(updated=>{
+        const note=data.get("review-note").trim();
+        if(!note) throw Error("请填写审核意见或采用范围。");
+        const item=getTask(updated).assets[asset.version-1];
+        item.decision=data.get("decision");
+        item.note=note;
+        getTask(updated).history.unshift("素材 v"+asset.version+"："+decisions[item.decision]+"。"+note+"\n"+asset.path+" · SHA-256 "+asset.hash);
+      }));
+    }));
+  } else section.append(el("p","还没有登记候选素材。","muted"));
+  if(editable) section.append(button("登记新候选",async()=>{
+    try{
+      const {handle,file}=await pickMedia();
+      const tag=mediaTag(file);
+      const hash=await mediaHash(file);
+      await remember("readwrite",handle,"asset:"+hash).catch(()=>{});
+      const node=el(tag,"","asset-preview");clearPreview();
+      previewUrl=URL.createObjectURL(file);node.src=previewUrl;
+      if(tag==="img") node.alt=file.name;
+      else node.controls=true;
+      show("登记素材 v"+(assets.length+1),[node,field("素材名称",input("asset-name",file.name)),
+        field("项目内路径",input("asset-path",""))],data=>save(updated=>{
+        const item=getTask(updated);
+        const path=data.get("asset-path").trim().replaceAll("\\","/");
+        if(!path || /^(?:\/|[A-Za-z]:)|(^|\/)\.\.(\/|$)/.test(path)) throw Error("请填写相对项目目录的素材路径。");
+        item.assets ||= [];
+        item.assets.push({version:item.assets.length+1,name:data.get("asset-name").trim(),path,hash,decision:"pending",note:""});
+      }));
+    }catch(error){if(error.name!=="AbortError") $("error").textContent=error.message;}
+  }));
+  return section;
+}
+function taskContent(task,model,editable){
+  const section=el("div","","task-record");
+  const text=input("content",contentOf(task),"textarea");
+  text.className="task-content";
+  text.readOnly=!editable;
+  text.placeholder="写下要做的事。需要时可在这里记录完成条件、进展和实际结果。";
+  section.append(field("具体内容",text));
+  const add=(title,value)=>{
+    if(value) section.append(el("h3",title),el("p",value,"task-text"));
+  };
+  add("重做原因",task.reason);
+  add("本版结果与记录",task.history.join("\n\n"));
+  add("待复核",plan.rechecks?.[task.id]);
+  add("相关事项",(task.depends || []).map(id=>model.byId.get(id)).filter(Boolean).map(api.numberedTitle).join("、"));
+  if(editable) section.append(field("相关资料（可选）",input("source",task.source)));
+  else add("相关资料",task.source);
+  let previous=model.byId.get(task.previous);
+  while(previous){
+    const version=previous;
+    const heading=el("h3");
+    const link=button(api.label(version)+" · "+api.statuses[version.status],()=>edit(version));
+    link.className="title";
+    heading.append(link);
+    section.append(heading,el("p",
+      [contentOf(version),version.reason && "重做原因："+version.reason,...version.history].filter(Boolean).join("\n\n"),"task-text"));
+    if(previous.source) add("旧版出处",previous.source);
+    previous=model.byId.get(previous.previous);
+  }
+  if(task.reusedFrom) add("复用成果",api.label(model.byId.get(task.reusedFrom)));
+  return section;
+}
+function edit(task){
+  const stage=task?.stage || view;
+  const previous=task || {id:"",stage,parent:"",title:"",type:"outcome",priority:"P1",order:0,required:false,status:"todo",depends:[],acceptance:"",note:"",source:"",history:[]};
+  const model=api.model(plan);
+  const current=!task || model.current(task)===task;
+  const editable=live && current && (!task || task.status!=="done");
+  const title=input("title",previous.title);title.required=true;
+  const currentState=task ? model.status(task) : previous.status;
+  const fields=[
+    field("名称",title),
+    taskContent(previous,model,editable),
+    cols(field("类型",select("type",previous.type,Object.entries(api.types))),field("优先级",select("priority",previous.priority,Object.entries(priorities)))),
+    field("状态",select("status",currentState,Object.entries(api.statuses)))
+  ];
+  if(task?.type==="art") fields.push(assetReview(task,editable));
+  const actions=el("div","","row");
+  if(live && current && task && ["done","review","recheck"].includes(model.status(task))){
+    actions.append(button("创建下一版本",()=>{
+      const explanation=task.stage<plan.current || plan.stages[task.stage].status==="passed"
+        ? "项目将退回 "+task.stage+" 阶段，后续阶段标记为待复核。"
+        : "旧任务和旧结果将保留。";
+      const fields=[el("p",explanation),field("名称",input("title",task.title)),
+        field("具体内容",input("content","重做原因：\n\n"+contentOf(task).replace(/^重做原因[：:][^\n]*\n+/, ""),"textarea"))];
+      const descendants=[...model.children.get(task.id)];
+      for(const child of descendants) descendants.push(...model.children.get(child.id));
+      for(const child of descendants.filter(item=>model.status(item)==="done")){
+        fields.push(field("沿用 "+api.label(child)+" 的依据（留空则重新处理）",input("reuse:"+child.id,"","textarea")));
+      }
+      show("创建新任务 · v"+(api.version(task)+1),fields,data=>save(updated=>{
+        const [first,...lines]=data.get("content").trim().split("\n");
+        const reason=/^重做原因[：:]\s*(\S.*)$/.exec(first)?.[1].trim();
+        const content=lines.join("\n").trim();
+        if(!reason) throw Error("请在具体内容的第一行填写重做原因。");
+        const reuse=Object.fromEntries(descendants.map(child=>[child.id,data.get("reuse:"+child.id)]));
+        const copy=api.reopen(updated,task.id,reason,{title:data.get("title").trim(),content},reuse);
+        expanded.add(copy.id);
+      }));
+    }));
+  }
+  if(live && current && task?.status==="done" && plan.rechecks?.[task.id]){
+    actions.append(button("复核并沿用",()=>show(api.label(task),[
+      el("p",plan.rechecks[task.id]),field("具体内容",input("evidence","","textarea"))
+    ],data=>save(updated=>api.keepResult(updated,task.id,data.get("evidence"))))));
+  }
+  if(actions.childElementCount) fields.push(actions);
+  if(!editable) for(const field of fields) for(const node of field.querySelectorAll("input,textarea,select")){
+    if(node.tagName==="SELECT") node.disabled=true;
+    else node.readOnly=true;
+  }
+  show(task ? api.label(task) : "新增任务",fields,editable ? data=>save(updated=>{
+    const values=Object.fromEntries(data.entries());
+    const record={...previous,...values,title:values.title.trim(),content:values.content.trim()};
+    if(record.status!=="recheck" && updated.rechecks) delete updated.rechecks[record.id];
+    if(task) updated.tasks=updated.tasks.map(item=>item.id===task.id ? record : item);
+    else {
+      record.id=api.nextTaskId(updated,stage,record.parent);
+      updated.tasks.push(record);
+    }
+    if(record.parent) expanded.add(record.parent);
+  }) : null);
+}
+$("form").onsubmit=async event=>{
+  event.preventDefault();
+  if(busy || !onSave) return;
+  busy=true;$("save").disabled=true;
+  try{await onSave(new FormData(event.currentTarget));$("dialog").close();}
+  catch(error){$("error").textContent=error.message;}
+  finally{busy=false;$("save").disabled=false;}
+};
+$("close").onclick=()=>{if(!busy)$("dialog").close();};
+$("dialog").oncancel=event=>{if(busy)event.preventDefault();};
+$("dialog").onclose=clearPreview;
+$("add").onclick=()=>edit();
+for(const id of ["search","filter","type-filter"]) $(id).oninput=()=>{if(plan)render();};
+$("filter").append(...Object.entries(api.statuses).map(entry=>option(...entry)));
+$("type-filter").append(...Object.entries(api.types).map(entry=>option(...entry)));
+const handle=promise=>promise.catch(error=>{
+  if(error.name==="AbortError") return;
+  $("notice").textContent=error.message;
+  if (!plan) $("next").textContent="项目读取失败";
+});
+async function choose(){
+  if(!window.showOpenFilePicker){$("file").click();return;}
+  const [selected]=await window.showOpenFilePicker({
+    id:"game-project-plan",
+    types:[{description:"项目计划",accept:{"application/json":[".json"]}}]
+  });
+  await load(await selected.getFile(),selected);
+}
+$("choose").onclick=()=>handle(choose());
+$("file").onchange=()=>{
+  const selected=$("file").files[0];
+  $("file").value="";
+  if(selected) handle(load(selected));
+};
+$("reload").onclick=()=>handle((async()=>{
+  $("reload").disabled=true;
+  $("choose").disabled=true;
+  try {
+    if(!fileHandle){
+      await choose();
+      // The fallback input finishes asynchronously in its change handler.
+      if(!fileHandle) return;
+    } else {
+      if(await fileHandle.requestPermission({mode:"read"})!=="granted") throw Error("请允许读取项目计划，或重新选择文件。");
+      await load(await fileHandle.getFile(),fileHandle);
+    }
+    // Reload the local HTML and its scripts after saving the selected plan.
+    location.reload();
+  } finally {
+    $("reload").disabled=false;
+    $("choose").disabled=false;
+  }
+})());
+handle((async()=>{
+  let snapshot;
+  try {
+    snapshot=JSON.parse(localStorage.getItem(snapshotKey));
+    if(snapshot) display(snapshot.raw,snapshot.name,undefined,false);
+  } catch { snapshot=undefined; }
+  const saved=await remember("readonly").catch(()=>null);
+  if(live || !saved) return;
+  const previous=saved.handle || (typeof saved.queryPermission==="function" ? saved : undefined);
+  if(!snapshot && saved.snapshot) display(saved.snapshot.raw,saved.snapshot.name,previous,false);
+  // A newer snapshot can survive a blocked IndexedDB write. In that case, ask
+  // for the file again instead of silently reconnecting a different project.
+  if(snapshot && (saved.snapshot?.raw!==snapshot.raw || saved.snapshot?.name!==snapshot.name)) return;
+  if(!previous) return;
+  fileHandle=previous;
+  $("reload").disabled=false;
+  try {
+    if(await previous.queryPermission({mode:"read"})==="granted" && !live){
+      const file=await previous.getFile();
+      if(!live) await load(file,previous);
+    } else if(!plan){
+      $("next-detail").textContent="点击「重新读取文件」继续使用上次的项目计划。";
+    }
+  } catch(error) {
+    $("reload").disabled=false;
+    $("notice").textContent="暂时无法读取原文件。请点「重新读取文件」重试，或重新选择项目计划。";
+  }
+})());
+})();
+</script>
+</html>

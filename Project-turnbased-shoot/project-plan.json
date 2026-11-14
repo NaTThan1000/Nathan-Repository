@@ -1,0 +1,1299 @@
+{
+  "version": 1,
+  "name": "Turnbased Shoot",
+  "current": "C",
+  "stages": {
+    "A": {
+      "status": "passed",
+      "history": [
+        "根据现行 GDD 已确认的定位与首轮验证范围回填。"
+      ],
+      "summary": "低操作门槛的单步 Roguelite 射击。走位反攻与随机构筑同等重要。首轮固定房间和怪物组合，首选六层、30～40 分钟。"
+    },
+    "B": {
+      "status": "passed",
+      "history": [
+        "根据 2026-11-05、11-06 的方向确认、原型与正式迁移记录回填。当前整局体验仍待验证。"
+      ],
+      "summary": "回溯拖慢节奏且难理解，改为每步移动一格或射击，安全闪避奖励两次行动。原型交互获认可并迁入主包，旧版完整备份，九种普通怪同步换代。现有 Boss 保留旧行为适配。"
+    },
+    "C": {
+      "status": "pending",
+      "history": [
+        "初始任务顺序为实施建议，可根据实际试玩调整。"
+      ],
+      "summary": "已有三层主试玩包。当前验证战斗、探索、整顿与构筑能否连成有意思的一局。"
+    },
+    "D": {
+      "status": "pending",
+      "history": []
+    },
+    "E": {
+      "status": "pending",
+      "history": []
+    }
+  },
+  "tasks": [
+    {
+      "id": "A1",
+      "stage": "A",
+      "parent": "",
+      "type": "outcome",
+      "title": "确认项目定位和首轮验证范围",
+      "status": "done",
+      "acceptance": "确认目标体验、独立单局范围和六项试玩标准。",
+      "source": "Documents/turnbased-shoot-gdd.md#设计总览",
+      "depends": [],
+      "note": "",
+      "priority": "P1",
+      "order": 10,
+      "required": true,
+      "history": [
+        "GDD 已记录低操作门槛的单步射击定位、固定房间和怪物组合，以及首轮验证范围。"
+      ]
+    },
+    {
+      "id": "B1",
+      "stage": "B",
+      "parent": "",
+      "type": "outcome",
+      "title": "验证单步战斗与子弹时间方向",
+      "status": "done",
+      "acceptance": "有可玩的机制对照，并记录是否接入主包的决定。",
+      "source": "Documents/turnbased-shoot-memory.md#2026-11-05",
+      "depends": [
+        "A1"
+      ],
+      "note": "",
+      "priority": "P1",
+      "order": 20,
+      "required": true,
+      "history": [
+        "2026-11-05、11-06 的记录载明方向获确认，机制对照已制作并迁入主包。"
+      ]
+    },
+    {
+      "id": "C1",
+      "stage": "C",
+      "parent": "",
+      "title": "验收现有战斗内容",
+      "type": "outcome",
+      "status": "todo",
+      "priority": "P1",
+      "order": 100,
+      "required": true,
+      "depends": [
+        "B1"
+      ],
+      "acceptance": "",
+      "content": "复测普通房、代表性构筑和两类现有 Boss。逐项留下可复现的预告、闪避反攻、伤害与补给记录，并标出妨碍整局试玩的问题。",
+      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "C1-1",
+      "stage": "C",
+      "parent": "C1",
+      "title": "普通房战斗复测",
+      "type": "playtest",
+      "status": "todo",
+      "priority": "P1",
+      "order": 101,
+      "required": true,
+      "depends": [
+        "B1"
+      ],
+      "acceptance": "按房间记录预告、闪避反攻、掉血和补给。交付带可复现场景的结论。",
+      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "C1-2",
+      "stage": "C",
+      "parent": "C1",
+      "title": "代表性构筑组合复测",
+      "type": "playtest",
+      "status": "todo",
+      "priority": "P1",
+      "order": 102,
+      "required": true,
+      "depends": [
+        "B1"
+      ],
+      "acceptance": "记录组合如何改变打法，包含爆炸自伤和地形取舍。交付可复测的组合结果。",
+      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "C1-3",
+      "stage": "C",
+      "parent": "C1",
+      "title": "现有 Boss 遭遇复测",
+      "type": "playtest",
+      "status": "todo",
+      "priority": "P1",
+      "order": 103,
+      "required": true,
+      "depends": [
+        "B1"
+      ],
+      "acceptance": "两类 Boss 各走正常入口，记录招式、预告、应对和推进，确认首轮适用性。",
+      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "C2",
+      "stage": "C",
+      "parent": "",
+      "title": "完成首轮整局设计",
+      "type": "outcome",
+      "status": "todo",
+      "priority": "P1",
+      "order": 200,
+      "required": true,
+      "depends": [
+        "C1"
+      ],
+      "acceptance": "",
+      "content": "定出首轮整局的楼层路线、固定遭遇和奖励节奏。交付楼层安排、遭遇搭配和资源用途表，并确认哪些内容可复用、哪些需要制作。",
+      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "C2-1",
+      "stage": "C",
+      "parent": "C2",
+      "title": "编排楼层路线与战斗、整顿节奏",
+      "type": "level",
+      "status": "todo",
+      "priority": "P1",
+      "order": 201,
+      "required": true,
+      "depends": [
+        "C1"
+      ],
+      "acceptance": "按楼层交付路线、战斗与整顿节奏、商店和宝物房、钥匙门、奖励支路与 Boss 入口。固定房的地格、阵容和站位由 C24 交付。",
+      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "C2-2",
+      "stage": "C",
+      "parent": "C2",
+      "title": "编排奖励与构筑成长节奏",
+      "type": "balance",
+      "status": "todo",
+      "priority": "P1",
+      "order": 202,
+      "required": true,
+      "depends": [
+        "C1",
+        "C2-5"
+      ],
+      "acceptance": "交付按层或整局分段的获取计划，明确资源与道具的数量区间、出现频率、来源、必给和随机比例、探索加成及消费机会。明确历史上探索额外 1～2 件的计量范围，按 C25 的资源方案配置。",
+      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "C2-3",
+      "stage": "C",
+      "parent": "C2",
+      "title": "盘点内容并确认首轮规模",
+      "type": "design",
+      "status": "todo",
+      "priority": "P1",
+      "order": 203,
+      "required": true,
+      "depends": [
+        "C1"
+      ],
+      "acceptance": "按楼层盘点可复用和需制作内容，估算六层成本，确认房间数及行动和出生点的复测要求。",
+      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "C3",
+      "stage": "C",
+      "parent": "",
+      "title": "制作首轮整局",
+      "type": "outcome",
+      "status": "todo",
+      "priority": "P1",
+      "order": 300,
+      "required": true,
+      "depends": [
+        "C2"
+      ],
+      "acceptance": "",
+      "content": "把首轮楼层、固定遭遇和奖励接成一个可玩的构建。先在代表样段验证，再接其余楼层，复测从开局到失败、通关和重开的路径。",
+      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "C3-1",
+      "stage": "C",
+      "parent": "C3",
+      "title": "制作一层代表样段",
+      "type": "level",
+      "status": "todo",
+      "priority": "P1",
+      "order": 301,
+      "required": true,
+      "depends": [
+        "C2",
+        "C3-4"
+      ],
+      "acceptance": "按房间完成地形、阵容、站位与奖励，从入口连玩至 Boss 和离开。",
+      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "C3-2",
+      "stage": "C",
+      "parent": "C3",
+      "title": "制作其余约定楼层",
+      "type": "level",
+      "status": "todo",
+      "priority": "P1",
+      "order": 302,
+      "required": true,
+      "depends": [
+        "C2",
+        "C3-1"
+      ],
+      "acceptance": "逐层接入地形、阵容、站位、奖励与推进，按层记录试玩。",
+      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "C3-3",
+      "stage": "C",
+      "parent": "C3",
+      "title": "整合并验证首轮单局包",
+      "type": "delivery",
+      "status": "todo",
+      "priority": "P1",
+      "order": 303,
+      "required": true,
+      "depends": [
+        "C2",
+        "C3-2"
+      ],
+      "acceptance": "检查开局、进出房、跨层、失败、通关和重开，交付集中试玩包。",
+      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "C4",
+      "stage": "C",
+      "parent": "",
+      "title": "验收完整单局",
+      "type": "outcome",
+      "status": "todo",
+      "priority": "P1",
+      "order": 400,
+      "required": true,
+      "depends": [
+        "C3"
+      ],
+      "acceptance": "",
+      "content": "用完整单局检验战斗、探索、整顿与构筑能否连起来。记录试玩版本、实际用时和六项试玩标准的结果，确认整局结论和需要返工的事项。",
+      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "C4-1",
+      "stage": "C",
+      "parent": "C4",
+      "title": "完成整局体验验证",
+      "type": "playtest",
+      "status": "todo",
+      "priority": "P1",
+      "order": 401,
+      "required": true,
+      "depends": [
+        "C3"
+      ],
+      "acceptance": "记录版本、实际时长和六项试玩标准，由用户确认阶段结论或返工项。",
+      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D1",
+      "stage": "D",
+      "parent": "",
+      "title": "确定正式版范围与工程基线",
+      "type": "outcome",
+      "status": "todo",
+      "priority": "P1",
+      "order": 100,
+      "required": true,
+      "depends": [
+        "C4"
+      ],
+      "acceptance": "",
+      "content": "定下正式版范围、目标平台和工程起点。按批列出要制作及沿用的内容，确认后置项和交付渠道，并留下一份能打包、能恢复的基线版本。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D1-1",
+      "stage": "D",
+      "parent": "D1",
+      "title": "编制正式制作清单",
+      "type": "design",
+      "status": "todo",
+      "priority": "P1",
+      "order": 101,
+      "required": true,
+      "depends": [
+        "C4"
+      ],
+      "acceptance": "逐批确认正式内容、验收、可复用成果、后置项和交付渠道。评审计划里的后置任务，纳入发布范围的项目转为必要任务，并补齐设计、实现、测试及整合依赖。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D1-2",
+      "stage": "D",
+      "parent": "D1",
+      "title": "确认目标平台与正式工程路径",
+      "type": "code",
+      "status": "todo",
+      "priority": "P1",
+      "order": 102,
+      "required": true,
+      "depends": [
+        "C4"
+      ],
+      "acceptance": "核对维护、输入和打包，必要时验证迁移样段，交付可恢复的起始版本。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D2",
+      "stage": "D",
+      "parent": "",
+      "title": "完成正式系统与成长",
+      "type": "outcome",
+      "status": "todo",
+      "priority": "P1",
+      "order": 200,
+      "required": true,
+      "depends": [
+        "D1"
+      ],
+      "acceptance": "",
+      "content": "完成正式战斗、构筑、资源经济和跨局流程。验收行动、敌方意图与伤害反馈，核对道具目录、叠加规则和资源配置，并按确认范围走通单局结算、重开及最小局外成长。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D2-1",
+      "stage": "D",
+      "parent": "D2",
+      "title": "完成正式战斗和操作规则",
+      "type": "code",
+      "status": "todo",
+      "priority": "P1",
+      "order": 201,
+      "required": true,
+      "depends": [
+        "D1"
+      ],
+      "acceptance": "实现并回归正式行动、意图、伤害、状态、子弹时间和输入反馈。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D2-2",
+      "stage": "D",
+      "parent": "D2",
+      "title": "完成道具、构筑与资源经济",
+      "type": "balance",
+      "status": "todo",
+      "priority": "P1",
+      "order": 202,
+      "required": true,
+      "depends": [
+        "D1"
+      ],
+      "acceptance": "按批验收正式候选道具与资源经济，实现确认的资源种类、获取量、频率、商店与消费基准。特殊叠加规则按 D26 的范围单独验收。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D2-3",
+      "stage": "D",
+      "parent": "D2",
+      "title": "完成开局、单局结束与重开",
+      "type": "code",
+      "status": "todo",
+      "priority": "P1",
+      "order": 203,
+      "required": true,
+      "depends": [
+        "D1"
+      ],
+      "acceptance": "验收正常进入、暂停、失败、通关与再次开始。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D2-4",
+      "stage": "D",
+      "parent": "D2",
+      "title": "设计和验证最小共享局外成长循环",
+      "type": "design",
+      "status": "deferred",
+      "priority": "P1",
+      "order": 204,
+      "required": false,
+      "depends": [
+        "D1"
+      ],
+      "acceptance": "单局通过后确认范围。实际走通资源结算、失败后保留、一次共享培养和下一局感知收益。多角色与通关后挑战各自有独立任务。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D3",
+      "stage": "D",
+      "parent": "",
+      "title": "制作正式怪物、Boss 和关卡",
+      "type": "outcome",
+      "status": "todo",
+      "priority": "P1",
+      "order": 300,
+      "required": true,
+      "depends": [
+        "D1"
+      ],
+      "acceptance": "",
+      "content": "制作正式普通怪、Boss 和逐层房间。验证怪物混编、招式与预告、出生点、奖励和跨层推进。额外房型、随机生成及其他扩展按确认范围接入。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D3-1",
+      "stage": "D",
+      "parent": "D3",
+      "title": "定稿普通怪与遭遇阵容",
+      "type": "design",
+      "status": "todo",
+      "priority": "P1",
+      "order": 301,
+      "required": true,
+      "depends": [
+        "D1"
+      ],
+      "acceptance": "按怪物核对规则、数值、表现和混编，交付正式怪池与阵容。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D3-2",
+      "stage": "D",
+      "parent": "D3",
+      "title": "定稿 Boss 遭遇",
+      "type": "design",
+      "status": "todo",
+      "priority": "P1",
+      "order": 302,
+      "required": true,
+      "depends": [
+        "D1"
+      ],
+      "acceptance": "按 Boss 验证招式、预告、阶段、场地、奖励和结束推进。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D3-3",
+      "stage": "D",
+      "parent": "D3",
+      "title": "制作正式楼层与房间",
+      "type": "level",
+      "status": "todo",
+      "priority": "P1",
+      "order": 303,
+      "required": true,
+      "depends": [
+        "D1"
+      ],
+      "acceptance": "逐层实现正式固定路线、地格与遭遇、奖励和难度。按层验收通路、交互及进度。额外房型、成对随机和 Boss 行为改造按各自任务进入范围。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D4",
+      "stage": "D",
+      "parent": "",
+      "title": "完成正式美术、界面和音效",
+      "type": "outcome",
+      "status": "todo",
+      "priority": "P1",
+      "order": 400,
+      "required": true,
+      "depends": [
+        "D1"
+      ],
+      "acceptance": "",
+      "content": "定稿并接入正式美术、界面和音效。先在构建里审阅代表样件，再按批验证素材采用版本、实际接入、危险提示的辨认和新手理解。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D4-1",
+      "stage": "D",
+      "parent": "D4",
+      "title": "定稿代表样件与资源规格",
+      "type": "art",
+      "status": "todo",
+      "priority": "P1",
+      "order": 401,
+      "required": true,
+      "depends": [
+        "D1"
+      ],
+      "acceptance": "在实际构建审阅角色、怪物、场景、界面和音效样件，确认规格与采用范围。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D4-2",
+      "stage": "D",
+      "parent": "D4",
+      "title": "分批制作并接入正式表现资源",
+      "type": "art",
+      "status": "todo",
+      "priority": "P1",
+      "order": 402,
+      "required": true,
+      "depends": [
+        "D1",
+        "D4-1"
+      ],
+      "acceptance": "按角色、怪物、场景、地格、道具图标、界面和特效分批登记、制作、自审、评审与返修。采用版本进入实际构建后复验。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D4-3",
+      "stage": "D",
+      "parent": "D4",
+      "title": "完成关键界面与新手理解",
+      "type": "design",
+      "status": "todo",
+      "priority": "P1",
+      "order": 403,
+      "required": true,
+      "depends": [
+        "D1",
+        "D4-2"
+      ],
+      "acceptance": "验证首场战斗、危险识别、地图、拾取、商店与结束界面的实际理解。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D5",
+      "stage": "D",
+      "parent": "",
+      "title": "整合正式内容",
+      "type": "outcome",
+      "status": "todo",
+      "priority": "P1",
+      "order": 500,
+      "required": true,
+      "depends": [
+        "D2",
+        "D3",
+        "D4"
+      ],
+      "acceptance": "",
+      "content": "将各制作批次整合成完整可玩的正式构建。对照 D1 的制作清单，逐批核对实际接入、出包和回归结果，列出仍待处理的缺口。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "D5-1",
+      "stage": "D",
+      "parent": "D5",
+      "title": "整合制作批次并验收完整范围",
+      "type": "delivery",
+      "status": "todo",
+      "priority": "P1",
+      "order": 501,
+      "required": true,
+      "depends": [
+        "D2",
+        "D3",
+        "D4"
+      ],
+      "acceptance": "对照正式清单逐批核对接入、构建、回归和遗留项。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "E1",
+      "stage": "E",
+      "parent": "",
+      "title": "完成整体验收与调优",
+      "type": "outcome",
+      "status": "todo",
+      "priority": "P1",
+      "order": 100,
+      "required": true,
+      "depends": [
+        "D5"
+      ],
+      "acceptance": "",
+      "content": "通过多轮整局试玩校准难度与经济。覆盖典型和极端构筑、首次上手及目标设备，记录可复现的问题，修复交付阻断项并复验。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "E1-1",
+      "stage": "E",
+      "parent": "E1",
+      "title": "整局测试与难度、经济校准",
+      "type": "playtest",
+      "status": "todo",
+      "priority": "P1",
+      "order": 101,
+      "required": true,
+      "depends": [
+        "D5"
+      ],
+      "acceptance": "多轮覆盖典型构筑、资源短缺、后段难度和 Boss 推进，交付复验场景。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "E1-2",
+      "stage": "E",
+      "parent": "E1",
+      "title": "完成目标环境与技术回归",
+      "type": "code",
+      "status": "todo",
+      "priority": "P1",
+      "order": 102,
+      "required": true,
+      "depends": [
+        "D5"
+      ],
+      "acceptance": "按目标设备验证启动、操作、表现、性能及适用的存档兼容。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "E1-3",
+      "stage": "E",
+      "parent": "E1",
+      "title": "处理交付阻断问题并复验",
+      "type": "code",
+      "status": "todo",
+      "priority": "P1",
+      "order": 103,
+      "required": true,
+      "depends": [
+        "D5"
+      ],
+      "acceptance": "核对缺陷、修复构建和复验，遗留由用户确认。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "E2",
+      "stage": "E",
+      "parent": "",
+      "title": "交付最终版本",
+      "type": "outcome",
+      "status": "todo",
+      "priority": "P1",
+      "order": 200,
+      "required": true,
+      "depends": [
+        "E1"
+      ],
+      "acceptance": "",
+      "content": "制作并验证实际交付包。检查启动、重开、版本说明和素材署名，再按选定渠道验证获取入口，完成适用的发布材料和审核。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "E2-1",
+      "stage": "E",
+      "parent": "E2",
+      "title": "封装并验收实际交付包",
+      "type": "delivery",
+      "status": "todo",
+      "priority": "P1",
+      "order": 201,
+      "required": true,
+      "depends": [
+        "E1"
+      ],
+      "acceptance": "从实际包验证运行和重开，核对版本说明、资源来源与署名。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "E2-2",
+      "stage": "E",
+      "parent": "E2",
+      "title": "完成选定渠道的交付",
+      "type": "delivery",
+      "status": "todo",
+      "priority": "P1",
+      "order": 202,
+      "required": true,
+      "depends": [
+        "E1",
+        "E2-1"
+      ],
+      "acceptance": "核对实际交付获取入口及目标设备运行。若公开发布，先完成适用的渠道材料与审查，再进行正式交付。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "E3",
+      "stage": "E",
+      "parent": "",
+      "title": "收尾与维护",
+      "type": "outcome",
+      "status": "todo",
+      "priority": "P1",
+      "order": 300,
+      "required": true,
+      "depends": [
+        "E2"
+      ],
+      "acceptance": "",
+      "content": "整理交付版本的恢复入口和维护范围。确认最终构建、源码与配置的对应关系，留下反馈入口、补丁验证方式和可复用的项目复盘结论。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "E3-1",
+      "stage": "E",
+      "parent": "E3",
+      "title": "整理反馈、修复范围与项目复盘",
+      "type": "delivery",
+      "status": "todo",
+      "priority": "P1",
+      "order": 301,
+      "required": true,
+      "depends": [
+        "E2"
+      ],
+      "acceptance": "确认补丁与维护范围、最终构建恢复入口和可复用流程经验。",
+      "source": "PROJECTS.md",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "C2-4",
+      "stage": "C",
+      "parent": "C2",
+      "type": "level",
+      "title": "设计首批固定战斗房",
+      "acceptance": "逐房交付遭遇表：玩家要解决的问题、地格和障碍、怪物与双方起点、预期安全路线。用代表房验证换布局确实改变行动。",
+      "source": "Documents/turnbased-shoot-gdd.md#房间与探索",
+      "depends": [
+        "C2-1",
+        "C2-3"
+      ],
+      "status": "todo",
+      "priority": "P1",
+      "order": 204,
+      "required": true,
+      "history": [],
+      "note": ""
+    },
+    {
+      "id": "C2-5",
+      "stage": "C",
+      "parent": "C2",
+      "type": "balance",
+      "title": "设计首轮资源种类与用途",
+      "acceptance": "交付红心、蓝心、金币、钥匙、炸弹等资源的保留或调整方案，明确每项的用途、来源、消耗出口和首轮配置范围。",
+      "source": "Documents/turnbased-shoot-memory.md#2026-11-08",
+      "depends": [
+        "C1"
+      ],
+      "status": "todo",
+      "priority": "P1",
+      "order": 205,
+      "required": true,
+      "history": [],
+      "note": ""
+    },
+    {
+      "id": "C3-4",
+      "stage": "C",
+      "parent": "C3",
+      "type": "code",
+      "title": "接通固定遭遇配置与正规入口",
+      "acceptance": "核对配置能力，有缺口则实现。主包能加载指定房间、阵容和初始站位，重复开局可复现；验收合法出生、清房、门和跨层。",
+      "source": "Documents/turnbased-shoot-gdd.md#房间与探索",
+      "depends": [
+        "C2"
+      ],
+      "status": "todo",
+      "priority": "P1",
+      "order": 304,
+      "required": true,
+      "history": [],
+      "note": ""
+    },
+    {
+      "id": "D2-5",
+      "stage": "D",
+      "parent": "D2",
+      "type": "design",
+      "title": "核对第二批 19 件道具与正式目录",
+      "acceptance": "按名称或 ID 与正式 60 件道具逐条对照，交付已实现、缺失和不同效果的对应表。名单缺失时提出具体缺口；确认差额后另立实现批次。",
+      "source": "Documents/turnbased-shoot-memory.md#2026-11-11",
+      "depends": [
+        "D1"
+      ],
+      "status": "deferred",
+      "priority": "P2",
+      "order": 205,
+      "required": false,
+      "history": [],
+      "note": "后置。先核对实际需求和范围，确认纳入后再开工。"
+    },
+    {
+      "id": "D2-6",
+      "stage": "D",
+      "parent": "D2",
+      "type": "code",
+      "title": "设计、实现并验收道具叠加与组合效果",
+      "acceptance": "先盘点现有重复拾取、同类覆盖、跨类组合与已测例。明确实际需要补的交互、优先级和限制，完成已确认差额并验证拾取顺序、组合结算及实战效果。",
+      "source": "Documents/turnbased-shoot-gdd.md#道具与构筑",
+      "depends": [
+        "D1",
+        "D2-2"
+      ],
+      "status": "deferred",
+      "priority": "P2",
+      "order": 206,
+      "required": false,
+      "history": [],
+      "note": "后置。先核对实际需求和范围，确认纳入后再开工。"
+    },
+    {
+      "id": "D2-7",
+      "stage": "D",
+      "parent": "D2",
+      "type": "design",
+      "title": "设计道具说明与拾取选择",
+      "acceptance": "交付可玩的拾取流程，核对拾取前如何说明效果、是否可放弃、商店购买如何确认，以及旧踩格行为如何处理；具体方案待确认。",
+      "source": "Documents/turnbased-shoot-gdd.md#道具与构筑",
+      "depends": [
+        "D1"
+      ],
+      "status": "deferred",
+      "priority": "P2",
+      "order": 207,
+      "required": false,
+      "history": [],
+      "note": "后置。先核对实际需求和范围，确认纳入后再开工。"
+    },
+    {
+      "id": "D2-8",
+      "stage": "D",
+      "parent": "D2",
+      "type": "design",
+      "title": "评估额外构筑维度及剑类武器",
+      "acceptance": "先从实战定位缺口，再评估剑、主动道具、单次消耗、跟班、法术或付费重选是否需要。交付采用或后置结论及适用范围；候选需分别确认。",
+      "source": "Documents/turnbased-shoot-memory.md#2026-11-08",
+      "depends": [
+        "D1",
+        "D2-2"
+      ],
+      "status": "deferred",
+      "priority": "P2",
+      "order": 208,
+      "required": false,
+      "history": [],
+      "note": "后置。先核对实际需求和范围，确认纳入后再开工。"
+    },
+    {
+      "id": "D2-9",
+      "stage": "D",
+      "parent": "D2",
+      "type": "code",
+      "title": "制作多角色与解锁流程",
+      "acceptance": "确认差异化开局、选角、角色解锁和共享／独立培养边界，再验证同局构筑及跨局进度；角色数和独立培养具体形式待定。",
+      "source": "Documents/turnbased-shoot-gdd.md#跨局与长期目标",
+      "depends": [
+        "D2-4"
+      ],
+      "status": "deferred",
+      "priority": "P2",
+      "order": 209,
+      "required": false,
+      "history": [],
+      "note": "后置。先核对实际需求和范围，确认纳入后再开工。"
+    },
+    {
+      "id": "D2-10",
+      "stage": "D",
+      "parent": "D2",
+      "type": "code",
+      "title": "评估并实现适用的存档与恢复",
+      "acceptance": "确认哪些设置和跨局数据须保留、是否支持中途续玩。按所选范围验证正常恢复、异常数据和版本更新兼容。",
+      "source": "Documents/turnbased-shoot-gdd.md#跨局与长期目标",
+      "depends": [
+        "D1-2"
+      ],
+      "status": "deferred",
+      "priority": "P2",
+      "order": 210,
+      "required": false,
+      "history": [],
+      "note": "后置。先核对实际需求和范围，确认纳入后再开工。"
+    },
+    {
+      "id": "D2-11",
+      "stage": "D",
+      "parent": "D2",
+      "type": "code",
+      "title": "整理设置、输入与中断恢复",
+      "acceptance": "按目标平台核对启动、暂停、离开和重开，验收键盘焦点与设置入口；音量、改键、手柄和重新聚焦行为按确认范围实现。",
+      "source": "PROJECTS.md",
+      "depends": [
+        "D1-2"
+      ],
+      "status": "todo",
+      "priority": "P1",
+      "order": 211,
+      "required": true,
+      "history": [],
+      "note": ""
+    },
+    {
+      "id": "D3-4",
+      "stage": "D",
+      "parent": "D3",
+      "type": "level",
+      "title": "设计额外房型并制作代表样段",
+      "acceptance": "基于探索与整顿的实测缺口，选择房型并交付用途、进入条件、操作、代价和收益。对已选房型做样段；密室、解谜和回访设施是候选。",
+      "source": "Documents/turnbased-shoot-gdd.md#房间与探索",
+      "depends": [
+        "D1",
+        "C4"
+      ],
+      "status": "deferred",
+      "priority": "P2",
+      "order": 304,
+      "required": false,
+      "history": [],
+      "note": "后置。先核对实际需求和范围，确认纳入后再开工。"
+    },
+    {
+      "id": "D3-5",
+      "stage": "D",
+      "parent": "D3",
+      "type": "level",
+      "title": "设计并验证房间成对随机生成",
+      "acceptance": "固定组合验证通过后，确定地形、阵容与站位的抽取单元、楼层分布和复现规则。交付生成样段，验证通路、出生合法、难度与混编，确认方案后再扩大接入。",
+      "source": "Documents/turnbased-shoot-gdd.md#房间与探索",
+      "depends": [
+        "D1",
+        "C4",
+        "D3-1"
+      ],
+      "status": "deferred",
+      "priority": "P2",
+      "order": 305,
+      "required": false,
+      "history": [],
+      "note": "后置。先核对实际需求和范围，确认纳入后再开工。"
+    },
+    {
+      "id": "D3-6",
+      "stage": "D",
+      "parent": "D3",
+      "type": "code",
+      "title": "验证 Boss 通用追击与多招式改造",
+      "acceptance": "以现有遭遇复测为依据，确认改造范围。为选定 Boss 接入追击、多招式与恢复阶段，复验预告、应对、清房及推进。",
+      "source": "Documents/turnbased-shoot-gdd.md#怪物行为",
+      "depends": [
+        "D1",
+        "C1-3"
+      ],
+      "status": "deferred",
+      "priority": "P2",
+      "order": 306,
+      "required": false,
+      "history": [],
+      "note": "后置。先核对实际需求和范围，确认纳入后再开工。"
+    },
+    {
+      "id": "D3-7",
+      "stage": "D",
+      "parent": "D3",
+      "type": "level",
+      "title": "设计通关后挑战与内容解锁",
+      "acceptance": "确认挑战目标、难度变化、解锁条件及复用内容。若纳入交付，制作代表挑战并从正常流程验证解锁和可达性。",
+      "source": "Documents/turnbased-shoot-gdd.md#跨局与长期目标",
+      "depends": [
+        "D1",
+        "D3-3"
+      ],
+      "status": "deferred",
+      "priority": "P2",
+      "order": 307,
+      "required": false,
+      "history": [],
+      "note": "后置。先核对实际需求和范围，确认纳入后再开工。"
+    },
+    {
+      "id": "D3-8",
+      "stage": "D",
+      "parent": "D3",
+      "type": "code",
+      "title": "验证正式关卡配置与制作工具链",
+      "acceptance": "实际演练修改地格、障碍、阵容、奖励、出生点和房门再出包，核对编辑与运行数据一致及出错提示。有影响批量制作的缺口时修正。",
+      "source": "PROJECTS.md#工程入口与项目约定",
+      "depends": [
+        "D1-2",
+        "C3-4"
+      ],
+      "status": "todo",
+      "priority": "P1",
+      "order": 308,
+      "required": true,
+      "history": [],
+      "note": ""
+    },
+    {
+      "id": "D4-4",
+      "stage": "D",
+      "parent": "D4",
+      "type": "design",
+      "title": "确定世界观包装与玩家叙事信息",
+      "acceptance": "确认逃亡设定是否沿用、角色身份、目标和重复挑战的解释，交付适用于菜单、开局和结局的文本与表现需求。",
+      "source": "Documents/turnbased-shoot-gdd.md#定位与体验",
+      "depends": [
+        "D1"
+      ],
+      "status": "deferred",
+      "priority": "P2",
+      "order": 404,
+      "required": false,
+      "history": [],
+      "note": "后置。先核对实际需求和范围，确认纳入后再开工。"
+    },
+    {
+      "id": "D4-5",
+      "stage": "D",
+      "parent": "D4",
+      "type": "art",
+      "title": "制作正式音效并完成混音验收",
+      "acceptance": "按操作、危险、命中、炸弹、收益与界面核对最小音效集合。逐批审阅，验证密集战斗的辨识、音量、静音及实际接入。",
+      "source": "PROJECTS.md",
+      "depends": [
+        "D4-1"
+      ],
+      "status": "todo",
+      "priority": "P1",
+      "order": 405,
+      "required": true,
+      "history": [],
+      "note": ""
+    },
+    {
+      "id": "D4-6",
+      "stage": "D",
+      "parent": "D4",
+      "type": "art",
+      "title": "校验敌方意图与关键反馈的可辨认性",
+      "acceptance": "在目标尺寸核对黄红预告重叠、可攻击目标、交互反馈与冻结遮挡，评估需要形状、图标或其它信息冗余的场景，实测改动。",
+      "source": "https://learn.microsoft.com/en-us/xbox/accessibility/guidelines",
+      "depends": [
+        "D4-1",
+        "C1-1"
+      ],
+      "status": "todo",
+      "priority": "P1",
+      "order": 406,
+      "required": true,
+      "history": [],
+      "note": ""
+    },
+    {
+      "id": "D4-7",
+      "stage": "D",
+      "parent": "D4",
+      "type": "art",
+      "title": "整理正式素材采用、来源及实际引用",
+      "acceptance": "核对素材规格、候选版本、审核记录、工程引用、许可与必要署名。输出与发布构建对应的资源清单。",
+      "source": "PROJECTS.md",
+      "depends": [
+        "D4-2",
+        "D4-5"
+      ],
+      "status": "todo",
+      "priority": "P1",
+      "order": 407,
+      "required": true,
+      "history": [],
+      "note": ""
+    },
+    {
+      "id": "D4-8",
+      "stage": "D",
+      "parent": "D4",
+      "type": "design",
+      "title": "校对正式文本与多语言显示",
+      "acceptance": "校对提示、道具说明、设置和结局文案。若确认多语言范围，再验收翻译、缺字、布局与构建实际显示。",
+      "source": "PROJECTS.md",
+      "depends": [
+        "D1",
+        "D4-3"
+      ],
+      "status": "deferred",
+      "priority": "P2",
+      "order": 408,
+      "required": false,
+      "history": [],
+      "note": "后置。先核对实际需求和范围，确认纳入后再开工。"
+    },
+    {
+      "id": "E1-4",
+      "stage": "E",
+      "parent": "E1",
+      "type": "playtest",
+      "title": "组织首次上手游玩与问题复验",
+      "acceptance": "观察首次开局、理解黄红招与道具、失败后是否知道怎么继续。记录明确问题与复测结果；试玩对象和方式按交付范围确定。",
+      "source": "Documents/turnbased-shoot-gdd.md#六项试玩标准",
+      "depends": [
+        "D5"
+      ],
+      "status": "todo",
+      "priority": "P1",
+      "order": 104,
+      "required": true,
+      "history": [],
+      "note": ""
+    },
+    {
+      "id": "E1-5",
+      "stage": "E",
+      "parent": "E1",
+      "type": "code",
+      "title": "覆盖极端构筑和生成边界",
+      "acceptance": "用可复现样例检查高频叠加、奖励断层、极端房间与正常通关路径。随机生成、存档等扩展若纳入，再补相应边界与回归证据。",
+      "source": "Documents/turnbased-shoot-gdd.md#联动检查",
+      "depends": [
+        "D5"
+      ],
+      "status": "todo",
+      "priority": "P1",
+      "order": 105,
+      "required": true,
+      "history": [],
+      "note": ""
+    },
+    {
+      "id": "E2-3",
+      "stage": "E",
+      "parent": "E2",
+      "type": "delivery",
+      "title": "准备公开发布材料与渠道审核",
+      "acceptance": "公开发布时确认渠道、商店说明、展示素材、构建审核及使用说明。按实际渠道清单验收；若选 Steam，分别核对页面和构建。",
+      "source": "https://partner.steamgames.com/doc/store/releasing?l=english",
+      "depends": [
+        "E2-1"
+      ],
+      "status": "deferred",
+      "priority": "P2",
+      "order": 203,
+      "required": false,
+      "history": [],
+      "note": "后置。先核对实际需求和范围，确认纳入后再开工。"
+    },
+    {
+      "id": "E3-2",
+      "stage": "E",
+      "parent": "E3",
+      "type": "delivery",
+      "title": "验证发布版本的恢复与补丁交接",
+      "acceptance": "确认最终构建、源码和配置能对应恢复，记录发布后反馈入口、版本说明、修复验证与交付方式。",
+      "source": "PROJECTS.md",
+      "depends": [
+        "E2"
+      ],
+      "status": "todo",
+      "priority": "P1",
+      "order": 302,
+      "required": true,
+      "history": [],
+      "note": ""
+    },
+    {
+      "id": "D2-12",
+      "stage": "D",
+      "parent": "D2",
+      "type": "design",
+      "title": "明确幸运值在掉落与构筑中的作用",
+      "priority": "P2",
+      "status": "clarify",
+      "content": "当前幸运值暂为 0。后续讨论是否需要影响掉落或构筑，明确作用范围和验证方式，再决定是否纳入制作。",
+      "order": 0,
+      "required": false,
+      "depends": [],
+      "acceptance": "",
+      "note": "",
+      "source": "Documents/turnbased-shoot-memory.md#2026-11-11",
+      "history": []
+    }
+  ],
+  "vision": "看懂危险，走位化解，再抓住机会反攻。在随机构筑中逐步变强。"
+}

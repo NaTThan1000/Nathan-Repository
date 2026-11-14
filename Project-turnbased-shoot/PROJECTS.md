@@ -2,6 +2,9 @@
 
 ## 开工资料
 
+- [通用开发流程](../Workflow/GAME-DEVELOPMENT-WORKFLOW.md)定义 A–E 阶段、拆任务与返工规则。[项目计划](project-plan.json)是工作台和 AI 共用的进度数据。现有顺序可按实际结果调整，体验和阶段验收由用户确认。
+- 双击[工作台 HTML](../Workflow/Project-Workbench/workbench.html)，点「打开项目计划」选择本目录的 `project-plan.json`。在 Chrome 或 Edge 里同意浏览器的写入授权后，可以直接保存到原文件。聊天或编辑器更新计划后，点「重新读取文件」。开工概况及数据校验可在仓库根运行 `node Workflow/Project-Workbench/server.cjs --check Project-turnbased-shoot`。
+- 在任务的「具体内容」中查看或打开旧版任务。重做时选「创建下一版本」，审核子任务的复用依据后保存。美术候选、预览和审阅都在美术任务详情中。
 - [现行 GDD](Documents/turnbased-shoot-gdd.md)维护设计与系统框架。开工先读「设计总览」，有具体任务时查相关章节。
 - [项目记忆](Documents/turnbased-shoot-memory.md)保存决定、取舍和验证记录。开工先读最近一条有实质内容的记录，再按任务检索主题。
 - 通用协作规则由 Codex 加载的 AGENTS.md 提供。跨电脑可从 [codex-setup 的规则编辑源](../codex-setup/AGENTS.md)和其中的安装说明恢复。
