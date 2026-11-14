@@ -1,10 +1,12 @@
 const {spawnSync}=require('node:child_process');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {buildRegressionFixtures}=require('./build.cjs');
+const {buildRegressionFixtures}=require('../tools/build.cjs');
+
+const projectRoot=path.resolve(__dirname,'..');
 
 function run(file,fixtures={}){
-  const result=spawnSync(process.execPath,[path.join(__dirname,file)],{
-    cwd:__dirname,env:{...process.env,...fixtures},stdio:'inherit'
+  const result=spawnSync(process.execPath,[path.join(projectRoot,file)],{
+    cwd:projectRoot,env:{...process.env,...fixtures},stdio:'inherit'
   });
   if(result.error) throw result.error;
   if(result.status!==0) throw Error('检查未通过：'+file);

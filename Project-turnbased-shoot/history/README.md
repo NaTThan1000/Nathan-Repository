@@ -11,13 +11,13 @@
 | [子弹时间机制原型](playtest-builds/bullet-time-playtest.html) | 早期单步规则的 12 组对照和 8 间连战房 |
 | [退役代码](retired-code/) | 已移出的源码和历史配置快照 |
 
-完整的旧回溯工程见[迁移前备份](../../backup/Project-turnbased-shoot-rewind-2026-11-05/)。当前入口见[项目指引](../PROJECTS.md)，美术审核仍从 [Scrap Star 审核页](../Assets/scrap-star-review/审核预览.html)和[单步怪物固定帧审核](../Assets/single-step-enemies/固定帧审核.html)打开。
+完整的旧回溯工程见[迁移前备份](../../backup/Project-turnbased-shoot-rewind-2026-11-05/)。当前入口见[项目指引](../Documents/PROJECTS.md)，美术审核仍从 [Scrap Star 审核页](../Assets/scrap-star-review/审核预览.html)和[单步怪物固定帧审核](../Assets/single-step-enemies/固定帧审核.html)打开。
 
 `core-playtest-legacy.html` 是归档时冻结的旧独立战斗原型，图片和配置已内嵌，可双击查看。保留供比较，不参与当前构建和自动检查。
 
 它与正式版存在历史规则差异，例如末步进入怪物格的输入限制、回合结束挤出的距离计算，以及没有正式掉落／炸弹／跨房流程。请勿将它的代码复制回当前源码。
 
-两份 `playtest-builds/` HTML 为冻结快照，可双击体验当时规则。当前源码的自动回归自行生成临时测试包。日常试玩与构建入口见[项目指引](../PROJECTS.md)。
+两份 `playtest-builds/` HTML 为冻结快照，可双击体验当时规则。当前源码的自动回归自行生成临时测试包。日常试玩与构建入口见[项目指引](../Documents/PROJECTS.md)。
 
 当前设计见 [GDD](../Documents/turnbased-shoot-gdd.md)，历史决定与原索引主题见[项目记忆](../Documents/turnbased-shoot-memory.md)。
 

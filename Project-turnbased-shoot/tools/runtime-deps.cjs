@@ -5,7 +5,7 @@ function runtimeDependency(name){
   if(error.code!=='MODULE_NOT_FOUND')throw error;
   const cached=path.join(os.homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules',name);
   try{return require(cached)}catch(cachedError){
-   throw new Error('缺少依赖 '+name+'，请在项目目录运行 npm install。原始错误：'+cachedError.message);
+   throw new Error('缺少依赖 '+name+'，请从项目根目录运行 npm --prefix tools ci。原始错误：'+cachedError.message);
   }
  }
 }

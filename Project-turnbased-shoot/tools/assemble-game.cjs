@@ -16,7 +16,7 @@ async function assembleGame(options={}){
   runtime=runtime.replace(marker,()=>read(file).trimEnd());
  }
  if(runtime.split('// SCRAP_GAME_ADAPTER').length!==2)throw Error('正式适配插入点必须唯一');
- runtime=runtime.replace('// SCRAP_GAME_ADAPTER',()=>read('scrap-star-game-runtime.js').trimEnd());
+ runtime=runtime.replace('// SCRAP_GAME_ADAPTER',()=>read('src/presentation/scrap-star-game-runtime.js').trimEnd());
  const block='// SCRAP_STAR_GAME_START\nconst SCRAP_ASSETS='+JSON.stringify(assets)+';\n'+runtime+'// SCRAP_STAR_GAME_END';
  const modules=require('../src/modules.cjs');
  if(new Set(modules).size!==modules.length||modules.filter(p=>p==='@presentation').length!==1)throw Error('模块清单重复或显示入口不唯一');

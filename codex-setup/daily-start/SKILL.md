@@ -13,12 +13,12 @@ description: 使用 daily start 初始化项目会话，读取项目记忆和上
 | tarot-battle-project | main | tarot-battle-context.md（项目根目录） |
 | Project-Issac-turnbase | main | Documents/isaac-decision-index.md、isaac-memory.md、isaac-turnbase-context.md |
 | Project-rockman | main | Documents/rockman-decision-index.md、rockman-memory.md、rockman-context.md |
-| Project-turnbased-shoot | main | PROJECTS.md |
+| Project-turnbased-shoot | main | Documents/PROJECTS.md |
 | tmp-dessert-escape | main | README.md、试玩说明.md；无独立 memory/context/决策索引 |
 
 Nathan-Repository 已由用户确认统一在 main 日常开发，项目通过目录区分，不按旧 dev/* 映射自动切换或重建分支。main 下根据请求和上下文确定项目，不靠分支名判断。临时分支用于实验、重构、并行开发或旧版本维护。
 
-- 项目有 PROJECTS.md 时，以它为唯一开工入口。按其链接读 GDD 总览和 Memory 最近一条与项目开发或验证有关的记录，略过纯迁移资料和旧索引表。已有任务时再查相关设计章节和历史，核对已有决定、否决理由和重议条件。仅在任务命中项目指引时查外部参考。
+- 项目有 PROJECTS.md 时，按表中路径定位，未指定路径时查项目根目录。以该文件为唯一开工入口。按其链接读 GDD 总览和 Memory 最近一条与项目开发或验证有关的记录，略过纯迁移资料和旧索引表。已有任务时再查相关设计章节和历史，核对已有决定、否决理由和重议条件。仅在任务命中项目指引时查外部参考。
 - 仍使用旧入口的项目，优先读表中的决策索引与 context，按当前任务检索 memory；索引缺失时查可用 memory。报告关键资料缺失。
 - 项目指引有项目计划时，读取通用开发流程与任务数据。用指引中的检查命令取得当前阶段、近期关注和剩余事项；按当前请求选相关内容汇报。已有具体任务时核对其内容和相关设计。开工读取为只读操作。
 

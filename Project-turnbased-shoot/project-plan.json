@@ -347,7 +347,7 @@
       ],
       "acceptance": "",
       "content": "定下正式版范围、目标平台和工程起点。按批列出要制作及沿用的内容，确认后置项和交付渠道，并留下一份能打包、能恢复的基线版本。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -365,7 +365,7 @@
         "C4"
       ],
       "acceptance": "逐批确认正式内容、验收、可复用成果、后置项和交付渠道。评审计划里的后置任务，纳入发布范围的项目转为必要任务，并补齐设计、实现、测试及整合依赖。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -383,7 +383,7 @@
         "C4"
       ],
       "acceptance": "核对维护、输入和打包，必要时验证迁移样段，交付可恢复的起始版本。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -402,7 +402,7 @@
       ],
       "acceptance": "",
       "content": "完成正式战斗、构筑、资源经济和跨局流程。验收行动、敌方意图与伤害反馈，核对道具目录、叠加规则和资源配置，并按确认范围走通单局结算、重开及最小局外成长。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -420,7 +420,7 @@
         "D1"
       ],
       "acceptance": "实现并回归正式行动、意图、伤害、状态、子弹时间和输入反馈。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -438,7 +438,7 @@
         "D1"
       ],
       "acceptance": "按批验收正式候选道具与资源经济，实现确认的资源种类、获取量、频率、商店与消费基准。特殊叠加规则按 D26 的范围单独验收。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -456,7 +456,7 @@
         "D1"
       ],
       "acceptance": "验收正常进入、暂停、失败、通关与再次开始。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -474,7 +474,7 @@
         "D1"
       ],
       "acceptance": "单局通过后确认范围。实际走通资源结算、失败后保留、一次共享培养和下一局感知收益。多角色与通关后挑战各自有独立任务。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -493,7 +493,7 @@
       ],
       "acceptance": "",
       "content": "制作正式普通怪、Boss 和逐层房间。验证怪物混编、招式与预告、出生点、奖励和跨层推进。额外房型、随机生成及其他扩展按确认范围接入。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -511,7 +511,7 @@
         "D1"
       ],
       "acceptance": "按怪物核对规则、数值、表现和混编，交付正式怪池与阵容。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -529,7 +529,7 @@
         "D1"
       ],
       "acceptance": "按 Boss 验证招式、预告、阶段、场地、奖励和结束推进。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -547,7 +547,7 @@
         "D1"
       ],
       "acceptance": "逐层实现正式固定路线、地格与遭遇、奖励和难度。按层验收通路、交互及进度。额外房型、成对随机和 Boss 行为改造按各自任务进入范围。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -566,7 +566,7 @@
       ],
       "acceptance": "",
       "content": "定稿并接入正式美术、界面和音效。先在构建里审阅代表样件，再按批验证素材采用版本、实际接入、危险提示的辨认和新手理解。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -584,7 +584,7 @@
         "D1"
       ],
       "acceptance": "在实际构建审阅角色、怪物、场景、界面和音效样件，确认规格与采用范围。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -603,7 +603,7 @@
         "D4-1"
       ],
       "acceptance": "按角色、怪物、场景、地格、道具图标、界面和特效分批登记、制作、自审、评审与返修。采用版本进入实际构建后复验。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -622,7 +622,7 @@
         "D4-2"
       ],
       "acceptance": "验证首场战斗、危险识别、地图、拾取、商店与结束界面的实际理解。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -643,7 +643,7 @@
       ],
       "acceptance": "",
       "content": "将各制作批次整合成完整可玩的正式构建。对照 D1 的制作清单，逐批核对实际接入、出包和回归结果，列出仍待处理的缺口。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -663,7 +663,7 @@
         "D4"
       ],
       "acceptance": "对照正式清单逐批核对接入、构建、回归和遗留项。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -682,7 +682,7 @@
       ],
       "acceptance": "",
       "content": "通过多轮整局试玩校准难度与经济。覆盖典型和极端构筑、首次上手及目标设备，记录可复现的问题，修复交付阻断项并复验。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -700,7 +700,7 @@
         "D5"
       ],
       "acceptance": "多轮覆盖典型构筑、资源短缺、后段难度和 Boss 推进，交付复验场景。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -718,7 +718,7 @@
         "D5"
       ],
       "acceptance": "按目标设备验证启动、操作、表现、性能及适用的存档兼容。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -736,7 +736,7 @@
         "D5"
       ],
       "acceptance": "核对缺陷、修复构建和复验，遗留由用户确认。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -755,7 +755,7 @@
       ],
       "acceptance": "",
       "content": "制作并验证实际交付包。检查启动、重开、版本说明和素材署名，再按选定渠道验证获取入口，完成适用的发布材料和审核。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -773,7 +773,7 @@
         "E1"
       ],
       "acceptance": "从实际包验证运行和重开，核对版本说明、资源来源与署名。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -792,7 +792,7 @@
         "E2-1"
       ],
       "acceptance": "核对实际交付获取入口及目标设备运行。若公开发布，先完成适用的渠道材料与审查，再进行正式交付。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -811,7 +811,7 @@
       ],
       "acceptance": "",
       "content": "整理交付版本的恢复入口和维护范围。确认最终构建、源码与配置的对应关系，留下反馈入口、补丁验证方式和可复用的项目复盘结论。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -829,7 +829,7 @@
         "E2"
       ],
       "acceptance": "确认补丁与维护范围、最终构建恢复入口和可复用流程经验。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "note": "",
       "history": []
     },
@@ -1005,7 +1005,7 @@
       "type": "code",
       "title": "整理设置、输入与中断恢复",
       "acceptance": "按目标平台核对启动、暂停、离开和重开，验收键盘焦点与设置入口；音量、改键、手柄和重新聚焦行为按确认范围实现。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "depends": [
         "D1-2"
       ],
@@ -1100,7 +1100,7 @@
       "type": "code",
       "title": "验证正式关卡配置与制作工具链",
       "acceptance": "实际演练修改地格、障碍、阵容、奖励、出生点和房门再出包，核对编辑与运行数据一致及出错提示。有影响批量制作的缺口时修正。",
-      "source": "PROJECTS.md#工程入口与项目约定",
+      "source": "Documents/PROJECTS.md#工程入口与项目约定",
       "depends": [
         "D1-2",
         "C3-4"
@@ -1137,7 +1137,7 @@
       "type": "art",
       "title": "制作正式音效并完成混音验收",
       "acceptance": "按操作、危险、命中、炸弹、收益与界面核对最小音效集合。逐批审阅，验证密集战斗的辨识、音量、静音及实际接入。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "depends": [
         "D4-1"
       ],
@@ -1174,7 +1174,7 @@
       "type": "art",
       "title": "整理正式素材采用、来源及实际引用",
       "acceptance": "核对素材规格、候选版本、审核记录、工程引用、许可与必要署名。输出与发布构建对应的资源清单。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "depends": [
         "D4-2",
         "D4-5"
@@ -1193,7 +1193,7 @@
       "type": "design",
       "title": "校对正式文本与多语言显示",
       "acceptance": "校对提示、道具说明、设置和结局文案。若确认多语言范围，再验收翻译、缺字、布局与构建实际显示。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "depends": [
         "D1",
         "D4-3"
@@ -1266,7 +1266,7 @@
       "type": "delivery",
       "title": "验证发布版本的恢复与补丁交接",
       "acceptance": "确认最终构建、源码和配置能对应恢复，记录发布后反馈入口、版本说明、修复验证与交付方式。",
-      "source": "PROJECTS.md",
+      "source": "Documents/PROJECTS.md",
       "depends": [
         "E2"
       ],

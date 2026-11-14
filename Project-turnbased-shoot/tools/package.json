@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "build": "node build.cjs",
-    "test": "node verify.cjs"
+    "test": "node ../tests/verify.cjs"
   },
   "devDependencies": {
     "sharp": "0.35.5",

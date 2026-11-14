@@ -1,6 +1,6 @@
 # 保存与恢复覆盖表
 
-本表记录当前实现与自动检查的边界，不规定新的玩法。执行 `node build.cjs` 后运行 `node verify.cjs`，正式包和固定场景包都会运行集成检查。
+本表记录当前实现与自动检查的边界，不规定新的玩法。从项目根目录执行 `npm --prefix tools run build` 后运行 `npm --prefix tools test`，正式包和固定场景包都会运行集成检查。
 
 | 状态 | 回合快照恢复 | Checkpoint 恢复 | 保留子弹的 Checkpoint 恢复 | Checkpoint 路线模拟 | 自动检查 |
 | --- | --- | --- | --- | --- | --- |

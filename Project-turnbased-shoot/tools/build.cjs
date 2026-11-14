@@ -1,9 +1,11 @@
 // 日常构建只写项目根目录的两个可双击试玩包。
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
-const {assembleGame}=require('./tools/assemble-game.cjs');
-const {inlineResources}=require('./tools/inline-resources.cjs');
-const {buildScrapAssets}=require('./tools/build-scrap-assets.cjs');
-const {buildSingleStepArt}=require('./tools/build-single-step-art.cjs');
+const {assembleGame}=require('./assemble-game.cjs');
+const {inlineResources}=require('./inline-resources.cjs');
+const {buildScrapAssets}=require('./build-scrap-assets.cjs');
+const {buildSingleStepArt}=require('./build-single-step-art.cjs');
+
+const projectRoot=path.resolve(__dirname,'..');
 
 function writeHtml(directory,name,html){
   new vm.Script(html.match(/<script>([\s\S]*?)<\/script>/)[1]);
@@ -15,7 +17,7 @@ function writeHtml(directory,name,html){
 async function buildPlayable(){
   const assets=await buildScrapAssets();
   for(const [name,sandbox] of [['turnbased-shoot-demo-pack.html',false],['custom-arena.html',true]]){
-    writeHtml(__dirname,name,inlineResources(await assembleGame({assets,sandbox})));
+    writeHtml(projectRoot,name,inlineResources(await assembleGame({assets,sandbox})));
     console.log('已生成 '+name);
   }
 }
@@ -32,7 +34,7 @@ async function buildRegressionFixtures(directory){
     ['floor','facility','redGrid','heart','emptyHeart','remote','leftOpen','leftClosed','rightOpen','rightClosed'].includes(key)
   ));
   Object.assign(prototypeAssets,await buildSingleStepArt(),{alert:assets.alert,blueGrid:assets.blueGrid});
-  const source=name=>fs.readFileSync(path.join(__dirname,'src/playtest',name),'utf8');
+  const source=name=>fs.readFileSync(path.join(projectRoot,'src/playtest',name),'utf8');
   const scripts=['bullet-time-presentation.js','bullet-time-art.js','bullet-time.js','bullet-time-rooms.js'];
   const html=source('bullet-time.html').replace('/* BULLET_TIME_RUNTIME */',()=>
     'const BT_ASSETS='+JSON.stringify(prototypeAssets)+';\n'+scripts.map(source).join('\n'));
