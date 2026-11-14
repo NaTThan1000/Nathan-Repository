@@ -4,7 +4,7 @@ const {pathToFileURL}=require('url');
 const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwright');
 (async()=>{const browser=await chromium.launch({headless:true,channel:'chrome'});try{
  const page=await browser.newPage({viewport:{width:1200,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto(pathToFileURL(path.resolve(__dirname,'../dist/bullet-time-playtest.html')).href);
+ await page.goto(pathToFileURL(process.env.BULLET_TIME_TEST_HTML || path.resolve(__dirname,'../history/playtest-builds/bullet-time-playtest.html')).href);
  const result=await page.evaluate(()=>{
   const check=(v,msg)=>{if(!v)throw Error(msg);};
   btReset(0);check(bt.enemies[0].phase==='locked','初始射程内必须立即锁定');

@@ -1,11 +1,9 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert'),path=require('path');
 const root=path.resolve(__dirname,'..');
 const script=html=>html.match(/<script>([\s\S]*?)<\/script>/)[1];
-const normal=script(fs.readFileSync(path.join(root,'dist/turnbased-shoot-demo-pack.html'),'utf8'));
-const test=script(fs.readFileSync(path.join(root,'dist/combat-playtest.html'),'utf8'));
 const scenes=fs.readFileSync(path.join(root,'src/playtest/scenarios.js'),'utf8').replace(/\r\n/g,'\n');
 const profile=fs.readFileSync(path.join(root,'src/playtest/profile.js'),'utf8').replace(/\r\n/g,'\n');
-process.env.COMBAT_TEST_HTML=path.join(root,'dist/combat-playtest.html');
+process.env.COMBAT_TEST_HTML ||= path.join(root,'history/playtest-builds/combat-playtest.html');
 let harness=fs.readFileSync(path.join(__dirname,'danger-forecast.test.js'),'utf8').split('(async()=>{await sandbox.bootPromise;')[0];
 harness=harness.replace("const fs=require('fs'),vm=require('vm'),assert=require('assert');",'');
 eval(harness.replace('vm.createContext(sandbox);vm.runInContext(code,sandbox);','vm.createContext(sandbox);vm.runInContext(code,sandbox);globalThis.sceneSandbox=sandbox;'));

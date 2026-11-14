@@ -1,20 +1,48 @@
-// 源码在内存中组装并内嵌资源，只写出可直接试玩的最终HTML。
-const fs=require('fs'),path=require('path'),vm=require('vm');
+// 日常构建只写项目根目录的两个可双击试玩包。
+const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const {assembleGame}=require('./tools/assemble-game.cjs');
 const {inlineResources}=require('./tools/inline-resources.cjs');
 const {buildScrapAssets}=require('./tools/build-scrap-assets.cjs');
 const {buildSingleStepArt}=require('./tools/build-single-step-art.cjs');
-async function main(){
- const assets=await buildScrapAssets(),out=path.join(__dirname,'dist');fs.mkdirSync(out,{recursive:true});
- const targets=process.argv.includes('--playtest-only')?[[true,'combat-playtest.html']]:[[false,'turnbased-shoot-demo-pack.html'],[true,'combat-playtest.html']];
- for(const [playtest,name]of targets){const html=inlineResources(await assembleGame({assets,playtest}));new vm.Script(html.match(/<script>([\s\S]*?)<\/script>/)[1]);fs.writeFileSync(path.join(out,name),html);console.log('已生成 dist/'+name)}
- const arena=inlineResources(await assembleGame({assets,sandbox:true}));
- new vm.Script(arena.match(/<script>([\s\S]*?)<\/script>/)[1]);
- fs.writeFileSync(path.join(out,'custom-arena.html'),arena);console.log('已生成 dist/custom-arena.html');
- const prototypeAssets=Object.fromEntries(Object.entries(assets).filter(([key])=>key.startsWith('hero-')||/^(melee|ranged)[0-7]$/.test(key)||/^bullet-(up|down|left|right)[0-2]$/.test(key)||/^(impact[0-3]|expire[0-1]|defeat[0-5])$/.test(key)||['floor','facility','redGrid','heart','emptyHeart','remote','leftOpen','leftClosed','rightOpen','rightClosed'].includes(key)));
- Object.assign(prototypeAssets,await buildSingleStepArt());prototypeAssets.alert=assets.alert;prototypeAssets.blueGrid=assets.blueGrid;
- const prototype=fs.readFileSync(path.join(__dirname,'src/playtest/bullet-time.html'),'utf8').replace('/* BULLET_TIME_RUNTIME */',()=> 'const BT_ASSETS='+JSON.stringify(prototypeAssets)+';\n'+['bullet-time-presentation.js','bullet-time-art.js','bullet-time.js','bullet-time-rooms.js'].map(file=>fs.readFileSync(path.join(__dirname,'src/playtest',file),'utf8')).join('\n'));
- new vm.Script(prototype.match(/<script>([\s\S]*?)<\/script>/)[1]);
- fs.writeFileSync(path.join(out,'bullet-time-playtest.html'),prototype);console.log('已生成 dist/bullet-time-playtest.html');
+
+function writeHtml(directory,name,html){
+  new vm.Script(html.match(/<script>([\s\S]*?)<\/script>/)[1]);
+  const file=path.join(directory,name);
+  fs.writeFileSync(file,html);
+  return file;
 }
-main().catch(e=>{console.error(e);process.exitCode=1});
+
+async function buildPlayable(){
+  const assets=await buildScrapAssets();
+  for(const [name,sandbox] of [['turnbased-shoot-demo-pack.html',false],['custom-arena.html',true]]){
+    writeHtml(__dirname,name,inlineResources(await assembleGame({assets,sandbox})));
+    console.log('已生成 '+name);
+  }
+}
+
+async function buildRegressionFixtures(directory){
+  const assets=await buildScrapAssets();
+  const legacy=writeHtml(directory,'combat-playtest.html',
+    inlineResources(await assembleGame({assets,playtest:true})));
+  const prototypeAssets=Object.fromEntries(Object.entries(assets).filter(([key])=>
+    key.startsWith('hero-') ||
+    /^(melee|ranged)[0-7]$/.test(key) ||
+    /^bullet-(up|down|left|right)[0-2]$/.test(key) ||
+    /^(impact[0-3]|expire[0-1]|defeat[0-5])$/.test(key) ||
+    ['floor','facility','redGrid','heart','emptyHeart','remote','leftOpen','leftClosed','rightOpen','rightClosed'].includes(key)
+  ));
+  Object.assign(prototypeAssets,await buildSingleStepArt(),{alert:assets.alert,blueGrid:assets.blueGrid});
+  const source=name=>fs.readFileSync(path.join(__dirname,'src/playtest',name),'utf8');
+  const scripts=['bullet-time-presentation.js','bullet-time-art.js','bullet-time.js','bullet-time-rooms.js'];
+  const html=source('bullet-time.html').replace('/* BULLET_TIME_RUNTIME */',()=>
+    'const BT_ASSETS='+JSON.stringify(prototypeAssets)+';\n'+scripts.map(source).join('\n'));
+  return {legacy,prototype:writeHtml(directory,'bullet-time-playtest.html',html)};
+}
+
+if(require.main===module){
+  buildPlayable().catch(error=>{
+    console.error(error);
+    process.exitCode=1;
+  });
+}
+module.exports={buildRegressionFixtures};

@@ -2,7 +2,7 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const native=require('../tools/runtime-deps.cjs').runtimeDependency('@napi-rs/canvas');
 function createImageSurface(){const canvas=native.createCanvas(1,1),original=canvas.getContext.bind(canvas);canvas.getContext=(...args)=>{const paint=original(...args);return new Proxy(paint,{get(t,k){if(k==='drawImage')return(im,...rest)=>t.drawImage(im.native||im,...rest);const v=t[k];return typeof v==='function'?v.bind(t):v},set(t,k,v){t[k]=v;return true}})};return canvas;}
-const artHtml=fs.readFileSync(process.env.COMBAT_TEST_HTML||require('path').join(__dirname,'../dist/turnbased-shoot-demo-pack.html'),'utf8');
+const artHtml=fs.readFileSync(process.env.COMBAT_TEST_HTML||require('path').join(__dirname,'../turnbased-shoot-demo-pack.html'),'utf8');
 const surface=native.createCanvas(954,artHtml.includes('const COMBAT_PLAYTEST_PROFILE=')?690:558),real=surface.getContext('2d'),pending=[],renderedImages=new Set();let time=1000;
 let harness=fs.readFileSync(__dirname+'/danger-forecast.test.js','utf8').split('(async()=>{await sandbox.bootPromise;')[0];
 harness=harness.replace("const fs=require('fs'),vm=require('vm'),assert=require('assert');",'').replace('const ctx=new Proxy(','const mockCtx=new Proxy(');

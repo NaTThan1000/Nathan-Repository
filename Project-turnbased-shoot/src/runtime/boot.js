@@ -12,7 +12,7 @@ async function bootGame(){
         <li>在 IDE 中使用 <b>预览功能</b>（推荐）</li>
         <li>或在项目目录下启动本地服务器：<br>
           <code style="background:#333;padding:3px 8px;border-radius:3px;">npx serve .</code>
-          然后访问 <code style="background:#333;padding:3px 8px;border-radius:3px;">http://localhost:3000/Project-turnbased-shoot/dist/turnbased-shoot-demo-pack.html</code></li>
+          然后访问 <code style="background:#333;padding:3px 8px;border-radius:3px;">http://localhost:3000/Project-turnbased-shoot/turnbased-shoot-demo-pack.html</code></li>
       </ol>
     </div>`;
     return;

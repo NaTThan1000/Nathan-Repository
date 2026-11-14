@@ -2,7 +2,7 @@
 
 ## 2026-11-03 当前状态
 
-唯一审核入口为 审核预览.html；用户已审核并授权接入核心试玩和正式版。当前资源选择以审核页、tools/build-scrap-assets.cjs 与 src/presentation 中的正式源码 为准；以下候选说明是历史制作记录，不能据此判定当前尚未切片或未接入。审核页及审核包继续原位置更新，不再创建重复审核版本。
+项目现用入口见 [审核预览.html](../../../Assets/scrap-star-review/审核预览.html)；用户已审核并授权接入核心试玩和正式版。当前资源选择以审核页、tools/build-scrap-assets.cjs 与 src/presentation 中的正式源码 为准；以下候选说明是历史制作记录，不能据此判定当前尚未切片或未接入。此处保留旧审核包与候选图。
 
 测试入口：dist/combat-playtest.html；正式可双击入口：dist/turnbased-shoot-demo-pack.html（相对于项目根目录）。未覆盖资源维持原表现，完整浏览器及连续闯关验收尚待完成。未经用户指出的素材与像素不改，整项上下不对称站姿实验已撤回。
 

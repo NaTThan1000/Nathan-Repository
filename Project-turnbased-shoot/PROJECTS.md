@@ -13,17 +13,16 @@
 
 | 入口 | 用途 |
 |---|---|
-| [主试玩包](dist/turnbased-shoot-demo-pack.html) | 正式单步规则、楼层和构筑体验 |
-| [自定义战斗场](dist/custom-arena.html) | 摆放怪物、道具、地形、补给、起点和无限生命木桩，R 恢复原布置 |
-| [子弹时间机制场](dist/bullet-time-playtest.html) | 12 组对照和 8 间连战房，可直接切换场景 |
-| [旧规则回归场](dist/combat-playtest.html) | 固定场景、自选怪物和种子，验证旧 MP/AP 回溯规则 |
+| [主试玩包](turnbased-shoot-demo-pack.html) | 正式单步规则、楼层和构筑体验 |
+| [自定义战斗场](custom-arena.html) | 摆放怪物、道具、地形、补给、起点和无限生命木桩，R 恢复原布置 |
 
-四个 HTML 均可独立双击运行。未指定入口时，游戏改动默认面向主试玩包。完整旧回溯版在 [迁移前备份](../backup/Project-turnbased-shoot-rewind-2026-11-05/)，旧独立原型见 [历史归档](history/README.md)。
+两个 HTML 都在项目根目录，可独立双击运行。未指定入口时，游戏改动默认面向主试玩包。旧 MP/AP 回归场和子弹时间机制原型可从[历史归档](history/README.md)打开。
 
 ## 工程入口与项目约定
 
-- 项目目录内运行 `node build.cjs` 和 `node verify.cjs`。构建内嵌资源并生成四个 HTML。只更新测试入口可用 `npm run build:prototype`，安装依赖用 `npm ci`。
-- 修改 [源码模板](src/game.html)、[模块清单](src/modules.cjs)、对应源码、配置或素材。构建入口为 [assemble-game.cjs](tools/assemble-game.cjs) 与 [inline-resources.cjs](tools/inline-resources.cjs)。`dist/` 只保存最终 HTML，日常验证不生成 PNG 预览。源素材保存在 `Assets/`。
+- 项目目录内运行 `node build.cjs` 生成两个日常试玩包，再运行 `node verify.cjs` 执行回归。旧机制测试用的 HTML 由回归脚本从现有源码构建到临时目录，结束后清理。安装依赖用 `npm ci`。
+- [地图编辑器](turnbased-shoot-map-viewer.html)用于编辑房间模板和预览楼层生成，纳入项目回归检查。
+- 修改 [源码模板](src/game.html)、[模块清单](src/modules.cjs)、对应源码、配置或素材。构建入口为 [assemble-game.cjs](tools/assemble-game.cjs) 与 [inline-resources.cjs](tools/inline-resources.cjs)。日常验证不生成 PNG 预览。源素材保存在 `Assets/`。
 - `src/runtime/` 管启动、主循环和刷怪组装，`src/world/` 管地形、房间与楼层，`src/combat/` 管行动、伤害、怪物与武器，`src/items/` 和 `src/data/` 管道具、资源和配置接入，`src/state/` 管快照与恢复，`src/presentation/` 管绘制与表现，`src/input/` 管输入，`src/playtest/` 管开发测试入口。
 - 主包与自定义场共用单步调度、武器和表现。普通敌人与小队见 [单步敌人配置](Configs/single-step-enemies.json)。主包和自定义场使用 `item-db.json` 的 `singleStepItems`，旧回溯包使用 `items`。规则与数值从对应源码和配置核对。
 - 新增源码要登记在模块清单中。改玩家属性或资源字段时核对 [状态覆盖说明](tests/STATE-COVERAGE.md) 及保存和恢复路径。旧预测的函数名必须唯一，子弹源码适配必须恰好匹配一次。

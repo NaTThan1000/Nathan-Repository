@@ -9,7 +9,7 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
     const page = await browser.newPage({viewport:{width:1280,height:1000}});
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    await page.goto(pathToFileURL(path.resolve(__dirname,'../dist/custom-arena.html')).href);
+    await page.goto(pathToFileURL(path.resolve(__dirname,'../custom-arena.html')).href);
     await page.waitForFunction(() => !document.querySelector('#arena-start').disabled);
     assert.equal(await page.locator('#arena-rules').inputValue(),'interrupt');
     assert.equal(await page.locator('.scrap-health-value').textContent(),'10 / 10','自定义场默认数字血条为10点');

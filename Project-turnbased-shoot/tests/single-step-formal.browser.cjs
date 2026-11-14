@@ -4,7 +4,7 @@ const {pathToFileURL}=require('url');
 const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwright');
 (async()=>{const browser=await chromium.launch({headless:true,channel:'chrome'});try{
  const page=await browser.newPage({viewport:{width:1280,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.goto(pathToFileURL(path.resolve(__dirname,'../dist/turnbased-shoot-demo-pack.html')).href);
+ await page.goto(pathToFileURL(path.resolve(__dirname,'../turnbased-shoot-demo-pack.html')).href);
  await page.waitForFunction(()=>currentFloor&&MONSTER_DB.step_mobile&&Object.keys(RESOURCE_DB).length);
  const floorSounds=await page.evaluate(()=>{
   const playFloorSound=SFX.floor;
