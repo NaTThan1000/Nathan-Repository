@@ -23,12 +23,14 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   const check=(v,msg)=>{if(!v)throw Error(msg);};
   check(playerStats.hp===10&&playerStats.maxHp===10,'正式版默认满血10点');
   check(document.querySelector('.scrap-health-value')?.textContent==='10 / 10','正式版使用数字血条');
+  check(playerStats.attack===2&&playerStats.range===4&&playerStats.fireRate===2&&STEP_STARTING_AGILITY===2&&playerStats.luck===0,'正式版初始属性');
+  check(!RESOURCE_DB.heart_half&&!RESOURCE_DB.blue_heart_half,'正式资源池不再有半心');
   playerStats.hp=9;
-  handleResourcePickup({cfgId:'heart_half',col:player.col,row:player.row,px:player.px,py:player.py});
+  handleResourcePickup({cfgId:'heart_full',col:player.col,row:player.row,px:player.px,py:player.py});
   scrapUpdateHUD();
-  check(document.querySelector('.scrap-health-value')?.textContent==='9.5 / 10','拾取半颗红心更新数字血条');
-  check(RES_DROP_TABLES.resource_drop_terrain_poop.table.none===630&&RES_DROP_TABLES.resource_drop_terrain_rock.table.none===965,'木箱提高掉落，岩石沿用低掉落');
-  check(RES_DROP_TABLES.resource_drop_monster_default.table.none===465&&RES_DROP_TABLES.resource_drop_monster_heavy.table.none===445,'普通怪的两档资源权重生效');
+  check(document.querySelector('.scrap-health-value')?.textContent==='10 / 10','拾取整颗红心更新数字血条');
+  check(RES_DROP_TABLES.resource_drop_terrain_poop.table.none===705&&RES_DROP_TABLES.resource_drop_terrain_rock.table.none===970,'木箱提高掉落，岩石沿用低掉落');
+  check(RES_DROP_TABLES.resource_drop_monster_default.table.none===545&&RES_DROP_TABLES.resource_drop_monster_heavy.table.none===530,'普通怪的两档资源权重生效');
   const approved=new Set(Object.keys(singleStepItems));
   check(approved.size===60&&Object.keys(ITEMS_DB).length===60&&Object.keys(ITEMS_DB).every(id=>approved.has(id)),'正式版加载全部60件道具');
   check(ITEM_POOL_ALL.length===60&&ITEM_POOL_ALL.every(id=>approved.has(id)),'正式掉落池覆盖全部60件道具');
@@ -57,11 +59,54 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
    try{monsterActionRandom=()=>value;return run();}finally{monsterActionRandom=random;}
   };
   window.stepFixture=(id='flying_eye_i',c=5,r=3,roll=['step_charger','step_fighter'].includes(id)?0:.99)=>{
-   currentRoomGrid=parseGrid(BUILTIN_TEMPLATES().open.tiles);const room=currentFloor.rooms.find(r=>r.id===currentRoomId);room.grid=currentRoomGrid;room.type='normal';room.bossLadderPlaced=false;
+   currentRoomGrid=parseGrid(BUILTIN_TEMPLATES().open.tiles);const room=currentFloor.rooms.find(r=>r.id===currentRoomId);room.grid=currentRoomGrid;room.type='normal';room.bossLadderPlaced=false;room.bossLadderPending=false;
    monsters=[];bombs=[];bullets=[];resourcesOnGround=[];itemsOnGround=[];pendingBossLanding=null;floorFadeBusy=false;transition=null;gameStarted=true;gameOver=false;
-   Object.assign(playerStats,{hp:5,maxHp:5,attack:3.5,range:6});Object.assign(player,{col:2,row:3,...(()=>{const p=gridToPixel(2,3);return {px:p.x,py:p.y,targetPx:null,targetPy:null};})(),invincibleSteps:0,hitFlash:0,shootTimer:0});playerResources.blueHearts=0;
+   Object.assign(playerStats,{hp:5,maxHp:5,attack:3.5,range:6,fireRate:1});Object.assign(player,{col:2,row:3,...(()=>{const p=gridToPixel(2,3);return {px:p.x,py:p.y,targetPx:null,targetPy:null};})(),invincibleSteps:0,hitFlash:0,shootTimer:0});playerResources.blueHearts=0;
    document.getElementById('death-modal').classList.remove('show');document.getElementById('floor-fade').style.opacity='0';initTileData();spawnMonsterAtRandomPos(id);const m=monsters.at(-1);Object.assign(m,{col:c,row:r,px:gridToPixel(c,r).x,py:gridToPixel(c,r).y,_spawnedThisTurn:false});inCombat=true;withEnemyRoll(roll,()=>singleStepReset());return m;
   };
+  const healthTarget = stepFixture('step_mobile',6,3);
+  Object.assign(playerStats,STEP_BASE_STATS);
+  damagePlayer(.5);
+  check(playerStats.hp===4,'正式版有效受击扣一整点');
+  const origin=healthTarget.px;
+  singleStepAct('shoot','right');
+  const hits=stepVisualEvents.filter(event=>event.type==='weapon-hit'&&event.id===healthTarget.id);
+  check(healthTarget.hp===3&&hits.length===2,'默认一次射击两发各扣两点');
+  check(displayedStepMonsterHp(healthTarget,hits[0].at-1)===7,'弹体到达前保持旧血量');
+  check(displayedStepMonsterHp(healthTarget,hits[0].at)===5,'第一发到达后扣两点');
+  animateMonsters(.01);
+  check(healthTarget.px===origin,'怪物画面等到命中再移动');
+  check(displayedStepMonsterHp(healthTarget,hits[1].at)===3,'第二发到达后扣到实际血量');
+  const paintHealth=at=>{
+   const rects=[],fill=ctx.fillRect;
+   ctx.fillRect=(x,y,w,h)=>rects.push({x,y,w,h,color:ctx.fillStyle,alpha:ctx.globalAlpha});
+   try{drawStepMonsterHealth(healthTarget,at);}finally{ctx.fillRect=fill;}
+   return rects;
+  };
+  const firstFlash=paintHealth(hits[0].at).at(-1);
+  const afterHits=paintHealth(hits[1].at+300);
+  const firstFragment=afterHits[2];
+  check(firstFlash.color==='#ffffff'&&firstFragment.color==='#464646'&&firstFragment.x>firstFlash.x&&
+    firstFragment.alpha<1&&afterHits[0].w<CELL&&paintHealth(hits[1].at+999).length===3&&paintHealth(hits[1].at+1000).length===2,
+   '掉血段从白到深灰，横向弹出并在一秒后消失，底条留在格内');
+  const healthBoss=stepFixture('boss_jumper_i',5,3);
+  const bossHitAt=performance.now()+150;
+  weaponDamageMonster(healthBoss,2,bossHitAt,0);
+  drawStepBossHealth(bossHitAt-1);
+  check(document.querySelector('#boss-health progress').value===60,'首领血条在命中前显示原血量');
+  drawStepBossHealth(bossHitAt);
+  check(document.querySelector('#boss-health progress').value===58,'首领血条在命中时更新');
+  weaponDamageMonster(healthBoss,58,bossHitAt+30,0);
+  drawStepBossHealth(bossHitAt+29);
+  check(document.querySelector('#boss-health progress').value===58,'首领血条保留到致死命中');
+  drawStepBossHealth(bossHitAt+30);
+  check(document.getElementById('boss-health').hidden,'致死命中后隐藏首领血条');
+  const roundTarget=stepFixture('step_fixed',5,3);
+  applyItem('trial_weapon_dual');
+  damageNumbers=[];
+  singleStepAct('shoot','right');
+  check(roundTarget.hp===2&&damageNumbers.map(number=>number.text).filter(text=>text.startsWith('-')).join(',')==='-1,-2,-1,-1','四次1.3伤害按目标累计取整为5点');
+  playerInventory=[];recalcAllStats();
   check(stepAttackVariantsEnabled,'正式版加载黄红招规则');
   let yellow=stepFixture('step_fixed',5,3);
   check(singleStepAttackPreview(yellow)?.attackColor==='yellow','正式版固定射手预告黄招');
@@ -80,7 +125,7 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   singleStepAct('move','up');
   check(equippedWeaponTrial('pattern')==='dual'&&itemsOnGround.length===0,'正式版走到道具卡片上装配枪管');
   singleStepAct('shoot','right');
-  check(SINGLE_STEP.shots.filter(shot=>shot.player).length===2,'正式版用拾到的双管实际射出两发');
+  check(SINGLE_STEP.shots.filter(shot=>shot.player).length===4,'正式版双管各射两发，共四发');
   playerInventory=[];recalcAllStats();updateItemBar();
   itemRoom.type='shop';
   rollShopSlots(itemRoom,currentFloor.floorNum);
@@ -103,7 +148,22 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   singleStepAct('shoot','left');check(SINGLE_STEP.step===4,'恢复普通行动');
   m=stepFixture('step_charger',5,3);singleStepAct('shoot','up');check(m.col===1&&playerStats.hp===4&&!(player.col===m.col&&player.row===m.row),'正式版冲刺穿过并挤出 '+JSON.stringify({m:[m.col,m.row],p:[player.col,player.row,playerStats.hp],plan:[...SINGLE_STEP.plans.values()]} ));
   m=stepFixture();singleStepAct('shoot','up');const hurt=stepVisualEvents.find(e=>e.type==='hurt');check(playerStats.hp===4&&player.invincibleSteps===Math.floor(playerStats.moveSpeed)*2,'战斗受伤保留原步数制无敌');check(hurt&&hurt.at>performance.now(),'受击帧等待敌方弹体画面命中');
-  const spriteDraw=scrapDraw,spriteCalls=[];scrapDraw=function(...args){spriteCalls.push(args);return spriteDraw(...args);};try{drawPlayer();check(!spriteCalls.some(c=>/^hero-.*-hit$/.test(c[0])),'子弹未到达时不提前播放受击帧');spriteCalls.length=0;hurt.at=performance.now()-40;drawPlayer();check(spriteCalls.some(c=>/^hero-.*-hit$/.test(c[0])&&c[5]<1),'视觉命中后播放受击帧并保留无敌闪烁');}finally{scrapDraw=spriteDraw;}
+  const spriteDraw=scrapDraw,fillRect=ctx.fillRect,spriteCalls=[];
+  let screenFlashes=0;
+  scrapDraw=function(...args){spriteCalls.push({key:args[0],alpha:args[5],filter:ctx.filter});return spriteDraw(...args);};
+  ctx.fillRect=function(...args){if(args.join(',')===[0,0,GAME_W,GAME_H].join(','))screenFlashes++;return fillRect.apply(this,args);};
+  try{
+   drawPlayer();
+   check(!screenFlashes&&spriteCalls.every(c=>!c.key.endsWith('-hit')&&c.alpha===1),'弹体到达前不闪屏、不提前进入角色闪烁');
+   spriteCalls.length=0;hurt.at=performance.now()-40;drawPlayer();
+   check(screenFlashes===1&&spriteCalls.some(c=>c.key.endsWith('-hit')&&c.alpha===1&&c.filter.includes('sepia')),
+    '命中时单次红色闪屏和角色红色受击帧');
+   hurt.at=performance.now()-200;drawPlayer();
+   check(screenFlashes===2,'同一次受击红闪在200毫秒后仍在衰减');
+   spriteCalls.length=0;hurt.at=performance.now()-STEP_HURT_FLASH_MS-30;drawPlayer();
+   check(screenFlashes===2&&spriteCalls.some(c=>c.key.startsWith('hero-')&&!c.key.endsWith('-hit')&&c.alpha<1&&c.filter==='none'),
+    '红屏结束后只有无敌闪烁');
+  }finally{scrapDraw=spriteDraw;ctx.fillRect=fillRect;}
   const immuneSteps=player.invincibleSteps;damagePlayer(1,m.id);check(playerStats.hp===4&&player.invincibleSteps===immuneSteps&&stepVisualEvents.filter(e=>e.type==='hurt').length===1,'无敌期间不重复扣血、不刷新无敌或受击动作');
   m=stepFixture('step_fixed',8,3);damagePlayer(1,m.id);const protection=player.invincibleSteps;currentRoomGrid[1][3]=TILE.ROCK;check(!singleStepAct('move','left')&&player.invincibleSteps===protection,'无效操作不消耗无敌步数');
   for(let i=1;i<protection;i++){singleStepAct('shoot','left');damagePlayer(1,m.id);check(playerStats.hp===4&&player.invincibleSteps===protection-i,'有效行动递减无敌且期间继续免伤');}singleStepAct('shoot','left');damagePlayer(1,m.id);check(playerStats.hp===3&&player.invincibleSteps===protection,'保护结束后正常受伤并重新获得无敌');
@@ -117,8 +177,18 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   itemRoom.roomClearDrop={itemDropTable:'item_drop_boss_room'};
   singleStepAct('shoot','right');
   check(currentRoomGrid[6][1]===TILE.LADDER&&itemsOnGround.length===1&&ITEMS_DB[itemsOnGround[0].cfgId].weaponTrial,'Boss清场生成梯子和正式武器奖励');
+  m=stepFixture('boss_jumper_i',8,1);m.hp=1;m._killLoot=[];
+  itemRoom.type='boss';
+  Object.assign(player,{col:6,row:1});
+  const bossFloor=currentFloor;
+  singleStepAct('shoot','right');
+  check(!hasMonstersAlive()&&itemRoom.bossLadderPending&&currentRoomGrid[6][1]!==TILE.LADDER&&currentFloor===bossFloor,'击杀时踩在梯口则等待');
+  singleStepAct('shoot','left');
+  check(currentRoomGrid[6][1]!==TILE.LADDER,'原地射击不会开启梯口');
+  singleStepAct('move','down');
+  check(currentRoomGrid[6][1]===TILE.LADDER&&currentFloor===bossFloor&&!itemRoom.bossLadderPending,'实际移动离开后才开启梯口');
   itemRoom.roomClearDrop=originalClearDrop;itemRoom.itemDropped=false;
-  m=stepFixture();const itemId=Object.keys(ITEMS_DB).find(k=>!playerInventory.includes(k)&&ITEMS_DB[k].effects?.attack);if(itemId){spawnItemOnGrid(2,2,itemId);const attack=playerStats.attack;singleStepAct('move','up');check(playerInventory.includes(itemId)&&playerStats.attack>attack,'正式版道具自动拾取与攻击加成');}
+  m=stepFixture();const itemId=Object.keys(ITEMS_DB).find(k=>!playerInventory.includes(k)&&ITEMS_DB[k].effects?.attack);if(itemId){recalcAllStats();spawnItemOnGrid(2,2,itemId);const attack=playerStats.attack;singleStepAct('move','up');check(playerInventory.includes(itemId)&&playerStats.attack>attack,'正式版道具自动拾取与攻击加成');}
   check(Object.keys(STEP_ENEMIES).length===9,'九种新怪物配置');
   check(Object.values(SQUAD_TEMPLATES.squads).filter(s=>s.roomTypes.includes('normal')).every(s=>s.monsters.every(id=>id.startsWith('step_'))),'普通房间小队全部替换');
   m=stepFixture('step_mobile',3,4);check(SINGLE_STEP.plans.get(m.id).type==='chase','射手暂定四方向，不在对角攻击');
@@ -132,7 +202,7 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   m=stepFixture('step_fighter',4,4);currentRoomGrid[3][4]=currentRoomGrid[4][3]=TILE.ROCK;check(JSON.stringify(stepEnemyChase(m))===JSON.stringify({col:4,row:5}),'两条靠近方向受阻时允许先远离绕路');
   const visited=new Set([m.col+','+m.row]);for(let i=0;i<8&&Math.abs(m.col-player.col)+Math.abs(m.row-player.row)>1;i++){const next=stepEnemyChase(m);check(next&&!visited.has(next.col+','+next.row),'寻路持续推进，不折返振荡');Object.assign(m,next);visited.add(m.col+','+m.row);}check(Math.abs(m.col-player.col)+Math.abs(m.row-player.row)===1,'绕过拐角最终到达玩家邻格');
   m=stepFixture('step_fighter',6,3);for(const[c,r]of [[1,3],[3,3],[2,2],[2,4]])currentRoomGrid[c][r]=TILE.ROCK;check(JSON.stringify(stepEnemyChase(m))===JSON.stringify({col:5,row:3}),'暂时无法接触玩家时接近最近可达位置');m.col=4;check(stepEnemyChase(m)===null,'已在最近可达位置时才等待');
-  m=stepFixture('step_mobile',6,3);const shotOrigin=m.px;singleStepAct('shoot','right');animateMonsters(.05);check(m.hp===3.5&&m.px===shotOrigin&&m.col===5,'玩家射击先命中，怪物表现等弹体到达后再移动');
+  m=stepFixture('step_mobile',6,3);const shotOrigin=m.px;singleStepAct('shoot','right');animateMonsters(.05);check(m.hp===3&&m.px===shotOrigin&&m.col===5,'玩家射击先命中，怪物表现等弹体到达后再移动');
   m=stepFixture('step_fighter',4,3);check(SINGLE_STEP.plans.get(m.id).type==='strike','近战两格攻击');singleStepAct('move','up');check(m.col===4&&SINGLE_STEP.plans.get(m.id).type==='recover','近战原地攻击后恢复一回合');
   m=stepFixture('step_fixed',8,3);check(!SINGLE_STEP.plans.get(m.id).path.length,'固定炮台射程外原地不动');
   for(const id of ['step_x','step_cross']){m=stepFixture(id,4,6);const plan=SINGLE_STEP.plans.get(m.id);check(plan.jump&&plan.path.length===1,id+'追击跳跃');const probe={...m,...plan.path[0]};check(stepEnemyCells(probe).some(p=>p.col===player.col&&p.row===player.row),id+'追击落点能够射到玩家');withEnemyRoll(0,()=>singleStepAct('shoot','left'));check(m._stepJump&&SINGLE_STEP.plans.get(m.id).attackColor==='red',id+'落地后锁定攻击');}
@@ -293,7 +363,7 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   m=stepFixture('step_fighter',5,3);
   applyItem('trial_weapon_knockback');
   singleStepAct('shoot','right');
-  check(m.col===6&&m.row===3,'击退后跳过本步原定追击');
+  check(m.col===7&&m.row===3,'两发分别击退一格后跳过本步原定追击');
   playerInventory=[];recalcAllStats();updateItemBar();
 
   m=stepFixture('step_fighter',4,3);
@@ -302,25 +372,28 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   SINGLE_STEP.plans.set(m.id,strike);
   SINGLE_STEP.bonus=1;
   arenaKnockback(m,1,0);
-  check(singleStepAttackPreview(m).cells.map(p=>p.col).join(',')==='6,7','位移后按原方向和两格射程更新原近战黄招');
+  check(!singleStepAttackPreview(m),'子弹时间内隐藏原近战黄招');
   Object.assign(player,{col:7,row:3});
   singleStepAct('shoot','up');
   check(playerStats.hp===5,'最后一次子弹时间行动不执行位移后的攻击');
+  check(singleStepAttackPreview(m).cells.map(p=>p.col).join(',')==='6,7','恢复后按原方向和两格射程更新近战黄招');
   singleStepAct('shoot','up');
   check(playerStats.hp===4&&m.col===5,'恢复后从新位置向原方向执行近战');
 
   m=stepFixture('duke_fly',7,3);
   SINGLE_STEP.plans.set(m.id,{type:'legacy-move',path:[{col:8,row:3}],cells:singleStepFootprint(m,8,3)});
   SINGLE_STEP.bonus=1;arenaKnockback(m,1,0);
-  check(singleStepAttackPreview(m).cells.every(c=>c.col===9||c.col===10),'苍蝇公爵移动红格跟随位移');
-  singleStepAct('shoot','left');singleStepAct('shoot','left');
+  singleStepAct('shoot','left');
+  check(singleStepAttackPreview(m).cells.every(c=>c.col===9||c.col===10),'苍蝇公爵恢复后的移动预告跟随位移');
+  singleStepAct('shoot','left');
   check(m.col===9,'公爵恢复后执行同方向移动');
 
   m=stepFixture('boss_jumper_i',6,3);
   SINGLE_STEP.plans.set(m.id,{type:'legacy-jump',path:[{col:5,row:3}],cells:singleStepFootprint(m,5,3),attackCells:[]});
   SINGLE_STEP.bonus=1;arenaKnockback(m,0,1);
-  check(singleStepAttackPreview(m).cells.every(c=>c.row===4||c.row===5),'跳跃 Boss 的落地红格跟随位移');
-  singleStepAct('shoot','left');singleStepAct('shoot','left');
+  singleStepAct('shoot','left');
+  check(singleStepAttackPreview(m).cells.every(c=>c.row===4||c.row===5),'跳跃 Boss 恢复后的落地预告跟随位移');
+  singleStepAct('shoot','left');
   check(m.col===5&&m.row===4,'跳跃 Boss 实际落点跟随位移');
   for(const hitsAllies of [false,true]){
    m=stepFixture('boss_jumper_i',8,4);
@@ -360,7 +433,7 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   }
   arenaEffects.floorAttack=1;recalcAllStats();
   for(const n of [2,3,1]){enterFloor(n);check(currentFloor.floorNum===n&&SINGLE_STEP.room===currentRoomId,'楼层切换重置调度');}
-  check(arenaEffects.floorAttack===0&&playerStats.attack===3.5,'正式换层清除本层攻击加成');
+  check(arenaEffects.floorAttack===0&&playerStats.attack===STEP_BASE_STATS.attack,'正式换层清除本层攻击加成');
   stepFixture();document.getElementById('floor-banner').classList.remove('show');particles=[];damageNumbers=[];
  },require('../Configs/item-db.json').singleStepItems);
  const before=await page.evaluate(()=>({step:SINGLE_STEP.step,col:player.col,row:player.row}));await page.keyboard.press('Space');await page.keyboard.press('Escape');assert.deepEqual(await page.evaluate(()=>({step:SINGLE_STEP.step,col:player.col,row:player.row})),before,'空格/Esc不推进不回溯');
@@ -373,6 +446,75 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
  await page.waitForTimeout(370);assert.equal(await page.evaluate(()=>stepTimeFx.release),null,'解除在320毫秒内完成');
  assert.equal(await page.evaluate(()=>SINGLE_STEP.step),3,'停手后无历史输入自动行动');
  await page.keyboard.press('m');const paused=await page.evaluate(()=>SINGLE_STEP.step);await page.keyboard.press('ArrowUp');assert.equal(await page.evaluate(()=>SINGLE_STEP.step),paused);await page.keyboard.press('Escape');
+ await page.evaluate(()=>{
+  resetGameToFloor1();
+  stepFixture('step_fixed',5,3);playerStats.fireRate=2;
+  singleStepAct('shoot','right');
+  stepFixture();
+  singleStepAct('move','up');
+  singleStepAct('shoot','left');singleStepAct('shoot','left');
+  const pickup=cfgId=>handleResourcePickup({cfgId,col:player.col,row:player.row,px:player.px,py:player.py});
+  pickup('heart_full'); // 满血时拒绝拾取
+  playerStats.hp-=2;
+  pickup('heart_double');
+  pickup('blue_heart_double');
+  pickup('bomb_double');
+  pickup('key_double');
+  pickup('coin_silver');
+  damagePlayer(1);
+  damagePlayer(1); // 无敌期间不计
+  placeBomb(player.col,player.row);
+  pickup('chest_golden');
+  const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
+  const [dir,door]=Object.entries(room.doors).find(([,d])=>d?.targetRoomId);
+  const target=currentFloor.rooms.find(r=>r.id===door.targetRoomId);
+  target.locked=true;door.open=true;
+  switchRoom(dir);
+  transition=null;
+  room.type='shop';
+  room._shopSlots=[{col:4,row:2,type:'item',cfgId:'single_step_attack',price:3,sold:false}];
+  tryBuyShopItem(4,2);
+  applyItem('single_step_attack');
+  triggerVictoryScreen();
+ });
+ const readSettlement=modal=>Promise.all([
+  page.locator(modal+' .settlement-events dd').allTextContents(),
+  page.locator(modal+' .settlement-resources tbody td').allTextContents(),
+  page.locator(modal+' .settlement-item-list li > span:last-child').allTextContents(),
+ ]);
+ const victory=await readSettlement('#victory-modal');
+ assert.deepEqual(victory.slice(0,2),[['1 次','1 次','1 次','1 次','1 次'],['1 次','2 次','1 次','1 次','10','3']]);
+ assert.match(victory[2][0],/×2$/,'同一种道具合并显示拾取数量');
+ assert.equal(await page.locator('#victory-modal .settlement-item-icon').count(),1);
+ await page.evaluate(()=>{
+  document.getElementById('victory-modal').classList.remove('show');
+  gameOver=false;playerStats.hp=1;playerResources.blueHearts=0;player.invincibleSteps=0;
+  damagePlayer(1);
+ });
+ const defeat=await readSettlement('#death-modal');
+ assert.deepEqual(defeat,[['1 次','1 次','2 次','1 次','1 次'],victory[1],victory[2]],'死亡结算包含致死一击，通关与死亡展示相同统计');
+ await page.evaluate(()=>resetGameToFloor1());
+ assert.deepEqual(await page.evaluate(()=>Object.values(runStats)),Array(11).fill(0),'新一局清空全部统计');
+ await page.evaluate(()=>{
+  playerStats.hp=1;damagePlayer(1);
+  const records=JSON.parse(localStorage.getItem(runHistoryKey));
+  const previous={id:'older-build',updatedAt:'2026-01-01T00:00:00.000Z',finishedAt:'2026-01-02T00:00:00.000Z',
+   outcome:'通关',balance:['击杀怪物 2'],events:[['旧版统计','7 次']],resources:[],items:[]};
+  localStorage.setItem(runHistoryKey,JSON.stringify([...records,previous]));
+ });
+ await page.locator('#death-modal').getByRole('button',{name:'历史记录'}).click();
+ assert.equal(await page.locator('#step-history .step-history-build').count(),2,'不同更新时间分组');
+ assert.equal(await page.locator('#step-history .step-history-run').count(),3,'通关和失败各保存一次，重复结算不重复记录');
+ await page.locator('#step-history .step-history-run summary').last().click();
+ const oldRun=await page.locator('#step-history .step-history-run').last().innerText();
+ assert.match(oldRun,/旧版统计\s+7 次/);
+ assert.doesNotMatch(oldRun,/医疗包拾取/,'旧记录只展示当时有的字段');
+ await page.reload();
+ await page.waitForFunction(()=>currentFloor&&Object.keys(ITEMS_DB).length);
+ await page.keyboard.press('Space');
+ await page.locator('#step-settings-button').click();
+ await page.locator('#step-settings').getByRole('button',{name:'历史记录'}).click();
+ assert.equal(await page.locator('#step-history .step-history-run').count(),3,'刷新后仍可从设置查看历史');
  assert.deepEqual(errors,[],'正式版浏览器无错误');
  const backup=await browser.newPage();await backup.goto(pathToFileURL(path.resolve(__dirname,'../../backup/Project-turnbased-shoot-rewind-2026-11-05/dist/turnbased-shoot-demo-pack.html')).href);await backup.waitForFunction(()=>currentFloor&&Object.keys(MONSTER_DB).length>=14);assert.equal(await backup.evaluate(()=>typeof SINGLE_STEP),'undefined','完整备份仍为原回溯版');await backup.close();
  console.log('PASS: 正式版新怪物与各层刷怪、原Boss、分裂/自爆/跳跃、输入不积压、即时冻结特效、清房/梯子、地图及备份启动');

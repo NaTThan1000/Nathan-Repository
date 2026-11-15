@@ -1,8 +1,21 @@
 // ==================== 血量上限系统 ====================
 const MAX_TOTAL_HEARTS = 12;
-let reservedHeartSlots = () => 0;
+let shieldCapacity = null;
+let runStats = null;
+let recordSettlementHistory = () => {};
+
+function newRunStats() {
+  return {
+    bulletTime:0, interrupts:0, hitsTaken:0, medicalPickups:0, shieldPickups:0,
+    keysAcquired:0, keysUsed:0, bombsAcquired:0, bombsUsed:0, coinsPickedUp:0, coinsSpent:0,
+  };
+}
+
+function recordRunStat(key, amount = 1) {
+  if (runStats && !gameOver) runStats[key] += amount;
+}
 function heartCapacity() {
-  return MAX_TOTAL_HEARTS - reservedHeartSlots();
+  return MAX_TOTAL_HEARTS;
 }
 
 // 计算当前总心数（红心 + 蓝心，向上取整）
@@ -13,6 +26,7 @@ function totalHearts() {
 
 // 尝试增加红心上限，可能替换蓝心
 function tryAddRedHeart() {
+  if (shieldCapacity !== null) return playerStats.maxHp < heartCapacity();
   // 还放得下 1 颗红心 → 直接加
   if (totalHearts() + 1 <= heartCapacity()) return true;
   // 已到上限：牺牲 1 颗蓝心换红心（红心优先）
@@ -26,6 +40,7 @@ function tryAddRedHeart() {
 
 // 尝试增加蓝心（按数量精确判定是否放得下，红心优先）
 function tryAddBlueHeart(amount = 1) {
+  if (shieldCapacity !== null) return playerResources.blueHearts + amount <= shieldCapacity;
   return totalHearts() + amount <= heartCapacity();
 }
 
@@ -59,6 +74,7 @@ function damagePlayer(amount, attackerId = null) {
 
   if (player.invincibleSteps > 0) return; // 无敌中
 
+  const healthBefore = playerStats.hp + playerResources.blueHearts;
   // 优先扣除蓝心
   let remaining = amount;
   if (playerResources.blueHearts > 0) {
@@ -71,6 +87,7 @@ function damagePlayer(amount, attackerId = null) {
   if (remaining > 0) {
     playerStats.hp = Math.max(0, playerStats.hp - remaining);
   }
+  if (playerStats.hp + playerResources.blueHearts < healthBefore) recordRunStat('hitsTaken');
 
   SFX.hurt();
   player.hitFlash = 0.12;
@@ -87,16 +104,56 @@ function damagePlayer(amount, attackerId = null) {
   }
 }
 
+function renderSettlement(panelId, prefix) {
+  const panel = document.getElementById(panelId);
+  const values = {kills:monstersKilled, coins:playerResources.coins, bombs:playerResources.bombs,
+    keys:playerResources.keys, blue:playerResources.blueHearts};
+  for (const [key,value] of Object.entries(values)) document.getElementById(prefix+'-'+key).textContent = value;
+
+  const items = document.getElementById(prefix+'-items');
+  const counts = new Map();
+  for (const id of itemsCollected) counts.set(id,(counts.get(id) ?? 0)+1);
+  items.replaceChildren(...[...counts].map(([id,count]) => {
+    const item = ITEMS_DB[id];
+    const row = document.createElement('li');
+    const icon = document.createElement('span');
+    icon.className = 'settlement-item-icon';
+    icon.dataset.quality = item?.quality ?? '';
+    icon.setAttribute('aria-hidden','true');
+    icon.textContent = item?.icon ?? '◇';
+    const label = document.createElement('span');
+    label.textContent = (item?.name ?? id)+(count>1?' ×'+count:'');
+    row.append(icon,label);
+    return row;
+  }));
+  const empty = panel.querySelector('.settlement-items-empty');
+  empty.hidden = counts.size > 0;
+  items.hidden = counts.size === 0;
+
+  const details = panel.querySelector('.settlement-run-stats');
+  details.hidden = !runStats;
+  if (!runStats) return;
+  const combat = [
+    ['子弹时间触发',runStats.bulletTime],['打断',runStats.interrupts],['角色受伤',runStats.hitsTaken],
+    ['医疗包拾取',runStats.medicalPickups],['护盾模块拾取',runStats.shieldPickups],
+  ];
+  const resources = [
+    ['钥匙',runStats.keysAcquired+' 次',runStats.keysUsed+' 次'],
+    ['炸弹',runStats.bombsAcquired+' 次',runStats.bombsUsed+' 次'],
+    ['金币',runStats.coinsPickedUp,runStats.coinsSpent],
+  ];
+  details.innerHTML = '<dl class="settlement-events">'+combat.map(([label,count]) =>
+    '<div><dt>'+label+'</dt><dd>'+count+' 次</dd></div>').join('')+'</dl>'+
+    '<table class="settlement-resources"><thead><tr><th scope="col">资源</th><th scope="col">获取</th><th scope="col">使用</th></tr></thead><tbody>'+
+    resources.map(([label,acquired,used]) => '<tr><th scope="row">'+label+'</th><td>'+acquired+'</td><td>'+used+'</td></tr>').join('')+
+    '</tbody></table>';
+}
+
 // ==================== 死亡结算 ====================
 function triggerDeathScreen() {
   gameOver = true;
-  // 填充统计数据
-  document.getElementById('stat-kills').textContent = monstersKilled;
-  document.getElementById('stat-items').textContent = itemsCollected.length > 0 ? itemsCollected.join(', ') : '无';
-  document.getElementById('stat-coins').textContent = playerResources.coins;
-  document.getElementById('stat-bombs').textContent = playerResources.bombs;
-  document.getElementById('stat-keys').textContent = playerResources.keys;
-  document.getElementById('stat-blue').textContent = playerResources.blueHearts;
+  renderSettlement('death-stats','stat');
+  recordSettlementHistory('失败',document.getElementById('death-stats'));
   SFX.death();
   document.getElementById('death-modal').classList.add('show');
 }
@@ -104,12 +161,8 @@ function triggerDeathScreen() {
 // ==================== 通关结算 ====================
 function triggerVictoryScreen() {
   gameOver = true;
-  document.getElementById('vstat-kills').textContent = monstersKilled;
-  document.getElementById('vstat-items').textContent = itemsCollected.length > 0 ? itemsCollected.join(', ') : '无';
-  document.getElementById('vstat-coins').textContent = playerResources.coins;
-  document.getElementById('vstat-bombs').textContent = playerResources.bombs;
-  document.getElementById('vstat-keys').textContent = playerResources.keys;
-  document.getElementById('vstat-blue').textContent = playerResources.blueHearts;
+  renderSettlement('victory-stats','vstat');
+  recordSettlementHistory('通关',document.getElementById('victory-stats'));
   SFX.victory();
   document.getElementById('victory-modal').classList.add('show');
 }

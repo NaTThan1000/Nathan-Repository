@@ -13,6 +13,7 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
     await page.waitForFunction(() => !document.querySelector('#arena-start').disabled);
     assert.equal(await page.locator('#arena-rules').inputValue(),'interrupt');
     assert.equal(await page.locator('.scrap-health-value').textContent(),'10 / 10','自定义场默认数字血条为10点');
+    assert.deepEqual(await page.evaluate(()=>[playerStats.attack,playerStats.range,playerStats.fireRate,Boolean(RESOURCE_DB.heart_half||RESOURCE_DB.blue_heart_half)]),[2,4,2,false]);
     await page.evaluate(()=>{
       const check=(ok,label)=>{if(!ok)throw Error(label);};
       const foe=(id,col,row)=>({kind:'monster',id:'step_'+id,col,row,size:1});
@@ -146,10 +147,10 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
     await move(); await move(); await move();
     assert.deepEqual(await page.evaluate(() => playerInventory),['trial_weapon_triple','trial_weapon_poison']);
     await page.keyboard.press('ArrowRight');
-    assert.deepEqual(await page.evaluate(() => [arena.hits,arena.total]),[3,5.25]);
+    assert.deepEqual(await page.evaluate(() => [arena.hits,arena.total]),[6,6]);
     await page.waitForFunction(() => performance.now()>=stepInputUntil);
     await page.keyboard.press('ArrowUp');
-    assert.deepEqual(await page.evaluate(() => [arena.hits,arena.total,monsters.find(m=>m.arenaDummy).hp]),[4,5.69,1]);
+    assert.deepEqual(await page.evaluate(() => [arena.hits,arena.total,monsters.find(m=>m.arenaDummy).hp]),[7,7,1]);
     await page.keyboard.press('r');
     assert.deepEqual(await page.evaluate(() => [arena.hits,player.col,itemsOnGround.length,playerInventory.length]),[0,2,3,0]);
 
@@ -158,18 +159,19 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
       const check=(condition,message)=>{if(!condition)throw new Error(message);};
       equip('shotgun','energy','dual');
       applyItem('single_step_pierce');
+      playerStats.fireRate=1;
       check(equippedWeaponTrial('shell')==='pierce','正式穿透子弹进入弹壳子类');
       singleStepAct('shoot','right');
       check(equippedWeaponTrial('body')==='energy'&&equippedWeaponTrial('pattern')==='dual'&&
         SINGLE_STEP.shots.filter(shot=>shot.beam).length===2,'枪体覆盖后保留不同子类');
       equip('blast');
-      check(!playerInventory.includes('single_step_pierce')&&equippedWeaponTrial('shell')==='blast','原型弹壳能覆盖正式穿透子弹');
-      arenaLoad(false);equip('burstCharge','poison');
+      check(playerInventory.includes('single_step_pierce')&&equippedBulletEffects('shell').join(',')==='pierce,blast','爆炸弹壳和穿透弹壳并存');
+      arenaLoad(false);equip('burstCharge','poison');playerStats.range=6;
       for(let i=0;i<3;i++)singleStepAct('shoot','right');
       check(arena.hits===0&&SINGLE_STEP.weaponCharge===3,'蓄力不提前出弹');
       singleStepAct('shoot','right');
       check(arena.hits===3&&SINGLE_STEP.weaponCharge===0,'连击释放三发');
-      arenaLoad(false);equip('laser','twin');
+      arenaLoad(false);equip('laser','twin');playerStats.fireRate=1;
       singleStepAct('shoot','right');
       check(SINGLE_STEP.shots.filter(shot=>shot.player&&shot.beam).length===2,'激光枪和双头管可以组合');
       arenaLoad(false);equip('jet','boots');
@@ -186,6 +188,8 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         arena.placements = new Map(placements.map(p=>[arenaKey(p.col,p.row),p]));
         arenaLoad(false);
         equip(...effects);
+        // 固定单发属性，用于逐项验证道具交互。
+        Object.assign(playerStats,{fireRate:1,range:6,attack:3.5});
       };
       const fire = () => {
         check(singleStepAct('shoot','right'),'接受测试射击');
@@ -204,7 +208,7 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         const attributes = ['attack','attack','range','range','health','health'];
         load(attributes.map((name,index)=>({kind:'item',id:'single_step_'+name,col:3+index,row:3,size:1})));
         for (const name of attributes) check(singleStepAct('move','right'),'走到属性道具上');
-        check(playerStats.attack===4.5&&playerStats.range===8&&playerStats.maxHp===STEP_STARTING_HP+2&&
+        check(playerStats.attack===3&&playerStats.range===6&&playerStats.maxHp===STEP_STARTING_HP+2&&
           playerInventory.length===6&&itemsOnGround.length===0,'相同属性道具拾取两次并叠加');
 
         const shop = currentFloor.rooms.find(room=>room.id===currentRoomId);
@@ -212,37 +216,53 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         Object.assign(shop,{type:'shop',_shopSlots:[slot]});
         playerResources.coins = 15;
         spawnItemOnGrid(9,3,slot.cfgId);
-        check(singleStepAct('move','right')&&slot.sold&&playerStats.attack===5&&playerResources.coins===0,
+        check(singleStepAct('move','right')&&slot.sold&&playerStats.attack===3.5&&playerResources.coins===0,
           '已拾取的属性道具可继续从商店购买并叠加');
 
         load([3,4].map(col=>({kind:'item',id:'single_step_pierce',col,row:3,size:1})));
         singleStepAct('move','right');
         singleStepAct('move','right');
         check(playerInventory.length===1&&itemsOnGround.length===1,'非属性道具继续按单件处理');
+        load([dummy(4,3),dummy(5,3),dummy(6,3)],'ghost');
+        currentRoomGrid[4][3]=TILE.POOP;currentRoomGrid[5][3]=TILE.ROCK;
+        initTileData();
+        fire();
+        check(arena.hits===3&&currentRoomGrid[4][3]===TILE.FLOOR&&currentRoomGrid[5][3]===TILE.ROCK,
+          '灵体弹命中木箱和岩石上的目标，打碎木箱并继续穿透');
 
         for (const [pattern, count] of [['dual',2],['triple',3]]) {
-          const shots = shoot([dummy(5,3)],pattern);
-          check(shots.length===count&&arena.hits===count&&damageNumbers.length===count,'枪管数、命中数及飘字数一致');
-          for(let i=1;i<count;i++){
-            check(Math.abs(shots[i].start-shots[i-1].start-20)<.01,'同向弹体微量错开发射');
-            check(Math.abs(damageNumbers[i].showAt-damageNumbers[i-1].showAt-20)<.01,'飘字微量错开出现');
-          }
-          check(new Set(damageNumbers.map(number=>number.x)).size===count,'同一木桩的飘字横向分离');
+          load([dummy(5,3)],pattern);
+          playerStats.fireRate=2;
+          const shots=fire();
+          check(shots.length===count*2&&arena.hits===count*2&&damageNumbers.length===count*2,'射速、枪管数、命中数及飘字数一致');
+          const volleys = [...Map.groupBy(shots,shot=>shot.start).values()];
+          check(volleys.length===2&&Math.abs(volleys[1][0].start-volleys[0][0].start-130)<.01&&
+            volleys.every(group=>group.length===count&&new Set(group.map(shot=>shot.from.y)).size===count),
+            '同批枪管齐射且弹道分开，两批间隔130毫秒');
+          check(new Set(damageNumbers.slice(0,count).map(number=>number.x)).size===count,'同一批飘字横向分离');
           const realNow = performance.now;
           try {
-            for (const [index, number] of damageNumbers.entries()) {
+            for (const [index, number] of [damageNumbers[0],damageNumbers[count]].entries()) {
               performance.now = () => number.showAt + 1;
               updateTextOverlay();
               const visible = [...document.querySelectorAll('.txt-damage')].filter(el => el.style.display !== 'none');
-              check(visible.length===index+1,'界面随每一发命中逐个显示飘字');
+              check(visible.length===(index+1)*count,'界面按齐射批次显示飘字');
             }
           } finally {
             performance.now = realNow;
           }
         }
+        load([dummy(4,3),dummy(7,3)],'blast','acid','poison');
+        applyItem('single_step_pierce');
+        Object.assign(playerStats,{fireRate:1,range:6});
+        fire();
+        check(stepVisualEvents.filter(e=>e.type==='weapon-hit').length===3&&monsters.every(m=>m.weaponPoison)&&
+          arenaEffects.ground.has('4,3')&&arenaEffects.ground.has('7,3'),
+          '一发同时穿透并爆炸，两个目标都中毒并留下酸液');
+
         shoot([dummy(5,3)],'dual','burstCharge');
         for(let i=0;i<3;i++) singleStepAct('shoot','right');
-        check(arena.hits===6&&new Set(SINGLE_STEP.shots.map(shot=>shot.start)).size===6,'蓄力连击与双管组合时六发依次发射');
+        check(arena.hits===6&&new Set(SINGLE_STEP.shots.map(shot=>shot.start)).size===3,'蓄力连击与双管组合时三次双发齐射');
         for (const trajectory of ['burstCharge','heavyCharge']) {
           load([],'trident',trajectory);
           const arcs = [], originalArc = ctx.arc;
@@ -281,13 +301,13 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         load([{kind:'item',id:'trial_weapon_shotgun',col:3,row:3,size:1}]);
         applyItem('single_step_range');
         scrapUpdateHUD();
-        check(document.querySelector('#scrap-range').textContent==='7','拾取霰弹枪前显示加成后的射程');
+        check(document.querySelector('#scrap-range').textContent==='5','拾取霰弹枪前显示加成后的射程');
         singleStepAct('move','right');
         scrapUpdateHUD();
-        check(document.querySelector('#scrap-range').textContent==='3','实际拾取霰弹枪后射程减半并向下取整');
+        check(document.querySelector('#scrap-range').textContent==='2','实际拾取霰弹枪后射程减半并向下取整');
         equip('energy');
         scrapUpdateHUD();
-        check(document.querySelector('#scrap-range').textContent==='7','切换枪体后恢复原射程');
+        check(document.querySelector('#scrap-range').textContent==='7','切换到能量枪后显示实际增加两格的射程');
 
         for (const [baseRange,range] of [[6,3],[11,5],[14,6]]) {
           load([],'shotgun');
@@ -307,7 +327,7 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         load([dummy(5,2),dummy(5,3),dummy(5,4)],'shotgun');
         playerStats.range = 10;
         withRandom(()=>.99,fire);
-        check(arena.hits===20&&arena.last<playerStats.attack&&Math.abs(arena.total-20*arena.last)<.001&&
+        check(arena.hits===20&&Number.isInteger(arena.last)&&arena.total===10&&
           stepVisualEvents.filter(e=>e.type==='weapon-hit').every(e=>e.id===monsters.find(m=>m.row===4).id),
           '霰弹按实际散到下方的颗数逐颗伤害');
         const tridentShotgun = shoot([],'shotgun','trident');
@@ -401,7 +421,7 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         fire();
         check(arena.hits===1,'射程一格时传导上限半格，无法跳到相邻单位');
         const longArc = shoot([4,5,6,7,8,9].map(col=>dummy(col,3)),'arc').filter(shot=>shot.beam);
-        check(longArc.length===4&&arena.hits===5&&arena.last===1.75&&
+        check(longArc.length===4&&arena.hits===5&&arena.last===2&&
           new Set(stepVisualEvents.filter(event=>event.type==='weapon-hit').map(event=>event.id)).size===5,
           '电弧最多四跳，第四跳同样伤害末端怪物');
         const rockEnd = shoot([dummy(4,3),terrain(5,3,TILE.ROCK)],'arc').filter(shot=>shot.beam);
@@ -474,13 +494,20 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         const groundEnemy = monsters[0];
         const groundHp = groundEnemy.hp;
         stepTestHooks.beforeEnemies();
-        check(groundEnemy.hp===groundHp-.5&&groundEnemy.arenaSlimeSlow,'毒血扣血，粘液延迟下一次移动');
+        check(groundEnemy.hp===groundHp-1&&groundEnemy.arenaSlimeSlow,'毒血扣血，粘液延迟下一次移动');
 
         load([foe(5,4,'step_fighter')]);
         const slowed=monsters[0], safeHp=playerStats.hp;
         arenaGroundEffect({col:4,row:4},'slime',5);
         singleStepAct('shoot','up');
         check(slowed.col===4&&slowed.row===4,'近战怪走到粘液上');
+        const slimeMarker=()=>{
+          const fill=ctx.fillText,labels=[];
+          ctx.fillText=text=>labels.push(text);
+          try{drawMonsters();}finally{ctx.fillText=fill;}
+          return labels.includes('减速');
+        };
+        check(slimeMarker(),'踩到粘液后显示减速标记');
         const originalMove=SINGLE_STEP.plans.get(slowed.id);
         check(originalMove.type==='chase'&&originalMove.path[0]?.col===3&&originalMove.path[0]?.row===4,
           '踩上粘液后原本要继续追击');
@@ -490,6 +517,7 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         singleStepAct('shoot','up');
         check(slowed.col===3&&slowed.row===4&&playerStats.hp===safeHp&&SINGLE_STEP.plans.get(slowed.id).type==='strike',
           '下一回合先完成原定移动，再锁定近战攻击');
+        check(!slimeMarker(),'恢复移动后清除减速标记');
 
         const stagePlan=()=>SINGLE_STEP.plans.get(monsters[0].id);
         const lockedCells=()=>singleStepAttackPreview(monsters[0])?.cells.map(p=>arenaKey(p.col,p.row)).sort().join(';');
@@ -561,7 +589,7 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         const host=monsters.find(m=>!m.arenaDummy);
         SINGLE_STEP.bonus=2;host.hp=6;
         fire();fire();
-        check(!monsters.includes(host)&&arena.hits===1&&arena.last===1.75&&tileData['4,2']?.hp===99,'寄生死亡爆炸伤害九格内的敌人，岩石保持完整');
+        check(!monsters.includes(host)&&arena.hits===1&&arena.last===2&&tileData['4,2']?.hp===99,'寄生死亡爆炸伤害九格内的敌人，岩石保持完整');
         shoot([dummy(4,3)],'acid');
         for(let i=0;i<5;i++)singleStepAct('shoot','up');
         check(arena.hits===6&&arena.last===1&&!arenaEffects.ground.size,'酸液在五个正常步扣血后消失');
@@ -579,16 +607,28 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         load([foe(6,3,'step_charger')],'brace');
         const braced = monsters[0], braceHp = braced.hp, playerHp=playerStats.hp;
         singleStepAct('shoot','up');
-        check(player.col===2&&playerStats.hp===playerHp&&braced.hp===braceHp-playerStats.attack,'防冲挡住挤出和伤害并反伤');
+        check(player.col===2&&playerStats.hp===playerHp&&braced.hp===braceHp-Math.round(playerStats.attack),'防冲挡住挤出和伤害并反伤');
 
         load([foe(4,3),foe(8,5)],'killMove','killShot','killPill');
         monsters[0].hp=1;
         fire();
-        check(arenaEffects.moveCredit===1&&arenaEffects.shootCredit===1&&playerStats.attack===3.7,'击杀返还两类行动并提高本层攻击');
+        check(arenaEffects.moveCredit===1&&arenaEffects.shootCredit===1&&playerStats.attack===2.2,'击杀返还两类行动并提高本层攻击');
         const normalTurn=arenaEffects.turn;
+        const shotCount=totalShots;
+        scrapUpdateHUD();
+        check(stepBenefit.textContent.includes('额外移动 1 次')&&stepBenefit.classList.contains('active'),'额外移动亮显并计数');
+        check(!singleStepAct('shoot','left')&&totalShots===shotCount&&arenaEffects.moveCredit===1&&
+          damageNumbers.some(number=>number.text==='只能移动！')&&stepBenefit.getAnimations().length===1,
+          '额外移动拒绝射击，角色头顶提示且底栏抖动');
         singleStepAct('move','down');
+        check(!singleStepAct('move','down')&&!singleStepAct('bomb','down')&&
+          damageNumbers.some(number=>number.text==='只能射击！'),'额外射击期间移动和炸弹均被拒绝');
         singleStepAct('shoot','left');
         check(arenaEffects.turn===normalTurn&&!arenaEffects.moveCredit&&!arenaEffects.shootCredit,'额外移动和射击不推进正常步');
+        load([terrain(4,3,TILE.POOP)],'killMove');
+        tileData['4,3'].hp=1;
+        fire();
+        check(!tileData['4,3']&&!arenaEffects.moveCredit,'打破木箱不返还移动');
 
         load([foe(4,3),foe(5,4),foe(9,3)],'killShot','blast');
         for(const enemy of monsters)enemy.hp=1;
@@ -596,22 +636,22 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         check(monsters.length===1&&arenaEffects.shootCredit===1,'一次攻击击杀多个怪物只返还一次');
         const recycleTurn=arenaEffects.turn;
         fire();
-        check(!monsters.length&&arenaEffects.shootCredit===1&&arenaEffects.turn===recycleTurn,'额外射击击杀可再次返还');
+        check(!monsters.length&&!arenaEffects.shootCredit&&!arenaEffects.moveCredit&&arenaEffects.turn===recycleTurn,'额外射击清房后清空奖励且不推进普通行动');
 
         load([foe(2,1)],'backArmor','hurtPill');
         const armoredHp=playerStats.hp;
         damagePlayer(1,monsters[0].id);
         check(!arenaEffects.armorReady&&playerStats.hp===armoredHp,'背后攻击消耗背甲');
         damagePlayer(1,monsters[0].id);
-        check(playerStats.hp===armoredHp-1&&playerStats.attack===4,'实际受伤才触发浴血药丸');
+        check(playerStats.hp===armoredHp-1&&playerStats.attack===2.5,'实际受伤才触发浴血药丸');
         arenaLoad(false,'room');
-        check(arenaEffects.armorReady&&playerStats.attack===4&&playerStats.hp===armoredHp-1,'下一间恢复背甲并携带生命和本层加成');
+        check(arenaEffects.armorReady&&playerStats.attack===2.5&&playerStats.hp===armoredHp-1,'下一间恢复背甲并携带生命和本层加成');
         arenaLoad(false,'floor');
-        check(arena.floor===2&&playerStats.attack===3.5&&trialPassive('hurtPill'),'下一层保留道具并清除本层攻击加成');
+        check(arena.floor===2&&playerStats.attack===2&&trialPassive('hurtPill'),'下一层保留道具并清除本层攻击加成');
         load([],'timedShield','rageShield');
         const shieldIcon=()=>{scrapUpdateHUD();return document.querySelector('#scrap-hearts > :last-child');};
-        check(heartCapacity()===11&&shieldIcon().classList.contains('arena-heart-shield')&&
-          shieldIcon().dataset.charge==='20'&&shieldIcon().classList.contains('ready'),'拾取后爱心末尾的护盾立即充满');
+        check(heartCapacity()===12&&shieldIcon().classList.contains('arena-heart-shield')&&
+          shieldIcon().dataset.charge==='20'&&shieldIcon().classList.contains('ready'),'拾取后右侧充能护盾立即充满，生命容量独立');
         damagePlayer(1);
         check(shieldIcon().dataset.charge==='0'&&playerStats.hp===STEP_STARTING_HP,'刚拾到的护盾可以立即挡伤');
         singleStepAct('shoot','up');
@@ -666,6 +706,9 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
           blast.cells.some(p=>p.col===6&&p.row===4),'爆炸闪光跟随引爆位置覆盖实际九格');
 
         load([dummy(1,3),dummy(3,2)],'remoteBomb','claymore','bombBaby');
+        check(playerResources.bombs===9,'三件炸弹道具各补充三颗炸弹');
+        equip('remoteBomb');
+        check(playerResources.bombs===9,'拒绝重复拾取的道具不会再次补充炸弹');
         playerResources.bombs=1;
         check(singleStepAct('bomb','right')&&bombs[0].timer===Infinity&&playerResources.bombs===0,'遥控炸弹放置后停表');
         singleStepAct('move','right');
@@ -694,19 +737,20 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
       await input.press('Tab');
     };
     const setupValues = () => page.evaluate(() => arenaCurrentSetup());
-    for (const [key,value] of Object.entries({maxHp:8,hp:2.5,blueHearts:1.5,coins:41,bombs:7,keys:4})) {
+    for (const [key,value] of Object.entries({maxHp:8,hp:3,blueHearts:2,coins:41,bombs:7,keys:4})) {
       await set(key,value);
     }
-    const preset = {maxHp:8,hp:2.5,blueHearts:1.5,coins:41,bombs:7,keys:4};
+    const preset = {maxHp:8,hp:3,blueHearts:2,coins:41,bombs:7,keys:4};
     await page.locator('#arena-start').click();
     assert.deepEqual(await setupValues(),preset,'开局使用布置时的资源和血量');
-    assert.equal(await page.locator('.scrap-health-value').textContent(),'2.5 / 8','顶栏数字显示当前与最大生命');
-    assert.equal(await page.locator('.scrap-health-fill').evaluate(el=>el.style.width),'31.25%','血条填充跟随实际生命比例');
-    assert.match(await page.locator('.scrap-blue-health').textContent(),/\+1\.5/,'蓝心单独显示');
+    assert.equal(await page.locator('.scrap-health-value').textContent(),'3 / 8','顶栏数字显示当前与最大生命');
+    assert.equal(await page.locator('.scrap-health-fill').evaluate(el=>el.style.width),'37.5%','血条填充跟随实际生命比例');
+    assert.equal(await page.locator('.scrap-shield-meter span').count(),5,'护盾条固定五段');
+    assert.equal(await page.locator('.scrap-shield-meter .filled').count(),2,'两点护盾点亮两段');
     await set('hp',5.5);
     await set('maxHp',10);
     await set('bombs',2);
-    assert.deepEqual(await setupValues(),{...preset,maxHp:10,hp:5.5,bombs:2},'试玩中可单独调整数值');
+    assert.deepEqual(await setupValues(),{...preset,maxHp:10,hp:6,bombs:2},'试玩中可单独调整数值');
     assert.equal(await page.evaluate(()=>SINGLE_STEP.step),0,'配置修改不推进行动');
     await page.evaluate(()=>applyItem('single_step_health'));
     assert.equal((await setupValues()).maxHp,11,'拾取生命+叠加到自定义上限');
@@ -718,7 +762,8 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
     await set('hp',40);
     await set('bombs',200);
     await set('keys',-3);
-    assert.deepEqual(await setupValues(),{...preset,maxHp:12,hp:12,blueHearts:0,bombs:99,keys:0},'超界输入按游戏容量归整');
+    await set('blueHearts',20);
+    assert.deepEqual(await setupValues(),{...preset,maxHp:12,hp:12,blueHearts:5,bombs:99,keys:0},'生命和护盾各按独立上限归整');
     await page.locator('#arena-restart').click();
     assert.deepEqual(await setupValues(),preset,'重试恢复开局预设');
     await page.locator('#arena-edit').click();

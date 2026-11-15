@@ -1,5 +1,5 @@
 {
-  "_description": "正式版普通怪物与小队；HP按基础攻击3.5换算原型击杀次数。Boss使用原配置。",
+  "_description": "正式版普通怪物与小队；普通怪使用整数 HP。Boss使用原配置。",
   "monsters": {
     "fixed": {
       "id": "step_fixed",
@@ -51,7 +51,7 @@
     "big": {
       "id": "step_big",
       "name": "大史莱姆",
-      "hp": 10.5,
+      "hp": 11,
       "damage": 1,
       "chase": 3,
       "range": 1,
@@ -74,7 +74,7 @@
     "small": {
       "id": "step_small",
       "name": "小史莱姆",
-      "hp": 3.5,
+      "hp": 4,
       "damage": 1,
       "chase": 3,
       "range": 1,
@@ -97,7 +97,7 @@
     "fighter": {
       "id": "step_fighter",
       "name": "近战者",
-      "hp": 10.5,
+      "hp": 11,
       "damage": 1,
       "chase": 4,
       "range": 2,
@@ -120,7 +120,7 @@
     "bomber": {
       "id": "step_bomber",
       "name": "自爆者",
-      "hp": 3.5,
+      "hp": 4,
       "damage": 1,
       "chase": 3,
       "range": 1,
@@ -143,7 +143,7 @@
     "charger": {
       "id": "step_charger",
       "name": "冲锋者",
-      "hp": 10.5,
+      "hp": 11,
       "damage": 1,
       "chase": 5,
       "range": 4,

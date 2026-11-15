@@ -113,7 +113,7 @@ function updateUI() {
   const phaseEl = document.getElementById('ui-phase');
   phaseEl.className = 'pill-value';
   const rewindInfo = document.getElementById('ui-rewind-info');
-  rewindInfo.textContent = `回溯 ∞${turnState.phase === 'player_select' && dangerForecastJob && !dangerForecastJob.done ? ' · 计算中' : ''}`;
+  if (rewindInfo) rewindInfo.textContent = `回溯 ∞${turnState.phase === 'player_select' && dangerForecastJob && !dangerForecastJob.done ? ' · 计算中' : ''}`;
   switch (turnState.phase) {
     case 'player_select':
       phaseEl.textContent = '行为选择';
@@ -257,6 +257,7 @@ function updateItemBar() {
     if (!cfg) continue;
     const slot = document.createElement('span');
     slot.className = 'item-slot ' + cfg.quality;
+    if (document.body.classList.contains('single-step-ui')) slot.tabIndex = 0;
     slot.textContent = cfg.icon;
     const tooltip = document.createElement('span');
     tooltip.className = 'item-tooltip';

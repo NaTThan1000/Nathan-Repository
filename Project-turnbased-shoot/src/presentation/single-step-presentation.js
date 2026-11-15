@@ -1,5 +1,84 @@
 // 正式版单步表现：规则立即生效，输入只等实际动作到位，余效独立消散。
 const stepVisualEvents=[],stepTimeFx={active:false,enter:null,release:null};
+const stepHealthTimings = new WeakMap();
+const STEP_HEALTH_FX_DURATION = 1000;
+const STEP_HEALTH_FLASH_DURATION = 200;
+const stepBossDefeats = new Set();
+const stepHealthDefeats = new Set();
+const stepHealthDamageBase = damageMonster;
+damageMonster = function(monster, amount, options) {
+  amount = Math.round(amount);
+  if (!(amount > 0) || monster.hp <= 0) return;
+  const before = monster.hp;
+  const result = stepHealthDamageBase(monster, amount, options);
+  if (monster.hp >= before) return result;
+  const timings = stepHealthTimings.get(monster) ?? [];
+  const at = Math.max(options?.at ?? performance.now(), timings.at(-1)?.at ?? 0);
+  timings.push({at, before, after:monster.hp});
+  stepHealthTimings.set(monster, timings);
+  if (monster.hp <= 0) {
+    (monster.aiType?.startsWith('boss_') ? stepBossDefeats : stepHealthDefeats).add(monster);
+  }
+  return result;
+};
+
+function displayedStepMonsterHp(monster, now) {
+  const timings = stepHealthTimings.get(monster);
+  while (timings?.length && timings[0].at + STEP_HEALTH_FX_DURATION <= now) timings.shift();
+  return timings?.find(hit => hit.at > now)?.before ?? monster.hp;
+}
+
+function drawStepMonsterHealth(monster, now) {
+  if (monster.jumperVanished || monster.aiType?.startsWith('boss_')) return;
+  const hp = displayedStepMonsterHp(monster, now);
+  if (hp >= monster.maxHp) return;
+  const {x,y} = project(monster.px, monster.py);
+  const width = Math.min(16,CELL*.55), left = x-width/2, top = y+CELL*.25;
+  ctx.save();
+  if(hp>0){
+    ctx.fillStyle = '#101619';
+    ctx.fillRect(left-1,top-1,width+2,4);
+    ctx.fillStyle = '#f18d59';
+    ctx.fillRect(left,top,width*hp/monster.maxHp,2);
+  }
+  for(const {at,before,after} of stepHealthTimings.get(monster) ?? []){
+    const age=now-at;
+    if(age<0||age>=STEP_HEALTH_FX_DURATION)continue;
+    const shade=Math.round(255-185*Math.min(1,age/STEP_HEALTH_FLASH_DURATION));
+    const flight=Math.max(0,(age-STEP_HEALTH_FLASH_DURATION)/(STEP_HEALTH_FX_DURATION-STEP_HEALTH_FLASH_DURATION));
+    ctx.fillStyle='rgb('+shade+','+shade+','+shade+')';
+    ctx.globalAlpha=1-flight;
+    ctx.fillRect(left+width*after/monster.maxHp+6*flight,top-4*flight,width*(before-after)/monster.maxHp,2);
+  }
+  ctx.restore();
+}
+
+let stepBossHealthKey = '';
+function drawStepBossHealth(now) {
+  const panel = document.getElementById('boss-health');
+  if (!panel) return;
+  for (const monster of stepBossDefeats) {
+    if (displayedStepMonsterHp(monster, now) === 0) stepBossDefeats.delete(monster);
+  }
+  const alive = monsters.filter(monster => monster.hp > 0 && monster.aiType?.startsWith('boss_'));
+  const bosses = [...alive, ...stepBossDefeats].sort((a,b) => a.id-b.id)
+    .map(monster => [monster.id, monster.name, displayedStepMonsterHp(monster, now), monster.maxHp]);
+  const key = JSON.stringify(bosses);
+  if (key === stepBossHealthKey) return;
+  stepBossHealthKey = key;
+  panel.hidden = !bosses.length;
+  panel.replaceChildren(...bosses.map(([,name,hp,maxHp]) => {
+    const row = document.createElement('div');
+    const label = document.createElement('span');
+    label.textContent = name + ' · ' + hp + ' / ' + maxHp;
+    const bar = document.createElement('progress');
+    bar.max = maxHp;
+    bar.value = hp;
+    bar.setAttribute('aria-label', name + '的生命');
+    row.append(label,bar);
+    return row;
+  }));
+}
 const stepDetonateBombBase = detonateBomb;
 function stepDetonateBomb(bomb,affected,{source=null}={}) {
  const cells = stepDetonateBombBase(bomb,affected,{terrainFirst:true,source});
@@ -41,8 +120,10 @@ function stepSetTimeEffect(active,now=performance.now()){
  if(active){stepTimeFx.enter={at:now};stepTimeFx.release=null;}else{stepTimeFx.enter=null;stepTimeFx.release={at:now};}
 }
 const stepResetOriginal=singleStepReset;
-singleStepReset=function(){stepResetOriginal();stepInputUntil=0;stepVisualEvents.length=0;stepTimeFx.active=false;stepTimeFx.enter=null;stepTimeFx.release=null;};
+singleStepReset=function(){stepResetOriginal();stepInputUntil=0;stepVisualEvents.length=0;stepBossDefeats.clear();stepHealthDefeats.clear();stepTimeFx.active=false;stepTimeFx.enter=null;stepTimeFx.release=null;};
 function singleStepInputAction(type,dir){
+ const required=stepRequiredExtraAction();
+ if(required&&type!==required)return singleStepAct(type,dir);
  const freeMove=type==='move'&&!hasMonstersAlive()&&!SINGLE_STEP.bonus;
  if(freeMove){
   const remaining=Math.hypot((player.targetPx??player.px)-player.px,(player.targetPy??player.py)-player.py);
@@ -54,7 +135,10 @@ const stepActOriginal=singleStepAct;
 singleStepAct=function(type,dir){
  const now=performance.now(),room=currentRoomId,old={col:player.col,row:player.row,px:player.px,py:player.py},bonus=SINGLE_STEP.bonus,shots=SINGLE_STEP.shots.length,eventStart=stepVisualEvents.length;
  const positions=new Map(monsters.map(m=>[m.id,{col:m.col,row:m.row}]));
- const accepted=stepActOriginal(type,dir);if(!accepted||room!==currentRoomId||transition?.active)return accepted;
+ let accepted;
+ stepWeaponDamageTotals = new Map();
+ try { accepted = stepActOriginal(type,dir); } finally { stepWeaponDamageTotals = null; }
+ if(!accepted||room!==currentRoomId||transition?.active)return accepted;
  const moveSpeed=singleStepMoveSpeed();
  let duration=type==='move'?CELL/moveSpeed*1000:100;
  const newShots=SINGLE_STEP.shots.slice(shots),events=stepVisualEvents.slice(eventStart);
@@ -193,14 +277,28 @@ drawMonsters=function(){
   if(key){const size=CELL*(m.cfgId==='step_small'?.55:m.cfgId==='step_big'?1.05:.95),shake=m.cfgId==='step_charger'&&ready&&!SINGLE_STEP.bonus?Math.sin(now*.09)*CELL*.025:0;stepDrawMonsterSprite(key,p.x-size/2+shake,p.y-size*.66,size,size,poison);}
   else{const kind=stepEnemyDefinition(m)?.sprite==='ranged'||m.cfgId==='step_mobile'?'ranged':'melee';let frame=SINGLE_STEP.bonus?0:Math.floor(now/180)%3;if(action&&now>=action.at&&now-action.at<240&&['shot','strike'].includes(action.type))frame=3+Math.min(1,Math.floor((now-action.at)/120));if(!(m._stepHitAt>now)&&(m.hitFlash>0||now-m._stepHitAt<120))frame=5;if(!stepTestHooks.drawArenaMonster?.(m,p,now,kind,poison))stepDrawMonsterSprite(kind+frame,p.x-30,p.y-38,60,68,poison);}
   if(m.cfgId==='step_charger'&&action?.type==='charge'&&now>=action.at&&now-action.at<400){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(Math.atan2(action.dir.dy,action.dir.dx));scrapDraw('unit-effects-charge',-CELL*1.375,-CELL*.375,CELL*1.5,CELL*.75);ctx.restore();}
-  drawMonsterHealthPreview(m,p.x-10,p.y+10,20,3);
   if(m.weaponPoison?.appliedAt<=now){
    ctx.save();ctx.fillStyle='#9bea74';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
    ctx.fillText('毒 '+m.weaponPoison.steps,p.x,p.y-20);ctx.restore();
   }
  }
+ for(const m of monsters){
+  drawStepMonsterHealth(m,now);
+  if(m.hp<=0||m.jumperVanished||!m.arenaSlimeSlow&&!m.arenaDelayedMove)continue;
+  const offset=CELL*((m.size||1)-1)/2;
+  const {x,y}=project(m.px+offset,m.py+offset);
+  ctx.save();
+  ctx.fillStyle='#203844';ctx.fillRect(x-9,y-21,18,8);
+  ctx.fillStyle='#dbfaff';ctx.font='bold 6px sans-serif';ctx.textAlign='center';
+  ctx.fillText('减速',x,y-15);ctx.restore();
+ }
+ for(const m of stepHealthDefeats){
+  if((stepHealthTimings.get(m).at(-1)?.at ?? -Infinity)+STEP_HEALTH_FX_DURATION<=now)stepHealthDefeats.delete(m);
+  else if(!monsters.includes(m))drawStepMonsterHealth(m,now);
+ }
+ drawStepBossHealth(now);
  for(const m of monsters)if(m.arenaParasite&&!m.jumperVanished)arenaDrawParasite(m);
- if(STEP_SPIKE_CYCLE[SINGLE_STEP.spikeTurn]==='warning'){
+ if(!stepEnemiesPaused()&&STEP_SPIKE_CYCLE[SINGLE_STEP.spikeTurn]==='warning'){
   for(let col=0;col<COLS;col++)for(let row=0;row<ROWS;row++){
    if(singleStepSpikeAt(col,row)!=='warning')continue;
    const q=cellRect(col,row);
@@ -222,6 +320,35 @@ function stepDrawDodge(now=performance.now()){
  }
 }
 const stepPlayerOriginal=drawPlayer;
+const STEP_HURT_FLASH_MS=290;
+let stepHurtTexture;
+function stepDrawHurtField(age){
+ if(age<0||age>=STEP_HURT_FLASH_MS)return;
+ const image=scrapImages['time-freeze-board'];
+ if(!stepHurtTexture&&image?.naturalWidth){
+  stepHurtTexture=document.createElement('canvas');
+  stepHurtTexture.width=image.naturalWidth;stepHurtTexture.height=image.naturalHeight;
+  const paint=stepHurtTexture.getContext('2d');
+  paint.drawImage(image,0,0);
+  paint.globalCompositeOperation='source-atop';
+  paint.fillStyle='rgba(255,42,58,.82)';
+  paint.fillRect(0,0,stepHurtTexture.width,stepHurtTexture.height);
+ }
+ const strength=1-age/STEP_HURT_FLASH_MS;
+ const x=GAME_W/2,y=GAME_H/2;
+ const edge=ctx.createRadialGradient(x,y,GAME_H*.2,x,y,Math.hypot(x,y));
+ edge.addColorStop(0,'rgba(255,35,53,0.10)');
+ edge.addColorStop(.6,'rgba(242,21,39,0.32)');
+ edge.addColorStop(1,'rgba(239,21,40,0.94)');
+ ctx.save();
+ if(stepHurtTexture){
+  ctx.globalAlpha=.62*strength;
+  ctx.drawImage(stepHurtTexture,FLOOR_L,FLOOR_T,FLOOR_R-FLOOR_L,FLOOR_B-FLOOR_T);
+ }
+ ctx.globalAlpha=strength;
+ ctx.fillStyle=edge;ctx.fillRect(0,0,GAME_W,GAME_H);
+ ctx.restore();
+}
 function stepDrawChargeRing() {
  const trajectory = equippedWeaponTrial('trajectory');
  if (playerStats.hp <= 0 || (trajectory !== 'burstCharge' && trajectory !== 'heavyCharge')) return;
@@ -240,18 +367,25 @@ function stepDrawChargeRing() {
  ctx.restore();
 }
 drawPlayer=function(){
- stepDrawDodge();const now=performance.now(),hurt=stepVisualEvents.filter(e=>e.type==='hurt').at(-1),flash=player.hitFlash;
+ stepDrawDodge();const now=performance.now(),hurt=stepVisualEvents.findLast(e=>e.type==='hurt'),flash=player.hitFlash;
  if(SINGLE_STEP.bonus&&SINGLE_STEP.echo){
   const q=gridToPixel(SINGLE_STEP.echo.col,SINGLE_STEP.echo.row),p=project(q.x,q.y);
   scrapDraw('hero-'+player.facing+'-move1',p.x-19.8,p.y-24,39.6,41.8,.38);
  }
  // 规则即时扣血，受击帧等弹体或冲锋画面到达后播放；不延长输入锁定。
- if(hurt)player.hitFlash=now>=hurt.at&&now<hurt.at+240?1:0;
+ const hurtAge=hurt?now-hurt.at:Infinity;
+ const hurtFlash=hurtAge>=0&&hurtAge<STEP_HURT_FLASH_MS;
+ player.hitFlash=Number(hurtFlash);
+ stepDrawHurtField(hurtAge);
  const recoil=stepVisualEvents.findLast(e=>e.type==='unstable-recoil');
  const age=recoil ? now-recoil.at : -1;
  const shake=age>=0&&age<165 ? Math.sin(age*.15)*(1-age/165)*2.4 : 0;
  ctx.save();
- try{ctx.translate(shake,0);stepPlayerOriginal();}finally{ctx.restore();player.hitFlash=flash;}
+ try{
+  ctx.translate(shake,0);
+  if(hurtFlash)ctx.filter='grayscale(1) sepia(1) saturate(7) hue-rotate(320deg) brightness(1.18)';
+  stepPlayerOriginal({blink:player.invincibleSteps>0&&hurtAge>=STEP_HURT_FLASH_MS});
+ }finally{ctx.restore();player.hitFlash=flash;}
  stepDrawChargeRing();
  for(let i=stepVisualEvents.length-1;i>=0;i--)if(now-stepVisualEvents[i].at>1000)stepVisualEvents.splice(i,1);
 };

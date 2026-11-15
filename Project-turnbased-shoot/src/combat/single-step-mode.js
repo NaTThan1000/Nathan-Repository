@@ -3,8 +3,15 @@
 const SINGLE_STEP={bonus:0,step:0,spikeTurn:0,room:null,plans:new Map(),legacy:new Map(),damaged:false,busy:false,shots:[],error:null};
 const stepOldLoadMonsterDB=loadMonsterDB;
 const STEP_STARTING_HP=10;
+const STEP_BASE_STATS = {attack: 2, range: 4, fireRate: 2};
+const STEP_STARTING_AGILITY = 2;
+Object.assign(playerStats, STEP_BASE_STATS);
 playerStats.hp=playerStats.maxHp=STEP_STARTING_HP;
 scrapNumericHealth=true;
+shieldCapacity=5;
+runStats=newRunStats();
+roomTransitionSpeed=800;
+delayOccupiedBossLadder=true;
 const stepLoadResourceBase=loadResourceDB;
 loadResourceDB=()=>stepLoadResourceBase({singleStep:true});
 keepCombatForBombs=false;
@@ -192,21 +199,31 @@ function singleStepAct(type,dir){
  if(!gameStarted||gameOver||worldMapOpen||transition?.active||floorFadeBusy||SINGLE_STEP.busy)return false;
  if(SINGLE_STEP.room!==currentRoomId)singleStepReset();
  const old={col:player.col,row:player.row},frozen=SINGLE_STEP.bonus>0,hadEnemies=hasMonstersAlive();SINGLE_STEP.damaged=false;const v=DIR_VEC[dir];
+ const required=stepRequiredExtraAction();
+ if(required&&type!==required){
+  stepShowExtraActionOnly(required);
+  return false;
+ }
  stepTestHooks.beginAction?.();
  let extraAction=false,placedBomb;
  if(type==='move'){
-  if(tryWalkIntoDoor(player.col,player.row,dir))return true;
+  if(tryWalkIntoDoor(player.col,player.row,dir)){
+   if(!frozen)stepTestHooks.consumeExtra?.(type);
+   return true;
+  }
   let col=player.col+v.dx,row=player.row+v.dy;
   if(trialPassive('jet')&&currentRoomGrid[col]?.[row]===TILE.PIT&&currentRoomGrid[col+v.dx]?.[row+v.dy]===TILE.FLOOR){col+=v.dx;row+=v.dy;}
   if(isWall(col,row)||monsters.some(m=>isInMonsterFootprint(m,col,row)))return false;
   extraAction=!frozen&&stepTestHooks.consumeExtra?.(type);
   const bomb=bombs.find(b=>b.roomId===currentRoomId&&b.col===col&&b.row===row);if(bomb)pushBomb(bomb,v.dx,v.dy);
   player.col=col;player.row=row;const q=gridToPixel(col,row);player.targetPx=q.x;player.targetPy=q.y;player.animTime=0;player.shootTimer=0;
+  const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
+  if(room?.bossLadderPending)placeBossLadder(room);
  }else if(type==='shoot'){
   const echo=frozen&&SINGLE_STEP.echo;
+  extraAction=!frozen&&stepTestHooks.consumeExtra?.(type);
   const shot=weaponPrepareShot();
   if(shot){
-   extraAction=!frozen&&stepTestHooks.consumeExtra?.(type);
    SINGLE_STEP.error=null;
    SFX.shoot();totalShots++;fireSingleStepWeapon(old,v,shot);
    stepTestHooks.onShot?.(old,v,shot);
@@ -264,8 +281,16 @@ function singleStepAct(type,dir){
   }
   singleStepPickup();updateRoomCombatState();SINGLE_STEP.step++;turnState.turnNumber=SINGLE_STEP.step;
   if(frozen)SINGLE_STEP.bonus=SINGLE_STEP.damaged?0:Math.max(0,SINGLE_STEP.bonus-1);
-  else if(dodged&&!SINGLE_STEP.damaged&&!gameOver&&(hasMonstersAlive()||leftSpike)){SINGLE_STEP.bonus=2;if(trialPassive('echo'))SINGLE_STEP.echo=old;stepTestHooks.onDodge?.(old,avoided);}
-  if(hadEnemies&&!hasMonstersAlive())SINGLE_STEP.bonus=0;
+  else if(dodged&&!SINGLE_STEP.damaged&&!gameOver&&(hasMonstersAlive()||leftSpike)){
+   SINGLE_STEP.bonus=STEP_STARTING_AGILITY;
+   recordRunStat('bulletTime');
+   if(trialPassive('echo'))SINGLE_STEP.echo=old;
+   stepTestHooks.onDodge?.(old,avoided);
+  }
+  if(hadEnemies&&!hasMonstersAlive()){
+   SINGLE_STEP.bonus=0;
+   arenaEffects.moveCredit=arenaEffects.shootCredit=0;
+  }
   if(!SINGLE_STEP.bonus){SINGLE_STEP.echo=null;arenaEffects.avoided.clear();}
   singleStepPlan();
   if(currentRoomGrid[player.col]?.[player.row]===TILE.LADDER){const next=currentFloor.floorNum+1;if(next>Object.keys(FLOOR_CONFIG).length)triggerVictoryScreen();else enterFloor(next);}
@@ -277,15 +302,38 @@ resetTurnAP=function(){historyOpen=false;turnState.phase='player_select';turnSta
 actionHistoryActive=function(){return false;};syncActionHistory=function(){};saveCheckpoint=function(){currentCheckpoint={playerCol:player.col,playerRow:player.row};checkpointMAP=1;checkpointAAP=1;};
 updateDangerForecast=function(){};updateFlyingEyeExclaim=function(){};
 const stepOldDamage=damagePlayer;
-damagePlayer=function(amount,id=null){const hp=playerStats.hp+(playerResources.blueHearts||0);stepOldDamage(amount,id);if(playerStats.hp+(playerResources.blueHearts||0)<hp){SINGLE_STEP.damaged=true;SINGLE_STEP.bonus=0;}};
+damagePlayer=function(amount,id=null){if(!(amount>0))return;const hp=playerStats.hp+(playerResources.blueHearts||0);stepOldDamage(1,id);if(playerStats.hp+(playerResources.blueHearts||0)<hp){SINGLE_STEP.damaged=true;SINGLE_STEP.bonus=0;}};
 const stepOldRoomUpdate=updateRoomCombatState;
-updateRoomCombatState=function(){stepOldRoomUpdate();if(!SINGLE_STEP.busy&&SINGLE_STEP.room!==currentRoomId)singleStepReset();};
+let stepClearedRooms=new WeakSet();
+const stepResetRoomsBase=resetGameToFloor1;
+resetGameToFloor1=function(){
+ stepClearedRooms=new WeakSet();
+ stepResetRoomsBase();
+ const start=currentFloor?.rooms.find(room=>room.id===currentRoomId);
+ if(start)stepClearedRooms.add(start);
+};
+updateRoomCombatState=function(){
+ stepOldRoomUpdate();
+ const room=currentFloor?.rooms.find(r=>r.id===currentRoomId);
+ if(room){
+  if(hasMonstersAlive())stepClearedRooms.delete(room);
+  else stepClearedRooms.add(room);
+ }
+ if(!SINGLE_STEP.busy&&SINGLE_STEP.room!==currentRoomId)singleStepReset();
+};
 const stepOldFinishTransition=finishTransition;
 finishTransition=function(){stepOldFinishTransition();singleStepReset();};
 const stepOldEnterFloor=enterFloor;
 enterFloor=function(n){stepOldEnterFloor(n);singleStepReset();};
 document.removeEventListener('keydown',processHistoryKey);
 document.addEventListener('keydown',e=>{
+ if(stepSettings.open||stepHistoryDialog.open)return;
+ if(e.code==='Space'&&e.target.id==='step-settings-button')return;
+ const help=document.getElementById('help-modal');
+ if(help.classList.contains('open')){
+  if(e.code==='Escape')help.classList.remove('open');
+  return;
+ }
  if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName))return;
  if(!gameStarted||gameOver||document.getElementById('start-menu-modal').classList.contains('show')){handlePlayerKey(e);return;}
  if(e.code==='KeyM'){e.preventDefault();if(!e.repeat)toggleWorldMap();return;}
@@ -297,19 +345,26 @@ document.addEventListener('keydown',e=>{
    else if(e.code==='KeyR'){resetGameToFloor1();showStartMenu();}
 });
 drawReachableOverlay=function(){};
-function singleStepAttackPreview(m){
+function singleStepAttackPreview(m,{ignorePause=false}={}){
+ if(!ignorePause&&stepEnemiesPaused())return null;
  const plan=SINGLE_STEP.plans.get(m.id);
  if(m.hp<=0||!singleStepIsAttackPlan(plan)||(m.jumperVanished&&plan.type!=='legacy-jump'))return null;
  const resolved=singleStepResolvePlan(m,plan,{preview:true});
  if(resolved.type==='legacy-move' && !resolved.path?.some(p=>p.pushed?.length||singleStepLegal(m,p.col,p.row)))return null;
  return singleStepIsAttackPlan(resolved)?resolved:null;
 }
+function stepRequiredExtraAction(){
+ if(SINGLE_STEP.bonus)return null;
+ if(arenaEffects.moveCredit)return 'move';
+ return arenaEffects.shootCredit?'shoot':null;
+}
+function stepEnemiesPaused(){return Boolean(SINGLE_STEP.bonus||stepRequiredExtraAction());}
 function singleStepIsAttackPlan(plan){
  return stepTestHooks.isArenaAttack?.(plan) || ['shot','fan','strike','charge','blast','legacy-attack','legacy-charge','legacy-move'].includes(plan?.type)
   || (plan?.type==='legacy-jump'&&plan.cells.length>0);
 }
 drawDangerOverlay=function(){
- if(!gameStarted||worldMapOpen)return;
+ if(!gameStarted||worldMapOpen||stepEnemiesPaused())return;
  const seen=new Set(),yellow=[];
  const danger=monsters.flatMap(m=>{
   const plan=singleStepAttackPreview(m);
@@ -364,17 +419,37 @@ drawBullets=function(){
 const stepOldHUD=scrapUpdateHUD;
 scrapUpdateHUD=function(){
  stepOldHUD();
- const ap=document.getElementById('scrap-ap'),mp=document.getElementById('scrap-mp');
- if(ap)ap.textContent=SINGLE_STEP.bonus?'额外行动 '+SINGLE_STEP.bonus:'单步行动';
- if(mp)mp.textContent=SINGLE_STEP.bonus?'子弹时间':'移动 / 射击';
+ for(const [id,value] of [['fire-rate',playerStats.fireRate],['agility',STEP_STARTING_AGILITY],['luck',playerStats.luck]]){
+  const stat=document.getElementById('step-'+id),text=String(value);
+  if(stat.textContent!==text)stat.textContent=text;
+ }
+ const benefits=[['额外行动',SINGLE_STEP.bonus],['额外移动',arenaEffects.moveCredit],['额外射击',arenaEffects.shootCredit]];
+ for(const [label,count] of benefits){
+  const row=stepBenefitRows.get(label),number=row.querySelector('strong'),value=String(count);
+  row.hidden=!count;
+  if(number.textContent===value)continue;
+  number.textContent=value;
+  number.getAnimations().forEach(animation=>animation.cancel());
+  if(count)number.animate([{transform:'scale(1.6)'},{transform:'scale(1)'}],{duration:300,easing:'ease-out'});
+ }
+ stepBenefit.classList.toggle('active',benefits.some(([,count])=>count>0));
  const phase=document.getElementById('scrap-phase');
  if(phase)phase.textContent=SINGLE_STEP.bonus?'子弹时间':'自由思考';
- const rewind=document.getElementById('ui-rewind-info');
- if(rewind)rewind.style.display='none';
  const range=document.getElementById('scrap-range');
- const displayedRange=String(equippedWeaponTrial('body')==='shotgun'?weaponShotgunRange():playerStats.range);
+ const displayedRange=String(effectiveSingleStepRange(equippedWeaponTrial('body'), equippedWeaponTrial('trajectory')));
  if(range&&range.textContent!==displayedRange)range.textContent=displayedRange;
 };
+function stepShowExtraActionOnly(action){
+ const text=action==='move'?'只能移动！':'只能射击！';
+ if(!damageNumbers.some(number=>number.text===text)){
+  damageNumbers.push({x:player.px,y:player.py-17,text,life:.65,maxLife:.65,vx:0,vy:-12,color:'#ffdc92'});
+ }
+ stepBenefit.getAnimations().forEach(animation=>animation.cancel());
+ stepBenefit.animate([
+  {transform:'translateX(0)'},{transform:'translateX(-5px)'},{transform:'translateX(5px)'},
+  {transform:'translateX(-3px)'},{transform:'translateX(3px)'},{transform:'translateX(0)'},
+ ],280);
+}
 const stepOldTextOverlay=updateTextOverlay;
 updateTextOverlay=function(){stepOldTextOverlay();for(const badge of document.querySelectorAll('.txt-aap'))badge.style.display='none';};
 updateActionBar=function(){const bar=document.getElementById('action-bar');bar.textContent=SINGLE_STEP.error||'WASD移动一格 · 方向键射击 · E炸弹 · M地图'+(SINGLE_STEP.bonus?' · 子弹时间剩余 '+SINGLE_STEP.bonus+' 次':'');};
@@ -385,21 +460,159 @@ gameLoop=function(timestamp){
  if(gameStarted&&!gameOver&&!worldMapOpen){updateMove(dt,singleStepMoveSpeed());animateMonsters(dt);updateParticles(dt);updateDamageNumbers(dt);player.shootTimer=Math.max(0,player.shootTimer-dt);player.hitFlash=Math.max(0,player.hitFlash-dt);for(const m of monsters){m.hitFlash=Math.max(0,(m.hitFlash||0)-dt);m.jumpAnimTimer=Math.max(0,(m.jumpAnimTimer||0)-dt);}battleStartAnim.active=false;updateTextOverlay();}
  render();requestAnimationFrame(gameLoop);
 };
-const stepHelpSummaries=[...document.querySelectorAll('p,li,small,.help-text')].filter(el=>
- el.childElementCount===0&&/Esc.*(回溯|重置)|空格.*(回合|结束)|Space.*回合/.test(el.textContent));
-const stepHelpRows=[...document.querySelectorAll('.help-row')];
-function updateStepCombatHelp(variants=false){
- const dodge=variants?'闪避红格可获得2次额外行动':'安全闪避可获得2次额外行动';
- const shoot=variants?'射击命中可打断黄招':'瞬发射击一次';
- for(const el of stepHelpSummaries)el.textContent='WASD移动一格，方向键射击。'+(variants?'黄招可打断，':'')+dodge+'。E炸弹，M地图，R重新开始。';
- for(const row of stepHelpRows){
-  const keys=row.querySelector('.help-keys')?.textContent||'',desc=row.querySelector('.help-desc');
-  if(!desc)continue;
-  if(/Space/.test(keys))row.style.display='none';
-  else if(/Esc/.test(keys))desc.textContent='关闭地图';
-  else if(/[↑↓←→]/.test(keys))desc.textContent=shoot+'。普通行动推进一步。';
-  else if(/W|A|S|D/.test(keys))desc.textContent='移动一格。'+dodge+'。';
- }
+function updateStepCombatHelp(variants = false) {
+  const hasSidebar = document.getElementById('floor-map-sidebar')?.hidden === false;
+  const controls = [
+    ['WASD', '移动一格'],
+    ['方向键', '朝对应方向射击'],
+    ...(variants ? [['黄格', '射击直接命中出招的敌人，可打断这次攻击', '#ffcc44']] : []),
+    ['红格', '从会被击中的位置躲开且这一步没受伤，可获得两次额外行动', '#ff7979'],
+    ['E', '在脚下放置炸弹，之后的普通行动推进倒计时'],
+    ['M / Esc', hasSidebar ? '右侧显示小地图。M 放大，Esc 关闭' : 'M 打开地图，Esc 关闭'],
+    ['R', hasSidebar ? '回到开始界面，重新开局' : '重新开始测试'],
+  ];
+  const subtitle = document.getElementById('start-menu-subtitle');
+  const intro = document.getElementById('start-menu-controls');
+  const help = document.getElementById('help-details');
+  const step = '每次普通行动推进一步，敌人随之行动。子弹时间内，敌人暂停行动。';
+  const notes = hasSidebar
+    ? [
+        '用 WASD 走到门前，再朝门的方向走即可换房。清空首领房后，踩梯子进入下一层。最后一层的梯子通往结算。',
+        '踩上道具和资源自动拾取。金币足够时，踩上商店商品会直接购买。',
+        '小地图上已进入的房间显示亮色，隔一道门相连的未进入房间显示暗色。非战斗时可点击已清空的房间快速移动。',
+      ]
+    : ['踩上道具和资源自动拾取。'];
+  if (subtitle) subtitle.textContent = '单步射击 · 通关 ' + Object.keys(FLOOR_CONFIG).length + ' 层地牢';
+  if (intro) {
+    const goal = hasSidebar ? '清空首领房后，踩梯子继续前进。' : '';
+    intro.innerHTML = '<p class="ctrl-desc">' + step + goal + '</p>' + controls.map(([key, desc, color]) =>
+      '<div class="ctrl-row"><span class="ctrl-key"' + (color ? ' style="color:' + color + '"' : '') +
+      '>' + key + '</span><span class="ctrl-desc">' + desc + '</span></div>'
+    ).join('');
+  }
+  if (help) {
+    help.innerHTML = controls.map(([key, desc, color]) =>
+      '<div class="help-row"><span class="help-key"' + (color ? ' style="color:' + color + '"' : '') +
+      '>' + key + '</span><span class="help-desc">' + desc + '</span></div>'
+    ).join('') + '<div class="help-note">' + [step, ...notes].join('<br>') + '</div>';
+  }
 }
 const stepEnd=document.getElementById('scrap-end');if(stepEnd)stepEnd.style.display='none';
+document.body.classList.add('single-step-ui');
+for(const id of ['stat-blue','vstat-blue'])document.getElementById(id).previousSibling.textContent='剩余护盾 ';
+const stepBenefit=document.createElement('div');
+const stepBenefitRows=new Map();
+stepBenefit.id='step-benefit';
+stepBenefit.setAttribute('aria-live','polite');
+for(const label of ['额外行动','额外移动','额外射击']){
+ const row=document.createElement('span');
+ row.hidden=true;
+ row.innerHTML=label+' <strong></strong> 次';
+ stepBenefitRows.set(label,row);
+ stepBenefit.append(row);
+}
+document.getElementById('scrap-footer').prepend(stepBenefit);
+const stepStats=document.querySelector('.scrap-stats');
+document.querySelector('.scrap-state').innerHTML='<div>回合 <span id="scrap-phase" class="scrap-phase"></span></div><span id="scrap-turn"></span>';
+const stepHUDControls=document.createElement('div');
+stepHUDControls.className='step-hud-controls';
+stepHUDControls.innerHTML='<button type="button" id="step-settings-button" aria-haspopup="dialog" aria-controls="step-settings">设置</button>';
+const stepSettings=document.createElement('dialog');
+stepSettings.id='step-settings';
+stepSettings.setAttribute('aria-labelledby','step-settings-title');
+stepSettings.innerHTML='<h2 id="step-settings-title">设置</h2><div class="step-settings-options"></div><form method="dialog"><button type="submit">返回游戏</button></form>';
+const sound=document.getElementById('sound-btn');
+const refreshSoundLabel=()=>{sound.textContent=SFX.isMuted()?'音效 · 关':'音效 · 开';};
+sound.addEventListener('click',refreshSoundLabel);
+const helpButton=document.getElementById('scrap-help');
+helpButton.addEventListener('click',()=>{
+ stepSettings.close();
+ document.getElementById('help-close').focus();
+});
+const restart=document.createElement('button');
+restart.type='button';
+restart.textContent='重新开始';
+restart.onclick=()=>{
+ stepSettings.close();
+ if(stepTestHooks.restartRun)stepTestHooks.restartRun();
+ else {resetGameToFloor1();startGameFromMenu();}
+};
+stepSettings.querySelector('.step-settings-options').append(sound,helpButton,restart);
+document.body.append(stepSettings);
+stepHUDControls.firstElementChild.onclick=()=>{refreshSoundLabel();stepSettings.showModal();};
+document.getElementById('scrap-hud').append(stepHUDControls);
+document.getElementById('scrap-tools').remove();
+for(const [id,label] of [['scrap-atk','攻击力'],['scrap-range','射程']]){
+ const name=document.createElement('span');
+ name.className='scrap-stat-name';
+ name.textContent=label;
+ document.getElementById(id).before(name);
+}
+for(const [id,label,icon] of [['fire-rate','射速','ap'],['agility','敏捷','mp'],['luck','幸运',null]]){
+ const row=document.createElement('div');
+ row.className='scrap-stat';
+ row.innerHTML=(icon?scrapIcon(icon):'<span class="step-luck-icon" aria-hidden="true">✦</span>')+
+  '<span class="scrap-stat-name">'+label+'</span><span id="step-'+id+'"></span>';
+ stepStats.append(row);
+}
+function stepMoveSidebarControls(sidebar){
+ const resources=document.getElementById('scrap-res'),hud=document.getElementById('scrap-hud');
+ const placeResources=width=>{
+  const fits=width>=850;
+  hud.classList.toggle('step-hud-resources',fits);
+  const destination=fits?hud:sidebar;
+  if(resources.parentElement!==destination)destination.prepend(resources);
+ };
+ const column=document.getElementById('main-column');
+ placeResources(column.clientWidth);
+ const observer=new ResizeObserver(([entry])=>placeResources(entry.contentRect.width));
+ observer.observe(column);
+ sidebar.append(document.querySelector('.scrap-items'));
+}
+const stepSidebar=document.getElementById('floor-map-sidebar');
+if(!stepSidebar.hidden){
+ const heading=document.createElement('button');
+ heading.id='scrap-floor';
+ heading.type='button';
+ heading.onclick=()=>{if(gameStarted&&!gameOver&&!transition)toggleWorldMap();};
+ document.getElementById('scrap-floor').remove();
+ stepSidebar.querySelector('h2').replaceWith(heading);
+ stepMoveSidebarControls(stepSidebar);
+ document.getElementById('minimap').addEventListener('click',event=>{
+  const surface=event.currentTarget,bounds=surface.getBoundingClientRect();
+  const x=(event.clientX-bounds.left)*surface.width/bounds.width;
+  const y=(event.clientY-bounds.top)*surface.height/bounds.height;
+  const hit=floorMapDrawState.get(surface)?.hitBoxes.find(box=>
+   Math.abs(box.x-x)<=box.size/2&&Math.abs(box.y-y)<=box.size/2);
+  if(hit)stepFastTravel(hit.id);
+ });
+}
+function stepFastTravel(id){
+ if(!gameStarted||gameOver||transition||floorFadeBusy||worldMapOpen||inCombat||hasMonstersAlive()||
+    stepRequiredExtraAction()||
+    document.getElementById('help-modal').classList.contains('open')||player.targetPx!==null||performance.now()<stepInputUntil)return false;
+ const room=currentFloor.rooms.find(r=>String(r.id)===id);
+ if(!room||room.id===currentRoomId||room.locked||!visitedRooms.has(room.id)||!stepClearedRooms.has(room))return false;
+ const direction=stepTravelArrivalDirection(room.id);
+ if(!direction)return false;
+ const entry=roomEntryPosition(room,direction);
+ if(!SINGLE_STEP.bonus)stepTestHooks.consumeExtra?.('move');
+ transition={active:true,fast:true,elapsed:0,toRoom:room.id,playerEntryCol:entry.col,playerEntryRow:entry.row};
+ return true;
+}
+function stepTravelArrivalDirection(targetId){
+ const byId=new Map(currentFloor.rooms.map(room=>[room.id,room]));
+ const seen=new Set([currentRoomId]),queue=[byId.get(currentRoomId)];
+ for(const room of queue){
+  for(const [direction,door] of Object.entries(room.doors)){
+   if(!door?.open||seen.has(door.targetRoomId)||!visitedRooms.has(door.targetRoomId))continue;
+   const next=byId.get(door.targetRoomId);
+   if(!next||next.locked||!stepClearedRooms.has(next))continue;
+   if(next.id===targetId)return direction;
+   seen.add(next.id);
+   queue.push(next);
+  }
+ }
+ return null;
+}
 updateStepCombatHelp();

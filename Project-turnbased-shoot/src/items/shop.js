@@ -112,6 +112,7 @@ function tryBuyShopItem(col, row) {
 
   // 扣除金币
   playerResources.coins -= slot.price;
+  recordRunStat('coinsSpent',slot.price);
   SFX.buy();
 
   // 获得商品

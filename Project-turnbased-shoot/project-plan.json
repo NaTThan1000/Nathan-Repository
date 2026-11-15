@@ -20,9 +20,10 @@
     "C": {
       "status": "pending",
       "history": [
-        "初始任务顺序为实施建议，可根据实际试玩调整。"
+        "初始任务顺序为实施建议，可根据实际试玩调整。",
+        "2026-11-15 按确认的六项任务重排，试玩集中记录，六层支持和指定刷怪是关卡接入的前置。"
       ],
-      "summary": "已有三层主试玩包。当前验证战斗、探索、整顿与构筑能否连成有意思的一局。"
+      "summary": "在已有三层主包上确定角色属性，做完首轮六层 Demo，验证战斗、探索、整顿和构筑能否连成有意思的一局。"
     },
     "D": {
       "status": "pending",
@@ -76,146 +77,33 @@
       "id": "C1",
       "stage": "C",
       "parent": "",
-      "title": "验收现有战斗内容",
-      "type": "outcome",
+      "title": "确定角色属性",
+      "type": "design",
       "status": "todo",
       "priority": "P1",
       "order": 100,
       "required": true,
-      "depends": [
-        "B1"
-      ],
-      "acceptance": "",
-      "content": "复测普通房、代表性构筑和两类现有 Boss。逐项留下可复现的预告、闪避反攻、伤害与补给记录，并标出妨碍整局试玩的问题。",
-      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
-      "note": "",
-      "history": []
-    },
-    {
-      "id": "C1-1",
-      "stage": "C",
-      "parent": "C1",
-      "title": "普通房战斗复测",
-      "type": "playtest",
-      "status": "todo",
-      "priority": "P1",
-      "order": 101,
-      "required": true,
-      "depends": [
-        "B1"
-      ],
-      "acceptance": "按房间记录预告、闪避反攻、掉血和补给。交付带可复现场景的结论。",
-      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
-      "note": "",
-      "history": []
-    },
-    {
-      "id": "C1-2",
-      "stage": "C",
-      "parent": "C1",
-      "title": "代表性构筑组合复测",
-      "type": "playtest",
-      "status": "todo",
-      "priority": "P1",
-      "order": 102,
-      "required": true,
-      "depends": [
-        "B1"
-      ],
-      "acceptance": "记录组合如何改变打法，包含爆炸自伤和地形取舍。交付可复测的组合结果。",
-      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
-      "note": "",
-      "history": []
-    },
-    {
-      "id": "C1-3",
-      "stage": "C",
-      "parent": "C1",
-      "title": "现有 Boss 遭遇复测",
-      "type": "playtest",
-      "status": "todo",
-      "priority": "P1",
-      "order": 103,
-      "required": true,
-      "depends": [
-        "B1"
-      ],
-      "acceptance": "两类 Boss 各走正常入口，记录招式、预告、应对和推进，确认首轮适用性。",
-      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
-      "note": "",
+      "depends": [],
+      "acceptance": "你确认属性清单和首轮开局规则，主包按确认结果运行。",
+      "content": "你和我一起定角色有哪些属性、各自影响什么以及首轮开局值。我把确认的规则改进主包。\n\n一起讨论开局生命、受伤后是否免伤及持续几步、移速和射速是否保留，以及敏捷是否决定子弹时间的额外行动次数。蓄力次数涉及属性时一并讨论。\n\n完成条件：你确认属性清单和首轮开局规则，主包按确认结果运行。",
+      "source": "Documents/turnbased-shoot-memory.md#2026-11-15",
+      "note": "2026-11-15 主包和自定义场已接入六项主属性，开局生命／攻击／射程／射速／敏捷／幸运为 10／2／4／2／2／0。待试玩复核和平衡调整，最终免伤步数与蓄力联动仍待讨论。",
       "history": []
     },
     {
       "id": "C2",
       "stage": "C",
       "parent": "",
-      "title": "完成首轮整局设计",
-      "type": "outcome",
+      "title": "让编辑器和主包支持六层",
+      "type": "code",
       "status": "todo",
       "priority": "P1",
       "order": 200,
       "required": true,
-      "depends": [
-        "C1"
-      ],
-      "acceptance": "",
-      "content": "定出首轮整局的楼层路线、固定遭遇和奖励节奏。交付楼层安排、遭遇搭配和资源用途表，并确认哪些内容可复用、哪些需要制作。",
-      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
-      "note": "",
-      "history": []
-    },
-    {
-      "id": "C2-1",
-      "stage": "C",
-      "parent": "C2",
-      "title": "编排楼层路线与战斗、整顿节奏",
-      "type": "level",
-      "status": "todo",
-      "priority": "P1",
-      "order": 201,
-      "required": true,
-      "depends": [
-        "C1"
-      ],
-      "acceptance": "按楼层交付路线、战斗与整顿节奏、商店和宝物房、钥匙门、奖励支路与 Boss 入口。固定房的地格、阵容和站位由 C24 交付。",
-      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
-      "note": "",
-      "history": []
-    },
-    {
-      "id": "C2-2",
-      "stage": "C",
-      "parent": "C2",
-      "title": "编排奖励与构筑成长节奏",
-      "type": "balance",
-      "status": "todo",
-      "priority": "P1",
-      "order": 202,
-      "required": true,
-      "depends": [
-        "C1",
-        "C2-5"
-      ],
-      "acceptance": "交付按层或整局分段的获取计划，明确资源与道具的数量区间、出现频率、来源、必给和随机比例、探索加成及消费机会。明确历史上探索额外 1～2 件的计量范围，按 C25 的资源方案配置。",
-      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
-      "note": "",
-      "history": []
-    },
-    {
-      "id": "C2-3",
-      "stage": "C",
-      "parent": "C2",
-      "title": "盘点内容并确认首轮规模",
-      "type": "design",
-      "status": "todo",
-      "priority": "P1",
-      "order": 203,
-      "required": true,
-      "depends": [
-        "C1"
-      ],
-      "acceptance": "按楼层盘点可复用和需制作内容，估算六层成本，确认房间数及行动和出生点的复测要求。",
-      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "depends": [],
+      "acceptance": "用六层配置验证第 4～6 层可以编辑、导出、加载和游玩，第六层正常通关，重开回到第一层并重置六层的本局状态。",
+      "content": "我负责打通六层的编辑、导出、加载、通关和重开。\n\n完成条件：用六层配置验证第 4～6 层可以编辑、导出、加载和游玩，第六层正常通关，重开回到第一层并重置六层的本局状态。",
+      "source": "Documents/turnbased-shoot-gdd.md#设计总览",
       "note": "",
       "history": []
     },
@@ -223,75 +111,16 @@
       "id": "C3",
       "stage": "C",
       "parent": "",
-      "title": "制作首轮整局",
-      "type": "outcome",
+      "title": "让战斗房按指定阵容和站位刷怪",
+      "type": "code",
       "status": "todo",
       "priority": "P1",
       "order": 300,
       "required": true,
-      "depends": [
-        "C2"
-      ],
-      "acceptance": "",
-      "content": "把首轮楼层、固定遭遇和奖励接成一个可玩的构建。先在代表样段验证，再接其余楼层，复测从开局到失败、通关和重开的路径。",
-      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
-      "note": "",
-      "history": []
-    },
-    {
-      "id": "C3-1",
-      "stage": "C",
-      "parent": "C3",
-      "title": "制作一层代表样段",
-      "type": "level",
-      "status": "todo",
-      "priority": "P1",
-      "order": 301,
-      "required": true,
-      "depends": [
-        "C2",
-        "C3-4"
-      ],
-      "acceptance": "按房间完成地形、阵容、站位与奖励，从入口连玩至 Boss 和离开。",
-      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
-      "note": "",
-      "history": []
-    },
-    {
-      "id": "C3-2",
-      "stage": "C",
-      "parent": "C3",
-      "title": "制作其余约定楼层",
-      "type": "level",
-      "status": "todo",
-      "priority": "P1",
-      "order": 302,
-      "required": true,
-      "depends": [
-        "C2",
-        "C3-1"
-      ],
-      "acceptance": "逐层接入地形、阵容、站位、奖励与推进，按层记录试玩。",
-      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
-      "note": "",
-      "history": []
-    },
-    {
-      "id": "C3-3",
-      "stage": "C",
-      "parent": "C3",
-      "title": "整合并验证首轮单局包",
-      "type": "delivery",
-      "status": "todo",
-      "priority": "P1",
-      "order": 303,
-      "required": true,
-      "depends": [
-        "C2",
-        "C3-2"
-      ],
-      "acceptance": "检查开局、进出房、跨层、失败、通关和重开，交付集中试玩包。",
-      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "depends": [],
+      "acceptance": "从主包正常进入一个已配置的房间，核对阵容和合法站位。敌人出招、随机掉落和商店货物照常随机。",
+      "content": "我让首轮主包的战斗房能指定刷哪些怪、各站在哪一格。\n\n完成条件：从主包正常进入一个已配置的房间，核对阵容和合法站位。敌人出招、随机掉落和商店货物照常随机。",
+      "source": "Documents/turnbased-shoot-gdd.md#房间与探索",
       "note": "",
       "history": []
     },
@@ -299,37 +128,54 @@
       "id": "C4",
       "stage": "C",
       "parent": "",
-      "title": "验收完整单局",
-      "type": "outcome",
+      "title": "做完六层关卡",
+      "type": "level",
       "status": "todo",
       "priority": "P1",
       "order": 400,
       "required": true,
       "depends": [
+        "C2",
         "C3"
       ],
-      "acceptance": "",
-      "content": "用完整单局检验战斗、探索、整顿与构筑能否连起来。记录试玩版本、实际用时和六项试玩标准的结果，确认整局结论和需要返工的事项。",
-      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
+      "acceptance": "从第一层走到第六层，检查清房、开门和梯子能正常推进。",
+      "content": "我复用前三层能用的地图和怪物，配置六层战斗房的阵容和站位，补齐第 4～6 层房间和 Boss 遭遇。需要取舍时由你确认。\n\n清房检查一并覆盖最后一怪分裂、Boss 死后还有召唤物，以及炸弹或持续伤害击杀最后一怪。核对奖励和梯子只生成一次。路线和房间可以先设计，接入主包时使用六层支持和指定刷怪。\n\n完成条件：从第一层走到第六层，检查清房、开门和梯子能正常推进。",
+      "source": "Documents/turnbased-shoot-gdd.md#房间与探索",
       "note": "",
       "history": []
     },
     {
-      "id": "C4-1",
+      "id": "C5",
       "stage": "C",
-      "parent": "C4",
-      "title": "完成整局体验验证",
+      "parent": "",
+      "title": "配置六层的奖励和补给",
+      "type": "balance",
+      "status": "todo",
+      "priority": "P1",
+      "order": 500,
+      "required": true,
+      "depends": [],
+      "acceptance": "六层的奖励按配置发放，核对指定道具的位置、随机奖池，以及回血的来源和数量。",
+      "content": "我和你一起定各处必给、随机或指定的奖励，然后我把掉落和回血补给配到房间里。\n\n沿用现有 60 件道具和各项资源的用途。宝物房和 Boss 保留必给道具规则，奖励随对应房间确定逐批配置。\n\n完成条件：六层的奖励按配置发放，核对指定道具的位置、随机奖池，以及回血的来源和数量。",
+      "source": "Documents/turnbased-shoot-gdd.md#局内资源掉落与商店",
+      "note": "",
+      "history": []
+    },
+    {
+      "id": "C6",
+      "stage": "C",
+      "parent": "",
+      "title": "试玩",
       "type": "playtest",
       "status": "todo",
       "priority": "P1",
-      "order": 401,
+      "order": 600,
       "required": true,
-      "depends": [
-        "C3"
-      ],
-      "acceptance": "记录版本、实际时长和六项试玩标准，由用户确认阶段结论或返工项。",
-      "source": "Documents/turnbased-shoot-gdd.md#单局与验证",
-      "note": "",
+      "depends": [],
+      "acceptance": "用实际六层包判断整局体验，记录用时和六项试玩标准，由你确认 C 阶段通过或需要返工。",
+      "content": "你打开主试玩包按平时的方式玩，告诉我具体遇到了什么。我负责复现、排查，把你确认要改的事列成具体任务。\n\n开发中随时可以试玩。留意预告看不看得懂、闪避后能不能反打、回血够不够、绕路奖励值不值、道具组合有没有改变打法，以及 Boss 打完能不能顺利推进。\n\n完成条件：用实际六层包判断整局体验，记录用时和六项试玩标准，由你确认 C 阶段通过或需要返工。",
+      "source": "Documents/turnbased-shoot-gdd.md#六项试玩标准",
+      "note": "2026-11-16 用户计划先验收当前三层包。重点看射程和多发节奏、伤害和护盾提示、清房后额外行动、地图快移和结算历史。六层整局验收仍按本任务完成条件。",
       "history": []
     },
     {
@@ -343,7 +189,7 @@
       "order": 100,
       "required": true,
       "depends": [
-        "C4"
+        "C6"
       ],
       "acceptance": "",
       "content": "定下正式版范围、目标平台和工程起点。按批列出要制作及沿用的内容，确认后置项和交付渠道，并留下一份能打包、能恢复的基线版本。",
@@ -362,7 +208,7 @@
       "order": 101,
       "required": true,
       "depends": [
-        "C4"
+        "C6"
       ],
       "acceptance": "逐批确认正式内容、验收、可复用成果、后置项和交付渠道。评审计划里的后置任务，纳入发布范围的项目转为必要任务，并补齐设计、实现、测试及整合依赖。",
       "source": "Documents/PROJECTS.md",
@@ -380,7 +226,7 @@
       "order": 102,
       "required": true,
       "depends": [
-        "C4"
+        "C6"
       ],
       "acceptance": "核对维护、输入和打包，必要时验证迁移样段，交付可恢复的起始版本。",
       "source": "Documents/PROJECTS.md",
@@ -621,9 +467,9 @@
         "D1",
         "D4-2"
       ],
-      "acceptance": "验证首场战斗、危险识别、地图、拾取、商店与结束界面的实际理解。",
+      "acceptance": "验证首场战斗、危险识别、地图、拾取和商店是否好懂。设计并接入正式版的失败与通关界面，确认各自显示哪些结果、玩家能带走哪些奖励，以及从哪里重开。",
       "source": "Documents/PROJECTS.md",
-      "note": "",
+      "note": "2026-11-15 试玩包已接入五项属性框、探索地图、设置、通关／失败统计及按版本时间分组的本地历史，自动回归通过。正式界面体验和局外奖励仍待验收或设计。",
       "history": []
     },
     {
@@ -834,61 +680,6 @@
       "history": []
     },
     {
-      "id": "C2-4",
-      "stage": "C",
-      "parent": "C2",
-      "type": "level",
-      "title": "设计首批固定战斗房",
-      "acceptance": "逐房交付遭遇表：玩家要解决的问题、地格和障碍、怪物与双方起点、预期安全路线。用代表房验证换布局确实改变行动。",
-      "source": "Documents/turnbased-shoot-gdd.md#房间与探索",
-      "depends": [
-        "C2-1",
-        "C2-3"
-      ],
-      "status": "todo",
-      "priority": "P1",
-      "order": 204,
-      "required": true,
-      "history": [],
-      "note": ""
-    },
-    {
-      "id": "C2-5",
-      "stage": "C",
-      "parent": "C2",
-      "type": "balance",
-      "title": "设计首轮资源种类与用途",
-      "acceptance": "交付红心、蓝心、金币、钥匙、炸弹等资源的保留或调整方案，明确每项的用途、来源、消耗出口和首轮配置范围。",
-      "source": "Documents/turnbased-shoot-memory.md#2026-11-08",
-      "depends": [
-        "C1"
-      ],
-      "status": "todo",
-      "priority": "P1",
-      "order": 205,
-      "required": true,
-      "history": [],
-      "note": ""
-    },
-    {
-      "id": "C3-4",
-      "stage": "C",
-      "parent": "C3",
-      "type": "code",
-      "title": "接通固定遭遇配置与正规入口",
-      "acceptance": "核对配置能力，有缺口则实现。主包能加载指定房间、阵容和初始站位，重复开局可复现；验收合法出生、清房、门和跨层。",
-      "source": "Documents/turnbased-shoot-gdd.md#房间与探索",
-      "depends": [
-        "C2"
-      ],
-      "status": "todo",
-      "priority": "P1",
-      "order": 304,
-      "required": true,
-      "history": [],
-      "note": ""
-    },
-    {
       "id": "D2-5",
       "stage": "D",
       "parent": "D2",
@@ -1026,7 +817,7 @@
       "source": "Documents/turnbased-shoot-gdd.md#房间与探索",
       "depends": [
         "D1",
-        "C4"
+        "C6"
       ],
       "status": "deferred",
       "priority": "P2",
@@ -1045,7 +836,7 @@
       "source": "Documents/turnbased-shoot-gdd.md#房间与探索",
       "depends": [
         "D1",
-        "C4",
+        "C6",
         "D3-1"
       ],
       "status": "deferred",
@@ -1065,7 +856,7 @@
       "source": "Documents/turnbased-shoot-gdd.md#怪物行为",
       "depends": [
         "D1",
-        "C1-3"
+        "C6"
       ],
       "status": "deferred",
       "priority": "P2",
@@ -1103,7 +894,7 @@
       "source": "Documents/PROJECTS.md#工程入口与项目约定",
       "depends": [
         "D1-2",
-        "C3-4"
+        "C3"
       ],
       "status": "todo",
       "priority": "P1",
@@ -1158,7 +949,7 @@
       "source": "https://learn.microsoft.com/en-us/xbox/accessibility/guidelines",
       "depends": [
         "D4-1",
-        "C1-1"
+        "C6"
       ],
       "status": "todo",
       "priority": "P1",

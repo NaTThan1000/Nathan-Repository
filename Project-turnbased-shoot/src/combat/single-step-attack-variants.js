@@ -117,9 +117,11 @@ stepTestHooks.nextEnemyPlan = function(m,plan) {
 };
 
 stepTestHooks.onDirectWeaponHit = function(m,at) {
-  if (!stepAttackVariantsEnabled || m.hp<=0 || singleStepAttackPreview(m)?.attackColor!=='yellow') return;
+  if (!stepAttackVariantsEnabled || SINGLE_STEP.bonus || arenaEffects.freeAction ||
+      m.hp<=0 || singleStepAttackPreview(m,{ignorePause:true})?.attackColor!=='yellow') return;
   delete m.arenaDelayedMove;
   SINGLE_STEP.plans.set(m.id,{type:'interrupted',cells:[],attackColor:'yellow'});
+  recordRunStat('interrupts');
   damageNumbers.push({x:m.px,y:m.py-12,text:'打断',life:.65,maxLife:.65,showAt:at,vx:0,vy:-14,color:'#ffe382'});
 };
 

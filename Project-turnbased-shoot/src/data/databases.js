@@ -139,6 +139,25 @@ async function loadResourceDB({singleStep=false}={}) {
           const base=RES_DROP_TABLES[id];
           RES_DROP_TABLES[id]={...base,table:{...base.table,...weights}};
         }
+        for (const [half,whole] of [['heart_half','heart_full'],['blue_heart_half','blue_heart_full']]) {
+          delete RESOURCE_DB[half];
+          for (const {table} of Object.values(RES_DROP_TABLES)) {
+            if (!Object.hasOwn(table, half)) continue;
+            const weight = table[half] / 2;
+            table[whole] = (table[whole] ?? 0) + weight;
+            table.none = (table.none ?? 0) + weight;
+            delete table[half];
+          }
+        }
+        for (const cfg of Object.values(RESOURCE_DB)) {
+          if (cfg.type === 'heart') {
+            cfg.name = cfg.heal === 1 ? '医疗包' : '大型医疗包';
+            cfg.desc = '恢复 '+cfg.heal+' 点生命值';
+          } else if (cfg.type === 'blue_heart') {
+            cfg.name = cfg.amount === 1 ? '护盾模块' : '双层护盾模块';
+            cfg.desc = '获得 '+cfg.amount+' 点护盾，受伤时优先扣除';
+          }
+        }
       }
       RES_LIMITS = data._limits || { coinMax: 99, bombMax: 99, keyMax: 99 };
       console.log('✅ 已加载资源数据库 (' + Object.keys(RESOURCE_DB).length + ' 种资源)');

@@ -231,21 +231,6 @@
   }
   #help-btn:hover { border-color: #88aaff; color: #aaccff; }
 
-  /* ===== 小地图 ===== */
-  #minimap {
-    position: absolute;
-    bottom: 6px;
-    right: 6px;
-    width: 100px;
-    height: 80px;
-    border: 2px solid #3a3020;
-    background: rgba(10,10,15,0.85);
-    image-rendering: pixelated;
-    image-rendering: crisp-edges;
-    pointer-events: none;
-    z-index: 10;
-  }
-
   #game-container {
     position: relative;
     border: 4px solid #3a3020;
@@ -608,6 +593,72 @@
     color: #ffcc44;
     font-weight: bold;
   }
+  .settlement-overlay .overlay-box {
+    box-sizing: border-box;
+    width: min(94vw, 600px);
+    max-width: none;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 20px clamp(12px, 4vw, 28px);
+  }
+  .settlement-overlay .overlay-stats { margin: 12px 0; }
+  .settlement-balance {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2px 14px;
+    font-size: 13px;
+  }
+  .settlement-events {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+    gap: 5px;
+    margin: 12px 0;
+  }
+  .settlement-events > div { padding: 5px 2px; background: #261d18; border-radius: 4px; }
+  .settlement-events dt { font-size: 13px; }
+  .settlement-events dd { margin: 0; color: #ffdc83; font-weight: bold; }
+  .settlement-resources { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 14px; }
+  .settlement-resources th, .settlement-resources td { padding: 3px 6px; border-bottom: 1px solid #463527; }
+  .settlement-resources thead { background: #261d18; }
+  .settlement-resources td { color: #ffdc83; font-variant-numeric: tabular-nums; }
+  .settlement-items { margin-top: 14px; text-align: left; }
+  .settlement-items h3 { margin: 0 0 5px; font-size: 14px; }
+  .settlement-item-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 156px), 1fr));
+    gap: 6px;
+  }
+  .settlement-item-list[hidden] { display: none; }
+  .settlement-item-list li {
+    display: flex;
+    gap: 7px;
+    align-items: center;
+    padding: 4px 6px;
+    background: #261d18;
+    border: 1px solid #463527;
+    border-radius: 4px;
+    color: #f3dfbc;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+  .settlement-item-icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 28px;
+    height: 28px;
+    background: #100d0c;
+    border: 1px solid #72593d;
+    border-radius: 3px;
+    color: #ffdc83;
+    font-size: 16px;
+    line-height: 1;
+  }
+  .settlement-item-icon[data-quality="rare"] { border-color: #7babc7; }
+  .settlement-item-icon[data-quality="legendary"] { border-color: #e9b156; }
 
   .overlay-btn {
     display: inline-block;
@@ -785,11 +836,11 @@
       </div>
     </div>
 
+    <div id="boss-health" aria-label="首领血量" hidden></div>
     <div id="game-container">
       <canvas id="game"></canvas>
       <div id="text-overlay"></div>
       <div id="item-tooltip"></div>
-      <canvas id="minimap" width="100" height="80"></canvas>
     </div>
 
     <div id="debug-info">
@@ -806,6 +857,10 @@
       <span id="item-bar-empty" style="color:#443322;font-size:13px;">空</span>
     </div>
   </div><!-- #main-column -->
+  <aside id="floor-map-sidebar" hidden aria-label="楼层地图">
+    <h2>楼层地图</h2>
+    <canvas id="minimap" width="240" height="208" aria-label="已探索房间及相邻房间"></canvas>
+  </aside>
 </div><!-- #top-content-row -->
 
 <!-- ===== 楼层进入横幅 ===== -->
@@ -814,11 +869,12 @@
 
 <div id="world-map-modal" role="dialog" aria-modal="true" aria-label="楼层地图" aria-hidden="true">
  <section class="world-map-card"><header><div><small>SCRAP STAR · NAVIGATION</small><h2 id="world-map-title">楼层地图</h2></div><button id="world-map-close" type="button">关闭 · M / Esc</button></header>
- <canvas id="world-map" width="900" height="500"></canvas><footer><span>青色边框：当前位置</span><span>已探索房间显示类型 · 未探索区域保持暗色</span></footer></section>
+ <canvas id="world-map" width="900" height="500"></canvas><footer><span>青色边框：当前位置</span><span>亮色：已进入 · 暗色：相邻未进入</span></footer></section>
 </div>
 <div id="help-modal">
   <div id="help-box">
     <h2>操作说明</h2>
+    <div id="help-details">
     <div class="help-row">
       <div class="help-keys"><span class="help-key">W</span><span class="help-key">A</span><span class="help-key">S</span><span class="help-key">D</span></div>
       <div class="help-desc">在可移动范围(浅蓝)内移动本体</div>
@@ -855,6 +911,7 @@
         金色宝箱需要消耗 1 把钥匙.<br>
         站在尖刺上且未处于无敌状态会扣血.
       </div>
+    </div>
     <button id="help-close">关闭</button>
   </div>
 </div>
@@ -863,8 +920,8 @@
 <div id="start-menu-modal" class="game-overlay show">
   <div class="overlay-box">
     <h2>Turnbased Shoot</h2>
-    <div class="overlay-subtitle">v3 — 道具系统 | 目标：通关 3 层地牢</div>
-    <div class="overlay-controls">
+    <div class="overlay-subtitle" id="start-menu-subtitle">v3 — 道具系统 | 目标：通关 3 层地牢</div>
+    <div class="overlay-controls" id="start-menu-controls">
       <div class="ctrl-row"><span class="ctrl-key">W A S D</span><span class="ctrl-desc">在可移动范围内移动本体</span></div>
       <div class="ctrl-row"><span class="ctrl-key">↑ ↓ ← →</span><span class="ctrl-desc">立即射击 (消耗行动力)</span></div>
       <div class="ctrl-row"><span class="ctrl-key">Space</span><span class="ctrl-desc">结束回合, 切换到怪物回合</span></div>
@@ -881,16 +938,19 @@
 </div>
 
 <!-- ===== 死亡结算弹窗 ===== -->
-<div id="death-modal" class="game-overlay">
+<div id="death-modal" class="game-overlay settlement-overlay">
   <div class="overlay-box">
     <h2>你死了...</h2>
     <div class="overlay-stats" id="death-stats">
-      <div class="stat-line">击杀怪物: <span class="stat-val" id="stat-kills">0</span></div>
-      <div class="stat-line">拾取道具: <span class="stat-val" id="stat-items">无</span></div>
-      <div class="stat-line">剩余金币: <span class="stat-val" id="stat-coins">0</span></div>
-      <div class="stat-line">剩余炸弹: <span class="stat-val" id="stat-bombs">0</span></div>
-      <div class="stat-line">剩余钥匙: <span class="stat-val" id="stat-keys">0</span></div>
-      <div class="stat-line">剩余蓝心: <span class="stat-val" id="stat-blue">0</span></div>
+      <div class="settlement-balance">
+        <div class="stat-line">击杀怪物 <span class="stat-val" id="stat-kills">0</span></div>
+        <div class="stat-line">剩余金币 <span class="stat-val" id="stat-coins">0</span></div>
+        <div class="stat-line">剩余炸弹 <span class="stat-val" id="stat-bombs">0</span></div>
+        <div class="stat-line">剩余钥匙 <span class="stat-val" id="stat-keys">0</span></div>
+        <div class="stat-line">剩余蓝心 <span class="stat-val" id="stat-blue">0</span></div>
+      </div>
+      <div class="settlement-run-stats" hidden></div>
+      <div class="settlement-items"><h3>拾取道具</h3><span class="settlement-items-empty">无</span><ul class="settlement-item-list" id="stat-items" hidden></ul></div>
     </div>
     <button id="btn-retry-death" class="overlay-btn">重试</button>
     <div class="overlay-hint">点击按钮 或 按空格键 重新开始</div>
@@ -898,16 +958,19 @@
 </div>
 
 <!-- ===== 通关结算弹窗 ===== -->
-<div id="victory-modal" class="game-overlay">
+<div id="victory-modal" class="game-overlay settlement-overlay">
   <div class="overlay-box">
     <h2>恭喜你已通关~</h2>
     <div class="overlay-stats" id="victory-stats">
-      <div class="stat-line">击杀怪物: <span class="stat-val" id="vstat-kills">0</span></div>
-      <div class="stat-line">拾取道具: <span class="stat-val" id="vstat-items">无</span></div>
-      <div class="stat-line">剩余金币: <span class="stat-val" id="vstat-coins">0</span></div>
-      <div class="stat-line">剩余炸弹: <span class="stat-val" id="vstat-bombs">0</span></div>
-      <div class="stat-line">剩余钥匙: <span class="stat-val" id="vstat-keys">0</span></div>
-      <div class="stat-line">剩余蓝心: <span class="stat-val" id="vstat-blue">0</span></div>
+      <div class="settlement-balance">
+        <div class="stat-line">击杀怪物 <span class="stat-val" id="vstat-kills">0</span></div>
+        <div class="stat-line">剩余金币 <span class="stat-val" id="vstat-coins">0</span></div>
+        <div class="stat-line">剩余炸弹 <span class="stat-val" id="vstat-bombs">0</span></div>
+        <div class="stat-line">剩余钥匙 <span class="stat-val" id="vstat-keys">0</span></div>
+        <div class="stat-line">剩余蓝心 <span class="stat-val" id="vstat-blue">0</span></div>
+      </div>
+      <div class="settlement-run-stats" hidden></div>
+      <div class="settlement-items"><h3>拾取道具</h3><span class="settlement-items-empty">无</span><ul class="settlement-item-list" id="vstat-items" hidden></ul></div>
     </div>
     <button id="btn-retry-victory" class="overlay-btn">重试</button>
     <div class="overlay-hint">点击按钮 或 按空格键 重新开始</div>

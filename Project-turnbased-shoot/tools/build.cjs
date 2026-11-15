@@ -16,8 +16,9 @@ function writeHtml(directory,name,html){
 
 async function buildPlayable(){
   const assets=await buildScrapAssets();
+  const updatedAt=new Date().toISOString();
   for(const [name,sandbox] of [['turnbased-shoot-demo-pack.html',false],['custom-arena.html',true]]){
-    writeHtml(projectRoot,name,inlineResources(await assembleGame({assets,sandbox})));
+    writeHtml(projectRoot,name,inlineResources(await assembleGame({assets,sandbox,updatedAt})));
     console.log('已生成 '+name);
   }
 }

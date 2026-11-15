@@ -6,7 +6,7 @@
 - 双击[工作台 HTML](../../Workflow/Project-Workbench/workbench.html)，点「打开项目计划」选择项目根目录的 `project-plan.json`。在 Chrome 或 Edge 里同意浏览器的写入授权后，可以直接保存到原文件。聊天或编辑器更新计划后，点「重新读取文件」。开工概况及数据校验可在仓库根运行 `node Workflow/Project-Workbench/server.cjs --check Project-turnbased-shoot`。
 - 在任务的「具体内容」中查看或打开旧版任务。重做时选「创建下一版本」，审核子任务的复用依据后保存。美术候选、预览和审阅都在美术任务详情中。
 - [现行 GDD](turnbased-shoot-gdd.md)维护设计与系统框架。开工先读「设计总览」，有具体任务时查相关章节。
-- [项目记忆](turnbased-shoot-memory.md)保存决定、取舍和验证记录。开工先读最近一条有实质内容的记录，再按任务检索主题。
+- [项目记忆](turnbased-shoot-memory.md)保存决定、取舍和验证记录。开工先读最近一条有实质内容的记录，再按任务检索主题。编排或调整任务时，查[工作台怎么列任务和排下一步](turnbased-shoot-memory.md#工作台怎么列任务和排下一步)。
 - 通用协作规则由 Codex 加载的 AGENTS.md 提供。跨电脑可从 [codex-setup 的规则编辑源](../../codex-setup/AGENTS.md)和其中的安装说明恢复。
 
 ## 试玩入口
@@ -21,11 +21,13 @@
 ## 工程入口与项目约定
 
 - 从项目根目录运行 `npm --prefix tools run build` 生成两个日常试玩包，再运行 `npm --prefix tools test` 执行回归。旧机制测试用的 HTML 由回归脚本从现有源码构建到临时目录，结束后清理。安装依赖用 `npm --prefix tools ci`。
+- 单步 HUD 的回合数、属性值、资源数量和状态文字使用固定尺寸的显示区域。新增会变化的内容时，在浏览器回归中覆盖文本变化和数字跨位数，确认同一视口下棋盘、小地图和 HUD 各区的位置与尺寸保持稳定。
 - [地图编辑器](../turnbased-shoot-map-viewer.html)用于编辑房间模板和预览楼层生成，纳入项目回归检查。
 - 修改 [源码模板](../src/game.html)、[模块清单](../src/modules.cjs)、对应源码、配置或素材。构建入口为 [assemble-game.cjs](../tools/assemble-game.cjs) 与 [inline-resources.cjs](../tools/inline-resources.cjs)。日常验证不生成 PNG 预览。源素材保存在 `Assets/`。
 - `src/runtime/` 管启动、主循环和刷怪组装，`src/world/` 管地形、房间与楼层，`src/combat/` 管行动、伤害、怪物与武器，`src/items/` 和 `src/data/` 管道具、资源和配置接入，`src/state/` 管快照与恢复，`src/presentation/` 管绘制与表现，`src/input/` 管输入，`src/playtest/` 管开发测试入口。
 - 主包与自定义场共用单步调度、武器和表现。普通敌人与小队见 [单步敌人配置](../Configs/single-step-enemies.json)。主包和自定义场使用 `item-db.json` 的 `singleStepItems`，旧回溯包使用 `items`。规则与数值从对应源码和配置核对。
 - 新增源码要登记在模块清单中。改玩家属性或资源字段时核对 [状态覆盖说明](../tests/STATE-COVERAGE.md) 及保存和恢复路径。旧预测的函数名必须唯一，子弹源码适配必须恰好匹配一次。
+- 正式单步专用模块在 [assemble-game.cjs](../tools/assemble-game.cjs) 中登记。构建为两个试玩包写入同一更新时间。结算历史保存在各试玩入口的浏览器存储，按这个时间分组。
 - 表现资源采用现有审核入口。只展示实际选用素材，已确认部分按用户指出的范围修改。源图、加工工具和动态表现入口见 [怪物素材说明](../Assets/single-step-enemies/README.md) 与 [显示层入口](../src/presentation/README.md)。浏览器验证与规则回归分别记录，整局体验由实际试玩判断。
 
 ## AgentWorkSpace 按需查阅

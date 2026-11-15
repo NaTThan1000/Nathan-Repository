@@ -49,7 +49,7 @@ drawCharacterAt=function(px,py,facing,walkFrame,shootTimer,alpha=1){let action='
  if(action==='idle'&&Math.floor(performance.now()/1000)%2){const p=project(px,py);scrapDraw('hero-'+facing+'-'+action,p.x-19.8,p.y-23.34,39.6,40.964,alpha)}else scrapSprite('hero-'+facing+'-'+action,px,py,alpha);
 };
 let scrapDefeatStarted=null;
-drawPlayer=function(){if(playerStats.hp<=0){if(scrapDefeatStarted===null)scrapDefeatStarted=performance.now();scrapSprite('defeat'+Math.min(5,Math.floor((performance.now()-scrapDefeatStarted)/100)),player.px,player.py);return}scrapDefeatStarted=null;const alpha=player.invincibleSteps>0?.45+.35*Math.sin(performance.now()*.015):1;drawCharacterAt(player.px,player.py,player.facing,player.walkFrame,player.shootTimer,alpha)};
+drawPlayer=function({blink=player.invincibleSteps>0}={}){if(playerStats.hp<=0){if(scrapDefeatStarted===null)scrapDefeatStarted=performance.now();scrapSprite('defeat'+Math.min(5,Math.floor((performance.now()-scrapDefeatStarted)/100)),player.px,player.py);return}scrapDefeatStarted=null;const alpha=blink?.45+.35*Math.sin(performance.now()*.015):1;drawCharacterAt(player.px,player.py,player.facing,player.walkFrame,player.shootTimer,alpha)};
 
 drawMonsters=function(){drawProvisionalDefeats();scrapDrawLegacyMonsters();const now=performance.now();for(const m of monsters){if(!scrapCoveredMonster(m)||m.jumperVanished)continue;const type=m.cfgId==='flying_eye_i'?'ranged':'melee';let f=Math.floor(now/180)%3;const action=scrapMonsterActions.get(m.id);
  if(action&&now-action<240)f=3+Math.min(1,Math.floor((now-action)/120));if(m.hitFlash>0)f=5;
@@ -94,18 +94,25 @@ function scrapUpdateHUD(){const el=id=>document.getElementById(id);if(!el('scrap
  if(scrapNumericHealth){
   const hp=playerStats.hp,maxHp=playerStats.maxHp;
   const percent=Math.min(100,Math.max(0,hp/Math.max(1,maxHp)*100));
-  health.innerHTML='<div class="scrap-health-meter" role="meter" aria-label="生命" aria-valuemin="0" aria-valuemax="'+maxHp+'" aria-valuenow="'+hp+'">'+
-   '<span class="scrap-health-fill" style="width:'+percent+'%"></span><span class="scrap-health-value">'+hp+' / '+maxHp+'</span></div>'+
-   (blue>0?'<span class="scrap-blue-health" aria-label="蓝心 '+blue+'">'+scrapIcon('blueHeart',16)+' +'+blue+'</span>':'');
+  const shields=playerResources.blueHearts;
+  health.innerHTML='<span class="scrap-health-label">生命值</span>'+
+   '<div class="scrap-health-row">'+scrapIcon('heart',14)+'<div class="scrap-health-meter" role="meter" aria-label="生命值" aria-valuemin="0" aria-valuemax="'+maxHp+'" aria-valuenow="'+hp+'">'+
+   '<span class="scrap-health-fill" style="width:'+percent+'%"></span><span class="scrap-health-value">'+hp+' / '+maxHp+'</span></div></div>'+
+   '<div class="scrap-shield-row"><span class="scrap-shield-icon" aria-hidden="true"></span>'+
+   '<div class="scrap-shield-meter" style="--shield-segments:'+shieldCapacity+'" role="meter" aria-label="护盾" aria-valuemin="0" aria-valuemax="'+shieldCapacity+'" aria-valuenow="'+shields+'">'+
+   Array.from({length:shieldCapacity},(_,i)=>'<span'+(i<shields?' class="filled"':'')+'></span>').join('')+'</div></div>';
  }else{
   let hearts=Array.from({length:Math.min(capacity,Math.ceil(playerStats.maxHp))},(_,i)=>scrapIcon(playerStats.hp>=i+1?'heart':playerStats.hp>i?'halfHeart':'emptyHeart',22)).join('');
   for(let i=0;i<Math.ceil(blue);i++){const src=SCRAP_ASSETS[blue-i>=1?'blueHeart':'halfBlueHeart'];if(src)hearts+='<img src="'+src+'" width="22" height="22" alt="蓝心">'}
   health.innerHTML=hearts;
  }
- el('scrap-floor').innerHTML='<span>楼层 B'+(currentFloor?.floorNum||1)+'</span><small>地图 [M]</small>';el('scrap-atk').textContent=playerStats.attack;el('scrap-range').textContent=playerStats.range;
+ const floor=el('scrap-floor'),floorLabel='楼层 B'+(currentFloor?.floorNum||1);
+ if(floor.tagName==='BUTTON')floor.textContent=floorLabel+' [M]';
+ else floor.innerHTML='<span>'+floorLabel+'</span><small>地图 [M]</small>';
+ el('scrap-atk').textContent=playerStats.attack;el('scrap-range').textContent=playerStats.range;
  for(const [id,name,value,max]of [['scrap-mp','MP',turnState.mAP,turnState.maxMAP],['scrap-ap','AP',turnState.aAP,turnState.maxAAP]])el(id).innerHTML='<span>'+name+'</span>'+Array.from({length:Math.max(0,max)},(_,i)=>scrapIcon(i<value?(name==='MP'?'mp':'ap'):(name==='MP'?'mpEmpty':'apEmpty'),17,20)).join('');
  el('scrap-turn').textContent=turnState.turnNumber;el('scrap-phase').textContent=turnState.phase==='monster_turn'?'怪物行动':'你的回合';el('scrap-phase').style.color=turnState.phase==='monster_turn'?'#ff7e72':'#65def6';
- el('scrap-res').innerHTML=[['coin',playerResources.coins??0],['bomb',playerResources.bombs??0],['key',playerResources.keys??0]].map(([k,n])=>'<span class="scrap-panel">'+scrapIcon(k,22,25)+' '+String(n).padStart(2,'0')+'</span>').join('');
+ el('scrap-res').innerHTML=[['coin',playerResources.coins??0],['bomb',playerResources.bombs??0],['key',playerResources.keys??0]].map(([k,n])=>'<span class="scrap-panel">'+scrapIcon(k,22,25)+' <span>'+String(n).padStart(2,'0')+'</span></span>').join('');
 }
 // SCRAP_GAME_ADAPTER
 

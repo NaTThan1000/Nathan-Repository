@@ -23,8 +23,26 @@ function gameLoop(timestamp) {
   }
 
   // 场景过渡动画
+  if(transition?.fast){
+    const travel=transition;
+    const progress=Math.min(1,(travel.elapsed+=dt)/.12);
+    if(progress>=.5&&!travel.arrived){
+      finishTransition();
+      travel.arrived=true;
+      transition=travel;
+    }
+    render();
+    ctx.save();
+    ctx.globalAlpha=1-Math.abs(progress*2-1);
+    ctx.fillStyle='#06141a';
+    ctx.fillRect(0,0,GAME_W,GAME_H);
+    ctx.restore();
+    if(progress===1)transition=null;
+    requestAnimationFrame(gameLoop);
+    return;
+  }
   if(transition&&transition.active){
-    transition.offset+=dt*400; // 400 px/s
+    transition.offset+=dt*roomTransitionSpeed;
     if(transition.offset>=GAME_W){
       finishTransition();
     } else {

@@ -9,11 +9,13 @@ let currentFloor = null;       // 当前楼层数据
 let currentRoomId = null;      // 当前房间 ID
 let currentRoomGrid = null;    // 当前房间 grid[col][row]
 let transition = null;         // { active, dir, offset, fromRoom, toRoom, playerEntryPos }
+let roomTransitionSpeed = 400;
+let delayOccupiedBossLadder = false;
 let inCombat = false;          // 当前房间是否有存活怪物
 let gameStarted = false;       // 是否已开始游戏（开始菜单期间=false）
 let gameOver = false;          // 是否死亡/通关（阻止继续操作）
 let monstersKilled = 0;        // 累计击杀怪物数（不受Esc回溯影响）
-let itemsCollected = [];       // 累计拾取道具名称列表（不受Esc回溯影响）
+let itemsCollected = [];       // 本局拾取过的道具 ID
 let tileData = {};             // { `${col},${row}`: { type, hp, _loot } }  可变瓷砖状态 (_loot: 房间生成时预roll的掉落列表)
 
 function initTileData(){
@@ -48,6 +50,16 @@ function hitTile(col,row,dmg){
 }
 
 function hasMonstersAlive(){return monsters.length>0&&monsters.some(m=>m.hp>0);}
+function placeBossLadder(room){
+  if(room.bossLadderPlaced)return;
+  if(delayOccupiedBossLadder&&room.id===currentRoomId&&player.col===6&&player.row===1){
+    room.bossLadderPending=true;
+    return;
+  }
+  (room.id===currentRoomId?currentRoomGrid:room.grid)[6][1]=TILE.LADDER;
+  room.bossLadderPlaced=true;
+  room.bossLadderPending=false;
+}
 let keepCombatForBombs = true;
 function updateRoomCombatState(){
   if(actionHistoryActive()&&!hasMonstersAlive())return;
@@ -80,10 +92,7 @@ function updateRoomCombatState(){
     if(room&&room.type==='boss'){
       spawnBossRoomItem();
       // 自动在从上到下第2行、从左到右第7格放置前往下一层的梯子
-      if(!room.bossLadderPlaced){
-        currentRoomGrid[6][1]=TILE.LADDER;
-        room.bossLadderPlaced=true;
-      }
+      placeBossLadder(room);
     }
 
     // === 同步回房间存储（simulateFromCheckpoint / restoreTurnSnapshot 可能打断了引用，房间清空时重建链接） ===
@@ -154,17 +163,17 @@ function resetGameToFloor1(){
   pendingPlayerTurnEnd=false;forcedLandingPending=false;movementEvents=[];movementPlanning=false;
   monsters=[];bullets.length=0;particles.length=0;damageNumbers.length=0;transition=null;
   monstersKilled = 0; itemsCollected = []; gameOver = false;
+  if (runStats) runStats = newRunStats();
   player.col=6;player.row=3;const p=gridToPixel(6,3);player.px=p.x;player.py=p.y;
   player.targetPx=null;player.targetPy=null;player.animTime=0;player.facing='down';player.walkFrame=0;
   player.shootTimer=0;player.hitFlash=0;player.shakeX=0;player.shakeY=0;player.invincibleSteps=0;
   clearInventory();
-  // 重置 playerStats 到初始值（clearInventory已调用recalcAllStats，但这里确保一下）
-  playerStats.moveSpeed = 3; playerStats.fireRate = 3;
   // 清空资源
   resourcesOnGround = []; itemsOnGround = []; bombs = [];
   playerResources.coins = 0; playerResources.bombs = 0; playerResources.keys = 0;
   playerResources.blueHearts = 0;
   // 重置所有房间的运行时状态（地形、门、掉落物、标记等）
+  for(const floor of Object.values(allFloors))for(const room of floor.rooms)room.bossLadderPending=false;
   for(let f=1;f<=3;f++){if(allFloors[f])allFloors[f].rooms.forEach(r=>{r.grid=r._initGrid?r._initGrid.map(col=>[...col]):r.grid;r.doors=r._initDoors?{up:r._initDoors.up?{...r._initDoors.up}:null,down:r._initDoors.down?{...r._initDoors.down}:null,left:r._initDoors.left?{...r._initDoors.left}:null,right:r._initDoors.right?{...r._initDoors.right}:null}:r.doors;r.bossLadderPlaced=false;r.itemSpawned=false;r.itemDropped=false;r.locked=r._initLocked||false;r._shopSlots=null;r._groundResources=[];r._groundItems=[];});}
   updateResourceUI();
   visitedRooms = new Set(); // 重置已访问记录
@@ -243,12 +252,19 @@ function switchRoom(dir, fromPos){
   // 检查目标房间是否需要钥匙
   if(targetRoom.locked && playerResources.keys > 0) {
     playerResources.keys--;
+    recordRunStat('keysUsed');
     targetRoom.locked = false; // 永久解锁
     updateResourceUI();
     console.log('🔑 用钥匙打开了上锁的房间!');
   } else if(targetRoom.locked && playerResources.keys <= 0) {
     return false; // 需要钥匙但没有
   }
+  const entry=roomEntryPosition(targetRoom,dir);
+  transition={active:true,dir,offset:0,fromRoom:currentRoomId,toRoom:door.targetRoomId,playerEntryCol:entry.col,playerEntryRow:entry.row};
+  return true;
+}
+
+function roomEntryPosition(targetRoom,dir){
   // 计算玩家在新房间的入口位置
   const oppDir=DOOR_FROM_DIR[dir];
   const dp=DOOR_POS[oppDir];
@@ -261,9 +277,7 @@ function switchRoom(dir, fromPos){
   entryCol=Math.max(0,Math.min(12,entryCol));entryRow=Math.max(0,Math.min(6,entryRow));
   // 如果门前格不可行走，则找最近的可行走格
   if(!TILE_WALKABLE[targetRoom.grid[entryCol][entryRow]]){for(let r=0;r<7;r++)for(let c=0;c<13;c++)if(TILE_WALKABLE[targetRoom.grid[c][r]]){entryCol=c;entryRow=r;r=99;c=99;}}
-  // 启动切换过渡
-  transition={active:true,dir:dir,offset:0,fromRoom:currentRoomId,toRoom:door.targetRoomId,playerEntryCol:entryCol,playerEntryRow:entryRow};
-  return true;
+  return {col:entryCol,row:entryRow};
 }
 
 function finishTransition(){
@@ -276,6 +290,7 @@ function finishTransition(){
   const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
   currentRoomGrid=room.grid;
   player.col=transition.playerEntryCol;player.row=transition.playerEntryRow;
+  if(oldRoom?.bossLadderPending)placeBossLadder(oldRoom);
   const p=gridToPixel(player.col,player.row);player.px=p.x;player.py=p.y;
   // 清除移动残留状态，防止过渡后自动滑动
   player.targetPx=null;player.targetPy=null;player.animTime=0;
@@ -344,8 +359,8 @@ function tryWalkIntoDoor(fromCol,fromRow,moveDir){
   const nc=fromCol+vec.dx, nr=fromRow+vec.dy;
   // 下一步会走到格子外(撞墙)，且玩家当前列/行与门对齐
   if(nc<0||nc>=COLS||nr<0||nr>=ROWS){
-    if(moveDir==='up'||moveDir==='down'){if(fromCol===dp.col){switchRoom(moveDir,{col:dp.col,row:dp.row});return true;}}
-    else{if(fromRow===dp.row){switchRoom(moveDir,{col:dp.col,row:dp.row});return true;}}
+    const aligned=moveDir==='up'||moveDir==='down'?fromCol===dp.col:fromRow===dp.row;
+    if(aligned)return switchRoom(moveDir,{col:dp.col,row:dp.row});
   }
   return false;
 }

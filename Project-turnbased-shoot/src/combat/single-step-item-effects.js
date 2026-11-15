@@ -2,7 +2,6 @@
 const ARENA_STATUS_CHANCE = .35;
 const ARENA_SHIELD_CHARGE = 20;
 const arenaEffects = {};
-reservedHeartSlots = () => Number(trialPassive('timedShield'));
 
 function arenaResetEffects() {
   Object.assign(arenaEffects,{
@@ -58,16 +57,21 @@ enterFloor = function(floor) {
 const arenaRecalcStatsBase = recalcAllStats;
 let arenaBaseMaxHp = playerStats.maxHp;
 recalcAllStats = function() {
-  arenaRecalcStatsBase(arenaBaseMaxHp);
+  arenaRecalcStatsBase(arenaBaseMaxHp, STEP_BASE_STATS);
   playerStats.attack = Math.round((playerStats.attack+arenaEffects.floorAttack)*10)/10;
 };
 
 const arenaTrialApplyBase = applyItem;
 applyItem = function(id) {
-  const effect = ITEMS_DB[id]?.weaponTrial?.effect;
+  const trial = ITEMS_DB[id]?.weaponTrial;
+  const effect = trial?.effect;
   const hadItem = playerInventory.includes(id);
   const result = arenaTrialApplyBase(id);
   if (!hadItem && playerInventory.includes(id)) {
+    if (trial?.bonusBombs) {
+      const gained=gainBombs(trial.bonusBombs);
+      if(gained){updateResourceUI();arenaEffectNotice('炸弹 +'+gained);}
+    }
     if (effect === 'backArmor') arenaEffects.armorReady = true;
     if (effect === 'timedShield') arenaEffects.timedCharge = ARENA_SHIELD_CHARGE;
     if (effect === 'supplyDrone') {
@@ -89,8 +93,11 @@ function arenaRecordKill(monster) {
     arenaEffects.rageReady = true;
     arenaEffectNotice('狂暴护盾已充能');
   }
-  if (!arenaEffects.freeAction && trialPassive('killMove')) arenaEffects.moveCredit = 1;
-  if (trialPassive('killShot') && !arenaEffects.shotRewarded) {
+  if (hasMonstersAlive() && !arenaEffects.freeAction && !arenaEffects.moveCredit && trialPassive('killMove')) {
+    arenaEffects.moveCredit = 1;
+    arenaEffectNotice('额外移动 1 次');
+  }
+  if (hasMonstersAlive() && trialPassive('killShot') && !arenaEffects.shotRewarded) {
     arenaEffects.shootCredit++;
     arenaEffects.shotRewarded = true;
   }
@@ -104,7 +111,7 @@ function arenaRecordKill(monster) {
 
 const arenaTrialDamageMonster = damageMonster;
 damageMonster = function(monster,damage,...args) {
-  const alive = monster.hp > 0 && monsters.includes(monster);
+  const alive = !monster.arenaDummy && Boolean(MONSTER_DB[monster.cfgId]) && monster.hp > 0 && monsters.includes(monster);
   const result = arenaTrialDamageMonster(monster,damage,...args);
   if (alive && monster.hp <= 0) {
     if (!arenaEffects.enemyActing) arenaRecordKill(monster);
@@ -250,7 +257,7 @@ function arenaApplyGround(m,cells) {
         if (isInMonsterFootprint(m,col,row)) slimeContacts.add(cell);
       } else if (!m.arenaGroundApplied.has(key)) {
         m.arenaGroundApplied.add(key);
-        damageMonster(m,key==='acid'?1:.5);
+        damageMonster(m,1);
       }
     }
   }
@@ -391,8 +398,8 @@ stepTestHooks.lobTarget = function(origin,dx,dy,range) {
 
 function arenaAutoTarget(origin,dx,dy,range,lob) {
   if (lob) return !!stepTestHooks.lobTarget(origin,dx,dy,range).monster;
-  const body = equippedWeaponTrial('body'), shell = equippedWeaponTrial('shell');
-  const piercesTerrain = body==='energy'||shell==='ghost';
+  const body = equippedWeaponTrial('body');
+  const piercesTerrain = body==='energy'||equippedBulletEffects('shell').includes('ghost');
   for (let steps=1;steps<=range;steps++) {
     const col=origin.col+dx*steps,row=origin.row+dy*steps;
     if (!piercesTerrain && singleStepBlocksBullet(col,row)) return false;
@@ -416,9 +423,8 @@ stepTestHooks.onMove = function(old,{dx,dy}) {
   }
   if (!trialPassive('runGun')) return;
   const body=equippedWeaponTrial('body'), trajectory=equippedWeaponTrial('trajectory');
-  const lob=trajectory==='lob', bonus=lob?2:0;
-  const range=body==='shotgun'?Math.min(6,weaponShotgunRange()+bonus)
-    :Math.floor(playerStats.range)+bonus+(['energy','laser'].includes(body)?2:0);
+  const lob = trajectory === 'lob';
+  const range = effectiveSingleStepRange(body, trajectory);
   const choices=STEP_CARDINAL.filter(([x,y])=>arenaAutoTarget(player,x,y,range,lob));
   if (choices.length) {
     const [x,y] = choices[Math.floor(Math.random()*choices.length)];
@@ -431,8 +437,8 @@ stepTestHooks.onShot = function(origin,dir,charge) {
   if (equippedWeaponTrial('body')!=='unstable' || ++arenaEffects.unstableShots<4) return;
   arenaEffects.unstableShots = 0;
   const range = weaponShotgunRange();
-  const shell = equippedWeaponTrial('shell'), ammo = equippedWeaponTrial('ammo');
-  weaponShotgunVolley(origin,dir,playerStats.attack*charge.scale,range,{shell,ammo,body:'shotgun'},performance.now()+45);
+  const shells = equippedBulletEffects('shell'), ammunition = equippedBulletEffects('ammo');
+  weaponShotgunVolley(origin,dir,playerStats.attack*charge.scale,range,{shells,ammunition,body:'shotgun'},performance.now()+45);
   stepVisualEvents.push({type:'unstable-recoil',at:performance.now()+45});
 };
 

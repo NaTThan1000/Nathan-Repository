@@ -10,12 +10,18 @@ function trialPassive(effect) {
 function equippedWeaponTrial(slot) {
   return playerInventory.map(id => ITEMS_DB[id]?.weaponTrial).find(item => item?.slot === slot)?.effect;
 }
+function equippedBulletEffects(slot) {
+  return [...new Set(playerInventory.map(id => ITEMS_DB[id]?.weaponTrial)
+    .filter(item => item?.slot === slot).map(item => item.effect))];
+}
 const trialApplyItemBase = applyItem;
 applyItem = function(cfgId) {
   const trial = ITEMS_DB[cfgId]?.weaponTrial;
   if (!trial) return trialApplyItemBase(cfgId);
   if (playerInventory.includes(cfgId)) return;
-  if (trial.slot) playerInventory = playerInventory.filter(id => ITEMS_DB[id]?.weaponTrial?.slot !== trial.slot);
+  if (trial.slot && !['shell','ammo'].includes(trial.slot)) {
+    playerInventory = playerInventory.filter(id => ITEMS_DB[id]?.weaponTrial?.slot !== trial.slot);
+  }
   if (trial.slot === 'trajectory') SINGLE_STEP.weaponCharge = 0;
   trialApplyItemBase(cfgId);
   if (trial.effect === 'shield' && tryAddBlueHeart()) {
@@ -28,8 +34,15 @@ applyItem = function(cfgId) {
 const WEAPON_DIRECTIONS = [[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]];
 const SHOTGUN_PELLETS = 20;
 const BURST_INTERVAL = 130;
+const SHOT_INTERVAL = 130;
+let stepWeaponDamageTotals = null;
 function weaponShotgunRange() {
   return Math.max(1,Math.min(6,Math.floor(playerStats.range*.5)));
+}
+function effectiveSingleStepRange(body, trajectory) {
+  const extraRange = stepTestHooks.rangeBonus?.(trajectory) ?? 0;
+  return body === 'shotgun' ? Math.min(6,weaponShotgunRange()+extraRange)
+    : Math.floor(playerStats.range) + (['laser','energy'].includes(body) ? 2 : 0) + extraRange;
 }
 function weaponVolley(pattern) {
   if (pattern === 'dual') return [[0,.65],[0,.65]];
@@ -51,6 +64,13 @@ function weaponEnergyScale(trajectory, distance, range) {
   return 1;
 }
 function weaponDamageMonster(m, damage, at, lane) {
+  if (stepWeaponDamageTotals) {
+    // 每个目标按本次行动的累计伤害取整，每次命中仍即时结算差额。
+    const previous = stepWeaponDamageTotals.get(m) ?? 0;
+    const total = previous + Math.round(damage * 100);
+    stepWeaponDamageTotals.set(m, total);
+    damage = Math.round(total / 100) - Math.round(previous / 100);
+  }
   const firstNumber = damageNumbers.length, firstEvent = stepVisualEvents.length;
   damageMonster(m, damage, {at,lane});
   for (const number of damageNumbers.slice(firstNumber)) {
@@ -162,11 +182,12 @@ function weaponArc(origin, damage, direct, at, lane, range) {
   if (route.length && !from.m) weaponDamageTerrain(from.col,from.row);
 }
 function weaponShootRay(origin, dx, dy, base, range, {
-  trajectory, shell, body, ammo, start, lane, size = 1, spreadStep, spreadSide = 0,
+  trajectory, shell, shells = shell ? [shell] : [], body, ammo, ammunition = ammo ? [ammo] : [],
+  start, lane, size = 1, spreadStep, spreadSide = 0,
 }) {
-  const ignoresTerrain = shell === 'ghost';
+  const ignoresTerrain = shells.includes('ghost');
   const passesTerrain = ignoresTerrain || body === 'energy';
-  const pierces = shell === 'pierce' || passesTerrain || (!shell && player.hasPiercing);
+  const pierces = shells.includes('pierce') || passesTerrain || (!shells.length && player.hasPiercing);
   const hit = new Set();
   const lob = trajectory === 'lob' && stepTestHooks.lobTarget?.(origin,dx,dy,range);
   const beam = !lob && (body === 'laser' || body === 'energy');
@@ -183,9 +204,9 @@ function weaponShootRay(origin, dx, dy, base, range, {
   const trigger = (damage, direct, impactAt = at) => {
     if (triggered) return;
     triggered = true;
-    if (shell === 'blast') weaponBlast(cell.col,cell.row,Math.round(damage*150)/100,impactAt,lane,{breakRock:true,hurtPlayer:true});
-    if (shell === 'arc') weaponArc(cell,damage,direct,impactAt,lane,range*.5);
-    if (shell === 'splash') {
+    if (shells.includes('blast')) weaponBlast(cell.col,cell.row,Math.round(damage*150)/100,impactAt,lane,{breakRock:true,hurtPlayer:true});
+    if (shells.includes('arc')) weaponArc(cell,damage,direct,impactAt,lane,range*.5);
+    if (shells.includes('splash')) {
       const pool = [...WEAPON_DIRECTIONS];
       const count = Math.max(1,Math.min(8,1+Math.floor(playerStats.luck)));
       const splashRange = Math.max(1,Math.floor(range*.4));
@@ -195,7 +216,7 @@ function weaponShootRay(origin, dx, dy, base, range, {
       }
     }
   };
-  const burstsOnExpiry = shell === 'blast' || shell === 'splash';
+  const burstsOnExpiry = shells.includes('blast') || shells.includes('splash');
   const damageAt = n => trajectory === 'decay' || trajectory === 'gain'
     ? Math.round(base*weaponEnergyScale(trajectory,n,range)*100)/100 : base;
   const flightRange = lob ? lob.steps : range;
@@ -206,7 +227,7 @@ function weaponShootRay(origin, dx, dy, base, range, {
       nextDx = forwardDx-forwardDy*side;
       nextDy = forwardDy+forwardDx*side;
     }
-    if (!lob && shell === 'tracking' && n > 1) {
+    if (!lob && shells.includes('tracking') && n > 1) {
       [nextDx,nextDy] = weaponTrackingDirection(cell,nextDx,nextDy,passesTerrain,hit);
     }
     if (dx !== nextDx || dy !== nextDy) {
@@ -225,10 +246,12 @@ function weaponShootRay(origin, dx, dy, base, range, {
       const edge = {col:cell.col+dx/2,row:cell.row+dy/2};
       if (burstsOnExpiry) {
         trigger(damageAt(Math.max(1,distance)),null,at+travel/2);
-        emit(edge,false,n-.5);
-        return;
+        if (!shells.includes('fold')) {
+          emit(edge,false,n-.5);
+          return;
+        }
       }
-      if (shell !== 'fold') break;
+      if (!shells.includes('fold')) break;
       emit(edge,false,n-.5);
       if (wrapped) return;
       col = (col + COLS) % COLS;
@@ -242,8 +265,9 @@ function weaponShootRay(origin, dx, dy, base, range, {
     distance = n;
     at += travel;
     if (lob && n < flightRange) continue;
+    if (ignoresTerrain) weaponDamageTerrain(col,row);
     if (!ignoresTerrain && singleStepBlocksBullet(col,row)) {
-      if (shell !== 'blast' || triggered) weaponDamageTerrain(col,row);
+      if (!shells.includes('blast') || triggered) weaponDamageTerrain(col,row);
       trigger(damage,null);
       if (lob || !passesTerrain) {
         emit(cell);
@@ -253,26 +277,26 @@ function weaponShootRay(origin, dx, dy, base, range, {
     }
     const m = monsters.find(unit => unit.hp > 0 && !unit.jumperVanished && !hit.has(unit.id) && isInMonsterFootprint(unit,col,row));
     if (!m) continue;
-    if (tileData[col+','+row]) {
+    if (!ignoresTerrain && tileData[col+','+row]) {
       weaponDamageTerrain(col,row);
       continue;
     }
     hit.add(m.id);
     weaponDamageMonster(m,damage,at,lane);
     stepTestHooks.onDirectWeaponHit?.(m,at);
-    if (ammo === 'poison' && m.hp > 0 && monsters.includes(m)) {
+    if (ammunition.includes('poison') && m.hp > 0 && monsters.includes(m)) {
       m.weaponPoison = {steps:3, firstStep:m.weaponPoison?.firstStep ?? SINGLE_STEP.step+1,
-        damage:Math.max(.25,Math.round(damage*.25*100)/100), appliedAt:at};
+        damage:Math.max(1,Math.round(damage*.25)), appliedAt:at};
     }
     trigger(damage,m);
-    stepTestHooks.onWeaponHit?.(m,cell,{dx,dy,damage,at,lane,ammo});
+    for (const effect of ammunition) stepTestHooks.onWeaponHit?.(m,cell,{dx,dy,damage,at,lane,ammo:effect});
     if (lob || !pierces) {
       emit(cell);
       return;
     }
   }
   if (burstsOnExpiry && distance) trigger(damageAt(distance),null);
-  emit(cell,shell !== 'fold');
+  emit(cell,!shells.includes('fold'));
 }
 function weaponPrepareShot() {
   const trajectory = equippedWeaponTrial('trajectory');
@@ -296,27 +320,31 @@ function weaponShotgunVolley(origin, {dx,dy}, damage, range, options, start) {
 }
 function fireSingleStepWeapon(origin, direction, charge) {
   const pattern = equippedWeaponTrial('pattern'), body = equippedWeaponTrial('body'),
-    trajectory = equippedWeaponTrial('trajectory'), shell = equippedWeaponTrial('shell'), ammo = equippedWeaponTrial('ammo');
+    trajectory = equippedWeaponTrial('trajectory');
+  const shells = equippedBulletEffects('shell'), ammunition = equippedBulletEffects('ammo');
   const start = WEAPON_DIRECTIONS.findIndex(([dx,dy]) => direction.dx === dx && direction.dy === dy);
-  const extraRange = stepTestHooks.rangeBonus?.(trajectory) ?? 0;
-  const range = body === 'shotgun' ? Math.min(6,weaponShotgunRange()+extraRange)
-    : Math.floor(playerStats.range) + (['laser','energy'].includes(body) ? 2 : 0) + extraRange;
+  const range = effectiveSingleStepRange(body, trajectory);
   const firedAt = performance.now();
-  const stagger = pattern === 'dual' || pattern === 'triple';
+  const parallel = pattern === 'dual' || pattern === 'triple';
+  const charged = trajectory === 'burstCharge' || trajectory === 'heavyCharge';
+  const shotsPerFire = charged ? 1 : Math.max(1, Math.floor(playerStats.fireRate));
   for (let i=0;i<charge.repetitions;i++) {
     const volleyStart = firedAt+i*BURST_INTERVAL;
-    const options = {trajectory,shell,body,ammo};
+    const options = {trajectory,shells,body,ammunition};
     if (body === 'shotgun' && !pattern) {
       weaponShotgunVolley(origin,direction,playerStats.attack*charge.scale,range,options,volleyStart);
       continue;
     }
-    for (const [index, [offset, scale]] of weaponVolley(pattern).entries()) {
-      const aim = (start+offset+8)%8;
-      const [dx,dy] = WEAPON_DIRECTIONS[aim];
-      const damage = playerStats.attack*scale*charge.scale;
-      const lane = stagger ? (index - (pattern === 'dual' ? .5 : 1)) * 4 : 0;
-      weaponShootRay(origin,dx,dy,scale===1&&charge.scale===1?damage:Math.round(damage*100)/100,range,
-        {...options,start:volleyStart+(stagger ? index*20 : 0),lane});
+    const volley = weaponVolley(pattern);
+    for (let shot = 0; shot < shotsPerFire; shot++) {
+      for (const [index, [offset, scale]] of volley.entries()) {
+        const aim = (start+offset+8)%8;
+        const [dx,dy] = WEAPON_DIRECTIONS[aim];
+        const damage = playerStats.attack*scale*charge.scale;
+        const lane = parallel ? (index - (volley.length-1)/2) * 10 : 0;
+        weaponShootRay(origin,dx,dy,scale===1&&charge.scale===1?damage:Math.round(damage*100)/100,range,
+          {...options,start:volleyStart+shot*SHOT_INTERVAL,lane});
+      }
     }
   }
 }

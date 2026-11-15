@@ -50,28 +50,39 @@ function autoPickupResources() {
   return pickedAny;
 }
 
+function gainBombs(amount) {
+  const before=playerResources.bombs;
+  playerResources.bombs=Math.min(before+amount,RES_LIMITS.bombMax || 99);
+  const gained=playerResources.bombs-before;
+  if(gained>0)recordRunStat('bombsAcquired');
+  return gained;
+}
+
 function handleResourcePickup(res) {
   const cfg = RESOURCE_DB[res.cfgId];
   if (!cfg) return false;
 
   switch (cfg.type) {
     case 'coin': {
+      const balance = playerResources.coins;
       const newTotal = playerResources.coins + cfg.value;
       if (newTotal > (RES_LIMITS.coinMax || 99)) {
         playerResources.coins = RES_LIMITS.coinMax || 99;
       } else {
         playerResources.coins = newTotal;
       }
+      recordRunStat('coinsPickedUp',playerResources.coins - balance);
       break;
     }
     case 'bomb': {
-      const newTotal = playerResources.bombs + cfg.amount;
-      playerResources.bombs = Math.min(newTotal, RES_LIMITS.bombMax || 99);
+      gainBombs(cfg.amount);
       break;
     }
     case 'key': {
-      const newTotal = playerResources.keys + cfg.amount;
+      const balance = playerResources.keys;
+      const newTotal = balance + cfg.amount;
       playerResources.keys = Math.min(newTotal, RES_LIMITS.keyMax || 99);
+      if (playerResources.keys > balance) recordRunStat('keysAcquired');
       break;
     }
     case 'heart': {
@@ -79,11 +90,13 @@ function handleResourcePickup(res) {
       const newHp = Math.min(playerStats.hp + cfg.heal, playerStats.maxHp);
       if (newHp === playerStats.hp) return false;
       playerStats.hp = newHp;
+      recordRunStat('medicalPickups');
       break;
     }
     case 'blue_heart': {
-      if (!tryAddBlueHeart(cfg.amount)) return false; // 心数已达上限12，不拾取但不消失
+      if (!tryAddBlueHeart(cfg.amount)) return false;
       playerResources.blueHearts += cfg.amount;
+      recordRunStat('shieldPickups');
       break;
     }
     case 'chest': {
@@ -117,6 +130,7 @@ function openChest(res) {
   if (cfg.locked) {
     if (playerResources.keys <= 0) { SFX.locked(); return false; } // 没钥匙打不开
     playerResources.keys--;
+    recordRunStat('keysUsed');
   }
   SFX.chest();
 

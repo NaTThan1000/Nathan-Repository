@@ -6,6 +6,7 @@ function bombFuseTurns() {
 function placeBomb(col, row) {
   if (playerResources.bombs <= 0) return;
   playerResources.bombs--;
+  recordRunStat('bombsUsed');
   SFX.bombPlace();
 
   const bomb = {
@@ -192,7 +193,7 @@ function applyItem(cfgId) {
   playerInventory.push(cfgId);
 
   // 累计道具拾取记录（不受Esc回溯影响）
-  itemsCollected.push(cfg.name);
+  itemsCollected.push(cfgId);
   SFX.pickupItem();
 
   // 记录改变前的HP百分比（防除零）
@@ -249,12 +250,12 @@ function _hasHealFull(cfg) {
 }
 
 // 重新计算所有属性（遍历所有已拥有道具，同时处理特效注册表）
-function recalcAllStats(baseMaxHp = 3) {
+function recalcAllStats(baseMaxHp = 3, {attack = 3.5, fireRate = 3, range = 6} = {}) {
   // 从基准值开始
-  playerStats.attack = 3.5;
-  playerStats.fireRate = 3;
+  playerStats.attack = attack;
+  playerStats.fireRate = fireRate;
   playerStats.moveSpeed = 3;
-  playerStats.range = 6;
+  playerStats.range = range;
   playerStats.luck = 0;
   playerStats.maxHp = baseMaxHp;
 
@@ -300,10 +301,8 @@ function recalcAllStats(baseMaxHp = 3) {
   const capacity = heartCapacity();
   playerStats.maxHp = Math.max(1, Math.min(capacity, playerStats.maxHp));
   // 红+蓝总心数不得超过上限：超出部分优先削蓝心（红心优先）
-  const heartOverflow = playerStats.maxHp + playerResources.blueHearts - capacity;
-  if (heartOverflow > 0) {
-    playerResources.blueHearts = Math.max(0, playerResources.blueHearts - heartOverflow);
-  }
+  const blueCapacity = shieldCapacity ?? Math.max(0,capacity-playerStats.maxHp);
+  playerResources.blueHearts = Math.min(playerResources.blueHearts,blueCapacity);
   if (playerStats.hp > playerStats.maxHp) playerStats.hp = playerStats.maxHp;
 
   updatePlayerStatsUI(); // 同步攻击力/射程/运气到侧边栏

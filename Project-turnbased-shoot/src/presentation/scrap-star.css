@@ -26,7 +26,29 @@ body,body *,button,input,select,textarea{font-family:var(--game-font)!important}
 .scrap-state{padding:14px 10px;font-size:14px;line-height:22px}.scrap-phase{font-size:12px}
 .scrap-floor{display:flex;flex-direction:column;justify-content:center;gap:3px;padding:12px 9px;line-height:22px;font-size:15px;cursor:pointer}.scrap-floor small{font-size:12px;color:#e4c485;line-height:18px}
 .scrap-res{gap:4px;align-items:stretch;min-width:0}.scrap-res>span{min-width:0;flex:1;min-height:74px;gap:2px;font-size:15px;padding:12px 8px}.scrap-res img{width:19px;height:23px;flex-shrink:0}
-#minimap{display:none!important}
+#top-content-row:has(>#floor-map-sidebar:not([hidden])){
+  display:grid;grid-template-columns:minmax(0,954px) 220px;gap:12px!important;max-width:1186px;
+}
+#top-content-row:has(>#floor-map-sidebar:not([hidden])) #main-column{
+  width:100%;min-width:0;container:floor-map-layout / inline-size;
+}
+#floor-map-sidebar{
+  width:100%;max-width:220px;justify-self:end;padding:10px;
+  border:1px solid #34515b;background:#10272f;color:#d6edf0;
+}
+#floor-map-sidebar h2{font-size:14px;margin-bottom:8px}
+#minimap{display:block;width:100%;height:auto;background:#0a1b22}
+@media(max-width:850px){
+  #top-content-row:has(>#floor-map-sidebar:not([hidden])){grid-template-columns:minmax(0,954px)}
+}
+@container floor-map-layout (max-width:950px){
+  #scrap-hud{grid-template-columns:166px 84px minmax(0,1fr)}
+}
+@container floor-map-layout (max-width:540px){
+  #scrap-hud{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .scrap-point-panel,.scrap-res{grid-column:1/-1}
+  .scrap-res{min-width:0}
+}
 #world-map-modal{display:none;position:fixed;inset:0;z-index:5000;background:#020c12cc;align-items:center;justify-content:center;padding:24px;box-sizing:border-box}
 #world-map-modal.open{display:flex}.world-map-card{width:min(960px,100%);max-height:calc(100vh - 48px);overflow:auto;background:#10272f;border:3px solid #48656a;box-shadow:inset 0 0 0 3px #122027,0 24px 80px #000b;color:#dce9e6;padding:18px;box-sizing:border-box}
 .world-map-card header{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid #36555d;padding-bottom:14px}.world-map-card h2{margin:5px 0 0;font-size:22px;letter-spacing:2px}.world-map-card small{font-size:11px;letter-spacing:2px;color:#d6a762}.world-map-card button{background:#24424c;border:2px solid #68868a;color:#f2dfb4;padding:10px 16px;cursor:pointer}.world-map-card canvas{display:block;width:100%;height:auto;margin:14px 0;background:#0a1b22}.world-map-card footer{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#91b3b9}
@@ -41,9 +63,69 @@ body,body *,button,input,select,textarea{font-family:var(--game-font)!important}
 .arena-heart-shield.ready{filter:drop-shadow(0 0 3px #5df6ff)}
 .arena-heart-shield.ready .arena-shield-energy{fill:#a0f9ff}
 
-#scrap-hearts.scrap-health-panel{display:flex;flex-wrap:wrap;align-items:center;align-content:center;gap:5px;padding:10px;min-width:0}
-.scrap-health-meter{position:relative;width:100%;height:25px;overflow:hidden;border:1px solid #80505c;border-radius:4px;background:#291822;color:#fff4ed;box-shadow:inset 0 0 0 1px #141016}
+#scrap-hearts.scrap-health-panel{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto auto;align-items:center;align-content:center;gap:3px 6px;padding:8px;min-width:0}
+.scrap-health-label{grid-column:1;text-align:center;font-size:12px;font-weight:700}
+.scrap-health-row,.scrap-shield-row{grid-column:1;display:grid;grid-template-columns:14px minmax(0,1fr);gap:4px;align-items:center}
+#scrap-hearts .scrap-health-row img{width:14px;height:14px}
+.scrap-health-panel .arena-heart-shield{grid-column:2;grid-row:1/-1;width:22px;height:22px}
+.scrap-health-meter{position:relative;height:20px;overflow:hidden;border:1px solid #80505c;border-radius:4px;background:#291822;color:#fff4ed;box-shadow:inset 0 0 0 1px #141016}
 .scrap-health-fill{position:absolute;inset:0 auto 0 0;background:linear-gradient(#d85969,#9e344a)}
-.scrap-health-value{position:absolute;inset:0;display:grid;place-items:center;font-weight:700;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px #310f1b}
-.scrap-blue-health{display:flex;align-items:center;gap:3px;color:#a5dfff;font-size:12px;font-variant-numeric:tabular-nums}
-#scrap-hearts .scrap-blue-health img{width:14px;height:14px}
+.scrap-health-value{position:absolute;inset:0;display:grid;place-items:center;font-size:12px;font-weight:700;white-space:nowrap;text-shadow:0 1px 2px #310f1b;font-variant-numeric:tabular-nums}
+.scrap-shield-icon{justify-self:center;width:10px;height:12px;background:#7ad5e8;clip-path:polygon(50% 0,100% 16%,100% 59%,78% 84%,50% 100%,22% 84%,0 59%,0 16%)}
+.scrap-shield-meter{display:grid;grid-template-columns:repeat(var(--shield-segments),minmax(0,1fr));gap:3px}
+.scrap-shield-meter span{height:5px;border:1px solid #33626f;border-radius:2px;background:#112a34}
+.scrap-shield-meter .filled{background:#73dbf0;border-color:#8deaff;box-shadow:0 0 4px #57d9e977}
+.single-step-ui #main-column{container-type:inline-size}
+.single-step-ui #scrap-hud{grid-template-columns:150px minmax(0,1fr) 108px 72px;grid-template-areas:"health stats turn controls";min-height:0;align-items:stretch;padding-right:0}
+.single-step-ui #scrap-hud.step-hud-resources{grid-template-columns:150px minmax(0,1fr) 108px 154px 72px;grid-template-areas:"health stats turn resources controls"}
+.single-step-ui .scrap-point-panel{display:none}
+.single-step-ui .scrap-stats{grid-area:stats;display:grid;grid-template-columns:repeat(5,57px);justify-self:start;align-items:center;gap:4px;min-height:64px;padding:8px}
+.single-step-ui .scrap-stat{display:grid;grid-template-columns:auto auto;justify-content:center;justify-items:center;column-gap:3px;row-gap:1px;font-size:13px;line-height:20px}
+.single-step-ui .scrap-stat{box-sizing:border-box;min-width:0;padding:2px 0;border:1px solid #41636e;border-radius:4px;background:#10272f;font-size:12px}
+.single-step-ui .scrap-stat span[id]{grid-column:1/-1;width:100%;overflow:hidden;text-overflow:ellipsis;text-align:center;font-size:16px;font-variant-numeric:tabular-nums}
+.single-step-ui .scrap-stat img,.step-luck-icon{width:16px;height:16px}
+.step-luck-icon{display:inline-grid;place-items:center;color:#f6cb7c;font-size:16px;line-height:1}
+.single-step-ui .scrap-state{grid-area:turn;display:grid;grid-template-columns:minmax(0,1fr);align-content:center;min-height:64px;padding:5px 6px;overflow:hidden;font-variant-numeric:tabular-nums}
+.single-step-ui .scrap-state .scrap-phase{display:inline}
+.single-step-ui #scrap-hearts{grid-area:health;min-height:48px}
+.single-step-ui #scrap-res{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:8px}
+.single-step-ui #scrap-hud #scrap-res{grid-area:resources;align-self:center;margin:0}
+.single-step-ui #scrap-res>span{min-width:0;min-height:32px;gap:3px;padding:4px;overflow:hidden;font-variant-numeric:tabular-nums;border:1px solid #345b65;border-radius:4px;background:#112831}
+.single-step-ui #scrap-res img{width:16px;height:18px;object-fit:contain}
+.step-hud-controls{grid-area:controls;display:grid;align-items:center}
+#step-settings-button,#step-settings button{box-sizing:border-box;width:100%;min-height:34px;padding:4px 8px;border:1px solid #52737b;border-radius:4px;background:#112831!important;color:#eaf8f8;cursor:pointer;font-size:14px}
+#step-settings-button:hover,#step-settings button:hover{background:#24424c!important}
+#step-settings{box-sizing:border-box;width:min(320px,90vw);padding:20px;border:1px solid #52737b;border-radius:8px;background:#10272f;color:#eaf8f8}
+#step-settings::backdrop{background:#020c12b8}
+#step-settings h2{margin:0 0 14px;font-size:19px}
+.step-settings-options{display:grid;gap:8px;margin-bottom:14px}
+#step-history{box-sizing:border-box;width:min(620px,94vw);max-height:88vh;overflow:auto;padding:18px;border:1px solid #52737b;border-radius:8px;background:#10272f;color:#eaf8f8}
+#step-history::backdrop{background:#020c12b8}
+#step-history h2{margin:0 0 12px;font-size:20px}
+.step-history-build>h3{margin:14px 0 6px;font-size:13px;color:#acd1d8}
+.step-history-run{margin:5px 0;padding:8px;border:1px solid #345b65;border-radius:5px}
+.step-history-run summary{cursor:pointer;font-weight:700}
+.step-history-run[open] summary{margin-bottom:8px}
+#step-history button,.step-history-button{margin:8px;padding:7px 12px;border:1px solid #52737b;border-radius:4px;background:#112831;color:#eaf8f8;cursor:pointer}
+.single-step-ui #scrap-footer{min-height:68px;justify-content:center}
+.single-step-ui #floor-map-sidebar #scrap-floor{width:100%;min-height:30px;margin-bottom:8px;border:1px solid #345b65;border-radius:4px;background:#112831;color:#eaf8f8;cursor:pointer;font-size:14px;font-weight:700}
+.single-step-ui #floor-map-sidebar .scrap-items,.single-step-ui #arena-tools .scrap-items{min-height:40px;margin-top:8px;background:#112831;border:1px solid #345b65;border-radius:4px}
+.single-step-ui .scrap-items #item-bar{display:flex!important;flex-wrap:wrap;align-items:center;gap:6px;width:auto;min-height:0;margin:0;padding:6px;border:0;background:none}
+.single-step-ui .scrap-items .item-tooltip{left:auto;right:0;transform:none;width:min(240px,65vw);white-space:normal;overflow-wrap:anywhere}
+.single-step-ui .scrap-items .item-slot:focus-visible .item-tooltip{display:block}
+#step-benefit{box-sizing:border-box;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:4px 24px;width:100%;min-height:48px;padding:5px 10px;border:1px solid #294650;border-radius:5px;color:#ebffff;font-size:clamp(17px,2.7vw,26px);font-weight:700;text-align:center}
+#step-benefit strong{display:inline-block;min-width:1ch;color:#a3f5ff;font-variant-numeric:tabular-nums}
+#step-benefit.active{border-color:#78e1ed;background:#163a45;box-shadow:inset 0 0 16px #56cbe66a,0 0 9px #56cbe668;text-shadow:0 0 10px #85e9ee}
+@container(max-width:740px){
+ .single-step-ui #scrap-hud{grid-template-columns:minmax(104px,1fr) 98px 72px;grid-template-areas:"health turn controls" "stats stats stats"}
+ .single-step-ui .scrap-stats{grid-template-columns:repeat(5,minmax(0,1fr));width:min(100%,321px)}
+}
+@container(max-width:360px){
+ .single-step-ui #scrap-hud{grid-template-columns:minmax(0,1fr) 77px 68px}
+ .single-step-ui .scrap-state .scrap-phase,.single-step-ui .scrap-stat{font-size:11px}
+ .single-step-ui .scrap-stat img,.single-step-ui .step-luck-icon{width:12px;height:12px}
+}
+
+#boss-health{padding:8px 16px;background:#10272f;color:#f9e6d4}
+#boss-health div{display:flex;align-items:center;gap:12px;margin:4px 0;font-size:13px}
+#boss-health progress{flex:1;min-width:24px;height:8px;accent-color:#ec8061}

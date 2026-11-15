@@ -1,35 +1,121 @@
-// 地图仅在M弹窗中绘制；打开时暂停回合计时，不改变探索可见性。
-let worldMapOpen=false;
-function toggleWorldMap(open=!worldMapOpen){
- worldMapOpen=open;const modal=document.getElementById('world-map-modal');
- modal.classList.toggle('open',open);modal.setAttribute('aria-hidden',String(!open));
- if(open)drawMinimap();
+// 侧边小地图和放大地图共用探索范围。只有放大地图打开时暂停操作。
+let worldMapOpen = false;
+const floorMapDrawState = new WeakMap();
+
+function toggleWorldMap(open = !worldMapOpen) {
+  worldMapOpen = open;
+  const modal = document.getElementById('world-map-modal');
+  modal.classList.toggle('open', open);
+  modal.setAttribute('aria-hidden', String(!open));
+  if (open) drawMinimap();
 }
-function drawMinimap(){
- if(!worldMapOpen||!currentFloor?.layout)return;
- document.getElementById('world-map-title').textContent='楼层 B'+currentFloor.floorNum+' · 探索地图';
- const surface=document.getElementById('world-map'),paint=surface.getContext('2d'),W=surface.width,H=surface.height;
- paint.clearRect(0,0,W,H);paint.fillStyle='#0a1b22';paint.fillRect(0,0,W,H);
- paint.strokeStyle='#17313a';paint.lineWidth=1;
- for(let x=0;x<W;x+=30){paint.beginPath();paint.moveTo(x,0);paint.lineTo(x,H);paint.stroke();}
- for(let y=0;y<H;y+=30){paint.beginPath();paint.moveTo(0,y);paint.lineTo(W,y);paint.stroke();}
- const entries=Object.entries(currentFloor.layout);if(!entries.length)return;
- const xs=entries.map(([,p])=>p.gx),ys=entries.map(([,p])=>p.gy),minX=Math.min(...xs),minY=Math.min(...ys),spanX=Math.max(...xs)-minX+1,spanY=Math.max(...ys)-minY+1;
- const pitch=Math.min(92,(W-72)/spanX,(H-64)/spanY),size=pitch*.70,ox=(W-spanX*pitch)/2,oy=(H-spanY*pitch)/2;
- const visited=new Set([...visitedRooms].map(String));visited.add(String(currentRoomId));
- const point=p=>({x:ox+(p.gx-minX+.5)*pitch,y:oy+(p.gy-minY+.5)*pitch});
- const roomFor=id=>currentFloor.rooms.find(r=>String(r.id)===String(id));
- const connected=new Set();
- for(const [id,p]of entries){const room=roomFor(id);if(!room)continue;
-  for(const door of Object.values(room.doors||{})){if(!door||door.targetRoomId==null)continue;const target=String(door.targetRoomId),other=currentFloor.layout[target],edge=[id,target].sort().join(':');if(!other||connected.has(edge))continue;connected.add(edge);
-   const a=point(p),b=point(other);paint.strokeStyle=visited.has(id)&&visited.has(target)?'#537a80':'#233840';paint.lineWidth=5;paint.beginPath();paint.moveTo(a.x,a.y);paint.lineTo(b.x,b.y);paint.stroke();
+
+function drawMinimap() {
+  if (!currentFloor?.layout) return;
+  const sidebar = document.getElementById('floor-map-sidebar');
+  if (sidebar?.hidden === false) drawFloorMap(document.getElementById('minimap'));
+  if (worldMapOpen) {
+    const title = document.getElementById('world-map-title');
+    const text = '楼层 B' + currentFloor.floorNum + ' · 探索地图';
+    if (title.textContent !== text) title.textContent = text;
+    drawFloorMap(document.getElementById('world-map'));
   }
- }
- const labels={start:'起点',normal:'战斗',boss:'首领',treasure:'宝藏',shop:'商店'};
- for(const [id,p]of entries){const room=roomFor(id);if(!room)continue;const q=point(p),known=visited.has(id),current=String(id)===String(currentRoomId),x=q.x-size/2,y=q.y-size/2;
-  paint.fillStyle=known?'#203d46':'#101f27';paint.fillRect(x,y,size,size);paint.strokeStyle=current?'#67e4ec':known?'#68868a':'#34474c';paint.lineWidth=current?3:2;paint.strokeRect(x,y,size,size);
-  paint.fillStyle=current?'#efb34e':'#3c646c';paint.fillRect(x+4,y+4,5,3);paint.fillRect(x+size-9,y+size-7,5,3);
-  paint.fillStyle=known?'#e3d5ad':'#536670';paint.font='600 '+Math.max(9,Math.min(17,size*.26))+'px Microsoft YaHei UI';paint.textAlign='center';paint.textBaseline='middle';paint.fillText(known?(labels[room.type]||'房间'):'?',q.x,q.y);
-  if(current){paint.fillStyle='#67e4ec';paint.beginPath();paint.moveTo(q.x,y-5);paint.lineTo(q.x-5,y-12);paint.lineTo(q.x+5,y-12);paint.closePath();paint.fill();}
- }
+}
+
+function drawFloorMap(surface) {
+  const previous = floorMapDrawState.get(surface);
+  const layout = currentFloor.layout;
+  const rooms = new Map(currentFloor.rooms.map(room => [String(room.id), room]));
+  const current = String(currentRoomId);
+  const visited = new Set([...visitedRooms].map(String));
+  visited.add(current);
+  const visible = new Set([...visited].filter(id => rooms.has(id) && layout[id]));
+  const icons = new Map();
+  for (const id of visible) {
+    const room=rooms.get(id);
+    if(scrapNumericHealth&&['shop','treasure','boss'].includes(room.type)){
+      icons.set(id,'room-'+room.type);
+      continue;
+    }
+    const resources = id === current ? resourcesOnGround : room._groundResources;
+    for (const resource of resources ?? []) {
+      const key = resourceWorldArt(resource) ?? (RESOURCE_DB[resource.cfgId]?.type === 'chest' ? 'crate0' : null);
+      if (!key) continue;
+      if (scrapWorldIcon(key)) icons.set(id,key);
+      break;
+    }
+  }
+  const resourceKey = JSON.stringify([...icons]);
+  if (previous?.floor === currentFloor && previous.room === currentRoomId &&
+      previous.visited === visitedRooms && previous.count === visitedRooms.size && previous.resourceKey === resourceKey) return;
+  const links = new Map();
+
+  for (const [id, room] of rooms) {
+    if (!layout[id]) continue;
+    for (const door of Object.values(room.doors ?? {})) {
+      if (door?.targetRoomId == null) continue;
+      const target = String(door.targetRoomId);
+      if (!rooms.has(target) || !layout[target] || (!visited.has(id) && !visited.has(target))) continue;
+      visible.add(id);
+      visible.add(target);
+      links.set(JSON.stringify([id, target].sort()), [id, target]);
+    }
+  }
+
+  const paint = surface.getContext('2d');
+  const {width, height} = surface;
+  paint.fillStyle = '#0a1b22';
+  paint.fillRect(0, 0, width, height);
+  const hitBoxes = [];
+  floorMapDrawState.set(surface, {
+    floor: currentFloor, room: currentRoomId, visited: visitedRooms, count: visitedRooms.size, resourceKey, hitBoxes,
+  });
+  if (!visible.size) return;
+
+  const xs = [...visible].map(id => layout[id].gx);
+  const ys = [...visible].map(id => layout[id].gy);
+  const minX = Math.min(...xs), minY = Math.min(...ys);
+  const columns = Math.max(...xs) - minX + 1, rows = Math.max(...ys) - minY + 1;
+  const padding = width > 400 ? 56 : 16;
+  const pitch = Math.min(width > 400 ? 92 : 48, (width - padding) / columns, (height - padding) / rows);
+  const size = pitch * .72;
+  const offsetX = (width - columns * pitch) / 2, offsetY = (height - rows * pitch) / 2;
+  const point = ({gx, gy}) => ({
+    x: offsetX + (gx - minX + .5) * pitch,
+    y: offsetY + (gy - minY + .5) * pitch,
+  });
+
+  paint.lineWidth = Math.max(2, pitch * .055);
+  for (const [id, target] of links.values()) {
+    const from = point(layout[id]), to = point(layout[target]);
+    paint.strokeStyle = visited.has(id) && visited.has(target) ? '#537a80' : '#304a56';
+    paint.beginPath();
+    paint.moveTo(from.x, from.y);
+    paint.lineTo(to.x, to.y);
+    paint.stroke();
+  }
+
+  const colors = {start:'#3375a8', normal:'#3375a8', boss:'#a64546', treasure:'#39805c', shop:'#9d7538'};
+  for (const id of visible) {
+    const {x, y} = point(layout[id]);
+    const known = visited.has(id), active = id === current;
+    paint.fillStyle = known ? (colors[rooms.get(id).type] ?? colors.normal) : '#192b35';
+    paint.fillRect(x - size / 2, y - size / 2, size, size);
+    paint.strokeStyle = active ? '#67e4ec' : known ? '#779da2' : '#344b55';
+    paint.lineWidth = active ? 3 : 1.5;
+    paint.strokeRect(x - size / 2, y - size / 2, size, size);
+    if (known) hitBoxes.push({id,x,y,size});
+    const icon = icons.get(id);
+    if (icon) {
+      const image = scrapWorldIcon(icon), max = size*.68;
+      if (icon === 'crate0') {
+        paint.drawImage(image,0,200,image.naturalWidth,300,x-max/2,y-max/2,max,max);
+      } else {
+        const width=image.naturalWidth??image.width,height=image.naturalHeight??image.height;
+        const scale = max/Math.max(width,height);
+        const w=width*scale,h=height*scale;
+        paint.drawImage(image,x-w/2,y-h/2,w,h);
+      }
+    }
+  }
 }

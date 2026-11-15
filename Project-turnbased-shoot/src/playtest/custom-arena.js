@@ -1,7 +1,7 @@
 // 独立测试入口。布置记录与试玩状态分离，每次开测从原布置复原。
 const arena = { editing: true, start: {col: 2, row: 3}, placements: new Map(), hits: 0, total: 0, last: 0, floor:1, room:1 };
 const arenaSetup = {maxHp:playerStats.maxHp,hp:playerStats.hp,blueHearts:0,coins:0,bombs:0,keys:0};
-const arenaSetupLabels = {maxHp:'血量上限',hp:'当前血量',blueHearts:'蓝心',coins:'金币',bombs:'炸弹',keys:'钥匙'};
+const arenaSetupLabels = {maxHp:'血量上限',hp:'当前血量',blueHearts:'护盾',coins:'金币',bombs:'炸弹',keys:'钥匙'};
 const arenaRoomId = 'custom-arena';
 const arenaKey = (col, row) => col + ',' + row;
 const arenaInside = (col, row) => col >= 0 && col < COLS && row >= 0 && row < ROWS;
@@ -32,7 +32,7 @@ arenaPanel.innerHTML = `
     <p id="arena-setup-hint"></p>
     <div class="arena-setup-fields">
       ${Object.entries(arenaSetupLabels).map(([key,label])=>`
-        <label>${label}<input id="arena-setup-${key}" type="number" inputmode="decimal"></label>
+        <label>${label}<input id="arena-setup-${key}" type="number" inputmode="numeric"></label>
       `).join('')}
     </div>
   </details>
@@ -41,6 +41,9 @@ arenaPanel.innerHTML = `
   <p id="arena-effects" aria-live="polite"></p>`;
 document.body.classList.add('custom-arena-page');
 document.getElementById('top-content-row').append(arenaPanel);
+stepMoveSidebarControls(arenaPanel);
+stepTestHooks.restartRun=()=>arenaLoad(false);
+arenaPanel.querySelector('h1').after(document.getElementById('scrap-floor'));
 const arenaControl = id => document.getElementById('arena-' + id);
 const arenaTerrain = new Map([[TILE.ROCK,'岩石'],[TILE.POOP,'可破坏障碍'],[TILE.PIT,'深坑'],[TILE.SPIKE,'尖刺']]);
 const arenaStatus = message => { arenaControl('status').textContent = message; };
@@ -53,7 +56,7 @@ function arenaCurrentSetup() {
 function arenaSetupBounds(maxHp) {
   const capacity = heartCapacity();
   return {
-    maxHp:[1,capacity,1],hp:[.5,maxHp,.5],blueHearts:[0,capacity-maxHp,.5],
+    maxHp:[1,capacity,1],hp:[1,maxHp,1],blueHearts:[0,shieldCapacity,1],
     coins:[0,RES_LIMITS.coinMax||99,1],bombs:[0,RES_LIMITS.bombMax||99,1],keys:[0,RES_LIMITS.keyMax||99,1],
   };
 }
@@ -86,7 +89,6 @@ function arenaChangeSetup(key, number) {
     const [min,max,step] = arenaSetupBounds(values.maxHp)[key];
     values[key] = Math.max(min,Math.min(max,Math.round(number/step)*step));
     values.hp = Math.min(values.hp,values.maxHp);
-    values.blueHearts = Math.min(values.blueHearts,heartCapacity()-values.maxHp);
     if (arena.editing) Object.assign(arenaSetup,values);
     arenaApplySetup(values);
   }
@@ -161,7 +163,7 @@ function arenaPlace(col, row, remove = false) {
 function arenaLoad(editing, advance) {
   const carry = advance && {
     inventory:[...playerInventory], resources:{...playerResources}, hp:playerStats.hp,
-    kills:monstersKilled, collected:[...itemsCollected],
+    kills:monstersKilled, collected:[...itemsCollected], stats:{...runStats},
   };
   if (carry) {
     if (advance==='floor') {
@@ -188,6 +190,7 @@ function arenaLoad(editing, advance) {
     playerStats.hp = Math.min(carry.hp,playerStats.maxHp);
     monstersKilled = carry.kills;
     itemsCollected = carry.collected;
+    runStats = carry.stats;
     updateItemBar();
   } else arenaApplySetup(arenaSetup);
   pendingBossLanding = null;
@@ -235,12 +238,13 @@ singleStepPlan = function() {
 const arenaDamageOriginal = damageMonster;
 damageMonster = function(m, amount, ...args) {
   if (!m.arenaDummy) return arenaDamageOriginal(m, amount, ...args);
-  if (!Number.isFinite(amount) || amount <= 0) return;
+  amount = Math.round(amount);
+  if (!Number.isFinite(amount) || amount < 0) return;
   arena.hits++;
   arena.last = amount;
   arena.total += amount;
   m.arenaHitUntil = performance.now() + 180;
-  damageNumbers.push({x: m.px, y: m.py, text: '-'+amount, color: '#f4c96c', life: .65, maxLife: .65, vx: 0, vy: -30});
+  if (amount > 0) damageNumbers.push({x: m.px, y: m.py, text: '-'+amount, color: '#f4c96c', life: .65, maxLife: .65, vx: 0, vy: -30});
   SFX.hit();
   arenaDamageText();
 };
@@ -312,6 +316,7 @@ function arenaBoardClick(event, remove) {
 canvas.addEventListener('click', event => arenaBoardClick(event, false));
 canvas.addEventListener('contextmenu', event => arenaBoardClick(event, true));
 window.addEventListener('keydown', event => {
+  if (stepSettings.open || stepHistoryDialog.open || document.getElementById('help-modal').classList.contains('open')) return;
   if (event.target.closest?.('input,select,textarea')) return;
   const gameplayKey = /^(Key[WASDERM]|Arrow(Up|Down|Left|Right))$/.test(event.code);
   if (!gameplayKey || (!arena.editing && event.code !== 'KeyR')) return;
