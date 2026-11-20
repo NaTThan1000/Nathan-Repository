@@ -29,6 +29,7 @@
 - 新增源码要登记在模块清单中。改玩家属性或资源字段时核对 [状态覆盖说明](../tests/STATE-COVERAGE.md) 及保存和恢复路径。旧预测的函数名必须唯一，子弹源码适配必须恰好匹配一次。
 - 正式单步专用模块在 [assemble-game.cjs](../tools/assemble-game.cjs) 中登记。构建为两个试玩包写入同一更新时间。结算历史保存在各试玩入口的浏览器存储，按这个时间分组。
 - 表现资源采用现有审核入口。只展示实际选用素材，已确认部分按用户指出的范围修改。源图、加工工具和动态表现入口见 [怪物素材说明](../Assets/single-step-enemies/README.md) 与 [显示层入口](../src/presentation/README.md)。浏览器验证与规则回归分别记录，整局体验由实际试玩判断。
+- 备用美术保存在仓库的 [美术资源库／Project-turnbased-shoot](../../美术资源库/Project-turnbased-shoot/)，供参考或复用。图片直接放在项目文件夹内，不加批次子目录、HTML、说明、清单或脚本；采用状态与反馈记入本项目 Memory。该目录中的候选须经用户确认后再接入正式游戏。
 
 ## AgentWorkSpace 按需查阅
 

@@ -432,7 +432,9 @@
       "acceptance": "在实际构建审阅角色、怪物、场景、界面和音效样件，确认规格与采用范围。",
       "source": "Documents/PROJECTS.md",
       "note": "",
-      "history": []
+      "history": [
+        "2026-11-20：本聊天的换色样例及新素材运行样例均未获采用。用户认为美术改善不足；10 张 PNG 仅在仓库“美术资源库/Project-turnbased-shoot”留作参考或复用，正式游戏未接入。决定与资源限制见 Documents/turnbased-shoot-memory.md 的 2026-11-20 记录。本任务仍为 todo。"
+      ]
     },
     {
       "id": "D4-2",
