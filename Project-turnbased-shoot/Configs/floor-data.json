@@ -292,6 +292,13 @@
         "id": "f2_r0",
         "type": "normal",
         "tplKey": "pillars",
+        "fixedMonsters": [
+          { "id": "step_fixed", "col": 2, "row": 2 },
+          { "id": "step_charger", "col": 2, "row": 5 },
+          { "id": "step_bomber", "col": 3, "row": 4 },
+          { "id": "step_fighter", "col": 9, "row": 2 },
+          { "id": "step_mobile", "col": 10, "row": 4 }
+        ],
         "doors": {
           "up": {
             "targetRoomId": "f2_r6",
@@ -314,6 +321,13 @@
         "id": "f2_r1",
         "type": "normal",
         "tplKey": "cross_rocks",
+        "fixedMonsters": [
+          { "id": "step_fixed", "col": 2, "row": 1 },
+          { "id": "step_fighter", "col": 3, "row": 4 },
+          { "id": "step_big", "col": 9, "row": 2 },
+          { "id": "step_bomber", "col": 10, "row": 2 },
+          { "id": "step_mobile", "col": 10, "row": 5 }
+        ],
         "doors": {
           "up": {
             "targetRoomId": "f2_r0",
@@ -583,6 +597,14 @@
         "id": "f3_r0",
         "type": "normal",
         "tplKey": "pillars",
+        "fixedMonsters": [
+          { "id": "step_fixed", "col": 2, "row": 2 },
+          { "id": "step_charger", "col": 2, "row": 5 },
+          { "id": "step_bomber", "col": 3, "row": 0 },
+          { "id": "step_fighter", "col": 3, "row": 4 },
+          { "id": "step_cross", "col": 5, "row": 1 },
+          { "id": "step_mobile", "col": 8, "row": 0 }
+        ],
         "doors": {
           "up": null,
           "down": {
@@ -664,7 +686,16 @@
       {
         "id": "f3_r4",
         "type": "normal",
-        "tplKey": "corridor_v",
+        "tplKey": "corridor_v_crossfire",
+        "fixedMonsters": [
+          { "id": "step_fixed", "col": 3, "row": 3 },
+          { "id": "step_fixed", "col": 9, "row": 3 },
+          { "id": "step_charger", "col": 2, "row": 2 },
+          { "id": "step_bomber", "col": 2, "row": 4 },
+          { "id": "step_x", "col": 9, "row": 2 },
+          { "id": "step_mobile", "col": 10, "row": 1 },
+          { "id": "step_fighter", "col": 10, "row": 4 }
+        ],
         "doors": {
           "up": {
             "targetRoomId": "f3_r0",

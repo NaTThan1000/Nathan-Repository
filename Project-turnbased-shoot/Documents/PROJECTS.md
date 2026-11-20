@@ -18,9 +18,12 @@
 
 两个 HTML 都在项目根目录，可独立双击运行。未指定入口时，游戏改动默认面向主试玩包。旧 MP/AP 回归场和子弹时间机制原型可从[历史归档](../history/README.md)打开。
 
+自定义场侧栏「Boss 试玩」可切换七个机制原型，选中即开始，R 重试本场，选「自由布置」返回原布局。原型实现位于 `src/playtest/custom-arena-bosses.js`，由 sandbox 构建接入。
+
 ## 工程入口与项目约定
 
 - 从项目根目录运行 `npm --prefix tools run build` 生成两个日常试玩包，再运行 `npm --prefix tools test` 执行回归。旧机制测试用的 HTML 由回归脚本从现有源码构建到临时目录，结束后清理。安装依赖用 `npm --prefix tools ci`。
+- 默认构建开启黄招打断和红招子弹时间，主包独立启用完整恢复回合。`npm --prefix tools run build -- --arena-only` 只更新自定义场；`--no-attack-rewards` 可生成关闭两种增益的主包对照版本，恢复间隔继续保留。
 - 单步 HUD 的回合数、属性值、资源数量和状态文字使用固定尺寸的显示区域。新增会变化的内容时，在浏览器回归中覆盖文本变化和数字跨位数，确认同一视口下棋盘、小地图和 HUD 各区的位置与尺寸保持稳定。
 - [地图编辑器](../turnbased-shoot-map-viewer.html)用于编辑房间模板和预览楼层生成，纳入项目回归检查。
 - 修改 [源码模板](../src/game.html)、[模块清单](../src/modules.cjs)、对应源码、配置或素材。构建入口为 [assemble-game.cjs](../tools/assemble-game.cjs) 与 [inline-resources.cjs](../tools/inline-resources.cjs)。日常验证不生成 PNG 预览。源素材保存在 `Assets/`。

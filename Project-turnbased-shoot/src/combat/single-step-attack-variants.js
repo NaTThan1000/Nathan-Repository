@@ -77,7 +77,7 @@ stepEnemyPlan = function(m,forceChase) {
 
 const stepVariantPreviousResolve = singleStepResolvePlan;
 singleStepResolvePlan = function(m,plan,options) {
-  if (plan.type==='interrupted') return plan;
+  if (plan.type==='interrupted'||plan.type==='prepare') return plan;
   const resolved=stepVariantPreviousResolve(m,plan,options);
   if (resolved.type!=='variant-attack') return resolved;
   let cells=resolved.shape==='jab'
@@ -105,6 +105,10 @@ const stepVariantPreviousNext = stepTestHooks.nextEnemyPlan;
 stepTestHooks.nextEnemyPlan = function(m,plan) {
   if (stepAttackVariantsEnabled && m.hp>0) {
     if (plan.type==='interrupted') return {type:'recover',cells:[]};
+    if (STEP_FULL_RECOVERY_ENABLED && stepEnemyDefinition(m)) {
+      if (plan.type==='recover') return {type:'prepare',cells:[]};
+      if (singleStepIsAttackPlan(plan)) return {type:'recover',cells:[]};
+    }
     if (plan.type==='variant-attack' && stepEnemyDefinition(m).recover) return {type:'recover',cells:[]};
     if (plan.fanHop && plan.canLockAfterHop && plan.type==='chase' && plan.path?.length && m._stepAction?.from &&
         !stepVariantCellMatches(m,m._stepAction.from) && stepVariantCellMatches(m,plan.path[0]) &&
@@ -117,7 +121,7 @@ stepTestHooks.nextEnemyPlan = function(m,plan) {
 };
 
 stepTestHooks.onDirectWeaponHit = function(m,at) {
-  if (!stepAttackVariantsEnabled || SINGLE_STEP.bonus || arenaEffects.freeAction ||
+  if (!STEP_ATTACK_REWARDS_ENABLED || !stepAttackVariantsEnabled || SINGLE_STEP.bonus || arenaEffects.freeAction ||
       m.hp<=0 || singleStepAttackPreview(m,{ignorePause:true})?.attackColor!=='yellow') return;
   delete m.arenaDelayedMove;
   SINGLE_STEP.plans.set(m.id,{type:'interrupted',cells:[],attackColor:'yellow'});

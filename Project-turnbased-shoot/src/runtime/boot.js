@@ -48,6 +48,7 @@ async function bootGame(){
 function startGameFromMenu() {
   gameStarted = true;
   gameOver = false;
+  startRunTimer();
   document.getElementById('start-menu-modal').classList.remove('show');
   if (currentFloor) showFloorBanner(`第 ${currentFloor.floorNum} 层`);
   lastTime = performance.now();

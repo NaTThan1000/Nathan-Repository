@@ -17,10 +17,10 @@ loadMonsterDB=async function(){
 const stepLoadSquadsOriginal=loadSquadTemplates;
 loadSquadTemplates=async function(){const ok=await stepLoadSquadsOriginal();SQUAD_TEMPLATES.squads={...Object.fromEntries(Object.entries(SQUAD_TEMPLATES.squads||{}).filter(([,s])=>s.roomTypes?.includes('boss'))),...window.stepSquads};return ok;};
 const stepSpawnOriginal=spawnMonsterAtRandomPos;
-spawnMonsterAtRandomPos=function(id,tags,anchor){
+spawnMonsterAtRandomPos=function(id,tags,anchor,exactPosition){
  const mapped=stepEnemyAlias(id), cfg=MONSTER_DB[mapped];
  const movement=cfg?.movementTags || (cfg?.aiType==='boss_duke'?['飞行']:tags);
- return stepSpawnOriginal(mapped,movement,anchor,undefined,{roomSpawn:true});
+ return stepSpawnOriginal(mapped,movement,anchor,exactPosition,{roomSpawn:true});
 };
 const stepSummonOriginal=handleDukeSummon;
 handleDukeSummon=function(m){if(m._turnAfterAction?.monsterId)m._turnAfterAction.monsterId=stepEnemyAlias(m._turnAfterAction.monsterId);return stepSummonOriginal(m,{allowObstacles:true});};

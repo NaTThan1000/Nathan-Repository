@@ -27,6 +27,8 @@ arenaPanel.innerHTML = `
     <button id="arena-zero" disabled>清零伤害</button>
     <button id="arena-next-room" disabled>下一间（同布局）</button><button id="arena-next-floor" disabled>下一层（同布局）</button>
   </div>
+  <label class="arena-boss-picker">Boss 试玩<select id="arena-boss" disabled><option value="">自由布置</option></select></label>
+  <p id="arena-boss-help" hidden></p>
   <details id="arena-setup">
     <summary>资源与血量配置</summary>
     <p id="arena-setup-hint"></p>
@@ -161,6 +163,9 @@ function arenaPlace(col, row, remove = false) {
   arenaLoad(true);
 }
 function arenaLoad(editing, advance) {
+  const preset = arenaBossEncounter;
+  const placements = preset ? arenaBossPlacements(preset) : [...arena.placements.values()];
+  arenaBossFlash = [];
   const carry = advance && {
     inventory:[...playerInventory], resources:{...playerResources}, hp:playerStats.hp,
     kills:monstersKilled, collected:[...itemsCollected], stats:{...runStats},
@@ -173,14 +178,14 @@ function arenaLoad(editing, advance) {
     } else arena.room++;
   } else {
     arena.floor = arena.room = 1;
-    arenaBaseMaxHp = arenaSetup.maxHp;
+    arenaBaseMaxHp = preset ? STEP_STARTING_HP : arenaSetup.maxHp;
     arenaResetEffects();
   }
   arena.editing = editing;
   document.body.classList.toggle('arena-editing', editing);
   const grid = Array.from({length: COLS}, () => Array(ROWS).fill(TILE.FLOOR));
-  for (const p of arena.placements.values()) if (p.kind === 'terrain') grid[p.col][p.row] = Number(p.id);
-  const room = {id: arenaRoomId, type: 'start', tplKey: '自定义场', grid, doors: {}};
+  for (const p of placements) if (p.kind === 'terrain') grid[p.col][p.row] = Number(p.id);
+  const room = {id: arenaRoomId, type: 'start', tplKey: preset?.name || '自定义场', grid, doors: {}};
   allFloors[1] = {floorNum: arena.floor, name: '战斗测试', rooms: [room], startRoomId: room.id, layout: {[room.id]: {gx: 0, gy: 0}}};
   resetGameToFloor1({preserveItemEffects:true});
   if (carry) {
@@ -192,16 +197,16 @@ function arenaLoad(editing, advance) {
     itemsCollected = carry.collected;
     runStats = carry.stats;
     updateItemBar();
-  } else arenaApplySetup(arenaSetup);
+  } else arenaApplySetup(preset ? {...arenaSetup,maxHp:STEP_STARTING_HP,hp:STEP_STARTING_HP,blueHearts:0,coins:0,keys:0,bombs:preset.bombs||0} : arenaSetup);
   pendingBossLanding = null;
   floorFadeBusy = false;
   document.getElementById('floor-fade').style.opacity = '0';
   document.getElementById('floor-banner').classList.remove('show');
   for (const id of ['start-menu-modal', 'death-modal', 'victory-modal']) document.getElementById(id).classList.remove('show');
   if (worldMapOpen) toggleWorldMap(false);
-  const {col, row} = arena.start, q = gridToPixel(col, row);
+  const {col, row} = preset?.start || arena.start, q = gridToPixel(col, row);
   Object.assign(player, {col, row, px: q.x, py: q.y});
-  for (const p of arena.placements.values()) {
+  for (const p of placements) {
     if (p.kind === 'item' && !carry) spawnItemOnGrid(p.col, p.row, p.id);
     if (p.kind === 'resource') spawnResourceOnGrid(p.col, p.row, p.id);
     if (p.kind === 'monster') stepSpawnOriginal(p.id, MONSTER_DB[p.id].aiType==='boss_duke'?['飞行']:MONSTER_DB[p.id].movementTags, null, p);
@@ -213,6 +218,7 @@ function arenaLoad(editing, advance) {
     }
   }
   gameStarted = true;
+  if (!editing) startRunTimer();
   inCombat = monsters.some(m => !m.arenaDummy);
   resetItemRoomEffects();
   singleStepReset();
@@ -221,7 +227,12 @@ function arenaLoad(editing, advance) {
   arenaResetDamage();
   for (const id of ['kind', 'entry', 'clear', 'start']) arenaControl(id).disabled = !editing;
   for (const id of ['edit', 'restart', 'zero','next-room','next-floor']) arenaControl(id).disabled = editing;
-  arenaStatus(editing ? '布置中 · 已放置 '+arena.placements.size+' 个对象' : '测试中 · 第 '+arena.floor+' 层 · 第 '+arena.room+' 间');
+  for (const id of ['next-room','next-floor']) arenaControl(id).disabled = editing || Boolean(preset);
+  arenaControl('rules').disabled = Boolean(preset);
+  const bossHelp=arenaControl('boss-help');
+  bossHelp.hidden=!preset;
+  bossHelp.textContent=preset?.help || '';
+  arenaStatus(preset ? '测试中 · '+preset.name : editing ? '布置中 · 已放置 '+arena.placements.size+' 个对象' : '测试中 · 第 '+arena.floor+' 层 · 第 '+arena.room+' 间');
   arenaControl('setup-hint').textContent = editing
     ? '修改开局值，开始测试与重试时使用。'
     : '修改即时生效，重试恢复布置时的开局值。';
@@ -298,7 +309,7 @@ arenaControl('kind').addEventListener('change', arenaOptions);
 arenaControl('entry').addEventListener('change', arenaDescribe);
 arenaControl('start').addEventListener('click', () => arenaLoad(false));
 arenaControl('restart').addEventListener('click', () => arenaLoad(false));
-arenaControl('edit').addEventListener('click', () => arenaLoad(true));
+arenaControl('edit').addEventListener('click', () => openArenaBossEncounter(''));
 arenaControl('clear').addEventListener('click', () => {
   arena.placements.clear();
   arenaLoad(true);
@@ -336,6 +347,7 @@ function arenaReady() {
     return;
   }
   registerArenaStageEnemies();
+  registerArenaBossEncounters();
   arenaControl('rules').disabled = false;
   arenaOptions();
   arenaLoad(true);

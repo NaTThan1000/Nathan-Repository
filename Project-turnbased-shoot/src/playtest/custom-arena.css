@@ -17,6 +17,8 @@
 #arena-tools #arena-start:not(:disabled){background:#24606b}
 #arena-status{color:#a5dce1}
 #arena-details{color:#f2d695;min-height:19px}
+#arena-tools .arena-boss-picker{margin-top:10px}
+#arena-boss-help{color:#f2d695}
 body.arena-editing #game{cursor:crosshair}
 body.arena-editing #text-overlay{pointer-events:none}
 @media(max-width:850px){

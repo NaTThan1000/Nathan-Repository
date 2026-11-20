@@ -3,7 +3,9 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
 const {pathToFileURL}=require('url');
 (async()=>{const browser=await chromium.launch({headless:true,channel:'chrome'});try{const page=await browser.newPage({viewport:{width:1280,height:1000},deviceScaleFactor:1});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(pathToFileURL(path.resolve(__dirname,'../turnbased-shoot-demo-pack.html')).href);await page.waitForFunction(()=>Object.keys(MONSTER_DB).length>=14&&currentFloor?.layout);
 const intro=await page.locator('#start-menu-modal').innerText();
-for(const line of ['单步射击','敌人随之行动','可打断这次攻击','两次额外行动','右侧显示小地图','踩梯子'])assert.ok(intro.includes(line),'开场说明包含：'+line);
+const attackHelp=await page.evaluate(()=>STEP_ATTACK_REWARDS_ENABLED)
+ ? ['可打断这次攻击','两次额外行动'] : ['射击命中无法打断','躲开怪物红招不触发子弹时间'];
+for(const line of ['单步射击','敌人随之行动',...attackHelp,'右侧显示小地图','踩梯子'])assert.ok(intro.includes(line),'开场说明包含：'+line);
 assert.doesNotMatch(intro,/回溯|消耗行动力|3 回合后引爆/);
 await page.keyboard.press('Space');
 assert.equal(await page.locator('#start-menu-modal').isVisible(),false);

@@ -907,6 +907,8 @@ body,body *,button,input,select,textarea{font-family:var(--game-font)!important}
 #arena-tools #arena-start:not(:disabled){background:#24606b}
 #arena-status{color:#a5dce1}
 #arena-details{color:#f2d695;min-height:19px}
+#arena-tools .arena-boss-picker{margin-top:10px}
+#arena-boss-help{color:#f2d695}
 body.arena-editing #game{cursor:crosshair}
 body.arena-editing #text-overlay{pointer-events:none}
 @media(max-width:850px){
@@ -1098,6 +1100,7 @@ body.arena-editing #text-overlay{pointer-events:none}
     <h2>你死了...</h2>
     <div class="overlay-stats" id="death-stats">
       <div class="settlement-balance">
+        <div class="stat-line settlement-time" hidden>本局用时 <span class="stat-val"></span></div>
         <div class="stat-line">击杀怪物 <span class="stat-val" id="stat-kills">0</span></div>
         <div class="stat-line">剩余金币 <span class="stat-val" id="stat-coins">0</span></div>
         <div class="stat-line">剩余炸弹 <span class="stat-val" id="stat-bombs">0</span></div>
@@ -1118,6 +1121,7 @@ body.arena-editing #text-overlay{pointer-events:none}
     <h2>恭喜你已通关~</h2>
     <div class="overlay-stats" id="victory-stats">
       <div class="settlement-balance">
+        <div class="stat-line settlement-time" hidden>本局用时 <span class="stat-val"></span></div>
         <div class="stat-line">击杀怪物 <span class="stat-val" id="vstat-kills">0</span></div>
         <div class="stat-line">剩余金币 <span class="stat-val" id="vstat-coins">0</span></div>
         <div class="stat-line">剩余炸弹 <span class="stat-val" id="vstat-bombs">0</span></div>
@@ -1515,7 +1519,7 @@ function updateDoorsLocked(){
 
 // 模板加载
 async function loadTemplates(){
-  try{const r=await (async () => { const d = "{\r\n  \"open\": {\r\n    \"name\": \"空旷大厅\",\r\n    \"types\": [\r\n      \"start\",\r\n      \"normal\",\r\n      \"treasure\",\r\n      \"shop\"\r\n    ],\r\n    \"tiles\": [\r\n      \".............\",\r\n      \".............\",\r\n      \".............\",\r\n      \".............\",\r\n      \".............\",\r\n      \".............\",\r\n      \".............\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"cross_rocks\": {\r\n    \"name\": \"十字岩石\",\r\n    \"types\": [\r\n      \"normal\",\r\n      \"treasure\"\r\n    ],\r\n    \"tiles\": [\r\n      \".............\",\r\n      \"......#......\",\r\n      \"......#......\",\r\n      \"...##.#.##...\",\r\n      \"......#......\",\r\n      \"......#......\",\r\n      \".............\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"four_corners\": {\r\n    \"name\": \"四角岩石\",\r\n    \"types\": [\r\n      \"normal\",\r\n      \"treasure\"\r\n    ],\r\n    \"tiles\": [\r\n      \"P##.......##P\",\r\n      \".##.......##.\",\r\n      \".............\",\r\n      \".............\",\r\n      \".............\",\r\n      \".##.......##.\",\r\n      \"P##.......##P\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"pillars\": {\r\n    \"name\": \"四柱大厅\",\r\n    \"types\": [\r\n      \"normal\",\r\n      \"treasure\"\r\n    ],\r\n    \"tiles\": [\r\n      \".............\",\r\n      \"...#P...P#...\",\r\n      \".............\",\r\n      \".....#.#.....\",\r\n      \".............\",\r\n      \"...#P...P#...\",\r\n      \".............\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"corridor\": {\r\n    \"name\": \"横向窄道\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \"..###...###..\",\r\n      \"..###...###..\",\r\n      \".............\",\r\n      \".............\",\r\n      \".............\",\r\n      \"..###...###..\",\r\n      \"..###...###..\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"corridor_v\": {\r\n    \"name\": \"纵向窄道\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \"O..##...##..O\",\r\n      \"...##...##...\",\r\n      \"...#.....#...\",\r\n      \".....P#P.....\",\r\n      \"...#.....#...\",\r\n      \"...##...##...\",\r\n      \"O..##...##..O\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"scattered\": {\r\n    \"name\": \"散落岩石\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \"...........#.\",\r\n      \".....#.......\",\r\n      \".......#.....\",\r\n      \"..#..........\",\r\n      \".........#...\",\r\n      \"......#......\",\r\n      \"...#.........\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"ring\": {\r\n    \"name\": \"环形壁垒\",\r\n    \"types\": [\r\n      \"normal\",\r\n      \"treasure\"\r\n    ],\r\n    \"tiles\": [\r\n      \"...##...##...\",\r\n      \"..#.......#..\",\r\n      \"..#........#.\",\r\n      \".............\",\r\n      \"..#........#.\",\r\n      \"..#.......#..\",\r\n      \"...##...##...\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"room_split\": {\r\n    \"name\": \"裂半之室\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \".............\",\r\n      \".....#^#.....\",\r\n      \"....#...^....\",\r\n      \"...##...##...\",\r\n      \"....^...#....\",\r\n      \".....#^#.....\",\r\n      \".............\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"alcoves\": {\r\n    \"name\": \"壁龛石室\",\r\n    \"types\": [\r\n      \"normal\",\r\n      \"treasure\"\r\n    ],\r\n    \"tiles\": [\r\n      \"..##P...P##..\",\r\n      \".............\",\r\n      \".#.........#.\",\r\n      \".............\",\r\n      \".#.........#.\",\r\n      \".............\",\r\n      \"..##P...P##..\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"diagonal\": {\r\n    \"name\": \"斜岩通道\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \"##...........\",\r\n      \".##..........\",\r\n      \"..##.........\",\r\n      \"...##........\",\r\n      \"....##.......\",\r\n      \".....##......\",\r\n      \".............\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"boss_arena\": {\r\n    \"name\": \"Boss竞技场\",\r\n    \"types\": [\r\n      \"boss\"\r\n    ],\r\n    \"tiles\": [\r\n      \".............\",\r\n      \"...#.....#...\",\r\n      \".............\",\r\n      \".......#.....\",\r\n      \".............\",\r\n      \"...#.....#...\",\r\n      \".............\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"custom_1\": {\r\n    \"name\": \"自生成 1 (角岩)\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \".#.........#.\",\r\n      \".............\",\r\n      \"..#...#...#..\",\r\n      \"...#.....#...\",\r\n      \".....#.#.....\",\r\n      \".............\",\r\n      \".#.........#.\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"custom_2\": {\r\n    \"name\": \"自生成 2 (中柱)\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \".............\",\r\n      \".............\",\r\n      \".............\",\r\n      \"..P...#......\",\r\n      \"...........P.\",\r\n      \".............\",\r\n      \".............\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"custom_3\": {\r\n    \"name\": \"自生成 3 (角岩+中柱)\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \".##.......##.\",\r\n      \".##..P....##.\",\r\n      \".^P..........\",\r\n      \".....##......\",\r\n      \".............\",\r\n      \".##.......##.\",\r\n      \".##.......##.\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"custom_4\": {\r\n    \"name\": \"自生成 4 (石柱)\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \".............\",\r\n      \"...........P.\",\r\n      \".....#.#.....\",\r\n      \".............\",\r\n      \"..#.......#..\",\r\n      \"..#.......#P.\",\r\n      \".............\"\r\n    ]\r\n  }\r\n}"; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })();if(r.ok){poolTemplates=await r.json();return;}}catch(e){}
+  try{const r=await (async () => { const d = "{\r\n  \"open\": {\r\n    \"name\": \"空旷大厅\",\r\n    \"types\": [\r\n      \"start\",\r\n      \"normal\",\r\n      \"treasure\",\r\n      \"shop\"\r\n    ],\r\n    \"tiles\": [\r\n      \".............\",\r\n      \".............\",\r\n      \".............\",\r\n      \".............\",\r\n      \".............\",\r\n      \".............\",\r\n      \".............\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"cross_rocks\": {\r\n    \"name\": \"十字岩石\",\r\n    \"types\": [\r\n      \"normal\",\r\n      \"treasure\"\r\n    ],\r\n    \"tiles\": [\r\n      \".............\",\r\n      \"......#......\",\r\n      \"......#......\",\r\n      \"...##.#.##...\",\r\n      \"......#......\",\r\n      \"......#......\",\r\n      \".............\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"four_corners\": {\r\n    \"name\": \"四角岩石\",\r\n    \"types\": [\r\n      \"normal\",\r\n      \"treasure\"\r\n    ],\r\n    \"tiles\": [\r\n      \"P##.......##P\",\r\n      \".##.......##.\",\r\n      \".............\",\r\n      \".............\",\r\n      \".............\",\r\n      \".##.......##.\",\r\n      \"P##.......##P\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"pillars\": {\r\n    \"name\": \"四柱大厅\",\r\n    \"types\": [\r\n      \"normal\",\r\n      \"treasure\"\r\n    ],\r\n    \"tiles\": [\r\n      \".............\",\r\n      \"...#P...P#...\",\r\n      \".............\",\r\n      \".....#.#.....\",\r\n      \".............\",\r\n      \"...#P...P#...\",\r\n      \".............\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"corridor\": {\r\n    \"name\": \"横向窄道\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \"..###...###..\",\r\n      \"..###...###..\",\r\n      \".............\",\r\n      \".............\",\r\n      \".............\",\r\n      \"..###...###..\",\r\n      \"..###...###..\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"corridor_v\": {\r\n    \"name\": \"纵向窄道\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \"O..##...##..O\",\r\n      \"...##...##...\",\r\n      \"...#.....#...\",\r\n      \".....P#P.....\",\r\n      \"...#.....#...\",\r\n      \"...##...##...\",\r\n      \"O..##...##..O\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"scattered\": {\r\n    \"name\": \"散落岩石\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \"...........#.\",\r\n      \".....#.......\",\r\n      \".......#.....\",\r\n      \"..#..........\",\r\n      \".........#...\",\r\n      \"......#......\",\r\n      \"...#.........\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"ring\": {\r\n    \"name\": \"环形壁垒\",\r\n    \"types\": [\r\n      \"normal\",\r\n      \"treasure\"\r\n    ],\r\n    \"tiles\": [\r\n      \"...##...##...\",\r\n      \"..#.......#..\",\r\n      \"..#........#.\",\r\n      \".............\",\r\n      \"..#........#.\",\r\n      \"..#.......#..\",\r\n      \"...##...##...\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"room_split\": {\r\n    \"name\": \"裂半之室\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \".............\",\r\n      \".....#^#.....\",\r\n      \"....#...^....\",\r\n      \"...##...##...\",\r\n      \"....^...#....\",\r\n      \".....#^#.....\",\r\n      \".............\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"alcoves\": {\r\n    \"name\": \"壁龛石室\",\r\n    \"types\": [\r\n      \"normal\",\r\n      \"treasure\"\r\n    ],\r\n    \"tiles\": [\r\n      \"..##P...P##..\",\r\n      \".............\",\r\n      \".#.........#.\",\r\n      \".............\",\r\n      \".#.........#.\",\r\n      \".............\",\r\n      \"..##P...P##..\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"diagonal\": {\r\n    \"name\": \"斜岩通道\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \"##...........\",\r\n      \".##..........\",\r\n      \"..##.........\",\r\n      \"...##........\",\r\n      \"....##.......\",\r\n      \".....##......\",\r\n      \".............\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"boss_arena\": {\r\n    \"name\": \"Boss竞技场\",\r\n    \"types\": [\r\n      \"boss\"\r\n    ],\r\n    \"tiles\": [\r\n      \".............\",\r\n      \"...#.....#...\",\r\n      \".............\",\r\n      \".......#.....\",\r\n      \".............\",\r\n      \"...#.....#...\",\r\n      \".............\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"custom_1\": {\r\n    \"name\": \"自生成 1 (角岩)\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \".#.........#.\",\r\n      \".............\",\r\n      \"..#...#...#..\",\r\n      \"...#.....#...\",\r\n      \".....#.#.....\",\r\n      \".............\",\r\n      \".#.........#.\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"custom_2\": {\r\n    \"name\": \"自生成 2 (中柱)\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \".............\",\r\n      \".............\",\r\n      \".............\",\r\n      \"..P...#......\",\r\n      \"...........P.\",\r\n      \".............\",\r\n      \".............\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"custom_3\": {\r\n    \"name\": \"自生成 3 (角岩+中柱)\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \".##.......##.\",\r\n      \".##..P....##.\",\r\n      \".^P..........\",\r\n      \".....##......\",\r\n      \".............\",\r\n      \".##.......##.\",\r\n      \".##.......##.\"\r\n    ],\r\n    \"allowedMovement\": [\r\n      \"地面\",\r\n      \"飞行\"\r\n    ]\r\n  },\r\n  \"corridor_v_crossfire\": {\r\n    \"name\": \"双侧火力走廊\",\r\n    \"types\": [\"normal\"],\r\n    \"tiles\": [\r\n      \"O..##...##..O\",\r\n      \"...##...##...\",\r\n      \"....#...#....\",\r\n      \"......#......\",\r\n      \"....#...#....\",\r\n      \"...##...##...\",\r\n      \"O..##...##..O\"\r\n    ],\r\n    \"allowedMovement\": [\"地面\", \"飞行\"]\r\n  },\r\n  \"custom_4\": {\r\n    \"name\": \"自生成 4 (石柱)\",\r\n    \"types\": [\r\n      \"normal\"\r\n    ],\r\n    \"tiles\": [\r\n      \".............\",\r\n      \"...........P.\",\r\n      \".....#.#.....\",\r\n      \".............\",\r\n      \"..#.......#..\",\r\n      \"..#.......#P.\",\r\n      \".............\"\r\n    ]\r\n  }\r\n}\r\n"; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })();if(r.ok){poolTemplates=await r.json();return;}}catch(e){}
   console.log('⚠ 无法加载 pool.json, 使用内置模板');
 }
 function getTpl(key){
@@ -1570,7 +1574,7 @@ function resetGameToFloor1(){
 let _lastFloorHash='';
 async function loadOrGenerateFloors(forceReload){
   try{
-    const resp=await (async () => { const d = "{\r\n  \"1\": {\r\n    \"floorNum\": 1,\r\n    \"name\": \"地牢1层\",\r\n    \"shopModifier\": {\r\n      \"type\": \"none\"\r\n    },\r\n    \"rooms\": [\r\n      {\r\n        \"id\": \"f1_r0\",\r\n        \"type\": \"start\",\r\n        \"tplKey\": \"open\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": null,\r\n          \"left\": {\r\n            \"targetRoomId\": \"f1_r3\",\r\n            \"open\": true\r\n          },\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        }\r\n      },\r\n      {\r\n        \"id\": \"f1_r1\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"four_corners\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": null,\r\n          \"left\": null,\r\n          \"right\": {\r\n            \"targetRoomId\": \"f1_r4\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        }\r\n      },\r\n      {\r\n        \"id\": \"f1_r2\",\r\n        \"type\": \"shop\",\r\n        \"tplKey\": \"open\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": null,\r\n          \"left\": {\r\n            \"targetRoomId\": \"f1_r4\",\r\n            \"open\": true\r\n          },\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        }\r\n      },\r\n      {\r\n        \"id\": \"f1_r3\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"diagonal\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f1_r4\",\r\n            \"open\": true\r\n          },\r\n          \"down\": {\r\n            \"targetRoomId\": \"f1_r6\",\r\n            \"open\": true\r\n          },\r\n          \"left\": {\r\n            \"targetRoomId\": \"f1_r5\",\r\n            \"open\": true\r\n          },\r\n          \"right\": {\r\n            \"targetRoomId\": \"f1_r0\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        }\r\n      },\r\n      {\r\n        \"id\": \"f1_r4\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"room_split\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": {\r\n            \"targetRoomId\": \"f1_r3\",\r\n            \"open\": true\r\n          },\r\n          \"left\": {\r\n            \"targetRoomId\": \"f1_r1\",\r\n            \"open\": true\r\n          },\r\n          \"right\": {\r\n            \"targetRoomId\": \"f1_r2\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        }\r\n      },\r\n      {\r\n        \"id\": \"f1_r5\",\r\n        \"type\": \"treasure\",\r\n        \"tplKey\": \"ring\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": null,\r\n          \"left\": null,\r\n          \"right\": {\r\n            \"targetRoomId\": \"f1_r3\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_treasure\"\r\n        }\r\n      },\r\n      {\r\n        \"id\": \"f1_r6\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"corridor_v\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f1_r3\",\r\n            \"open\": true\r\n          },\r\n          \"down\": {\r\n            \"targetRoomId\": \"f1_r8\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        }\r\n      },\r\n      {\r\n        \"id\": \"f1_r7\",\r\n        \"type\": \"boss\",\r\n        \"tplKey\": \"boss_arena\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f1_r8\",\r\n            \"open\": true\r\n          },\r\n          \"down\": null,\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_boss\",\r\n          \"itemDropTable\": \"item_drop_boss_room\"\r\n        }\r\n      },\r\n      {\r\n        \"id\": \"f1_r8\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"custom_3\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f1_r6\",\r\n            \"open\": true\r\n          },\r\n          \"down\": {\r\n            \"targetRoomId\": \"f1_r7\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        }\r\n      }\r\n    ],\r\n    \"edges\": [\r\n      [\r\n        \"f1_r6\",\r\n        \"f1_r3\"\r\n      ],\r\n      [\r\n        \"f1_r6\",\r\n        \"f1_r8\"\r\n      ],\r\n      [\r\n        \"f1_r3\",\r\n        \"f1_r4\"\r\n      ],\r\n      [\r\n        \"f1_r3\",\r\n        \"f1_r0\"\r\n      ],\r\n      [\r\n        \"f1_r4\",\r\n        \"f1_r1\"\r\n      ],\r\n      [\r\n        \"f1_r8\",\r\n        \"f1_r7\"\r\n      ],\r\n      [\r\n        \"f1_r3\",\r\n        \"f1_r5\"\r\n      ],\r\n      [\r\n        \"f1_r4\",\r\n        \"f1_r2\"\r\n      ]\r\n    ],\r\n    \"layout\": {\r\n      \"f1_r6\": {\r\n        \"gx\": 0,\r\n        \"gy\": 0\r\n      },\r\n      \"f1_r3\": {\r\n        \"gx\": 0,\r\n        \"gy\": -1\r\n      },\r\n      \"f1_r4\": {\r\n        \"gx\": 0,\r\n        \"gy\": -2\r\n      },\r\n      \"f1_r0\": {\r\n        \"gx\": 1,\r\n        \"gy\": -1\r\n      },\r\n      \"f1_r8\": {\r\n        \"gx\": 0,\r\n        \"gy\": 1\r\n      },\r\n      \"f1_r1\": {\r\n        \"gx\": -1,\r\n        \"gy\": -2\r\n      },\r\n      \"f1_r7\": {\r\n        \"gx\": 0,\r\n        \"gy\": 2,\r\n        \"adjacentTo\": \"f1_r8\",\r\n        \"dir\": \"down\",\r\n        \"distance\": 4\r\n      },\r\n      \"f1_r5\": {\r\n        \"gx\": -1,\r\n        \"gy\": -1,\r\n        \"adjacentTo\": \"f1_r3\",\r\n        \"dir\": \"left\",\r\n        \"distance\": 2\r\n      },\r\n      \"f1_r2\": {\r\n        \"gx\": 1,\r\n        \"gy\": -2,\r\n        \"adjacentTo\": \"f1_r4\",\r\n        \"dir\": \"right\",\r\n        \"distance\": 3\r\n      }\r\n    },\r\n    \"startRoomId\": \"f1_r0\",\r\n    \"bossRoomId\": \"f1_r7\",\r\n    \"treasureRoomIds\": [\r\n      \"f1_r5\"\r\n    ],\r\n    \"shopRoomIds\": [\r\n      \"f1_r2\"\r\n    ]\r\n  },\r\n  \"2\": {\r\n    \"floorNum\": 2,\r\n    \"name\": \"地牢2层\",\r\n    \"shopModifier\": {\r\n      \"type\": \"none\"\r\n    },\r\n    \"rooms\": [\r\n      {\r\n        \"id\": \"f2_r0\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"pillars\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f2_r6\",\r\n            \"open\": true\r\n          },\r\n          \"down\": {\r\n            \"targetRoomId\": \"f2_r1\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f2_r1\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"cross_rocks\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f2_r0\",\r\n            \"open\": true\r\n          },\r\n          \"down\": {\r\n            \"targetRoomId\": \"f2_r4\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f2_r2\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"custom_3\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": null,\r\n          \"left\": {\r\n            \"targetRoomId\": \"f2_r8\",\r\n            \"open\": true\r\n          },\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f2_r3\",\r\n        \"type\": \"shop\",\r\n        \"tplKey\": \"open\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": {\r\n            \"targetRoomId\": \"f2_r7\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": true,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f2_r4\",\r\n        \"type\": \"boss\",\r\n        \"tplKey\": \"boss_arena\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f2_r1\",\r\n            \"open\": true\r\n          },\r\n          \"down\": null,\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_boss\",\r\n          \"itemDropTable\": \"item_drop_boss_room\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f2_r5\",\r\n        \"type\": \"treasure\",\r\n        \"tplKey\": \"four_corners\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": null,\r\n          \"left\": null,\r\n          \"right\": {\r\n            \"targetRoomId\": \"f2_r6\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": true,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_treasure\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f2_r6\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"four_corners\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": {\r\n            \"targetRoomId\": \"f2_r0\",\r\n            \"open\": true\r\n          },\r\n          \"left\": {\r\n            \"targetRoomId\": \"f2_r5\",\r\n            \"open\": true\r\n          },\r\n          \"right\": {\r\n            \"targetRoomId\": \"f2_r8\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f2_r7\",\r\n        \"type\": \"start\",\r\n        \"tplKey\": \"open\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f2_r3\",\r\n            \"open\": true\r\n          },\r\n          \"down\": {\r\n            \"targetRoomId\": \"f2_r8\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f2_r8\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"scattered\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f2_r7\",\r\n            \"open\": true\r\n          },\r\n          \"down\": null,\r\n          \"left\": {\r\n            \"targetRoomId\": \"f2_r6\",\r\n            \"open\": true\r\n          },\r\n          \"right\": {\r\n            \"targetRoomId\": \"f2_r2\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      }\r\n    ],\r\n    \"edges\": [\r\n      [\r\n        \"f2_r0\",\r\n        \"f2_r6\"\r\n      ],\r\n      [\r\n        \"f2_r0\",\r\n        \"f2_r1\"\r\n      ],\r\n      [\r\n        \"f2_r6\",\r\n        \"f2_r8\"\r\n      ],\r\n      [\r\n        \"f2_r8\",\r\n        \"f2_r7\"\r\n      ],\r\n      [\r\n        \"f2_r8\",\r\n        \"f2_r2\"\r\n      ],\r\n      [\r\n        \"f2_r1\",\r\n        \"f2_r4\"\r\n      ],\r\n      [\r\n        \"f2_r6\",\r\n        \"f2_r5\"\r\n      ],\r\n      [\r\n        \"f2_r7\",\r\n        \"f2_r3\"\r\n      ]\r\n    ],\r\n    \"layout\": {\r\n      \"f2_r0\": {\r\n        \"gx\": 0,\r\n        \"gy\": 0\r\n      },\r\n      \"f2_r6\": {\r\n        \"gx\": 0,\r\n        \"gy\": -1\r\n      },\r\n      \"f2_r8\": {\r\n        \"gx\": 1,\r\n        \"gy\": -1\r\n      },\r\n      \"f2_r7\": {\r\n        \"gx\": 1,\r\n        \"gy\": -2\r\n      },\r\n      \"f2_r1\": {\r\n        \"gx\": 0,\r\n        \"gy\": 1\r\n      },\r\n      \"f2_r2\": {\r\n        \"gx\": 2,\r\n        \"gy\": -1\r\n      },\r\n      \"f2_r4\": {\r\n        \"gx\": 0,\r\n        \"gy\": 2,\r\n        \"adjacentTo\": \"f2_r1\",\r\n        \"dir\": \"down\",\r\n        \"distance\": 5\r\n      },\r\n      \"f2_r5\": {\r\n        \"gx\": -1,\r\n        \"gy\": -1,\r\n        \"adjacentTo\": \"f2_r6\",\r\n        \"dir\": \"left\",\r\n        \"distance\": 3\r\n      },\r\n      \"f2_r3\": {\r\n        \"gx\": 1,\r\n        \"gy\": -3,\r\n        \"adjacentTo\": \"f2_r7\",\r\n        \"dir\": \"up\",\r\n        \"distance\": 1\r\n      }\r\n    },\r\n    \"startRoomId\": \"f2_r7\",\r\n    \"bossRoomId\": \"f2_r4\",\r\n    \"treasureRoomIds\": [\r\n      \"f2_r5\"\r\n    ],\r\n    \"shopRoomIds\": [\r\n      \"f2_r3\"\r\n    ]\r\n  },\r\n  \"3\": {\r\n    \"floorNum\": 3,\r\n    \"name\": \"地牢3层\",\r\n    \"shopModifier\": {\r\n      \"type\": \"none\"\r\n    },\r\n    \"rooms\": [\r\n      {\r\n        \"id\": \"f3_r0\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"pillars\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": {\r\n            \"targetRoomId\": \"f3_r4\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": {\r\n            \"targetRoomId\": \"f3_r11\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r1\",\r\n        \"type\": \"treasure\",\r\n        \"tplKey\": \"four_corners\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": null,\r\n          \"left\": null,\r\n          \"right\": {\r\n            \"targetRoomId\": \"f3_r8\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": true,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_treasure\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r2\",\r\n        \"type\": \"start\",\r\n        \"tplKey\": \"open\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f3_r3\",\r\n            \"open\": true\r\n          },\r\n          \"down\": null,\r\n          \"left\": {\r\n            \"targetRoomId\": \"f3_r10\",\r\n            \"open\": true\r\n          },\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r3\",\r\n        \"type\": \"shop\",\r\n        \"tplKey\": \"open\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": {\r\n            \"targetRoomId\": \"f3_r2\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": true,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r4\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"corridor_v\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f3_r0\",\r\n            \"open\": true\r\n          },\r\n          \"down\": {\r\n            \"targetRoomId\": \"f3_r7\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r5\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"corridor\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f3_r10\",\r\n            \"open\": true\r\n          },\r\n          \"down\": null,\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r6\",\r\n        \"type\": \"treasure\",\r\n        \"tplKey\": \"pillars\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": {\r\n            \"targetRoomId\": \"f3_r8\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": true,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_treasure\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r7\",\r\n        \"type\": \"boss\",\r\n        \"tplKey\": \"boss_arena\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f3_r4\",\r\n            \"open\": true\r\n          },\r\n          \"down\": null,\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_boss\",\r\n          \"itemDropTable\": \"item_drop_boss_room\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r8\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"corridor\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f3_r6\",\r\n            \"open\": true\r\n          },\r\n          \"down\": {\r\n            \"targetRoomId\": \"f3_r11\",\r\n            \"open\": true\r\n          },\r\n          \"left\": {\r\n            \"targetRoomId\": \"f3_r1\",\r\n            \"open\": true\r\n          },\r\n          \"right\": {\r\n            \"targetRoomId\": \"f3_r9\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r9\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"custom_3\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": null,\r\n          \"left\": {\r\n            \"targetRoomId\": \"f3_r8\",\r\n            \"open\": true\r\n          },\r\n          \"right\": {\r\n            \"targetRoomId\": \"f3_r10\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r10\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"alcoves\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": {\r\n            \"targetRoomId\": \"f3_r5\",\r\n            \"open\": true\r\n          },\r\n          \"left\": {\r\n            \"targetRoomId\": \"f3_r9\",\r\n            \"open\": true\r\n          },\r\n          \"right\": {\r\n            \"targetRoomId\": \"f3_r2\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r11\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"scattered\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f3_r8\",\r\n            \"open\": true\r\n          },\r\n          \"down\": null,\r\n          \"left\": {\r\n            \"targetRoomId\": \"f3_r0\",\r\n            \"open\": true\r\n          },\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      }\r\n    ],\r\n    \"edges\": [\r\n      [\r\n        \"f3_r9\",\r\n        \"f3_r8\"\r\n      ],\r\n      [\r\n        \"f3_r9\",\r\n        \"f3_r10\"\r\n      ],\r\n      [\r\n        \"f3_r10\",\r\n        \"f3_r5\"\r\n      ],\r\n      [\r\n        \"f3_r10\",\r\n        \"f3_r2\"\r\n      ],\r\n      [\r\n        \"f3_r8\",\r\n        \"f3_r11\"\r\n      ],\r\n      [\r\n        \"f3_r11\",\r\n        \"f3_r0\"\r\n      ],\r\n      [\r\n        \"f3_r0\",\r\n        \"f3_r4\"\r\n      ],\r\n      [\r\n        \"f3_r4\",\r\n        \"f3_r7\"\r\n      ],\r\n      [\r\n        \"f3_r8\",\r\n        \"f3_r6\"\r\n      ],\r\n      [\r\n        \"f3_r8\",\r\n        \"f3_r1\"\r\n      ],\r\n      [\r\n        \"f3_r2\",\r\n        \"f3_r3\"\r\n      ]\r\n    ],\r\n    \"layout\": {\r\n      \"f3_r9\": {\r\n        \"gx\": 0,\r\n        \"gy\": 0\r\n      },\r\n      \"f3_r10\": {\r\n        \"gx\": 1,\r\n        \"gy\": 0\r\n      },\r\n      \"f3_r2\": {\r\n        \"gx\": 2,\r\n        \"gy\": 0\r\n      },\r\n      \"f3_r8\": {\r\n        \"gx\": -1,\r\n        \"gy\": 0\r\n      },\r\n      \"f3_r11\": {\r\n        \"gx\": -1,\r\n        \"gy\": 1\r\n      },\r\n      \"f3_r0\": {\r\n        \"gx\": -2,\r\n        \"gy\": 1\r\n      },\r\n      \"f3_r5\": {\r\n        \"gx\": 1,\r\n        \"gy\": 1\r\n      },\r\n      \"f3_r4\": {\r\n        \"gx\": -2,\r\n        \"gy\": 2\r\n      },\r\n      \"f3_r7\": {\r\n        \"gx\": -2,\r\n        \"gy\": 3,\r\n        \"adjacentTo\": \"f3_r4\",\r\n        \"dir\": \"down\",\r\n        \"distance\": 7\r\n      },\r\n      \"f3_r6\": {\r\n        \"gx\": -1,\r\n        \"gy\": -1,\r\n        \"adjacentTo\": \"f3_r8\",\r\n        \"dir\": \"up\",\r\n        \"distance\": 4\r\n      },\r\n      \"f3_r1\": {\r\n        \"gx\": -2,\r\n        \"gy\": 0,\r\n        \"adjacentTo\": \"f3_r8\",\r\n        \"dir\": \"left\",\r\n        \"distance\": 4\r\n      },\r\n      \"f3_r3\": {\r\n        \"gx\": 2,\r\n        \"gy\": -1,\r\n        \"adjacentTo\": \"f3_r2\",\r\n        \"dir\": \"up\",\r\n        \"distance\": 1\r\n      }\r\n    },\r\n    \"startRoomId\": \"f3_r2\",\r\n    \"bossRoomId\": \"f3_r7\",\r\n    \"treasureRoomIds\": [\r\n      \"f3_r6\",\r\n      \"f3_r1\"\r\n    ],\r\n    \"shopRoomIds\": [\r\n      \"f3_r3\"\r\n    ]\r\n  }\r\n}"; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })();
+    const resp=await (async () => { const d = "{\r\n  \"1\": {\r\n    \"floorNum\": 1,\r\n    \"name\": \"地牢1层\",\r\n    \"shopModifier\": {\r\n      \"type\": \"none\"\r\n    },\r\n    \"rooms\": [\r\n      {\r\n        \"id\": \"f1_r0\",\r\n        \"type\": \"start\",\r\n        \"tplKey\": \"open\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": null,\r\n          \"left\": {\r\n            \"targetRoomId\": \"f1_r3\",\r\n            \"open\": true\r\n          },\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        }\r\n      },\r\n      {\r\n        \"id\": \"f1_r1\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"four_corners\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": null,\r\n          \"left\": null,\r\n          \"right\": {\r\n            \"targetRoomId\": \"f1_r4\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        }\r\n      },\r\n      {\r\n        \"id\": \"f1_r2\",\r\n        \"type\": \"shop\",\r\n        \"tplKey\": \"open\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": null,\r\n          \"left\": {\r\n            \"targetRoomId\": \"f1_r4\",\r\n            \"open\": true\r\n          },\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        }\r\n      },\r\n      {\r\n        \"id\": \"f1_r3\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"diagonal\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f1_r4\",\r\n            \"open\": true\r\n          },\r\n          \"down\": {\r\n            \"targetRoomId\": \"f1_r6\",\r\n            \"open\": true\r\n          },\r\n          \"left\": {\r\n            \"targetRoomId\": \"f1_r5\",\r\n            \"open\": true\r\n          },\r\n          \"right\": {\r\n            \"targetRoomId\": \"f1_r0\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        }\r\n      },\r\n      {\r\n        \"id\": \"f1_r4\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"room_split\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": {\r\n            \"targetRoomId\": \"f1_r3\",\r\n            \"open\": true\r\n          },\r\n          \"left\": {\r\n            \"targetRoomId\": \"f1_r1\",\r\n            \"open\": true\r\n          },\r\n          \"right\": {\r\n            \"targetRoomId\": \"f1_r2\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        }\r\n      },\r\n      {\r\n        \"id\": \"f1_r5\",\r\n        \"type\": \"treasure\",\r\n        \"tplKey\": \"ring\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": null,\r\n          \"left\": null,\r\n          \"right\": {\r\n            \"targetRoomId\": \"f1_r3\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_treasure\"\r\n        }\r\n      },\r\n      {\r\n        \"id\": \"f1_r6\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"corridor_v\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f1_r3\",\r\n            \"open\": true\r\n          },\r\n          \"down\": {\r\n            \"targetRoomId\": \"f1_r8\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        }\r\n      },\r\n      {\r\n        \"id\": \"f1_r7\",\r\n        \"type\": \"boss\",\r\n        \"tplKey\": \"boss_arena\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f1_r8\",\r\n            \"open\": true\r\n          },\r\n          \"down\": null,\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_boss\",\r\n          \"itemDropTable\": \"item_drop_boss_room\"\r\n        }\r\n      },\r\n      {\r\n        \"id\": \"f1_r8\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"custom_3\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f1_r6\",\r\n            \"open\": true\r\n          },\r\n          \"down\": {\r\n            \"targetRoomId\": \"f1_r7\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        }\r\n      }\r\n    ],\r\n    \"edges\": [\r\n      [\r\n        \"f1_r6\",\r\n        \"f1_r3\"\r\n      ],\r\n      [\r\n        \"f1_r6\",\r\n        \"f1_r8\"\r\n      ],\r\n      [\r\n        \"f1_r3\",\r\n        \"f1_r4\"\r\n      ],\r\n      [\r\n        \"f1_r3\",\r\n        \"f1_r0\"\r\n      ],\r\n      [\r\n        \"f1_r4\",\r\n        \"f1_r1\"\r\n      ],\r\n      [\r\n        \"f1_r8\",\r\n        \"f1_r7\"\r\n      ],\r\n      [\r\n        \"f1_r3\",\r\n        \"f1_r5\"\r\n      ],\r\n      [\r\n        \"f1_r4\",\r\n        \"f1_r2\"\r\n      ]\r\n    ],\r\n    \"layout\": {\r\n      \"f1_r6\": {\r\n        \"gx\": 0,\r\n        \"gy\": 0\r\n      },\r\n      \"f1_r3\": {\r\n        \"gx\": 0,\r\n        \"gy\": -1\r\n      },\r\n      \"f1_r4\": {\r\n        \"gx\": 0,\r\n        \"gy\": -2\r\n      },\r\n      \"f1_r0\": {\r\n        \"gx\": 1,\r\n        \"gy\": -1\r\n      },\r\n      \"f1_r8\": {\r\n        \"gx\": 0,\r\n        \"gy\": 1\r\n      },\r\n      \"f1_r1\": {\r\n        \"gx\": -1,\r\n        \"gy\": -2\r\n      },\r\n      \"f1_r7\": {\r\n        \"gx\": 0,\r\n        \"gy\": 2,\r\n        \"adjacentTo\": \"f1_r8\",\r\n        \"dir\": \"down\",\r\n        \"distance\": 4\r\n      },\r\n      \"f1_r5\": {\r\n        \"gx\": -1,\r\n        \"gy\": -1,\r\n        \"adjacentTo\": \"f1_r3\",\r\n        \"dir\": \"left\",\r\n        \"distance\": 2\r\n      },\r\n      \"f1_r2\": {\r\n        \"gx\": 1,\r\n        \"gy\": -2,\r\n        \"adjacentTo\": \"f1_r4\",\r\n        \"dir\": \"right\",\r\n        \"distance\": 3\r\n      }\r\n    },\r\n    \"startRoomId\": \"f1_r0\",\r\n    \"bossRoomId\": \"f1_r7\",\r\n    \"treasureRoomIds\": [\r\n      \"f1_r5\"\r\n    ],\r\n    \"shopRoomIds\": [\r\n      \"f1_r2\"\r\n    ]\r\n  },\r\n  \"2\": {\r\n    \"floorNum\": 2,\r\n    \"name\": \"地牢2层\",\r\n    \"shopModifier\": {\r\n      \"type\": \"none\"\r\n    },\r\n    \"rooms\": [\r\n      {\r\n        \"id\": \"f2_r0\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"pillars\",\r\n        \"fixedMonsters\": [\r\n          { \"id\": \"step_fixed\", \"col\": 2, \"row\": 2 },\r\n          { \"id\": \"step_charger\", \"col\": 2, \"row\": 5 },\r\n          { \"id\": \"step_bomber\", \"col\": 3, \"row\": 4 },\r\n          { \"id\": \"step_fighter\", \"col\": 9, \"row\": 2 },\r\n          { \"id\": \"step_mobile\", \"col\": 10, \"row\": 4 }\r\n        ],\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f2_r6\",\r\n            \"open\": true\r\n          },\r\n          \"down\": {\r\n            \"targetRoomId\": \"f2_r1\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f2_r1\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"cross_rocks\",\r\n        \"fixedMonsters\": [\r\n          { \"id\": \"step_fixed\", \"col\": 2, \"row\": 1 },\r\n          { \"id\": \"step_fighter\", \"col\": 3, \"row\": 4 },\r\n          { \"id\": \"step_big\", \"col\": 9, \"row\": 2 },\r\n          { \"id\": \"step_bomber\", \"col\": 10, \"row\": 2 },\r\n          { \"id\": \"step_mobile\", \"col\": 10, \"row\": 5 }\r\n        ],\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f2_r0\",\r\n            \"open\": true\r\n          },\r\n          \"down\": {\r\n            \"targetRoomId\": \"f2_r4\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f2_r2\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"custom_3\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": null,\r\n          \"left\": {\r\n            \"targetRoomId\": \"f2_r8\",\r\n            \"open\": true\r\n          },\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f2_r3\",\r\n        \"type\": \"shop\",\r\n        \"tplKey\": \"open\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": {\r\n            \"targetRoomId\": \"f2_r7\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": true,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f2_r4\",\r\n        \"type\": \"boss\",\r\n        \"tplKey\": \"boss_arena\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f2_r1\",\r\n            \"open\": true\r\n          },\r\n          \"down\": null,\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_boss\",\r\n          \"itemDropTable\": \"item_drop_boss_room\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f2_r5\",\r\n        \"type\": \"treasure\",\r\n        \"tplKey\": \"four_corners\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": null,\r\n          \"left\": null,\r\n          \"right\": {\r\n            \"targetRoomId\": \"f2_r6\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": true,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_treasure\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f2_r6\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"four_corners\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": {\r\n            \"targetRoomId\": \"f2_r0\",\r\n            \"open\": true\r\n          },\r\n          \"left\": {\r\n            \"targetRoomId\": \"f2_r5\",\r\n            \"open\": true\r\n          },\r\n          \"right\": {\r\n            \"targetRoomId\": \"f2_r8\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f2_r7\",\r\n        \"type\": \"start\",\r\n        \"tplKey\": \"open\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f2_r3\",\r\n            \"open\": true\r\n          },\r\n          \"down\": {\r\n            \"targetRoomId\": \"f2_r8\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f2_r8\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"scattered\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f2_r7\",\r\n            \"open\": true\r\n          },\r\n          \"down\": null,\r\n          \"left\": {\r\n            \"targetRoomId\": \"f2_r6\",\r\n            \"open\": true\r\n          },\r\n          \"right\": {\r\n            \"targetRoomId\": \"f2_r2\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      }\r\n    ],\r\n    \"edges\": [\r\n      [\r\n        \"f2_r0\",\r\n        \"f2_r6\"\r\n      ],\r\n      [\r\n        \"f2_r0\",\r\n        \"f2_r1\"\r\n      ],\r\n      [\r\n        \"f2_r6\",\r\n        \"f2_r8\"\r\n      ],\r\n      [\r\n        \"f2_r8\",\r\n        \"f2_r7\"\r\n      ],\r\n      [\r\n        \"f2_r8\",\r\n        \"f2_r2\"\r\n      ],\r\n      [\r\n        \"f2_r1\",\r\n        \"f2_r4\"\r\n      ],\r\n      [\r\n        \"f2_r6\",\r\n        \"f2_r5\"\r\n      ],\r\n      [\r\n        \"f2_r7\",\r\n        \"f2_r3\"\r\n      ]\r\n    ],\r\n    \"layout\": {\r\n      \"f2_r0\": {\r\n        \"gx\": 0,\r\n        \"gy\": 0\r\n      },\r\n      \"f2_r6\": {\r\n        \"gx\": 0,\r\n        \"gy\": -1\r\n      },\r\n      \"f2_r8\": {\r\n        \"gx\": 1,\r\n        \"gy\": -1\r\n      },\r\n      \"f2_r7\": {\r\n        \"gx\": 1,\r\n        \"gy\": -2\r\n      },\r\n      \"f2_r1\": {\r\n        \"gx\": 0,\r\n        \"gy\": 1\r\n      },\r\n      \"f2_r2\": {\r\n        \"gx\": 2,\r\n        \"gy\": -1\r\n      },\r\n      \"f2_r4\": {\r\n        \"gx\": 0,\r\n        \"gy\": 2,\r\n        \"adjacentTo\": \"f2_r1\",\r\n        \"dir\": \"down\",\r\n        \"distance\": 5\r\n      },\r\n      \"f2_r5\": {\r\n        \"gx\": -1,\r\n        \"gy\": -1,\r\n        \"adjacentTo\": \"f2_r6\",\r\n        \"dir\": \"left\",\r\n        \"distance\": 3\r\n      },\r\n      \"f2_r3\": {\r\n        \"gx\": 1,\r\n        \"gy\": -3,\r\n        \"adjacentTo\": \"f2_r7\",\r\n        \"dir\": \"up\",\r\n        \"distance\": 1\r\n      }\r\n    },\r\n    \"startRoomId\": \"f2_r7\",\r\n    \"bossRoomId\": \"f2_r4\",\r\n    \"treasureRoomIds\": [\r\n      \"f2_r5\"\r\n    ],\r\n    \"shopRoomIds\": [\r\n      \"f2_r3\"\r\n    ]\r\n  },\r\n  \"3\": {\r\n    \"floorNum\": 3,\r\n    \"name\": \"地牢3层\",\r\n    \"shopModifier\": {\r\n      \"type\": \"none\"\r\n    },\r\n    \"rooms\": [\r\n      {\r\n        \"id\": \"f3_r0\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"pillars\",\r\n        \"fixedMonsters\": [\r\n          { \"id\": \"step_fixed\", \"col\": 2, \"row\": 2 },\r\n          { \"id\": \"step_charger\", \"col\": 2, \"row\": 5 },\r\n          { \"id\": \"step_bomber\", \"col\": 3, \"row\": 0 },\r\n          { \"id\": \"step_fighter\", \"col\": 3, \"row\": 4 },\r\n          { \"id\": \"step_cross\", \"col\": 5, \"row\": 1 },\r\n          { \"id\": \"step_mobile\", \"col\": 8, \"row\": 0 }\r\n        ],\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": {\r\n            \"targetRoomId\": \"f3_r4\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": {\r\n            \"targetRoomId\": \"f3_r11\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r1\",\r\n        \"type\": \"treasure\",\r\n        \"tplKey\": \"four_corners\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": null,\r\n          \"left\": null,\r\n          \"right\": {\r\n            \"targetRoomId\": \"f3_r8\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": true,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_treasure\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r2\",\r\n        \"type\": \"start\",\r\n        \"tplKey\": \"open\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f3_r3\",\r\n            \"open\": true\r\n          },\r\n          \"down\": null,\r\n          \"left\": {\r\n            \"targetRoomId\": \"f3_r10\",\r\n            \"open\": true\r\n          },\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r3\",\r\n        \"type\": \"shop\",\r\n        \"tplKey\": \"open\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": {\r\n            \"targetRoomId\": \"f3_r2\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": true,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r4\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"corridor_v_crossfire\",\r\n        \"fixedMonsters\": [\r\n          { \"id\": \"step_fixed\", \"col\": 3, \"row\": 3 },\r\n          { \"id\": \"step_fixed\", \"col\": 9, \"row\": 3 },\r\n          { \"id\": \"step_charger\", \"col\": 2, \"row\": 2 },\r\n          { \"id\": \"step_bomber\", \"col\": 2, \"row\": 4 },\r\n          { \"id\": \"step_x\", \"col\": 9, \"row\": 2 },\r\n          { \"id\": \"step_mobile\", \"col\": 10, \"row\": 1 },\r\n          { \"id\": \"step_fighter\", \"col\": 10, \"row\": 4 }\r\n        ],\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f3_r0\",\r\n            \"open\": true\r\n          },\r\n          \"down\": {\r\n            \"targetRoomId\": \"f3_r7\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r5\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"corridor\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f3_r10\",\r\n            \"open\": true\r\n          },\r\n          \"down\": null,\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r6\",\r\n        \"type\": \"treasure\",\r\n        \"tplKey\": \"pillars\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": {\r\n            \"targetRoomId\": \"f3_r8\",\r\n            \"open\": true\r\n          },\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": true,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_treasure\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r7\",\r\n        \"type\": \"boss\",\r\n        \"tplKey\": \"boss_arena\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f3_r4\",\r\n            \"open\": true\r\n          },\r\n          \"down\": null,\r\n          \"left\": null,\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_boss\",\r\n          \"itemDropTable\": \"item_drop_boss_room\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r8\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"corridor\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f3_r6\",\r\n            \"open\": true\r\n          },\r\n          \"down\": {\r\n            \"targetRoomId\": \"f3_r11\",\r\n            \"open\": true\r\n          },\r\n          \"left\": {\r\n            \"targetRoomId\": \"f3_r1\",\r\n            \"open\": true\r\n          },\r\n          \"right\": {\r\n            \"targetRoomId\": \"f3_r9\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r9\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"custom_3\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": null,\r\n          \"left\": {\r\n            \"targetRoomId\": \"f3_r8\",\r\n            \"open\": true\r\n          },\r\n          \"right\": {\r\n            \"targetRoomId\": \"f3_r10\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r10\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"alcoves\",\r\n        \"doors\": {\r\n          \"up\": null,\r\n          \"down\": {\r\n            \"targetRoomId\": \"f3_r5\",\r\n            \"open\": true\r\n          },\r\n          \"left\": {\r\n            \"targetRoomId\": \"f3_r9\",\r\n            \"open\": true\r\n          },\r\n          \"right\": {\r\n            \"targetRoomId\": \"f3_r2\",\r\n            \"open\": true\r\n          }\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      },\r\n      {\r\n        \"id\": \"f3_r11\",\r\n        \"type\": \"normal\",\r\n        \"tplKey\": \"scattered\",\r\n        \"doors\": {\r\n          \"up\": {\r\n            \"targetRoomId\": \"f3_r8\",\r\n            \"open\": true\r\n          },\r\n          \"down\": null,\r\n          \"left\": {\r\n            \"targetRoomId\": \"f3_r0\",\r\n            \"open\": true\r\n          },\r\n          \"right\": null\r\n        },\r\n        \"locked\": false,\r\n        \"roomClearDrop\": {\r\n          \"resourceDropTable\": \"resource_drop_room_clear_default\"\r\n        },\r\n        \"bossLadderPlaced\": false\r\n      }\r\n    ],\r\n    \"edges\": [\r\n      [\r\n        \"f3_r9\",\r\n        \"f3_r8\"\r\n      ],\r\n      [\r\n        \"f3_r9\",\r\n        \"f3_r10\"\r\n      ],\r\n      [\r\n        \"f3_r10\",\r\n        \"f3_r5\"\r\n      ],\r\n      [\r\n        \"f3_r10\",\r\n        \"f3_r2\"\r\n      ],\r\n      [\r\n        \"f3_r8\",\r\n        \"f3_r11\"\r\n      ],\r\n      [\r\n        \"f3_r11\",\r\n        \"f3_r0\"\r\n      ],\r\n      [\r\n        \"f3_r0\",\r\n        \"f3_r4\"\r\n      ],\r\n      [\r\n        \"f3_r4\",\r\n        \"f3_r7\"\r\n      ],\r\n      [\r\n        \"f3_r8\",\r\n        \"f3_r6\"\r\n      ],\r\n      [\r\n        \"f3_r8\",\r\n        \"f3_r1\"\r\n      ],\r\n      [\r\n        \"f3_r2\",\r\n        \"f3_r3\"\r\n      ]\r\n    ],\r\n    \"layout\": {\r\n      \"f3_r9\": {\r\n        \"gx\": 0,\r\n        \"gy\": 0\r\n      },\r\n      \"f3_r10\": {\r\n        \"gx\": 1,\r\n        \"gy\": 0\r\n      },\r\n      \"f3_r2\": {\r\n        \"gx\": 2,\r\n        \"gy\": 0\r\n      },\r\n      \"f3_r8\": {\r\n        \"gx\": -1,\r\n        \"gy\": 0\r\n      },\r\n      \"f3_r11\": {\r\n        \"gx\": -1,\r\n        \"gy\": 1\r\n      },\r\n      \"f3_r0\": {\r\n        \"gx\": -2,\r\n        \"gy\": 1\r\n      },\r\n      \"f3_r5\": {\r\n        \"gx\": 1,\r\n        \"gy\": 1\r\n      },\r\n      \"f3_r4\": {\r\n        \"gx\": -2,\r\n        \"gy\": 2\r\n      },\r\n      \"f3_r7\": {\r\n        \"gx\": -2,\r\n        \"gy\": 3,\r\n        \"adjacentTo\": \"f3_r4\",\r\n        \"dir\": \"down\",\r\n        \"distance\": 7\r\n      },\r\n      \"f3_r6\": {\r\n        \"gx\": -1,\r\n        \"gy\": -1,\r\n        \"adjacentTo\": \"f3_r8\",\r\n        \"dir\": \"up\",\r\n        \"distance\": 4\r\n      },\r\n      \"f3_r1\": {\r\n        \"gx\": -2,\r\n        \"gy\": 0,\r\n        \"adjacentTo\": \"f3_r8\",\r\n        \"dir\": \"left\",\r\n        \"distance\": 4\r\n      },\r\n      \"f3_r3\": {\r\n        \"gx\": 2,\r\n        \"gy\": -1,\r\n        \"adjacentTo\": \"f3_r2\",\r\n        \"dir\": \"up\",\r\n        \"distance\": 1\r\n      }\r\n    },\r\n    \"startRoomId\": \"f3_r2\",\r\n    \"bossRoomId\": \"f3_r7\",\r\n    \"treasureRoomIds\": [\r\n      \"f3_r6\",\r\n      \"f3_r1\"\r\n    ],\r\n    \"shopRoomIds\": [\r\n      \"f3_r3\"\r\n    ]\r\n  }\r\n}\r\n"; return { ok: true, json: async () => JSON.parse(d), text: async () => d }; })();
     if(resp.ok){
       const text=await resp.text();
       // 若已有数据且内容未变且非强制，跳过重新加载
@@ -3604,9 +3608,14 @@ let recordSettlementHistory = () => {};
 
 function newRunStats() {
   return {
+    timing:null,
     bulletTime:0, interrupts:0, hitsTaken:0, medicalPickups:0, shieldPickups:0,
     keysAcquired:0, keysUsed:0, bombsAcquired:0, bombsUsed:0, coinsPickedUp:0, coinsSpent:0,
   };
+}
+
+function startRunTimer() {
+  if (runStats && !runStats.timing) runStats.timing = {startedAt:performance.now(), elapsedMs:null};
 }
 
 function recordRunStat(key, amount = 1) {
@@ -3707,6 +3716,15 @@ function renderSettlement(panelId, prefix) {
   const values = {kills:monstersKilled, coins:playerResources.coins, bombs:playerResources.bombs,
     keys:playerResources.keys, blue:playerResources.blueHearts};
   for (const [key,value] of Object.entries(values)) document.getElementById(prefix+'-'+key).textContent = value;
+
+  const time = panel.querySelector('.settlement-time');
+  const timing = runStats?.timing;
+  time.hidden = !timing;
+  if (timing) {
+    timing.elapsedMs ??= performance.now() - timing.startedAt;
+    const seconds = Math.floor(timing.elapsedMs / 1000);
+    time.querySelector('.stat-val').textContent = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2,'0');
+  }
 
   const items = document.getElementById(prefix+'-items');
   const counts = new Map();
@@ -7982,6 +8000,7 @@ async function bootGame(){
 function startGameFromMenu() {
   gameStarted = true;
   gameOver = false;
+  startRunTimer();
   document.getElementById('start-menu-modal').classList.remove('show');
   if (currentFloor) showFloorBanner(`第 ${currentFloor.floorNum} 层`);
   lastTime = performance.now();
@@ -8473,6 +8492,19 @@ function spawnRoomMonsters() {
     return;
   }
 
+  // 固定遭遇沿用房间出生限制和预抽掉落。旧模式缺少这些怪物时沿用随机小队。
+  if (room.fixedMonsters?.every(({id}) => MONSTER_DB[id])) {
+    for (const {id, col, row} of room.fixedMonsters) {
+      const tags = MONSTER_DB[id].movementTags;
+      if (!spawnMonsterAtRandomPos(id, tags, null, {col, row}, {roomSpawn:true})) {
+        spawnMonsterAtRandomPos(id, tags, null, undefined, {roomSpawn:true});
+      }
+    }
+    calcAllMonsterPaths();
+    updateRoomCombatState();
+    return;
+  }
+
   // ============ 过滤可用 squad ============
   const availableSquads = filterSquadsByRoom(floorNum, roomType, tpl);
   if (availableSquads.length === 0) {
@@ -8592,7 +8624,10 @@ console.log(`  资源库: ${Object.keys(RESOURCE_DB).length} 种资源 (金币/�
 console.log(`  AP=${playerStats.fireRate}  MP=${playerStats.moveSpeed}  HP=${playerStats.hp}/${playerStats.maxHp}`);
 
 // SINGLE_STEP_FORMAL_START
-const RUN_BUILD_UPDATED_AT="2026-11-15T15:49:48.928Z";
+const RUN_BUILD_UPDATED_AT="2026-11-20T06:18:13.153Z";
+const STEP_DIFFICULTY_TEST=false;
+const STEP_FULL_RECOVERY_ENABLED=false;
+const STEP_ATTACK_REWARDS_ENABLED=!STEP_DIFFICULTY_TEST;
 // 正式版与自定义场共用 Configs/item-db.json 的单步道具池。
 const WEAPON_TRIAL_PREFIX = 'trial_weapon_';
 const loadItemCatalog = loadItemDB;
@@ -9221,7 +9256,7 @@ function singleStepAct(type,dir){
      SINGLE_STEP.plans.set(m.id,attack);
     }else{
      const wasHit=plan.cells.some(p=>p.col===old.col&&p.row===old.row),nowHit=plan.cells.some(p=>p.col===player.col&&p.row===player.row);
-     if(type==='move'&&wasHit&&!nowHit&&plan.attackColor!=='yellow'){dodged=true;avoided.push(m);}
+     if(STEP_ATTACK_REWARDS_ENABLED&&type==='move'&&wasHit&&!nowHit&&plan.attackColor!=='yellow'){dodged=true;avoided.push(m);}
      singleStepApplyPlan(m,plan);SINGLE_STEP.plans.delete(m.id);
      const nextPlan=stepTestHooks.nextEnemyPlan?.(m,plan);
      if(nextPlan)SINGLE_STEP.plans.set(m.id,nextPlan);
@@ -9420,8 +9455,8 @@ function updateStepCombatHelp(variants = false) {
   const controls = [
     ['WASD', '移动一格'],
     ['方向键', '朝对应方向射击'],
-    ...(variants ? [['黄格', '射击直接命中出招的敌人，可打断这次攻击', '#ffcc44']] : []),
-    ['红格', '从会被击中的位置躲开且这一步没受伤，可获得两次额外行动', '#ff7979'],
+    ...(variants ? [['黄格', STEP_ATTACK_REWARDS_ENABLED ? '射击直接命中出招的敌人，可打断这次攻击' : '已锁定的攻击范围，本次难度测试中射击命中无法打断', '#ffcc44']] : []),
+    ['红格', STEP_ATTACK_REWARDS_ENABLED ? '从会被击中的位置躲开且这一步没受伤，可获得两次额外行动' : '已锁定的危险范围，躲开怪物红招不触发子弹时间，地刺闪避照常', '#ff7979'],
     ['E', '在脚下放置炸弹，之后的普通行动推进倒计时'],
     ['M / Esc', hasSidebar ? '右侧显示小地图。M 放大，Esc 关闭' : 'M 打开地图，Esc 关闭'],
     ['R', hasSidebar ? '回到开始界面，重新开局' : '重新开始测试'],
@@ -9591,10 +9626,10 @@ loadMonsterDB=async function(){
 const stepLoadSquadsOriginal=loadSquadTemplates;
 loadSquadTemplates=async function(){const ok=await stepLoadSquadsOriginal();SQUAD_TEMPLATES.squads={...Object.fromEntries(Object.entries(SQUAD_TEMPLATES.squads||{}).filter(([,s])=>s.roomTypes?.includes('boss'))),...window.stepSquads};return ok;};
 const stepSpawnOriginal=spawnMonsterAtRandomPos;
-spawnMonsterAtRandomPos=function(id,tags,anchor){
+spawnMonsterAtRandomPos=function(id,tags,anchor,exactPosition){
  const mapped=stepEnemyAlias(id), cfg=MONSTER_DB[mapped];
  const movement=cfg?.movementTags || (cfg?.aiType==='boss_duke'?['飞行']:tags);
- return stepSpawnOriginal(mapped,movement,anchor,undefined,{roomSpawn:true});
+ return stepSpawnOriginal(mapped,movement,anchor,exactPosition,{roomSpawn:true});
 };
 const stepSummonOriginal=handleDukeSummon;
 handleDukeSummon=function(m){if(m._turnAfterAction?.monsterId)m._turnAfterAction.monsterId=stepEnemyAlias(m._turnAfterAction.monsterId);return stepSummonOriginal(m,{allowObstacles:true});};
@@ -10851,7 +10886,7 @@ recordSettlementHistory=function(outcome,panel){
   const record={
     id:crypto.randomUUID?.()??(finishedAt+'-'+Math.random()),
     updatedAt:RUN_BUILD_UPDATED_AT,finishedAt,outcome,
-    balance:texts(panel,'.settlement-balance .stat-line'),
+    balance:texts(panel,'.settlement-balance .stat-line:not([hidden])'),
     events:[...panel.querySelectorAll('.settlement-events > div')].map(el=>texts(el,'dt,dd')),
     resources:[...panel.querySelectorAll('.settlement-resources tr')].map(el=>texts(el,'th,td')),
     items:[...panel.querySelectorAll('.settlement-item-list li')].map(el=>{
@@ -11187,7 +11222,7 @@ stepEnemyPlan = function(m,forceChase) {
 
 const stepVariantPreviousResolve = singleStepResolvePlan;
 singleStepResolvePlan = function(m,plan,options) {
-  if (plan.type==='interrupted') return plan;
+  if (plan.type==='interrupted'||plan.type==='prepare') return plan;
   const resolved=stepVariantPreviousResolve(m,plan,options);
   if (resolved.type!=='variant-attack') return resolved;
   let cells=resolved.shape==='jab'
@@ -11215,6 +11250,10 @@ const stepVariantPreviousNext = stepTestHooks.nextEnemyPlan;
 stepTestHooks.nextEnemyPlan = function(m,plan) {
   if (stepAttackVariantsEnabled && m.hp>0) {
     if (plan.type==='interrupted') return {type:'recover',cells:[]};
+    if (STEP_FULL_RECOVERY_ENABLED && stepEnemyDefinition(m)) {
+      if (plan.type==='recover') return {type:'prepare',cells:[]};
+      if (singleStepIsAttackPlan(plan)) return {type:'recover',cells:[]};
+    }
     if (plan.type==='variant-attack' && stepEnemyDefinition(m).recover) return {type:'recover',cells:[]};
     if (plan.fanHop && plan.canLockAfterHop && plan.type==='chase' && plan.path?.length && m._stepAction?.from &&
         !stepVariantCellMatches(m,m._stepAction.from) && stepVariantCellMatches(m,plan.path[0]) &&
@@ -11227,7 +11266,7 @@ stepTestHooks.nextEnemyPlan = function(m,plan) {
 };
 
 stepTestHooks.onDirectWeaponHit = function(m,at) {
-  if (!stepAttackVariantsEnabled || SINGLE_STEP.bonus || arenaEffects.freeAction ||
+  if (!STEP_ATTACK_REWARDS_ENABLED || !stepAttackVariantsEnabled || SINGLE_STEP.bonus || arenaEffects.freeAction ||
       m.hp<=0 || singleStepAttackPreview(m,{ignorePause:true})?.attackColor!=='yellow') return;
   delete m.arenaDelayedMove;
   SINGLE_STEP.plans.set(m.id,{type:'interrupted',cells:[],attackColor:'yellow'});
@@ -11291,6 +11330,8 @@ arenaPanel.innerHTML = `
     <button id="arena-zero" disabled>清零伤害</button>
     <button id="arena-next-room" disabled>下一间（同布局）</button><button id="arena-next-floor" disabled>下一层（同布局）</button>
   </div>
+  <label class="arena-boss-picker">Boss 试玩<select id="arena-boss" disabled><option value="">自由布置</option></select></label>
+  <p id="arena-boss-help" hidden></p>
   <details id="arena-setup">
     <summary>资源与血量配置</summary>
     <p id="arena-setup-hint"></p>
@@ -11425,6 +11466,9 @@ function arenaPlace(col, row, remove = false) {
   arenaLoad(true);
 }
 function arenaLoad(editing, advance) {
+  const preset = arenaBossEncounter;
+  const placements = preset ? arenaBossPlacements(preset) : [...arena.placements.values()];
+  arenaBossFlash = [];
   const carry = advance && {
     inventory:[...playerInventory], resources:{...playerResources}, hp:playerStats.hp,
     kills:monstersKilled, collected:[...itemsCollected], stats:{...runStats},
@@ -11437,14 +11481,14 @@ function arenaLoad(editing, advance) {
     } else arena.room++;
   } else {
     arena.floor = arena.room = 1;
-    arenaBaseMaxHp = arenaSetup.maxHp;
+    arenaBaseMaxHp = preset ? STEP_STARTING_HP : arenaSetup.maxHp;
     arenaResetEffects();
   }
   arena.editing = editing;
   document.body.classList.toggle('arena-editing', editing);
   const grid = Array.from({length: COLS}, () => Array(ROWS).fill(TILE.FLOOR));
-  for (const p of arena.placements.values()) if (p.kind === 'terrain') grid[p.col][p.row] = Number(p.id);
-  const room = {id: arenaRoomId, type: 'start', tplKey: '自定义场', grid, doors: {}};
+  for (const p of placements) if (p.kind === 'terrain') grid[p.col][p.row] = Number(p.id);
+  const room = {id: arenaRoomId, type: 'start', tplKey: preset?.name || '自定义场', grid, doors: {}};
   allFloors[1] = {floorNum: arena.floor, name: '战斗测试', rooms: [room], startRoomId: room.id, layout: {[room.id]: {gx: 0, gy: 0}}};
   resetGameToFloor1({preserveItemEffects:true});
   if (carry) {
@@ -11456,16 +11500,16 @@ function arenaLoad(editing, advance) {
     itemsCollected = carry.collected;
     runStats = carry.stats;
     updateItemBar();
-  } else arenaApplySetup(arenaSetup);
+  } else arenaApplySetup(preset ? {...arenaSetup,maxHp:STEP_STARTING_HP,hp:STEP_STARTING_HP,blueHearts:0,coins:0,keys:0,bombs:preset.bombs||0} : arenaSetup);
   pendingBossLanding = null;
   floorFadeBusy = false;
   document.getElementById('floor-fade').style.opacity = '0';
   document.getElementById('floor-banner').classList.remove('show');
   for (const id of ['start-menu-modal', 'death-modal', 'victory-modal']) document.getElementById(id).classList.remove('show');
   if (worldMapOpen) toggleWorldMap(false);
-  const {col, row} = arena.start, q = gridToPixel(col, row);
+  const {col, row} = preset?.start || arena.start, q = gridToPixel(col, row);
   Object.assign(player, {col, row, px: q.x, py: q.y});
-  for (const p of arena.placements.values()) {
+  for (const p of placements) {
     if (p.kind === 'item' && !carry) spawnItemOnGrid(p.col, p.row, p.id);
     if (p.kind === 'resource') spawnResourceOnGrid(p.col, p.row, p.id);
     if (p.kind === 'monster') stepSpawnOriginal(p.id, MONSTER_DB[p.id].aiType==='boss_duke'?['飞行']:MONSTER_DB[p.id].movementTags, null, p);
@@ -11477,6 +11521,7 @@ function arenaLoad(editing, advance) {
     }
   }
   gameStarted = true;
+  if (!editing) startRunTimer();
   inCombat = monsters.some(m => !m.arenaDummy);
   resetItemRoomEffects();
   singleStepReset();
@@ -11485,7 +11530,12 @@ function arenaLoad(editing, advance) {
   arenaResetDamage();
   for (const id of ['kind', 'entry', 'clear', 'start']) arenaControl(id).disabled = !editing;
   for (const id of ['edit', 'restart', 'zero','next-room','next-floor']) arenaControl(id).disabled = editing;
-  arenaStatus(editing ? '布置中 · 已放置 '+arena.placements.size+' 个对象' : '测试中 · 第 '+arena.floor+' 层 · 第 '+arena.room+' 间');
+  for (const id of ['next-room','next-floor']) arenaControl(id).disabled = editing || Boolean(preset);
+  arenaControl('rules').disabled = Boolean(preset);
+  const bossHelp=arenaControl('boss-help');
+  bossHelp.hidden=!preset;
+  bossHelp.textContent=preset?.help || '';
+  arenaStatus(preset ? '测试中 · '+preset.name : editing ? '布置中 · 已放置 '+arena.placements.size+' 个对象' : '测试中 · 第 '+arena.floor+' 层 · 第 '+arena.room+' 间');
   arenaControl('setup-hint').textContent = editing
     ? '修改开局值，开始测试与重试时使用。'
     : '修改即时生效，重试恢复布置时的开局值。';
@@ -11562,7 +11612,7 @@ arenaControl('kind').addEventListener('change', arenaOptions);
 arenaControl('entry').addEventListener('change', arenaDescribe);
 arenaControl('start').addEventListener('click', () => arenaLoad(false));
 arenaControl('restart').addEventListener('click', () => arenaLoad(false));
-arenaControl('edit').addEventListener('click', () => arenaLoad(true));
+arenaControl('edit').addEventListener('click', () => openArenaBossEncounter(''));
 arenaControl('clear').addEventListener('click', () => {
   arena.placements.clear();
   arenaLoad(true);
@@ -11600,11 +11650,342 @@ function arenaReady() {
     return;
   }
   registerArenaStageEnemies();
+  registerArenaBossEncounters();
   arenaControl('rules').disabled = false;
   arenaOptions();
   arenaLoad(true);
 }
 requestAnimationFrame(arenaReady);
+
+// Boss 预设使用单步调度、武器与结算。自由布置的数据单独保存。
+let arenaBossEncounter = null;
+let arenaBossFlash = [];
+
+const arenaBossUnits = {
+  turret: {name:'扫射炮台', hp:24, color:'#489dce', symbol:'炮'},
+  ram: {name:'破障重机', hp:30, color:'#e38a46', symbol:'冲'},
+  guard: {name:'逃生门封锁者', hp:36, color:'#678dcf', symbol:'守'},
+  switch: {name:'门锁', hp:4, color:'#54cda5', symbol:'锁', optional:true},
+  interceptor: {name:'拦截机', hp:32, color:'#dcb24f', symbol:'截'},
+  core: {name:'战车核心', hp:28, color:'#bc83ec', symbol:'核'},
+  cannon: {name:'战车主炮', hp:12, color:'#dc7459', symbol:'炮', optional:true},
+  drive: {name:'战车驱动', hp:12, color:'#87c267', symbol:'驱', optional:true},
+  layer: {name:'布雷指挥机', hp:36, color:'#cf9a4b', symbol:'雷'},
+  mine: {name:'定时地雷', hp:4, color:'#ef8056', symbol:'爆', optional:true},
+  gunner: {name:'联防炮手', hp:22, color:'#4ca9d0', symbol:'射'},
+  hunter: {name:'联防追击机', hp:24, color:'#d46e70', symbol:'追'},
+};
+
+const arenaBossPresets = {
+  turret: {
+    name:'扫射炮台', start:{col:5,row:4}, enemies:[['turret',8,3]],
+    help:'扫射后炮台侧口打开。试着躲到与炮台同一行或列，利用恢复回合开枪。青色「开」表示伤害翻倍。',
+  },
+  ram: {
+    name:'破障重机', start:{col:4,row:3}, enemies:[['ram',8,3]],
+    rocks:[[2,3],[10,3],[6,0],[6,6]],
+    help:'重机朝你所在的方向锁定冲锋。侧移让它撞碎掩体，撞击后核心暴露。也可以绕开保留掩体。',
+  },
+  escape: {
+    name:'逃生门封锁者', start:{col:2,row:3},
+    enemies:[['guard',8,3],['switch',5,1],['switch',8,5]],
+    rocks:[[5,2],[5,4],[9,2],[9,4]], exit:{col:11,row:3},
+    help:'打碎两枚绿色门锁，走到右侧「出口」格即可撤离。也可以直接击毁封锁者。',
+  },
+  interceptor: {
+    name:'拦截机', start:{col:4,row:3}, enemies:[['interceptor',8,3]],
+    help:'黄招可以用普通射击打断。红招要走位躲开，躲掉本来会命中的红招可触发子弹时间。两种起手交替出现。',
+  },
+  tank: {
+    name:'模块化战车', start:{col:3,row:3}, enemies:[['core',7,3],['cannon',5,3],['drive',7,5]],
+    items:[['single_step_pierce',3,2],['trial_weapon_shotgun',3,4]],
+    help:'拆掉主炮就能永久消除它的扫射，拆掉驱动能让核心无法移动。击毁核心即胜利。起点两侧可拾穿透弹和霰弹枪。',
+  },
+  mines: {
+    name:'布雷指挥机', start:{col:3,row:3}, enemies:[['layer',8,3]], rocks:[[6,1],[6,5]], bombs:2,
+    help:'橙色菱形标出将布雷的位置。地雷出现后预告九宫格爆炸，可以开枪排雷、先撤离，或冒险继续打首领。',
+  },
+  duo: {
+    name:'双机联防', start:{col:4,row:3}, enemies:[['gunner',9,5],['hunter',6,2]],
+    rocks:[[4,1],[8,5],[8,1]],
+    help:'炮手先扫射，追击机随后逼近。炮手的扫射会伤到追击机，试着把它引到同一条火力线上。',
+  },
+};
+
+const arenaBossId = role => 'step_arena_boss_'+role;
+const arenaBossRole = monster => stepEnemyDefinition(monster)?.arenaBossRole;
+const arenaBossHas = role => monsters.some(m => m.hp>0 && arenaBossRole(m)===role);
+const arenaBossAttackQueued = role => monsters.some(m=>arenaBossRole(m)===role &&
+  SINGLE_STEP.plans.get(m.id)?.type==='arena-boss-attack');
+const arenaBossSameCell = (a,b) => a.col===b.col && a.row===b.row;
+
+function arenaBossPlacements(preset) {
+  return [
+    ...(preset.rocks || []).map(([col,row])=>({kind:'terrain',id:TILE.ROCK,col,row})),
+    ...preset.enemies.map(([role,col,row])=>({kind:'monster',id:arenaBossId(role),col,row})),
+    ...(preset.items || []).map(([id,col,row])=>({kind:'item',id,col,row})),
+  ];
+}
+
+function registerArenaBossEncounters() {
+  for (const [role,unit] of Object.entries(arenaBossUnits)) {
+    const id=arenaBossId(role);
+    const definition={...STEP_ENEMIES.fixed,id,name:unit.name,hp:unit.hp,arenaBossRole:role};
+    STEP_ENEMIES[id.slice(5)]=definition;
+    MONSTER_DB[id]={...definition,loot:null};
+  }
+  const picker=arenaControl('boss');
+  picker.append(...Object.entries(arenaBossPresets).map(([id,preset])=>new Option(preset.name,id)));
+  picker.addEventListener('change',()=>{
+    openArenaBossEncounter(picker.value);
+    picker.blur();
+  });
+  picker.disabled=false;
+}
+
+function openArenaBossEncounter(id) {
+  arenaBossEncounter=arenaBossPresets[id] || null;
+  arenaControl('boss').value=id;
+  stepAttackVariantsEnabled=Boolean(arenaBossEncounter) || arenaControl('rules').value==='interrupt';
+  updateStepCombatHelp(stepAttackVariantsEnabled);
+  arenaLoad(!arenaBossEncounter);
+}
+
+function arenaBossDirection(m) {
+  const col=player.col-m.col, row=player.row-m.row;
+  return Math.abs(col)>=Math.abs(row) ? {dx:Math.sign(col),dy:0} : {dx:0,dy:Math.sign(row)};
+}
+
+function arenaBossSweep(axis, index) {
+  return Array.from({length:axis==='row'?COLS:ROWS},(_,i)=>axis==='row'?{col:i,row:index}:{col:index,row:i})
+    .filter(p=>!singleStepBlocksBullet(p.col,p.row));
+}
+
+function arenaBossCharge(m,dir,range,breaksCover) {
+  const cells=[];
+  for (let n=1;n<=range;n++) {
+    const cell={col:m.col+dir.dx*n,row:m.row+dir.dy*n};
+    if (isWall(cell.col,cell.row)) {
+      return {cells,impact:breaksCover && tileData[arenaKey(cell.col,cell.row)] ? cell : null};
+    }
+    if (monsters.some(other=>other!==m && other.hp>0 && isInMonsterFootprint(other,cell.col,cell.row))) break;
+    cells.push(cell);
+  }
+  return {cells};
+}
+
+function arenaBossStepToward(m) {
+  const next=stepEnemyChase(m);
+  return {type:'arena-boss-move',cells:[],path:next?[next]:[]};
+}
+
+function arenaBossAttack(kind,cells,details={}) {
+  return {type:'arena-boss-attack',kind,cells,attackColor:'red',...details};
+}
+
+const arenaBossPreviousPlan=stepEnemyPlan;
+stepEnemyPlan=function(m,forceChase) {
+  const role=arenaBossRole(m);
+  if (!role) return arenaBossPreviousPlan(m,forceChase);
+  const phase=m.arenaBossAttacks || 0;
+  const dir=arenaBossDirection(m);
+  const axis=phase%2?'col':'row';
+  const sweep=()=>arenaBossAttack('sweep',arenaBossSweep(axis,player[axis]));
+  switch(role) {
+    case 'switch':
+      return {type:'wait',cells:[]};
+    case 'mine':
+      return arenaBossAttack('mine',bombBlastCells(m.col,m.row));
+    case 'ram':
+    case 'hunter': {
+      if (role==='hunter' && arenaBossAttackQueued('gunner')) return {type:'arena-boss-prepare',cells:[]};
+      const {cells,impact}=arenaBossCharge(m,dir,COLS,role==='ram');
+      return cells.some(p=>arenaBossSameCell(p,player))
+        ? arenaBossAttack('charge',cells,{dir,impact}) : arenaBossStepToward(m);
+    }
+    case 'guard':
+      return phase%2===0 ? sweep() : arenaBossAttack('pulse',bombBlastCells(m.col,m.row));
+    case 'interceptor':
+      return phase%2===0
+        ? arenaBossAttack('sweep',arenaBossSweep('row',player.row),{attackColor:'yellow'}) : sweep();
+    case 'core':
+      return arenaBossAttack('pulse',arenaBossSweep('col',player.col));
+    case 'drive':
+      return {type:'wait',cells:[]};
+    case 'cannon':
+      return arenaBossAttackQueued('core') ? {type:'arena-boss-prepare',cells:[]} :
+        arenaBossAttack('sweep',arenaBossSweep('row',player.row));
+    case 'layer': {
+      if (phase%2===0 && monsters.filter(m=>arenaBossRole(m)==='mine').length<2) {
+        const cells=STEP_CARDINAL.map(([dx,dy])=>({col:player.col+dx*2,row:player.row+dy*2}))
+          .filter(p=>arenaInside(p.col,p.row) && currentRoomGrid[p.col][p.row]===TILE.FLOOR &&
+            !monsters.some(other=>isInMonsterFootprint(other,p.col,p.row)));
+        const target=cells.sort((a,b)=>Math.abs(a.col-m.col)+Math.abs(a.row-m.row)-Math.abs(b.col-m.col)-Math.abs(b.row-m.row))[0];
+        if (target) return arenaBossAttack('deploy',[],{target});
+      }
+      return sweep();
+    }
+    default:
+      return sweep();
+  }
+};
+
+const arenaBossPreviousIsAttack=stepTestHooks.isArenaAttack;
+stepTestHooks.isArenaAttack=plan=>plan?.type==='arena-boss-attack' || arenaBossPreviousIsAttack?.(plan);
+
+const arenaBossPreviousNext=stepTestHooks.nextEnemyPlan;
+stepTestHooks.nextEnemyPlan=function(m,plan) {
+  const role=arenaBossRole(m);
+  if (!role) return arenaBossPreviousNext?.(m,plan);
+  if (plan.type==='arena-boss-attack' || plan.type==='interrupted') {
+    m.arenaBossAttacks=(m.arenaBossAttacks || 0)+1;
+    return {type:'arena-boss-recover',cells:[]};
+  }
+  if (plan.type==='arena-boss-recover') {
+    if (role==='core' && arenaBossHas('drive')) return arenaBossStepToward(m);
+    return {type:'arena-boss-prepare',cells:[]};
+  }
+  return null;
+};
+
+const arenaBossPreviousApply=singleStepApplyPlan;
+singleStepApplyPlan=function(m,plan) {
+  const role=arenaBossRole(m);
+  if (role==='core' && plan.type==='arena-boss-move' && !arenaBossHas('drive')) return;
+  if (plan.type!=='arena-boss-attack') return arenaBossPreviousApply(m,plan);
+  if (!hasMonstersAlive()) return;
+  const {kind,cells,dir,impact,target}=plan;
+  const at=performance.now();
+  const hit=cells.some(p=>arenaBossSameCell(p,player));
+  arenaBossFlash.push({cells,at});
+  if (hit) damagePlayer(1,m.id);
+  m.arenaBossBreach=false;
+  if (kind==='charge') {
+    let end=m;
+    for (const cell of cells) {
+      if (isWall(cell.col,cell.row) || monsters.some(other=>other!==m && isInMonsterFootprint(other,cell.col,cell.row))) break;
+      if (arenaBossSameCell(cell,player) && !singleStepPush(m,cell.col,cell.row,dir)) break;
+      end=cell;
+    }
+    if (end!==m) {
+      Object.assign(m,end);
+      (m._visualPath ||= []).push(end);
+    }
+    const cover=impact && tileData[arenaKey(impact.col,impact.row)];
+    if (cover && Math.abs(m.col-impact.col)+Math.abs(m.row-impact.row)===1) {
+      m.arenaBossBreach=hitTile(impact.col,impact.row,cover.hp);
+    }
+  } else if (kind==='deploy') {
+    stepSpawnOriginal(arenaBossId('mine'),null,null,target);
+  } else if (kind==='mine') {
+    m.hp=0;
+    monsters.splice(monsters.indexOf(m),1);
+  }
+  if (role==='gunner') {
+    const ally=monsters.find(other=>arenaBossRole(other)==='hunter');
+    if (ally && cells.some(p=>arenaBossSameCell(p,ally))) {
+      const enemyActing=arenaEffects.enemyActing;
+      arenaEffects.enemyActing=true;
+      try { damageMonster(ally,6); } finally { arenaEffects.enemyActing=enemyActing; }
+    }
+  }
+};
+
+function arenaBossExposed(m) {
+  return SINGLE_STEP.plans.get(m.id)?.type==='arena-boss-recover' &&
+    (arenaBossRole(m)==='turret' || m.arenaBossBreach);
+}
+
+const arenaBossPreviousDamage=damageMonster;
+damageMonster=function(m,amount,...args) {
+  return arenaBossPreviousDamage(m,arenaBossExposed(m)?amount*2:amount,...args);
+};
+
+function arenaBossExitOpen() {
+  return !arenaBossHas('switch');
+}
+
+const arenaBossPreviousAlive=hasMonstersAlive;
+hasMonstersAlive=function() {
+  if (!arenaBossEncounter) return arenaBossPreviousAlive();
+  return monsters.some(m=>m.hp>0 && !arenaBossUnits[arenaBossRole(m)]?.optional && !m.arenaDummy);
+};
+
+const arenaBossPreviousAct=singleStepAct;
+singleStepAct=function(type,dir) {
+  const result=arenaBossPreviousAct(type,dir);
+  if (result && arenaBossEncounter && !gameOver) {
+    const exit=arenaBossEncounter.exit;
+    if (!hasMonstersAlive() || (exit && arenaBossExitOpen() && arenaBossSameCell(player,exit))) triggerVictoryScreen();
+  }
+  return result;
+};
+
+const arenaBossPreviousDraw=stepTestHooks.drawArenaMonster;
+stepTestHooks.drawArenaMonster=function(m,p,now,kind,poison) {
+  const unit=arenaBossUnits[arenaBossRole(m)];
+  if (!unit) return arenaBossPreviousDraw?.(m,p,now,kind,poison);
+  const plan=SINGLE_STEP.plans.get(m.id), size=CELL*(unit.optional ? .54 : .79);
+  const exposed=arenaBossExposed(m);
+  ctx.save();
+  ctx.translate(p.x,p.y-size*.12);
+  ctx.fillStyle='#111d28';
+  ctx.strokeStyle=exposed?'#76f0c1':unit.color;
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.roundRect(-size/2,-size*.61,size,size*.92,4);
+  ctx.fill();ctx.stroke();
+  ctx.fillStyle=exposed?'#76f0c1':unit.color;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.font='bold '+Math.round(size*.52)+'px sans-serif';
+  ctx.fillText(exposed?'开':unit.symbol,0,-size*.14);
+  ctx.fillStyle='#14161a';ctx.fillRect(-size/2,size*.36,size,4);
+  ctx.fillStyle=unit.color;ctx.fillRect(-size/2,size*.36,size*m.hp/m.maxHp,4);
+  if (plan?.type==='arena-boss-recover') {
+    ctx.fillStyle='#eff9fc';ctx.font='bold 11px sans-serif';ctx.fillText('恢复',0,-size*.86);
+  }
+  ctx.restore();
+  return true;
+};
+
+const arenaBossPreviousOverlay=drawDangerOverlay;
+drawDangerOverlay=function() {
+  arenaBossPreviousOverlay();
+  if (!arenaBossEncounter || worldMapOpen) return;
+  const now=performance.now();
+  arenaBossFlash=arenaBossFlash.filter(event=>now-event.at<250);
+  ctx.save();
+  for (const {cells,at} of arenaBossFlash) {
+    ctx.fillStyle='rgba(255,168,106,'+(.55*(1-(now-at)/250))+')';
+    for (const cell of cells) {
+      const q=cellRect(cell.col,cell.row);
+      ctx.fillRect(q.xL+2,q.yT+2,q.w-4,q.h-4);
+    }
+  }
+  if (!stepEnemiesPaused()) {
+    for (const m of monsters) {
+      const plan=singleStepAttackPreview(m);
+      const marker=plan?.target || plan?.impact;
+      if (marker) arenaBossMarkCell(marker,plan.target?'◆':'×','#ffbf6d');
+    }
+  }
+  const exit=arenaBossEncounter.exit;
+  if (exit) arenaBossMarkCell(exit,'出口',arenaBossExitOpen()?'#75f2b9':'#b6c6d0');
+  ctx.restore();
+};
+
+function arenaBossMarkCell(cell,label,color) {
+  const q=cellRect(cell.col,cell.row);
+  ctx.strokeStyle=color;ctx.lineWidth=2;ctx.strokeRect(q.xL+2,q.yT+2,q.w-4,q.h-4);
+  ctx.fillStyle=color;ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(label,q.xL+q.w/2,q.yT+q.h/2);
+}
+
+document.getElementById('btn-retry-victory').addEventListener('click',event=>{
+  if (!arenaBossEncounter) return;
+  event.stopImmediatePropagation();
+  arenaLoad(false);
+},true);
 </script>
 </body>
 </html>

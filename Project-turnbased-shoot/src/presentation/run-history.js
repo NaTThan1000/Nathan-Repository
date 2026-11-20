@@ -24,7 +24,7 @@ recordSettlementHistory=function(outcome,panel){
   const record={
     id:crypto.randomUUID?.()??(finishedAt+'-'+Math.random()),
     updatedAt:RUN_BUILD_UPDATED_AT,finishedAt,outcome,
-    balance:texts(panel,'.settlement-balance .stat-line'),
+    balance:texts(panel,'.settlement-balance .stat-line:not([hidden])'),
     events:[...panel.querySelectorAll('.settlement-events > div')].map(el=>texts(el,'dt,dd')),
     resources:[...panel.querySelectorAll('.settlement-resources tr')].map(el=>texts(el,'th,td')),
     items:[...panel.querySelectorAll('.settlement-item-list li')].map(el=>{

@@ -6,6 +6,10 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
  const page=await browser.newPage({viewport:{width:1280,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(pathToFileURL(path.resolve(__dirname,'../turnbased-shoot-demo-pack.html')).href);
  await page.waitForFunction(()=>currentFloor&&MONSTER_DB.step_mobile&&Object.keys(RESOURCE_DB).length);
+ assert.equal(await page.evaluate(()=>runStats.timing),null,'开始菜单期间不计时');
+ const attackRewards=await page.evaluate(()=>STEP_ATTACK_REWARDS_ENABLED);
+ if(process.env.EXPECT_NO_ATTACK_REWARDS==='1')assert.equal(attackRewards,false,'主试玩包已启用难度测试');
+ else assert.equal(attackRewards,true,'主试玩包启用黄招打断和红招子弹时间');
  const floorSounds=await page.evaluate(()=>{
   const playFloorSound=SFX.floor;
   let menuSounds=0,playingSounds=0;
@@ -13,6 +17,7 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
    SFX.floor=()=>{if(gameStarted)playingSounds++;else menuSounds++;};
    enterFloor(1);
    startGameFromMenu();
+   if(!runStats.timing || runStats.timing.elapsedMs!==null)throw Error('正式开局开始计时');
    enterFloor(2);
    enterFloor(1);
    return {menuSounds,playingSounds};
@@ -64,6 +69,10 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
    Object.assign(playerStats,{hp:5,maxHp:5,attack:3.5,range:6,fireRate:1});Object.assign(player,{col:2,row:3,...(()=>{const p=gridToPixel(2,3);return {px:p.x,py:p.y,targetPx:null,targetPy:null};})(),invincibleSteps:0,hitFlash:0,shootTimer:0});playerResources.blueHearts=0;
    document.getElementById('death-modal').classList.remove('show');document.getElementById('floor-fade').style.opacity='0';initTileData();spawnMonsterAtRandomPos(id);const m=monsters.at(-1);Object.assign(m,{col:c,row:r,px:gridToPixel(c,r).x,py:gridToPixel(c,r).y,_spawnedThisTurn:false});inCombat=true;withEnemyRoll(roll,()=>singleStepReset());return m;
   };
+  window.stepFreezeFixture=()=>{
+   stepFixture();
+   if(!STEP_ATTACK_REWARDS_ENABLED){currentRoomGrid[player.col][player.row]=TILE.SPIKE;SINGLE_STEP.spikeTurn=4;}
+  };
   const healthTarget = stepFixture('step_mobile',6,3);
   Object.assign(playerStats,STEP_BASE_STATS);
   damagePlayer(.5);
@@ -110,8 +119,29 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   check(stepAttackVariantsEnabled,'正式版加载黄红招规则');
   let yellow=stepFixture('step_fixed',5,3);
   check(singleStepAttackPreview(yellow)?.attackColor==='yellow','正式版固定射手预告黄招');
+  const interruptsBefore=runStats.interrupts;
   singleStepAct('shoot','right');
-  check(yellow.hp>0&&playerStats.hp===5&&SINGLE_STEP.plans.get(yellow.id).type==='recover','正式版黄招被射击打断并恢复');
+  check(yellow.hp>0&&yellow.hp<yellow.maxHp&&playerStats.hp===(STEP_ATTACK_REWARDS_ENABLED?5:4)&&
+    runStats.interrupts===interruptsBefore+Number(STEP_ATTACK_REWARDS_ENABLED)&&SINGLE_STEP.plans.get(yellow.id).type==='recover',
+    '黄招被非致命射击命中，按构建规则打断或照常出招');
+  if(STEP_FULL_RECOVERY_ENABLED){
+   const recoveryHp=playerStats.hp;
+   singleStepAct('shoot','left');
+   check(yellow._stepAction.type==='recover'&&SINGLE_STEP.plans.get(yellow.id).type==='prepare'&&
+     !singleStepAttackPreview(yellow)&&playerStats.hp===recoveryHp,'恢复后仍无攻击预告');
+   singleStepAct('shoot','left');
+   check(yellow._stepAction.type==='prepare'&&singleStepAttackPreview(yellow)?.attackColor==='yellow'&&
+     playerStats.hp===recoveryHp,'下一步只生成预告，尚未出招');
+   player.invincibleSteps=0;
+   singleStepAct('shoot','left');
+   check(playerStats.hp===recoveryHp-1&&SINGLE_STEP.plans.get(yellow.id).type==='recover','新预告在下一步才结算');
+   const slime=stepFixture('step_big',3,3);
+   singleStepAct('move','up');
+   check(slime._stepAction.type==='charge'&&SINGLE_STEP.plans.get(slime.id).type==='recover',
+     '主包中原本无恢复的史莱姆也会在出招后恢复');
+   singleStepAct('shoot','left');
+   check(slime._stepAction.type==='recover'&&!singleStepAttackPreview(slime),'史莱姆恢复后仍无攻击预告');
+  }
   yellow=stepFixture('step_fixed',5,3);
   singleStepAct('move','up');
   check(SINGLE_STEP.bonus===0&&playerStats.hp===5,'躲开黄招免伤，无闪避奖励');
@@ -143,7 +173,12 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   singleStepAct('move','left');
   check(arenaEffects.timedCharge===1,'正式版移动一格充能一点');
   playerInventory=[];recalcAllStats();updateItemBar();
-  let m=stepFixture();check(singleStepAttackPreview(m)?.attackColor==='red','移动射手初始锁定红招');singleStepAct('move','up');check(SINGLE_STEP.bonus===2&&playerStats.hp===5,'正式版闪避奖励');
+  let m=stepFixture();check(singleStepAttackPreview(m)?.attackColor==='red','移动射手初始锁定红招');
+  const bulletTimeBefore=runStats.bulletTime;
+  singleStepAct('move','up');
+  check(SINGLE_STEP.bonus===(STEP_ATTACK_REWARDS_ENABLED?2:0)&&playerStats.hp===5&&
+    runStats.bulletTime===bulletTimeBefore+Number(STEP_ATTACK_REWARDS_ENABLED),'躲开红招免伤，按构建规则发放奖励');
+  stepFreezeFixture();singleStepAct('move','up');
   const frozen=JSON.stringify([monsters.map(m=>[m.id,m.col,m.row]),[...SINGLE_STEP.plans],combatRng]);singleStepAct('shoot','left');singleStepAct('shoot','left');check(SINGLE_STEP.bonus===0&&frozen===JSON.stringify([monsters.map(m=>[m.id,m.col,m.row]),[...SINGLE_STEP.plans],combatRng]),'正式版两次额外行动冻结所有阶段');
   singleStepAct('shoot','left');check(SINGLE_STEP.step===4,'恢复普通行动');
   m=stepFixture('step_charger',5,3);singleStepAct('shoot','up');check(m.col===1&&playerStats.hp===4&&!(player.col===m.col&&player.row===m.row),'正式版冲刺穿过并挤出 '+JSON.stringify({m:[m.col,m.row],p:[player.col,player.row,playerStats.hp],plan:[...SINGLE_STEP.plans.values()]} ));
@@ -167,9 +202,9 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   const immuneSteps=player.invincibleSteps;damagePlayer(1,m.id);check(playerStats.hp===4&&player.invincibleSteps===immuneSteps&&stepVisualEvents.filter(e=>e.type==='hurt').length===1,'无敌期间不重复扣血、不刷新无敌或受击动作');
   m=stepFixture('step_fixed',8,3);damagePlayer(1,m.id);const protection=player.invincibleSteps;currentRoomGrid[1][3]=TILE.ROCK;check(!singleStepAct('move','left')&&player.invincibleSteps===protection,'无效操作不消耗无敌步数');
   for(let i=1;i<protection;i++){singleStepAct('shoot','left');damagePlayer(1,m.id);check(playerStats.hp===4&&player.invincibleSteps===protection-i,'有效行动递减无敌且期间继续免伤');}singleStepAct('shoot','left');damagePlayer(1,m.id);check(playerStats.hp===3&&player.invincibleSteps===protection,'保护结束后正常受伤并重新获得无敌');
-  m=stepFixture();singleStepAct('move','up');currentRoomGrid[2][1]=TILE.SPIKE;singleStepAct('move','up');check(SINGLE_STEP.bonus===0&&playerStats.hp===4,'额外行动踩刺立即结束');
+  stepFreezeFixture();singleStepAct('move','up');currentRoomGrid[2][1]=TILE.SPIKE;singleStepAct('move','up');check(SINGLE_STEP.bonus===0&&playerStats.hp===4,'额外行动踩刺立即结束');
   m=stepFixture();currentRoomGrid[4][3]=TILE.ROCK;initTileData();const terrainBefore=JSON.stringify(tileData);singleStepReset();for(let i=0;i<5;i++){SINGLE_STEP.plans.clear();singleStepPlan();}check(JSON.stringify(tileData)===terrainBefore,'攻击规划不能损伤地形');
-  m=stepFixture();singleStepAct('move','up');playerResources.bombs=3;placeBomb(10,5);const b=bombs.at(-1),timer=b.timer;singleStepAct('shoot','left');singleStepAct('shoot','left');check(b.timer===timer,'奖励期炸弹倒计时冻结');singleStepAct('shoot','left');check(b.timer===timer-1,'普通步炸弹推进一次');
+  stepFreezeFixture();singleStepAct('move','up');playerResources.bombs=3;placeBomb(10,5);const b=bombs.at(-1),timer=b.timer;singleStepAct('shoot','left');singleStepAct('shoot','left');check(b.timer===timer,'奖励期炸弹倒计时冻结');singleStepAct('shoot','left');check(b.timer===timer-1,'普通步炸弹推进一次');
   m=stepFixture();m.hp=1;singleStepAct('shoot','right');check(!monsters.length&&!inCombat,'瞬发击杀及清房');check(!actionHistoryActive(),'正式版不创建回溯历史');
   m=stepFixture();m.hp=1;m._killLoot=[];
   itemRoom.type='boss';itemRoom.itemDropped=false;
@@ -246,7 +281,12 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   const opposite=placeAlly(0,3,'step_mobile');
   SINGLE_STEP.plans.set(opposite.id,withEnemyRoll(.99,()=>stepEnemyPlan(opposite)));
   singleStepAct('move','up');
-  check(SINGLE_STEP.bonus===2&&arenaEffects.avoided.size===2&&arenaEffects.avoided.has(m.id)&&arenaEffects.avoided.has(opposite.id),'同一步闪避的怪物全部标记');
+  if(STEP_ATTACK_REWARDS_ENABLED){
+   check(SINGLE_STEP.bonus===2&&arenaEffects.avoided.size===2&&arenaEffects.avoided.has(m.id)&&arenaEffects.avoided.has(opposite.id),'同一步闪避的怪物全部标记');
+  }else{
+   check(SINGLE_STEP.bonus===0&&arenaEffects.avoided.size===0,'同时躲开多个红招也无闪避奖励');
+   SINGLE_STEP.bonus=2;
+  }
   damageMonster(opposite,opposite.hp);
   m.hp=1;Object.assign(player,{col:2,row:3});
   singleStepAct('shoot','right');
@@ -434,7 +474,26 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   arenaEffects.floorAttack=1;recalcAllStats();
   for(const n of [2,3,1]){enterFloor(n);check(currentFloor.floorNum===n&&SINGLE_STEP.room===currentRoomId,'楼层切换重置调度');}
   check(arenaEffects.floorAttack===0&&playerStats.attack===STEP_BASE_STATS.attack,'正式换层清除本层攻击加成');
-  stepFixture();document.getElementById('floor-banner').classList.remove('show');particles=[];damageNumbers=[];
+  for(const [floorNum,roomId,count] of [[2,'f2_r0',5],[2,'f2_r1',5],[3,'f3_r0',6],[3,'f3_r4',7]]){
+   enterFloor(floorNum);
+   const encounter=currentFloor.rooms.find(room=>room.id===roomId);
+   check(encounter?.fixedMonsters?.length===count,roomId+' 固定阵容配置完整');
+   for(const [entry,door] of Object.entries(encounter.doors)){
+    if(!door)continue;
+    const source=currentFloor.rooms.find(room=>room.id===door.targetRoomId);
+    const exit=DOOR_FROM_DIR[entry];
+    currentRoomId=source.id;currentRoomGrid=source.grid;
+    source.doors[exit].open=true;visitedRooms.delete(roomId);
+    check(switchRoom(exit),roomId+' 能从 '+entry+' 门进入');
+    finishTransition();
+    const actual=monsters.map(({cfgId,col,row})=>[cfgId,col,row]);
+    const expected=encounter.fixedMonsters.map(({id,col,row})=>[id,col,row]);
+    check(JSON.stringify(actual)===JSON.stringify(expected),roomId+' 从 '+entry+' 门进房时完整按指定格刷怪');
+    check(inCombat&&monsters.every(m=>SINGLE_STEP.plans.has(m.id)),roomId+' 进房即锁门并安排怪物行动');
+   }
+  }
+  resetGameToFloor1();
+  stepFreezeFixture();document.getElementById('floor-banner').classList.remove('show');particles=[];damageNumbers=[];
  },require('../Configs/item-db.json').singleStepItems);
  const before=await page.evaluate(()=>({step:SINGLE_STEP.step,col:player.col,row:player.row}));await page.keyboard.press('Space');await page.keyboard.press('Escape');assert.deepEqual(await page.evaluate(()=>({step:SINGLE_STEP.step,col:player.col,row:player.row})),before,'空格/Esc不推进不回溯');
  await page.keyboard.press('w');assert.equal(await page.evaluate(()=>SINGLE_STEP.bonus),2);
@@ -448,9 +507,11 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
  await page.keyboard.press('m');const paused=await page.evaluate(()=>SINGLE_STEP.step);await page.keyboard.press('ArrowUp');assert.equal(await page.evaluate(()=>SINGLE_STEP.step),paused);await page.keyboard.press('Escape');
  await page.evaluate(()=>{
   resetGameToFloor1();
+  startGameFromMenu();
+  runStats.timing.startedAt=performance.now()-90000;
   stepFixture('step_fixed',5,3);playerStats.fireRate=2;
   singleStepAct('shoot','right');
-  stepFixture();
+  stepFreezeFixture();
   singleStepAct('move','up');
   singleStepAct('shoot','left');singleStepAct('shoot','left');
   const pickup=cfgId=>handleResourcePickup({cfgId,col:player.col,row:player.row,px:player.px,py:player.py});
@@ -483,7 +544,9 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   page.locator(modal+' .settlement-item-list li > span:last-child').allTextContents(),
  ]);
  const victory=await readSettlement('#victory-modal');
- assert.deepEqual(victory.slice(0,2),[['1 次','1 次','1 次','1 次','1 次'],['1 次','2 次','1 次','1 次','10','3']]);
+ assert.equal(await page.locator('#victory-stats .settlement-time .stat-val').textContent(),'1:30','通关结算显示本局用时');
+ const interrupts=attackRewards?'1 次':'0 次';
+ assert.deepEqual(victory.slice(0,2),[['1 次',interrupts,'1 次','1 次','1 次'],['1 次','2 次','1 次','1 次','10','3']]);
  assert.match(victory[2][0],/×2$/,'同一种道具合并显示拾取数量');
  assert.equal(await page.locator('#victory-modal .settlement-item-icon').count(),1);
  await page.evaluate(()=>{
@@ -492,23 +555,29 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   damagePlayer(1);
  });
  const defeat=await readSettlement('#death-modal');
- assert.deepEqual(defeat,[['1 次','1 次','2 次','1 次','1 次'],victory[1],victory[2]],'死亡结算包含致死一击，通关与死亡展示相同统计');
+ assert.deepEqual(defeat,[['1 次',interrupts,'2 次','1 次','1 次'],victory[1],victory[2]],'死亡结算包含致死一击，通关与死亡展示相同统计');
  await page.evaluate(()=>resetGameToFloor1());
- assert.deepEqual(await page.evaluate(()=>Object.values(runStats)),Array(11).fill(0),'新一局清空全部统计');
+ assert.deepEqual(await page.evaluate(()=>Object.values(runStats)),[null,...Array(11).fill(0)],'新一局清空计时与全部统计');
  await page.evaluate(()=>{
+  startGameFromMenu();
+  runStats.timing.startedAt=performance.now()-12000;
   playerStats.hp=1;damagePlayer(1);
   const records=JSON.parse(localStorage.getItem(runHistoryKey));
   const previous={id:'older-build',updatedAt:'2026-01-01T00:00:00.000Z',finishedAt:'2026-01-02T00:00:00.000Z',
    outcome:'通关',balance:['击杀怪物 2'],events:[['旧版统计','7 次']],resources:[],items:[]};
   localStorage.setItem(runHistoryKey,JSON.stringify([...records,previous]));
  });
+ assert.equal(await page.locator('#death-stats .settlement-time .stat-val').textContent(),'0:12','失败结算显示新一局用时');
  await page.locator('#death-modal').getByRole('button',{name:'历史记录'}).click();
  assert.equal(await page.locator('#step-history .step-history-build').count(),2,'不同更新时间分组');
  assert.equal(await page.locator('#step-history .step-history-run').count(),3,'通关和失败各保存一次，重复结算不重复记录');
+ await page.locator('#step-history .step-history-run summary').first().click();
+ assert.match(await page.locator('#step-history .step-history-run').first().innerText(),/本局用时\s+0:12/,'保存本局用时到历史记录');
  await page.locator('#step-history .step-history-run summary').last().click();
  const oldRun=await page.locator('#step-history .step-history-run').last().innerText();
  assert.match(oldRun,/旧版统计\s+7 次/);
  assert.doesNotMatch(oldRun,/医疗包拾取/,'旧记录只展示当时有的字段');
+ assert.doesNotMatch(oldRun,/本局用时/,'旧记录没有用时字段');
  await page.reload();
  await page.waitForFunction(()=>currentFloor&&Object.keys(ITEMS_DB).length);
  await page.keyboard.press('Space');

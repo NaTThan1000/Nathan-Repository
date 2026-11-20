@@ -158,6 +158,19 @@ function spawnRoomMonsters() {
     return;
   }
 
+  // 固定遭遇沿用房间出生限制和预抽掉落。旧模式缺少这些怪物时沿用随机小队。
+  if (room.fixedMonsters?.every(({id}) => MONSTER_DB[id])) {
+    for (const {id, col, row} of room.fixedMonsters) {
+      const tags = MONSTER_DB[id].movementTags;
+      if (!spawnMonsterAtRandomPos(id, tags, null, {col, row}, {roomSpawn:true})) {
+        spawnMonsterAtRandomPos(id, tags, null, undefined, {roomSpawn:true});
+      }
+    }
+    calcAllMonsterPaths();
+    updateRoomCombatState();
+    return;
+  }
+
   // ============ 过滤可用 squad ============
   const availableSquads = filterSquadsByRoom(floorNum, roomType, tpl);
   if (availableSquads.length === 0) {

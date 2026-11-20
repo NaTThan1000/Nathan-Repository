@@ -6,9 +6,14 @@ let recordSettlementHistory = () => {};
 
 function newRunStats() {
   return {
+    timing:null,
     bulletTime:0, interrupts:0, hitsTaken:0, medicalPickups:0, shieldPickups:0,
     keysAcquired:0, keysUsed:0, bombsAcquired:0, bombsUsed:0, coinsPickedUp:0, coinsSpent:0,
   };
+}
+
+function startRunTimer() {
+  if (runStats && !runStats.timing) runStats.timing = {startedAt:performance.now(), elapsedMs:null};
 }
 
 function recordRunStat(key, amount = 1) {
@@ -109,6 +114,15 @@ function renderSettlement(panelId, prefix) {
   const values = {kills:monstersKilled, coins:playerResources.coins, bombs:playerResources.bombs,
     keys:playerResources.keys, blue:playerResources.blueHearts};
   for (const [key,value] of Object.entries(values)) document.getElementById(prefix+'-'+key).textContent = value;
+
+  const time = panel.querySelector('.settlement-time');
+  const timing = runStats?.timing;
+  time.hidden = !timing;
+  if (timing) {
+    timing.elapsedMs ??= performance.now() - timing.startedAt;
+    const seconds = Math.floor(timing.elapsedMs / 1000);
+    time.querySelector('.stat-val').textContent = Math.floor(seconds / 60) + ':' + String(seconds % 60).padStart(2,'0');
+  }
 
   const items = document.getElementById(prefix+'-items');
   const counts = new Map();

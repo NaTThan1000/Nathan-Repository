@@ -782,8 +782,69 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
       SINGLE_STEP.plans.has(monsters.find(monster=>monster.cfgId===id)?.id))),[true,true,true]);
     await move();
     assert.equal(await page.evaluate(() => SINGLE_STEP.step),1,'布置两类Boss和正式普通怪后可以开始测试并操作');
+    const originalPlacements=await page.evaluate(()=>[...arena.placements.keys()]);
+    await page.locator('#arena-boss').selectOption('turret');
+    await page.keyboard.press('w');
+    assert.deepEqual(await page.evaluate(()=>[SINGLE_STEP.step,playerStats.hp,arenaBossExposed(monsters[0])]),[1,10,true],
+      '炮台可用移动键躲扫射并进入弱点窗口');
+    await page.waitForFunction(()=>performance.now()>=stepInputUntil&&player.targetPx===null);
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await page.evaluate(()=>monsters[0].hp),16,'对齐弱点后，基础双发伤害翻倍');
+    await page.locator('#arena-boss').selectOption('ram');
+    await page.evaluate(()=>{
+      const check=(ok,label)=>{if(!ok)throw Error(label);};
+      const shoot=dir=>check(singleStepAct('shoot',dir),'可射击 '+dir);
+      const move=dir=>check(singleStepAct('move',dir),'可移动 '+dir);
+      const unit=role=>monsters.find(m=>arenaBossRole(m)===role);
+      const plan=role=>SINGLE_STEP.plans.get(unit(role).id);
+
+      move('up');
+      check(currentRoomGrid[2][3]===TILE.FLOOR&&unit('ram').col===3&&arenaBossExposed(unit('ram')),'诱导重机撞碎掩体并露出核心');
+      openArenaBossEncounter('escape');
+      Object.assign(player,{col:3,row:1});shoot('right');
+      Object.assign(player,{col:8,row:6});shoot('up');
+      check(arenaBossExitOpen()&&unit('guard').hp>0,'打掉两枚门锁可开门，守卫仍存活');
+      Object.assign(player,{col:10,row:3});move('right');
+      check(gameOver&&document.getElementById('victory-modal').classList.contains('show'),'踩上出口完成撤离');
+
+      openArenaBossEncounter('interceptor');
+      shoot('right');
+      check(runStats.interrupts===1&&plan('interceptor').type==='arena-boss-recover','射中拦截机黄招可打断');
+      shoot('left');shoot('left');
+      check(plan('interceptor').attackColor==='red','恢复及准备后切换为红招');
+      move('left');
+      check(SINGLE_STEP.bonus===2,'闪避拦截机红招触发子弹时间');
+
+      openArenaBossEncounter('tank');
+      check(itemsOnGround.length===2&&unit('core')&&unit('drive')&&unit('cannon'),'战车部件和对照道具已布置');
+      check(plan('core').type==='arena-boss-attack'&&plan('cannon').type==='arena-boss-prepare','核心与主炮错开起手，保留走位');
+      shoot('left');shoot('left');
+      check(plan('core').type==='arena-boss-move','驱动存活时核心在恢复后会移动');
+      const coreCol=unit('core').col;
+      damageMonster(unit('drive'),99);damageMonster(unit('cannon'),99);
+      shoot('left');shoot('left');shoot('left');
+      check(unit('core').col===coreCol&&plan('core').type==='arena-boss-prepare'&&!unit('cannon'),'拆掉驱动和主炮后立即停止调位与扫射');
+
+      openArenaBossEncounter('mines');
+      shoot('left');
+      check(plan('mine').kind==='mine'&&plan('mine').cells.length===9,'部署的地雷预告九格爆炸');
+      shoot('right');
+      check(!unit('mine')&&playerStats.hp===10,'可以在爆炸前开枪排雷');
+
+      openArenaBossEncounter('duo');
+      unit('hunter').row=player.row;
+      shoot('left');
+      check(unit('hunter').hp===18&&plan('gunner').type==='arena-boss-recover','联防炮手的扫射可误伤追击机');
+      damageMonster(unit('gunner'),99);damageMonster(unit('hunter'),99);
+      shoot('left');
+      check(gameOver,'击毁双机完成遭遇');
+    });
+    await page.locator('#btn-retry-victory').click();
+    assert.deepEqual(await page.evaluate(()=>[gameOver,monsters.length,SINGLE_STEP.step]),[false,2,0],'结算重试回到当前Boss预设');
+    await page.locator('#arena-boss').selectOption('');
+    assert.deepEqual(await page.evaluate(()=>[...arena.placements.keys()]),originalPlacements,'原自由布置完整保留');
     assert.deepEqual(errors,[]);
-    console.log('PASS: 自定义战斗场名称卡片、逐发破箱与击杀、墙边爆炸、障碍溅射与导电、追踪、折叠、中毒');
+    console.log('PASS: 自定义战斗场、七种Boss预设与交互、预设重试及返回自由布置');
   } finally {
     await browser.close();
   }

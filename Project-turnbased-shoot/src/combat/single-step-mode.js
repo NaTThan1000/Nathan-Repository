@@ -266,7 +266,7 @@ function singleStepAct(type,dir){
      SINGLE_STEP.plans.set(m.id,attack);
     }else{
      const wasHit=plan.cells.some(p=>p.col===old.col&&p.row===old.row),nowHit=plan.cells.some(p=>p.col===player.col&&p.row===player.row);
-     if(type==='move'&&wasHit&&!nowHit&&plan.attackColor!=='yellow'){dodged=true;avoided.push(m);}
+     if(STEP_ATTACK_REWARDS_ENABLED&&type==='move'&&wasHit&&!nowHit&&plan.attackColor!=='yellow'){dodged=true;avoided.push(m);}
      singleStepApplyPlan(m,plan);SINGLE_STEP.plans.delete(m.id);
      const nextPlan=stepTestHooks.nextEnemyPlan?.(m,plan);
      if(nextPlan)SINGLE_STEP.plans.set(m.id,nextPlan);
@@ -465,8 +465,8 @@ function updateStepCombatHelp(variants = false) {
   const controls = [
     ['WASD', '移动一格'],
     ['方向键', '朝对应方向射击'],
-    ...(variants ? [['黄格', '射击直接命中出招的敌人，可打断这次攻击', '#ffcc44']] : []),
-    ['红格', '从会被击中的位置躲开且这一步没受伤，可获得两次额外行动', '#ff7979'],
+    ...(variants ? [['黄格', STEP_ATTACK_REWARDS_ENABLED ? '射击直接命中出招的敌人，可打断这次攻击' : '已锁定的攻击范围，本次难度测试中射击命中无法打断', '#ffcc44']] : []),
+    ['红格', STEP_ATTACK_REWARDS_ENABLED ? '从会被击中的位置躲开且这一步没受伤，可获得两次额外行动' : '已锁定的危险范围，躲开怪物红招不触发子弹时间，地刺闪避照常', '#ff7979'],
     ['E', '在脚下放置炸弹，之后的普通行动推进倒计时'],
     ['M / Esc', hasSidebar ? '右侧显示小地图。M 放大，Esc 关闭' : 'M 打开地图，Esc 关闭'],
     ['R', hasSidebar ? '回到开始界面，重新开局' : '重新开始测试'],

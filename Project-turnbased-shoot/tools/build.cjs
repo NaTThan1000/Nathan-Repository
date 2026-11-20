@@ -14,11 +14,12 @@ function writeHtml(directory,name,html){
   return file;
 }
 
-async function buildPlayable(){
+async function buildPlayable({difficultyTest=false,arenaOnly=false}={}){
   const assets=await buildScrapAssets();
   const updatedAt=new Date().toISOString();
   for(const [name,sandbox] of [['turnbased-shoot-demo-pack.html',false],['custom-arena.html',true]]){
-    writeHtml(projectRoot,name,inlineResources(await assembleGame({assets,sandbox,updatedAt})));
+    if(arenaOnly&&!sandbox)continue;
+    writeHtml(projectRoot,name,inlineResources(await assembleGame({assets,sandbox,updatedAt,difficultyTest})));
     console.log('已生成 '+name);
   }
 }
@@ -43,7 +44,7 @@ async function buildRegressionFixtures(directory){
 }
 
 if(require.main===module){
-  buildPlayable().catch(error=>{
+  buildPlayable({difficultyTest:process.argv.includes('--no-attack-rewards'),arenaOnly:process.argv.includes('--arena-only')}).catch(error=>{
     console.error(error);
     process.exitCode=1;
   });
