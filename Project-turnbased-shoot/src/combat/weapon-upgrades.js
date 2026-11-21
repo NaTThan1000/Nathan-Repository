@@ -105,7 +105,7 @@ function weaponBlast(col, row, damage, at, lane, {breakRock=false,hurtPlayer=fal
   }
   for (const m of [...monsters]) {
     if (m.hp <= 0 || m.jumperVanished || !monsters.includes(m)) continue;
-    if (monsterCells(m).some(inBlast)) {
+    if (monsterCells(m).some(p=>Math.max(Math.abs(p.col-col),Math.abs(p.row-row))<=1&&(!blocked.has(p.col+','+p.row)||m.movementTags?.includes('飞行')))) {
       weaponDamageMonster(m, damage, at, lane);
     }
   }
@@ -175,7 +175,7 @@ function weaponArc(origin, damage, direct, at, lane, range) {
     singleStepVisualShot(from,next,true,{dx:0,dy:0},{beam:true,start:at});
     if (next.m?.hp > 0) {
       if (tileData[next.col+','+next.row]) weaponDamageTerrain(next.col,next.row);
-      else weaponDamageMonster(next.m,arcDamage,at,lane);
+      if(!tileData[next.col+','+next.row]||next.m.movementTags?.includes('飞行'))weaponDamageMonster(next.m,arcDamage,at,lane);
     }
     from = next;
   }
@@ -266,9 +266,16 @@ function weaponShootRay(origin, dx, dy, base, range, {
     at += travel;
     if (lob && n < flightRange) continue;
     if (ignoresTerrain) weaponDamageTerrain(col,row);
+    const coveredTarget=monsters.find(m=>m.hp>0&&!m.jumperVanished&&!hit.has(m.id)&&m.movementTags?.includes('飞行')&&isInMonsterFootprint(m,col,row));
     if (!ignoresTerrain && singleStepBlocksBullet(col,row)) {
+      const direct=coveredTarget&&(lob||body==='energy'||shells.includes('arc')||shells.includes('blast'))?coveredTarget:null;
+      if(direct){
+       hit.add(direct.id);weaponDamageMonster(direct,damage,at,lane);stepTestHooks.onDirectWeaponHit?.(direct,at);
+       if(ammunition.includes('poison')&&direct.hp>0)direct.weaponPoison={steps:3,firstStep:SINGLE_STEP.step+1,damage:Math.max(1,Math.round(damage*.25)),appliedAt:at};
+       for(const effect of ammunition)stepTestHooks.onWeaponHit?.(direct,cell,{dx,dy,damage,at,lane,ammo:effect});
+      }
       if (!shells.includes('blast') || triggered) weaponDamageTerrain(col,row);
-      trigger(damage,null);
+      trigger(damage,direct);
       if (lob || !passesTerrain) {
         emit(cell);
         return;
@@ -298,16 +305,24 @@ function weaponShootRay(origin, dx, dy, base, range, {
   if (burstsOnExpiry && distance) trigger(damageAt(distance),null);
   emit(cell,!shells.includes('fold'));
 }
+const STEP_CHARGE_REQUIRED=6;
 function weaponPrepareShot() {
-  const trajectory = equippedWeaponTrial('trajectory');
-  if (trajectory !== 'burstCharge' && trajectory !== 'heavyCharge') return {repetitions:1, scale:1};
-  if (SINGLE_STEP.weaponCharge < 3) {
-    SINGLE_STEP.weaponCharge++;
-    SINGLE_STEP.error='蓄力 '+SINGLE_STEP.weaponCharge+'/3';
+  const trajectory=equippedWeaponTrial('trajectory');
+  if(trajectory!=='burstCharge'&&trajectory!=='heavyCharge') {
+    const total=(SINGLE_STEP.shotRemainder||0)+Math.max(1,playerStats.fireRate);
+    const shotsPerFire=Math.floor(total+1e-9);
+    SINGLE_STEP.shotRemainder=Math.max(0,total-shotsPerFire);
+    return {repetitions:1,scale:1,shotsPerFire};
+  }
+  if(SINGLE_STEP.weaponCharge<STEP_CHARGE_REQUIRED) {
+    SINGLE_STEP.weaponCharge+=Math.max(1,playerStats.fireRate);
+    stepTestHooks.onCharge?.();
+    SINGLE_STEP.error='蓄力 '+SINGLE_STEP.weaponCharge+'/'+STEP_CHARGE_REQUIRED+'，满后再次射击释放';
     return null;
   }
-  SINGLE_STEP.weaponCharge=0;
-  return trajectory==='burstCharge' ? {repetitions:3,scale:1} : {repetitions:1,scale:3};
+  const cycles=Math.floor(SINGLE_STEP.weaponCharge/STEP_CHARGE_REQUIRED);
+  SINGLE_STEP.weaponCharge-=cycles*STEP_CHARGE_REQUIRED;
+  return trajectory==='burstCharge'?{repetitions:3*cycles,scale:2,shotsPerFire:1}:{repetitions:cycles,scale:6,shotsPerFire:1};
 }
 function weaponShotgunVolley(origin, {dx,dy}, damage, range, options, start) {
   const pelletDamage = Math.round(damage*(2.75/SHOTGUN_PELLETS)*100)/100;
@@ -327,12 +342,12 @@ function fireSingleStepWeapon(origin, direction, charge) {
   const firedAt = performance.now();
   const parallel = pattern === 'dual' || pattern === 'triple';
   const charged = trajectory === 'burstCharge' || trajectory === 'heavyCharge';
-  const shotsPerFire = charged ? 1 : Math.max(1, Math.floor(playerStats.fireRate));
+  const shotsPerFire = charge.shotsPerFire ?? (charged ? 1 : Math.max(1, Math.floor(playerStats.fireRate)));
   for (let i=0;i<charge.repetitions;i++) {
     const volleyStart = firedAt+i*BURST_INTERVAL;
     const options = {trajectory,shells,body,ammunition};
     if (body === 'shotgun' && !pattern) {
-      weaponShotgunVolley(origin,direction,playerStats.attack*charge.scale,range,options,volleyStart);
+      for(let shot=0;shot<shotsPerFire;shot++)weaponShotgunVolley(origin,direction,playerStats.attack*charge.scale,range,options,volleyStart+shot*SHOT_INTERVAL);
       continue;
     }
     const volley = weaponVolley(pattern);

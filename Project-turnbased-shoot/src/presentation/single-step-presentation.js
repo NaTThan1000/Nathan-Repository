@@ -70,7 +70,7 @@ function drawStepBossHealth(now) {
   panel.replaceChildren(...bosses.map(([,name,hp,maxHp]) => {
     const row = document.createElement('div');
     const label = document.createElement('span');
-    label.textContent = name + ' · ' + hp + ' / ' + maxHp;
+    label.textContent = name;
     const bar = document.createElement('progress');
     bar.max = maxHp;
     bar.value = hp;
@@ -81,7 +81,11 @@ function drawStepBossHealth(now) {
 }
 const stepDetonateBombBase = detonateBomb;
 function stepDetonateBomb(bomb,affected,{source=null}={}) {
- const cells = stepDetonateBombBase(bomb,affected,{terrainFirst:true,source});
+ const previous=stepIncomingDirection;
+ stepIncomingDirection=bomb.claymore||null;
+ let cells;
+ try{cells=stepDetonateBombBase(bomb,affected,{terrainFirst:true,source});}
+ finally{stepIncomingDirection=previous;}
  stepVisualEvents.push({type:'bomb-blast',col:bomb.col,row:bomb.row,cells,directional:!!affected&&!source,at:performance.now()});
  return cells;
 }
@@ -349,11 +353,18 @@ function stepDrawHurtField(age){
  ctx.fillStyle=edge;ctx.fillRect(0,0,GAME_W,GAME_H);
  ctx.restore();
 }
+let stepChargePulseAt=-Infinity;
+stepTestHooks.onCharge=function(){
+ stepChargePulseAt=performance.now();
+ damageNumbers.push({x:player.px,y:player.py-17,text:'蓄力',life:.65,maxLife:.65,vx:0,vy:-16,color:'#78efff'});
+};
 function stepDrawChargeRing() {
  const trajectory = equippedWeaponTrial('trajectory');
  if (playerStats.hp <= 0 || (trajectory !== 'burstCharge' && trajectory !== 'heavyCharge')) return;
  const {col,row} = pixelToGrid(player.px,player.py);
- const tile = cellRect(col,row), radius = 2;
+ const tile = cellRect(col,row);
+ const pulse=Math.max(0,Math.min(1,(performance.now()-stepChargePulseAt)/280));
+ const radius=2*(1+.9*Math.sin(Math.PI*pulse));
  const cx = tile.xR-3.5, cy = tile.yT+3.5;
  const top = -Math.PI/2;
  ctx.save();
@@ -362,7 +373,7 @@ function stepDrawChargeRing() {
  ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.stroke();
  if (SINGLE_STEP.weaponCharge > 0) {
   ctx.strokeStyle = '#78efff';
-  ctx.beginPath();ctx.arc(cx,cy,radius,top,top+Math.PI*2*SINGLE_STEP.weaponCharge/3);ctx.stroke();
+  ctx.beginPath();ctx.arc(cx,cy,radius,top,top+Math.PI*2*Math.min(1,SINGLE_STEP.weaponCharge/STEP_CHARGE_REQUIRED));ctx.stroke();
  }
  ctx.restore();
 }

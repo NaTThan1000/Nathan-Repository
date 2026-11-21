@@ -18,7 +18,7 @@
 
 两个 HTML 都在项目根目录，可独立双击运行。未指定入口时，游戏改动默认面向主试玩包。旧 MP/AP 回归场和子弹时间机制原型可从[历史归档](../history/README.md)打开。
 
-自定义场侧栏「Boss 试玩」可切换七个机制原型，选中即开始，R 重试本场，选「自由布置」返回原布局。原型实现位于 `src/playtest/custom-arena-bosses.js`，由 sandbox 构建接入。
+自定义场侧栏「Boss 试玩」可直接选择跳跃巨兽、飞行巨兽，也可切换七个机制原型，选中即开始，R 重试本场，选「自由布置」返回原布局。正式两类 Boss 共用 `src/combat/single-step-bosses.js`，条件和权重在 `Configs/single-step-enemies.json` 的 `bosses` 中；入口与原型实现位于 `src/playtest/custom-arena-bosses.js`，由 sandbox 构建接入。
 
 ## 工程入口与项目约定
 

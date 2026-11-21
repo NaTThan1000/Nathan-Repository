@@ -126,6 +126,6 @@ body,body *,button,input,select,textarea{font-family:var(--game-font)!important}
  .single-step-ui .scrap-stat img,.single-step-ui .step-luck-icon{width:12px;height:12px}
 }
 
-#boss-health{padding:8px 16px;background:#10272f;color:#f9e6d4}
-#boss-health div{display:flex;align-items:center;gap:12px;margin:4px 0;font-size:13px}
-#boss-health progress{flex:1;min-width:24px;height:8px;accent-color:#ec8061}
+#boss-health{box-sizing:border-box;width:100%;padding:10px 12px 12px;background:#10272f;color:#f9e6d4}
+#boss-health div{display:flex;flex-direction:column;align-items:stretch;gap:6px;margin:4px 0;font-size:14px;font-weight:700}
+#boss-health progress{display:block;box-sizing:border-box;width:100%;min-width:0;height:22px;accent-color:#ec8061}

@@ -30,7 +30,7 @@ async function assembleGame(options={}){
  'const STEP_DIFFICULTY_TEST='+Boolean(options.difficultyTest&&!options.sandbox)+';\n'+
  'const STEP_FULL_RECOVERY_ENABLED='+!options.sandbox+';\n'+
  'const STEP_ATTACK_REWARDS_ENABLED=!STEP_DIFFICULTY_TEST;\n'+
- ['combat/weapon-upgrades.js','combat/single-step-mode.js','combat/single-step-enemies.js','presentation/single-step-presentation.js','combat/single-step-item-effects.js','presentation/run-history.js'].map(f=>read('src/'+f)).join('\n')+'\n'+(options.sandbox?read('src/playtest/custom-arena-enemies.js')+'\n':'')+read('src/combat/single-step-attack-variants.js')+'\n// SINGLE_STEP_FORMAL_END\n':'');
+ ['combat/weapon-upgrades.js','combat/single-step-mode.js','combat/single-step-enemies.js','presentation/single-step-presentation.js','combat/single-step-item-effects.js','presentation/run-history.js'].map(f=>read('src/'+f)).join('\n')+'\n'+(options.sandbox?read('src/playtest/custom-arena-enemies.js')+'\n':'')+read('src/combat/single-step-attack-variants.js')+'\n'+read('src/combat/single-step-bosses.js')+'\n// SINGLE_STEP_FORMAL_END\n':'');
  let html=read('src/game.html');
  if(!options.sandbox&&!options.playtest&&!options.legacy)html=html.replace('id="floor-map-sidebar" hidden','id="floor-map-sidebar"');
  if(options.sandbox)html=html.replace('</head>',()=>'<style>'+read('src/playtest/custom-arena.css')+'</style></head>').replace('/* GAME_SCRIPT */',()=> '/* GAME_SCRIPT */\n'+['custom-arena-rules.js','custom-arena.js','custom-arena-bosses.js'].map(file=>read('src/playtest/'+file)).join('\n'));

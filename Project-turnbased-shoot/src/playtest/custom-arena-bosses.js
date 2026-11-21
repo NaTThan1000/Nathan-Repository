@@ -18,6 +18,14 @@ const arenaBossUnits = {
 };
 
 const arenaBossPresets = {
+  jumper: {
+    name:'跳跃巨兽', start:{col:2,row:3}, enemies:[['boss_jumper_i',8,3]],
+    help:'2×2 跳跃巨兽：小跳、随机落弹与消失砸地按权重选择，整套行动结束后重选。小跳黄格不可打断；砸地有虚线与实线两段预告。R 重试。',
+  },
+  fly: {
+    name:'飞行巨兽', start:{col:2,row:3}, enemies:[['duke_fly',8,3]],
+    help:'2×2 飞行巨兽：每套行动结束后按权重选定下一行动，选定后不随玩家移动改变。选中移动才显示红色路径；黄招仅紧邻 Boss 的两格可打断。R 重试。',
+  },
   turret: {
     name:'扫射炮台', start:{col:5,row:4}, enemies:[['turret',8,3]],
     help:'扫射后炮台侧口打开。试着躲到与炮台同一行或列，利用恢复回合开枪。青色「开」表示伤害翻倍。',
@@ -63,7 +71,7 @@ const arenaBossSameCell = (a,b) => a.col===b.col && a.row===b.row;
 function arenaBossPlacements(preset) {
   return [
     ...(preset.rocks || []).map(([col,row])=>({kind:'terrain',id:TILE.ROCK,col,row})),
-    ...preset.enemies.map(([role,col,row])=>({kind:'monster',id:arenaBossId(role),col,row})),
+    ...preset.enemies.map(([role,col,row])=>({kind:'monster',id:MONSTER_DB[role]?role:arenaBossId(role),col,row})),
     ...(preset.items || []).map(([id,col,row])=>({kind:'item',id,col,row})),
   ];
 }

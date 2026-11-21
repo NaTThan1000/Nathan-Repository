@@ -41,7 +41,14 @@ stepEnemyAttackPlan = function(m,target) {
   if (!stepAttackVariantsEnabled) return stepVariantPreviousAttack(m,target);
   const kind=stepVariantKind(m);
   if (!kind || kind==='x' || kind==='cross') return null;
-  const basic=stepVariantPreviousAttack(m,target);
+  let basic=stepVariantPreviousAttack(m,target);
+  if(kind==='big'||kind==='charger') {
+    const dx=target.col-m.col,dy=target.row-m.row;
+    if((dx&&dy)||(!dx&&!dy)||Math.abs(dx)+Math.abs(dy)>(kind==='big'?2:4))return null;
+    const dir={dx:Math.sign(dx),dy:Math.sign(dy)};
+    const cells=kind==='big'?singleStepRay(m,dir.dx,dir.dy,2):[{col:target.col,row:target.row}];
+    basic=stepVariantSpecial(m,dir,kind==='big'?'dash-strike':'teleport','strike',cells);
+  }
   if (!basic) return null;
   let yellow={...basic,attackColor:'yellow'}, red;
   if (kind==='mobile') red=stepVariantSpecial(m,basic.dir,'long-shot','shot');
@@ -54,8 +61,7 @@ stepEnemyAttackPlan = function(m,target) {
       ? null : stepVariantSpecial(m,basic.dir,'jab','strike',[jab]);
   }
   const choices=[yellow,red].filter(plan=>plan?.cells.some(cell=>stepVariantCellMatches(cell,target)));
-  if (choices.length<2) return choices[0]||null;
-  return monsterActionRandom() >= 1-STEP_RED_ATTACK_CHANCE ? red : yellow;
+  return stepConfigureWarning(m,choices.length<2 ? choices[0] : monsterActionRandom() >= 1-STEP_RED_ATTACK_CHANCE ? red : yellow);
 };
 
 const stepVariantPreviousPlan = stepEnemyPlan;
@@ -77,7 +83,7 @@ stepEnemyPlan = function(m,forceChase) {
 
 const stepVariantPreviousResolve = singleStepResolvePlan;
 singleStepResolvePlan = function(m,plan,options) {
-  if (plan.type==='interrupted'||plan.type==='prepare') return plan;
+  if (['interrupted','prepare','early-warning'].includes(plan.type)||['dash-strike','teleport'].includes(plan.shape)) return plan;
   const resolved=stepVariantPreviousResolve(m,plan,options);
   if (resolved.type!=='variant-attack') return resolved;
   let cells=resolved.shape==='jab'
@@ -91,7 +97,25 @@ singleStepResolvePlan = function(m,plan,options) {
 
 const stepVariantPreviousApply = singleStepApplyPlan;
 singleStepApplyPlan = function(m,plan) {
-  if (plan.type==='interrupted') return;
+  if (plan.type==='interrupted'||plan.type==='early-warning') return;
+  if(plan.shape==='dash-strike') {
+    const first=plan.cells[0];
+    if(!first||!singleStepLegal(m,first.col,first.row))return;
+    stepApplyOriginal(m,{...plan,type:'charge',cells:[first],path:undefined});
+    if(!stepVariantCellMatches(m,first))return;
+    const end=stepVariantCell(m,plan.dir,1);
+    if(!singleStepBlocksBullet(end.col,end.row))stepVariantPreviousApply(m,{...plan,type:'strike',cells:[end]});
+    return;
+  }
+  if(plan.shape==='teleport') {
+    const to=plan.cells[0];
+    if(to&&singleStepLegal(m,to.col,to.row)) {
+      const from={col:m.col,row:m.row};
+      stepApplyOriginal(m,{...plan,type:'legacy-action',cells:[],path:[to]});
+      m._visualPath=[];m._stepJump={from,to:{col:m.col,row:m.row},at:performance.now(),duration:200};
+    }
+    return;
+  }
   if (plan.type!=='variant-attack') return stepVariantPreviousApply(m,plan);
   const cells=plan.shape==='long-charge'
     ? plan.cells.filter(cell=>singleStepLegal(m,cell.col,cell.row)) : plan.cells;
@@ -104,6 +128,7 @@ stepTestHooks.isArenaAttack = plan => plan?.type==='variant-attack'||stepVariant
 const stepVariantPreviousNext = stepTestHooks.nextEnemyPlan;
 stepTestHooks.nextEnemyPlan = function(m,plan) {
   if (stepAttackVariantsEnabled && m.hp>0) {
+    if(plan.type==='early-warning')return plan.remaining>1 ? {...plan,remaining:plan.remaining-1} : plan.attack;
     if (plan.type==='interrupted') return {type:'recover',cells:[]};
     if (STEP_FULL_RECOVERY_ENABLED && stepEnemyDefinition(m)) {
       if (plan.type==='recover') return {type:'prepare',cells:[]};
@@ -114,7 +139,7 @@ stepTestHooks.nextEnemyPlan = function(m,plan) {
         !stepVariantCellMatches(m,m._stepAction.from) && stepVariantCellMatches(m,plan.path[0]) &&
         monsterActionRandom()<.5) {
       const attack=stepVariantPreviousAttack(m,player);
-      if (attack) return {...attack,attackColor:'red'};
+      if (attack) return stepConfigureWarning(m,{...attack,attackColor:'red'});
     }
   }
   return stepVariantPreviousNext?.(m,plan);
@@ -122,7 +147,9 @@ stepTestHooks.nextEnemyPlan = function(m,plan) {
 
 stepTestHooks.onDirectWeaponHit = function(m,at) {
   if (!STEP_ATTACK_REWARDS_ENABLED || !stepAttackVariantsEnabled || SINGLE_STEP.bonus || arenaEffects.freeAction ||
-      m.hp<=0 || singleStepAttackPreview(m,{ignorePause:true})?.attackColor!=='yellow') return;
+      m.hp<=0) return;
+  const plan=singleStepAttackPreview(m,{ignorePause:true});
+  if(plan?.attackColor!=='yellow'||!stepInterruptCells(m,plan).some(c=>stepVariantCellMatches(c,player)))return;
   delete m.arenaDelayedMove;
   SINGLE_STEP.plans.set(m.id,{type:'interrupted',cells:[],attackColor:'yellow'});
   recordRunStat('interrupts');
@@ -143,6 +170,46 @@ stepTestHooks.drawInterruptThreats = function(cells,redKeys) {
     const q=cellRect(cell.col,cell.row);
     if (!redKeys.has(key)) ctx.fillRect(q.xL+1,q.yT+1,q.w-2,q.h-2);
     ctx.strokeRect(q.xL+1,q.yT+1,q.w-2,q.h-2);
+  }
+  ctx.restore();
+};
+
+// 虚线阶段保留完整锁定攻击，升级为实线时不重新选点。
+function stepConfigureWarning(m,attack) {
+  if(!attack)return null;
+  const turns=stepEnemyDefinition(m)?.attacks?.[attack.attackColor]?.earlyWarningTurns||0;
+  return turns>0 ? {type:'early-warning',cells:[],attackColor:attack.attackColor,remaining:turns,attack} : attack;
+}
+const stepWarningPreviousWindup=stepTestHooks.isEnemyWindup;
+stepTestHooks.isEnemyWindup=plan=>plan?.type==='early-warning'||stepWarningPreviousWindup?.(plan);
+function stepInterruptCells(m,plan) {
+  const definition=stepEnemyDefinition(m);
+  const rule=definition?.arenaBossRole ? undefined : definition?.attacks?.yellow?.interrupt;
+  if(!plan||plan.attackColor!=='yellow'||rule==='none')return [];
+  if(!rule)return plan.cells;
+  if(rule==='target')return plan.cells;
+  const depth=rule==='nearest'?1:stepVariantKind(m)==='big'?2:stepEnemyDefinition(m)?.range;
+  return plan.cells.filter(c=>Math.abs(c.col-m.col)+Math.abs(c.row-m.row)===depth);
+}
+const stepWarningPreviousDraw=stepTestHooks.drawEnemyWindups;
+stepTestHooks.drawEnemyWindups=function(occupied) {
+  stepWarningPreviousDraw?.(occupied);
+  ctx.save();
+  for(const m of monsters) {
+    if(m.hp<=0)continue;
+    const saved=SINGLE_STEP.plans.get(m.id);
+    if(saved?.type==='early-warning') {
+      ctx.setLineDash([5,4]);ctx.lineWidth=2;
+      ctx.strokeStyle=saved.attackColor==='yellow'?'#ffdc76':'#ff7979';
+      for(const c of saved.attack.cells){const q=cellRect(c.col,c.row);ctx.strokeRect(q.xL+1,q.yT+1,q.w-2,q.h-2);}
+    } else {
+      const plan=singleStepAttackPreview(m);
+      ctx.setLineDash([]);ctx.lineWidth=2;
+      ctx.strokeStyle='rgba(255,255,255,'+(.45+.55*(.5+.5*Math.sin(performance.now()/120)))+')';
+      ctx.shadowColor='#fff';ctx.shadowBlur=8;
+      for(const c of stepInterruptCells(m,plan)){const q=cellRect(c.col,c.row);ctx.strokeRect(q.xL+4,q.yT+4,q.w-8,q.h-8);}
+      ctx.shadowBlur=0;
+    }
   }
   ctx.restore();
 };

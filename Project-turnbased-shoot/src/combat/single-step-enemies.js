@@ -1,4 +1,4 @@
-// 正式版普通怪物复用机制原型规则，Boss继续使用既有分阶段适配。
+// 正式版普通怪物复用机制原型规则，两类正式Boss由single-step-bosses接入行动序列。
 let STEP_ENEMIES={},stepSplitting=false;
 const STEP_CARDINAL=[[0,-1],[0,1],[-1,0],[1,0]],STEP_DIAGONAL=[[1,1],[-1,1],[1,-1],[-1,-1]];
 function stepEnemyDefinition(m){return STEP_ENEMIES[m.cfgId?.replace(/^step_/,'')];}
@@ -8,7 +8,7 @@ loadMonsterDB=async function(){
  const ok=await stepLoadOriginal();if(!ok)return false;
  const response=await fetch('Configs/single-step-enemies.json?'+Date.now());
  if(!response.ok)throw Error('新怪物配置加载失败');
- const config=await response.json();STEP_ENEMIES=config.monsters;window.stepSquads=config.squads;
+ const config=await response.json();STEP_BOSSES=config.bosses;STEP_ENEMIES=config.monsters;window.stepSquads=config.squads;
  for(const d of Object.values(STEP_ENEMIES))MONSTER_DB[d.id]={...d,loot:cloneHistoryValue(MONSTER_DB[d.mode==='shot'||d.mode==='fan'?'flying_eye_i':'crack_maw_i'].loot)};
  MONSTER_POOL_NORMAL=Object.values(STEP_ENEMIES).map(d=>d.id);
  MONSTER_POOL_ALL=[...MONSTER_POOL_NORMAL,...Object.keys(MONSTER_DB).filter(k=>MONSTER_DB[k]?.aiType?.startsWith('boss_'))];
@@ -134,6 +134,7 @@ singleStepApplyPlan=function(m,p){
  const d=stepEnemyDefinition(m);if(!d)return stepApplyOriginal(m,p);
  const from={col:m.col,row:m.row};m._stepAction={type:p.type,at:performance.now(),from,cells:cloneHistoryValue(p.cells),dir:p.dir};
  if(p.type==='blast'){
+  m._stepDetonated=true;
   stepDetonateBomb(m,p.cells,{source:m});
   if(m.hp>0)damageMonster(m,m.hp);
  }else if(['shot','fan','strike'].includes(p.type)){
@@ -163,14 +164,15 @@ updateRoomCombatState=function(){if(stepSplitting)return;return stepRoomUpdateOr
 const stepDamageOriginal=damageMonster;
 damageMonster=function(m,amount,...args){
  const d=stepEnemyDefinition(m),alive=m.hp>0;if(!d||!alive)return stepDamageOriginal(m,amount,...args);
- const splitting=m.cfgId==='step_big'&&amount>=m.hp,previous=stepSplitting;if(splitting)stepSplitting=true;
+ const splitting=m.cfgId==='step_big'&&amount>=m.hp,detonating=d.id==='step_bomber'&&amount>=m.hp,previous=stepSplitting;if(splitting||detonating)stepSplitting=true;
  try{
   stepDamageOriginal(m,amount,...args);
   if(m.hp<=0){stepVisualEvents.push({type:'death',cfgId:m.cfgId,col:m.col,row:m.row,x:m.px,y:m.py,at:performance.now()});
+   if(d.id==='step_bomber'&&!m._stepDetonated){m._stepDetonated=true;stepDetonateBomb(m,bombBlastCells(m.col,m.row),{source:m});}
    if(splitting){let count=0;for(let radius=1;radius<COLS+ROWS&&count<2;radius++)for(let row=0;row<ROWS&&count<2;row++)for(let col=0;col<COLS&&count<2;col++){
     if(Math.abs(col-m.col)+Math.abs(row-m.row)!==radius||isWall(col,row)||currentRoomGrid[col][row]===TILE.SPIKE||col===player.col&&row===player.row||monsters.some(o=>isInMonsterFootprint(o,col,row)))continue;stepSpawnChild(m,col,row);count++;
    }}
   }
  }finally{stepSplitting=previous;}
- if(splitting)updateRoomCombatState();
+ if(splitting||detonating)updateRoomCombatState();
 };

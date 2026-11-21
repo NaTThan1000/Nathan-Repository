@@ -44,6 +44,8 @@
   },
 
   "singleStepItems": {
+    "single_step_fire_rate": {"id":"single_step_fire_rate","name":"射速+","stackable":true,"icon":"➤","desc":"射速 +0.5，普通射击累计小数出弹，蓄力时增加充能速度。","quality":"common","effects":{"fireRate":0.5},"specials":[],"price":15},
+    "single_step_agility": {"id":"single_step_agility","name":"敏捷+","stackable":true,"icon":"✦","desc":"敏捷 +1，每次有效闪避获得的子弹时间额外行动增加一次。","quality":"legendary","agilityBonus":1,"effects":{},"specials":[],"price":15},
     "single_step_attack": {
       "id": "single_step_attack",
       "name": "攻击力+",
@@ -125,7 +127,7 @@
       "id": "trial_weapon_burstCharge",
       "name": "蓄力枪管（连击）",
       "icon": "≡",
-      "desc": "前三次射击行动蓄力，第四次额外连射。移动保留蓄力。",
+      "desc": "每次射击按射速充能，满6点后再按一次释放三发，每发2倍伤害；保留充能余量，移动不清空。",
       "quality": "rare",
       "effects": {},
       "specials": [],
@@ -136,7 +138,7 @@
       "id": "trial_weapon_heavyCharge",
       "name": "蓄力枪管（合体）",
       "icon": "⬤",
-      "desc": "前三次射击行动蓄力，第四次射出高伤重弹。移动保留蓄力。",
+      "desc": "每次射击按射速充能，满6点后再按一次释放一发6倍伤害重弹；保留充能余量，移动不清空。",
       "quality": "rare",
       "effects": {},
       "specials": [],
@@ -283,26 +285,6 @@
       "specials": [],
       "weaponTrial": {"effect":"random","slot":"pattern"}
     },
-    "trial_weapon_straight": {
-      "id": "trial_weapon_straight",
-      "name": "普通枪管",
-      "icon": "→",
-      "desc": "恢复普通直线射击，覆盖同类发射方式。",
-      "quality": "rare",
-      "effects": {},
-      "specials": [],
-      "weaponTrial": {"effect":"straight","slot":"trajectory"}
-    },
-    "trial_weapon_bullet": {
-      "id": "trial_weapon_bullet",
-      "name": "实弹枪",
-      "icon": "●",
-      "desc": "恢复普通实弹枪体，覆盖同类枪体。",
-      "quality": "rare",
-      "effects": {},
-      "specials": [],
-      "weaponTrial": {"effect":"bullet","slot":"body"}
-    },
     "trial_weapon_laser": {
       "id": "trial_weapon_laser",
       "name": "激光枪",
@@ -322,16 +304,6 @@
       "effects": {},
       "specials": [],
       "weaponTrial": {"effect":"ghost","slot":"shell"}
-    },
-    "trial_weapon_shield": {
-      "id": "trial_weapon_shield",
-      "name": "护盾",
-      "icon": "⬟",
-      "desc": "拾取时获得1点可耗尽的蓝心。",
-      "quality": "rare",
-      "effects": {},
-      "specials": [],
-      "weaponTrial": {"effect":"shield","slot":null}
     },
     "trial_weapon_jet": {
       "id": "trial_weapon_jet",
@@ -477,7 +449,7 @@
       "id": "trial_weapon_backArmor",
       "name": "充能背甲",
       "icon": "▣",
-      "desc": "每间房可抵挡一次来自背后或斜后方的怪物伤害。",
+      "desc": "每间房可抵挡一次从背后或斜后方击中的定向攻击，依据子弹或攻击实际行进方向判断；无法抵挡抛射、瞬移落点和爆炸等无固定来向的伤害。",
       "quality": "rare",
       "effects": {},
       "specials": [],
@@ -547,7 +519,7 @@
       "id": "trial_weapon_toxicTrail",
       "name": "毒血",
       "icon": "◈",
-      "desc": "离开的地格留下毒血，持续3步，每步对经过或站立的怪物造成1点伤害。",
+      "desc": "离开的地格留下毒血，持续6个正常回合，每回合对经过或站立的地面怪物造成1点伤害。",
       "quality": "rare",
       "effects": {},
       "specials": [],
@@ -557,7 +529,7 @@
       "id": "trial_weapon_slimeTrail",
       "name": "史莱姆化",
       "icon": "◍",
-      "desc": "离开的地格留下粘液，持续3步。怪物踩上后，下一次移动先停一回合，再执行原定移动。",
+      "desc": "离开的地格留下粘液，持续6个正常回合。怪物踩上后，下一次移动先停一回合，再执行原定移动。",
       "quality": "rare",
       "effects": {},
       "specials": [],
@@ -657,7 +629,7 @@
       "id": "trial_weapon_acid",
       "name": "硫酸子弹",
       "icon": "▽",
-      "desc": "直击时在命中格留下酸液，持续5步，每步对经过或站立的怪物造成1伤害。",
+      "desc": "直击时在命中格留下酸液，持续6个正常回合，每回合对经过或站立的地面怪物造成1点伤害。",
       "quality": "rare",
       "effects": {},
       "specials": [],

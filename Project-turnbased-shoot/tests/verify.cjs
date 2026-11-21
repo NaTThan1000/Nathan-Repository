@@ -25,6 +25,10 @@ async function verify(){
       'tests/scrap-star-art.test.cjs','tests/rewind-hud-regression.test.cjs','tests/state-prediction-regression.test.cjs'
     ]) run(file,{COMBAT_TEST_HTML:legacy});
     run('tests/single-step-formal.browser.cjs');
+    run('tests/attack-conditions.browser.cjs');
+    run('tests/boss-actions.browser.cjs');
+    run('tests/weapon-growth.browser.cjs');
+    run('tests/item-fixes.browser.cjs');
     run('tests/world-ui.browser.cjs');
     run('tests/bullet-time.browser.cjs',{BULLET_TIME_TEST_HTML:prototype});
     run('tests/custom-arena.browser.cjs');

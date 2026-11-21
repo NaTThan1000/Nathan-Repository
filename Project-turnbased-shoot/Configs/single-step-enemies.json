@@ -22,11 +22,22 @@
       ],
       "actionMode": {
         "mode": "sequence"
+      },
+      "attacks": {
+        "yellow": {
+          "interrupt": "nearest",
+          "earlyWarningTurns": 0
+        },
+        "red": {
+          "earlyWarningTurns": 0
+        }
       }
     },
     "mobile": {
       "id": "step_mobile",
-      "movementTags": ["飞行"],
+      "movementTags": [
+        "飞行"
+      ],
       "name": "移动射手",
       "hp": 7,
       "damage": 1,
@@ -46,6 +57,15 @@
       ],
       "actionMode": {
         "mode": "sequence"
+      },
+      "attacks": {
+        "yellow": {
+          "interrupt": "nearest",
+          "earlyWarningTurns": 0
+        },
+        "red": {
+          "earlyWarningTurns": 0
+        }
       }
     },
     "big": {
@@ -69,6 +89,15 @@
       ],
       "actionMode": {
         "mode": "sequence"
+      },
+      "attacks": {
+        "yellow": {
+          "interrupt": "farthest",
+          "earlyWarningTurns": 0
+        },
+        "red": {
+          "earlyWarningTurns": 0
+        }
       }
     },
     "small": {
@@ -92,6 +121,15 @@
       ],
       "actionMode": {
         "mode": "sequence"
+      },
+      "attacks": {
+        "yellow": {
+          "interrupt": "none",
+          "earlyWarningTurns": 0
+        },
+        "red": {
+          "earlyWarningTurns": 0
+        }
       }
     },
     "fighter": {
@@ -115,12 +153,21 @@
       ],
       "actionMode": {
         "mode": "sequence"
+      },
+      "attacks": {
+        "yellow": {
+          "interrupt": "farthest",
+          "earlyWarningTurns": 0
+        },
+        "red": {
+          "earlyWarningTurns": 0
+        }
       }
     },
     "bomber": {
       "id": "step_bomber",
       "name": "自爆者",
-      "hp": 4,
+      "hp": 8,
       "damage": 1,
       "chase": 3,
       "range": 1,
@@ -138,6 +185,15 @@
       ],
       "actionMode": {
         "mode": "sequence"
+      },
+      "attacks": {
+        "yellow": {
+          "interrupt": "none",
+          "earlyWarningTurns": 0
+        },
+        "red": {
+          "earlyWarningTurns": 0
+        }
       }
     },
     "charger": {
@@ -161,6 +217,15 @@
       ],
       "actionMode": {
         "mode": "sequence"
+      },
+      "attacks": {
+        "yellow": {
+          "interrupt": "target",
+          "earlyWarningTurns": 0
+        },
+        "red": {
+          "earlyWarningTurns": 0
+        }
       }
     },
     "x": {
@@ -184,6 +249,15 @@
       ],
       "actionMode": {
         "mode": "sequence"
+      },
+      "attacks": {
+        "yellow": {
+          "interrupt": "none",
+          "earlyWarningTurns": 0
+        },
+        "red": {
+          "earlyWarningTurns": 0
+        }
       }
     },
     "cross": {
@@ -207,6 +281,15 @@
       ],
       "actionMode": {
         "mode": "sequence"
+      },
+      "attacks": {
+        "yellow": {
+          "interrupt": "none",
+          "earlyWarningTurns": 0
+        },
+        "red": {
+          "earlyWarningTurns": 0
+        }
       }
     }
   },
@@ -378,6 +461,47 @@
         "地面"
       ],
       "role": "mixed"
+    }
+  },
+  "bosses": {
+    "jumper": {
+      "actions": [
+        {
+          "id": "move",
+          "weight": 300,
+          "condition": "default"
+        },
+        {
+          "id": "shot",
+          "weight": 200,
+          "condition": "in_range"
+        },
+        {
+          "id": "slam",
+          "weight": 100,
+          "condition": "default"
+        }
+      ]
+    },
+    "fly": {
+      "actions": [
+        {
+          "id": "move",
+          "weight": 100,
+          "condition": "default"
+        },
+        {
+          "id": "summon",
+          "weight": 200,
+          "condition": "default"
+        },
+        {
+          "id": "shot",
+          "weight": 200,
+          "condition": "in_range"
+        }
+      ],
+      "summonLimit": 6
     }
   }
 }

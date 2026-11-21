@@ -44,7 +44,7 @@ function playFloorFade() {
 }
 
 // ==================== 地面道具说明弹窗 ====================
-const TOOLTIP_RANGE = 3;   // 距道具 3 格以内显示
+const TOOLTIP_RANGE = 2;   // 距道具 2 格以内显示
 let _tooltipKey = '';
 let _tooltipPos = '';
 function updateItemTooltip() {

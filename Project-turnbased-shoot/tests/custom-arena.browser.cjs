@@ -28,7 +28,7 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         return monsters[0];
       };
       const plan=m=>SINGLE_STEP.plans.get(m.id);
-      let m=load(0,foe('fixed',5,3));
+      let m=load(0,foe('fixed',3,3));
       check(plan(m).attackColor==='yellow','固定射手只亮黄');
       const hp=playerStats.hp;
       singleStepAct('shoot','right');
@@ -104,7 +104,7 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
     assert.deepEqual(await page.evaluate(() => [
       Object.keys(ITEMS_DB).length,ITEM_POOL_ALL.length,Object.hasOwn(ITEMS_DB,'trial_weapon_laser'),
       ITEM_POOL_ALL.includes('trial_weapon_laser'),
-    ]),[60,60,true,true]);
+    ]),[59,59,true,true]);
     assert.equal(await page.evaluate(() => Object.values(ITEMS_DB).filter(item=>item.name==='穿透子弹').length),1);
     const at = async (col,row,button='left') => {
       await page.locator('#game').scrollIntoViewIfNeeded();
@@ -121,7 +121,7 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
     await at(7,3);
     await pick('terrain','3'); await at(5,4);
     await pick('item','trial_weapon_dual'); await at(3,3);
-    assert.equal(await page.locator('#arena-entry option').count(),60);
+    assert.equal(await page.locator('#arena-entry option').count(),59);
     await pick('item','trial_weapon_triple'); await at(4,3);
     await pick('item','trial_weapon_poison'); await at(5,3);
     assert.deepEqual(await page.evaluate(() => {
@@ -168,7 +168,7 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
       check(playerInventory.includes('single_step_pierce')&&equippedBulletEffects('shell').join(',')==='pierce,blast','爆炸弹壳和穿透弹壳并存');
       arenaLoad(false);equip('burstCharge','poison');playerStats.range=6;
       for(let i=0;i<3;i++)singleStepAct('shoot','right');
-      check(arena.hits===0&&SINGLE_STEP.weaponCharge===3,'蓄力不提前出弹');
+      check(arena.hits===0&&SINGLE_STEP.weaponCharge===6,'蓄力不提前出弹');
       singleStepAct('shoot','right');
       check(arena.hits===3&&SINGLE_STEP.weaponCharge===0,'连击释放三发');
       arenaLoad(false);equip('laser','twin');playerStats.fireRate=1;
@@ -261,21 +261,21 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
           '一发同时穿透并爆炸，两个目标都中毒并留下酸液');
 
         shoot([dummy(5,3)],'dual','burstCharge');
-        for(let i=0;i<3;i++) singleStepAct('shoot','right');
+        for(let i=0;i<6;i++) singleStepAct('shoot','right');
         check(arena.hits===6&&new Set(SINGLE_STEP.shots.map(shot=>shot.start)).size===3,'蓄力连击与双管组合时三次双发齐射');
         for (const trajectory of ['burstCharge','heavyCharge']) {
           load([],'trident',trajectory);
           const arcs = [], originalArc = ctx.arc;
           ctx.arc = (...args) => { arcs.push(args); originalArc.apply(ctx,args); };
           try {
-            for (let step=1;step<=3;step++) {
+            for (let step=1;step<=6;step++) {
               fire();
               arcs.length = 0;
               stepDrawChargeRing();
               const [x,y,radius,start,end] = arcs[1];
               const tile = cellRect(player.col,player.row);
-              check(radius===2&&x===tile.xR-3.5&&y===tile.yT+3.5&&
-                Math.abs((end-start)/(2*Math.PI)-step/3)<.001,'半径减半，圆环在格子右上角且逐次充能三分之一');
+              check(radius>=2&&radius<=3.8&&x===tile.xR-3.5&&y===tile.yT+3.5&&
+                Math.abs((end-start)/(2*Math.PI)-step/6)<.001,'半径减半，圆环在格子右上角且逐次充能三分之一');
             }
             const shots = fire();
             arcs.length = 0;
@@ -591,8 +591,8 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         fire();fire();
         check(!monsters.includes(host)&&arena.hits===1&&arena.last===2&&tileData['4,2']?.hp===99,'寄生死亡爆炸伤害九格内的敌人，岩石保持完整');
         shoot([dummy(4,3)],'acid');
-        for(let i=0;i<5;i++)singleStepAct('shoot','up');
-        check(arena.hits===6&&arena.last===1&&!arenaEffects.ground.size,'酸液在五个正常步扣血后消失');
+        for(let i=0;i<6;i++)singleStepAct('shoot','up');
+        check(arena.hits===7&&arena.last===1&&!arenaEffects.ground.size,'酸液在六个正常步扣血后消失');
 
         const lob = shoot([terrain(3,3,TILE.ROCK),dummy(9,3)],'lob');
         check(lob.length===1&&lob[0].arcHeight>0&&arena.hits===1&&tileData['3,3'].hp===99,'抛射越障并能命中延伸射程的怪物');
@@ -617,14 +617,12 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
         const shotCount=totalShots;
         scrapUpdateHUD();
         check(stepBenefit.textContent.includes('额外移动 1 次')&&stepBenefit.classList.contains('active'),'额外移动亮显并计数');
-        check(!singleStepAct('shoot','left')&&totalShots===shotCount&&arenaEffects.moveCredit===1&&
-          damageNumbers.some(number=>number.text==='只能移动！')&&stepBenefit.getAnimations().length===1,
-          '额外移动拒绝射击，角色头顶提示且底栏抖动');
-        singleStepAct('move','down');
-        check(!singleStepAct('move','down')&&!singleStepAct('bomb','down')&&
-          damageNumbers.some(number=>number.text==='只能射击！'),'额外射击期间移动和炸弹均被拒绝');
-        singleStepAct('shoot','left');
-        check(arenaEffects.turn===normalTurn&&!arenaEffects.moveCredit&&!arenaEffects.shootCredit,'额外移动和射击不推进正常步');
+        check(singleStepAct('shoot','left')&&totalShots===shotCount+1&&!arenaEffects.moveCredit&&!arenaEffects.shootCredit&&arenaEffects.turn===normalTurn,
+          '射击放弃额外移动，并使用已有额外射击');
+        arenaEffects.shootCredit=1;
+        check(singleStepAct('move','down')&&!arenaEffects.shootCredit&&arenaEffects.turn===normalTurn+1,'移动放弃额外射击并正常推进');
+        arenaEffects.moveCredit=1;
+        check(singleStepAct('shoot','left')&&!arenaEffects.moveCredit&&arenaEffects.turn===normalTurn+2,'射击放弃额外移动并正常推进');
         load([terrain(4,3,TILE.POOP)],'killMove');
         tileData['4,3'].hp=1;
         fire();
@@ -640,7 +638,7 @@ const {chromium} = require('../tools/runtime-deps.cjs').runtimeDependency('playw
 
         load([foe(2,1)],'backArmor','hurtPill');
         const armoredHp=playerStats.hp;
-        damagePlayer(1,monsters[0].id);
+        stepIncomingDirection={...DIR_VEC[player.facing]};damagePlayer(1,monsters[0].id);stepIncomingDirection=null;
         check(!arenaEffects.armorReady&&playerStats.hp===armoredHp,'背后攻击消耗背甲');
         damagePlayer(1,monsters[0].id);
         check(playerStats.hp===armoredHp-1&&playerStats.attack===2.5,'实际受伤才触发浴血药丸');

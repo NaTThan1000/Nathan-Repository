@@ -121,14 +121,12 @@ damageMonster = function(monster,damage,...args) {
   return result;
 };
 
-function arenaDamageFromBehind(attacker) {
-  if (!attacker) return false;
-  const facing = DIR_VEC[player.facing];
-  const dx = attacker.col + ((attacker.size||1)-1)/2 - player.col;
-  const dy = attacker.row + ((attacker.size||1)-1)/2 - player.row;
-  return facing.dx*dx+facing.dy*dy < 0;
+let stepIncomingDirection=null;
+function arenaDamageFromBehind() {
+ if(!stepIncomingDirection)return false;
+ const facing=DIR_VEC[player.facing];
+ return facing.dx*stepIncomingDirection.dx+facing.dy*stepIncomingDirection.dy>0;
 }
-
 const arenaTrialDamagePlayer = damagePlayer;
 damagePlayer = function(amount,attackerId) {
   if (amount > 0 && player.invincibleSteps <= 0) {
@@ -218,7 +216,7 @@ function arenaParasiteBlast(m,at,lane) {
 }
 
 stepTestHooks.onWeaponHit = function(m,cell,{dx,dy,at,lane,ammo}) {
-  if (ammo === 'acid') arenaGroundEffect(cell,'acid',5);
+  if (ammo === 'acid') arenaGroundEffect(cell,'acid',6);
   if (m.hp <= 0 || !monsters.includes(m)) return;
   if (ammo === 'knockback') {
     arenaKnockback(m,dx,dy);
@@ -374,6 +372,9 @@ stepTestHooks.blockPush = function(m) {
 
 stepTestHooks.beginAction = () => { arenaEffects.freeAction = false; arenaEffects.shotRewarded = false; };
 stepTestHooks.consumeExtra = function(type) {
+  const required=stepRequiredExtraAction();
+  if(required&&required!==type)arenaEffects[required==='move'?'moveCredit':'shootCredit']=0;
+  if(type!=='move'&&type!=='shoot')return false;
   const key = type==='move'?'moveCredit':'shootCredit';
   if (!arenaEffects[key]) return false;
   arenaEffects[key]--;
@@ -413,8 +414,8 @@ stepTestHooks.onMove = function(old,{dx,dy}) {
     const distance = Math.abs(player.col-old.col)+Math.abs(player.row-old.row);
     arenaEffects.timedCharge = Math.min(ARENA_SHIELD_CHARGE,arenaEffects.timedCharge+distance);
   }
-  if (trialPassive('toxicTrail')) arenaGroundEffect(old,'toxic',3);
-  if (trialPassive('slimeTrail')) arenaGroundEffect(old,'slime',3);
+  if (trialPassive('toxicTrail')) arenaGroundEffect(old,'toxic',6);
+  if (trialPassive('slimeTrail')) arenaGroundEffect(old,'slime',6);
   for (const bomb of bombs) {
     if (bomb.roomId===currentRoomId&&bomb.claymore&&bomb.awaitDeparture&&bomb.col===old.col&&bomb.row===old.row) {
       bomb.claymore = {dx:-dx,dy:-dy};
@@ -438,7 +439,7 @@ stepTestHooks.onShot = function(origin,dir,charge) {
   arenaEffects.unstableShots = 0;
   const range = weaponShotgunRange();
   const shells = equippedBulletEffects('shell'), ammunition = equippedBulletEffects('ammo');
-  weaponShotgunVolley(origin,dir,playerStats.attack*charge.scale,range,{shells,ammunition,body:'shotgun'},performance.now()+45);
+  weaponShotgunVolley(origin,dir,playerStats.attack*charge.scale,range,{shells,ammunition,body:'shotgun',trajectory:equippedWeaponTrial('trajectory')},performance.now()+45);
   stepVisualEvents.push({type:'unstable-recoil',at:performance.now()+45});
 };
 

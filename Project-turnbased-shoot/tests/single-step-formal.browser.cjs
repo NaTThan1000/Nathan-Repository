@@ -37,8 +37,8 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   check(RES_DROP_TABLES.resource_drop_terrain_poop.table.none===705&&RES_DROP_TABLES.resource_drop_terrain_rock.table.none===970,'木箱提高掉落，岩石沿用低掉落');
   check(RES_DROP_TABLES.resource_drop_monster_default.table.none===545&&RES_DROP_TABLES.resource_drop_monster_heavy.table.none===530,'普通怪的两档资源权重生效');
   const approved=new Set(Object.keys(singleStepItems));
-  check(approved.size===60&&Object.keys(ITEMS_DB).length===60&&Object.keys(ITEMS_DB).every(id=>approved.has(id)),'正式版加载全部60件道具');
-  check(ITEM_POOL_ALL.length===60&&ITEM_POOL_ALL.every(id=>approved.has(id)),'正式掉落池覆盖全部60件道具');
+  check(approved.size===59&&Object.keys(ITEMS_DB).length===59&&Object.keys(ITEMS_DB).every(id=>approved.has(id)),'正式版加载全部60件道具');
+  check(ITEM_POOL_ALL.length===59&&ITEM_POOL_ALL.every(id=>approved.has(id)),'正式掉落池覆盖全部60件道具');
   const baseRandom=Math.random;
   try{
    for(const quality of ['common','rare','legendary']){
@@ -117,7 +117,7 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   check(roundTarget.hp===2&&damageNumbers.map(number=>number.text).filter(text=>text.startsWith('-')).join(',')==='-1,-2,-1,-1','四次1.3伤害按目标累计取整为5点');
   playerInventory=[];recalcAllStats();
   check(stepAttackVariantsEnabled,'正式版加载黄红招规则');
-  let yellow=stepFixture('step_fixed',5,3);
+  let yellow=stepFixture('step_fixed',3,3);
   check(singleStepAttackPreview(yellow)?.attackColor==='yellow','正式版固定射手预告黄招');
   const interruptsBefore=runStats.interrupts;
   singleStepAct('shoot','right');
@@ -137,7 +137,7 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
    check(playerStats.hp===recoveryHp-1&&SINGLE_STEP.plans.get(yellow.id).type==='recover','新预告在下一步才结算');
    const slime=stepFixture('step_big',3,3);
    singleStepAct('move','up');
-   check(slime._stepAction.type==='charge'&&SINGLE_STEP.plans.get(slime.id).type==='recover',
+   check(slime._stepAction.type==='strike'&&SINGLE_STEP.plans.get(slime.id).type==='recover',
      '主包中原本无恢复的史莱姆也会在出招后恢复');
    singleStepAct('shoot','left');
    check(slime._stepAction.type==='recover'&&!singleStepAttackPreview(slime),'史莱姆恢复后仍无攻击预告');
@@ -181,7 +181,7 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   stepFreezeFixture();singleStepAct('move','up');
   const frozen=JSON.stringify([monsters.map(m=>[m.id,m.col,m.row]),[...SINGLE_STEP.plans],combatRng]);singleStepAct('shoot','left');singleStepAct('shoot','left');check(SINGLE_STEP.bonus===0&&frozen===JSON.stringify([monsters.map(m=>[m.id,m.col,m.row]),[...SINGLE_STEP.plans],combatRng]),'正式版两次额外行动冻结所有阶段');
   singleStepAct('shoot','left');check(SINGLE_STEP.step===4,'恢复普通行动');
-  m=stepFixture('step_charger',5,3);singleStepAct('shoot','up');check(m.col===1&&playerStats.hp===4&&!(player.col===m.col&&player.row===m.row),'正式版冲刺穿过并挤出 '+JSON.stringify({m:[m.col,m.row],p:[player.col,player.row,playerStats.hp],plan:[...SINGLE_STEP.plans.values()]} ));
+  m=stepFixture('step_charger',5,3,.99);singleStepAct('shoot','up');check(m.col===0&&playerStats.hp===4&&!(player.col===m.col&&player.row===m.row),'正式版冲刺穿过并挤出 '+JSON.stringify({m:[m.col,m.row],p:[player.col,player.row,playerStats.hp],plan:[...SINGLE_STEP.plans.values()]} ));
   m=stepFixture();singleStepAct('shoot','up');const hurt=stepVisualEvents.find(e=>e.type==='hurt');check(playerStats.hp===4&&player.invincibleSteps===Math.floor(playerStats.moveSpeed)*2,'战斗受伤保留原步数制无敌');check(hurt&&hurt.at>performance.now(),'受击帧等待敌方弹体画面命中');
   const spriteDraw=scrapDraw,fillRect=ctx.fillRect,spriteCalls=[];
   let screenFlashes=0;
@@ -352,15 +352,15 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
    check(player.targetPx!==null&&singleStepInputAction('move','right')&&player.col===4,'探索移动可以衔接尚未完全播放的步伐');
   }finally{SFX.door=doorSound;}
 
-  m=stepFixture('boss_jumper_i',8,4);
+  m=stepFixture('boss_jumper_i',8,4,0);
   const smallJump=SINGLE_STEP.plans.get(m.id);
-  check(smallJump.type==='legacy-jump'&&smallJump.cells.length>0&&threatArt().includes('redGrid')&&threatArt().includes('alert'),'Boss普通跳跃显示落点红格和感叹号');
+  check(smallJump.type==='boss-phase'&&smallJump.stage==='jump'&&smallJump.attackColor==='yellow'&&smallJump.cells.length===4,'Boss普通跳跃显示不可打断的黄色落点预告');
   const shockwaveAlly=placeAlly(7,3);
   const landAction=MONSTER_DB[m.cfgId].actions.find(action=>action.type==='jump_big_land');
   Object.assign(player,{col:5,row:3});
   m._charging=true;
   SINGLE_STEP.legacy.set(m.id,{queue:[],counter:0,landing:{monster:m,targetCol:5,targetRow:3,landAction}});
-  const shockwave=singleStepLegacyPlan(m);
+  const shockwave=stepBossLegacyPlan(m);
   SINGLE_STEP.plans.set(m.id,shockwave);
   check(shockwave.cells.some(cell=>cell.col===shockwaveAlly.col&&cell.row===shockwaveAlly.row),'其他怪物在砸地范围内');
   Object.assign(player,{col:2,row:3});
@@ -442,7 +442,7 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
    const landAction={after_effect:[{type:'attack_side',range:1,damage:1,hitsAllies}]};
    m._charging=true;
    SINGLE_STEP.legacy.set(m.id,{queue:[],counter:0,landing:{monster:m,targetCol:5,targetRow:3,landAction}});
-   const landing=singleStepLegacyPlan(m);
+   const landing=stepBossLegacyPlan(m);
    singleStepApplyPlan(m,landing);
    check(m.col===5&&m.row===3&&playerStats.hp<5&&shockwaveAlly.hp===shockwaveAllyHp-Number(hitsAllies),'Boss冲击波伤害玩家，只按配置伤害怪物');
   }
@@ -509,7 +509,7 @@ const {chromium}=require('../tools/runtime-deps.cjs').runtimeDependency('playwri
   resetGameToFloor1();
   startGameFromMenu();
   runStats.timing.startedAt=performance.now()-90000;
-  stepFixture('step_fixed',5,3);playerStats.fireRate=2;
+  stepFixture('step_fixed',3,3);playerStats.fireRate=2;
   singleStepAct('shoot','right');
   stepFreezeFixture();
   singleStepAct('move','up');

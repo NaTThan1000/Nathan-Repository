@@ -1,10 +1,11 @@
 // 正式版单步调度：保留楼层、配置、掉落与道具；不再进入旧 MP/AP 与回溯循环。
-// 普通怪物由 single-step-enemies 接入新规则；Boss通过旧规则模拟获得锁定行动。
-const SINGLE_STEP={bonus:0,step:0,spikeTurn:0,room:null,plans:new Map(),legacy:new Map(),damaged:false,busy:false,shots:[],error:null};
+// 普通怪物由 single-step-enemies 接入新规则；两类正式Boss使用独立行动序列，其余Boss保留旧规则适配。
+const SINGLE_STEP={shotRemainder:0,bonus:0,step:0,spikeTurn:0,room:null,plans:new Map(),legacy:new Map(),damaged:false,busy:false,shots:[],error:null};
 const stepOldLoadMonsterDB=loadMonsterDB;
 const STEP_STARTING_HP=10;
 const STEP_BASE_STATS = {attack: 2, range: 4, fireRate: 2};
 const STEP_STARTING_AGILITY = 2;
+function singleStepAgility(){return STEP_STARTING_AGILITY+playerInventory.reduce((n,id)=>n+(ITEMS_DB[id]?.agilityBonus||0),0);}
 Object.assign(playerStats, STEP_BASE_STATS);
 playerStats.hp=playerStats.maxHp=STEP_STARTING_HP;
 scrapNumericHealth=true;
@@ -195,15 +196,22 @@ function singleStepVisualShot(source,to,playerShot,dir,{
 }
 function singleStepMoveSpeed(){return hasMonstersAlive() ? CFG.EXEC_MOVE_SPEED : CFG.EXEC_MOVE_SPEED*1.5;}
 function singleStepPickup(){autoPickupResources();for(let i=itemsOnGround.length-1;i>=0;i--){const item=itemsOnGround[i];if(item.col!==player.col||item.row!==player.row)continue;if(isShopSlotCell(item.col,item.row)){tryBuyShopItem(item.col,item.row);continue;}if(canPickupItem(item.cfgId)){applyItem(item.cfgId);itemsOnGround.splice(i,1);updateItemBar();}}}
+function singleStepPlayerPushTarget(m,col,row,old,dir){
+ const legal=(c,r)=>singleStepLegal(m,c,r)&&!singleStepFootprint(m,c,r).some(p=>p.col===col&&p.row===row);
+ const dirs=[[dir.dx,dir.dy],[-dir.dy,dir.dx],[dir.dy,-dir.dx],[-dir.dx,-dir.dy]];
+ for(const [dx,dy]of dirs){const c=m.col+dx,r=m.row+dy;
+  if(legal(c,r)&&!singleStepFootprint(m,c,r).some(p=>p.col===old.col&&p.row===old.row))return {col:c,row:r};
+ }
+ // 无可挤位置时，让怪物占据玩家原来的位置；大体积按完整占格检查。
+ for(let dx=0;dx<(m.size||1);dx++)for(let dy=0;dy<(m.size||1);dy++){
+  const c=old.col-dx,r=old.row-dy;if(legal(c,r))return {col:c,row:r};
+ }
+ return null;
+}
 function singleStepAct(type,dir){
  if(!gameStarted||gameOver||worldMapOpen||transition?.active||floorFadeBusy||SINGLE_STEP.busy)return false;
  if(SINGLE_STEP.room!==currentRoomId)singleStepReset();
  const old={col:player.col,row:player.row},frozen=SINGLE_STEP.bonus>0,hadEnemies=hasMonstersAlive();SINGLE_STEP.damaged=false;const v=DIR_VEC[dir];
- const required=stepRequiredExtraAction();
- if(required&&type!==required){
-  stepShowExtraActionOnly(required);
-  return false;
- }
  stepTestHooks.beginAction?.();
  let extraAction=false,placedBomb;
  if(type==='move'){
@@ -213,10 +221,16 @@ function singleStepAct(type,dir){
   }
   let col=player.col+v.dx,row=player.row+v.dy;
   if(trialPassive('jet')&&currentRoomGrid[col]?.[row]===TILE.PIT&&currentRoomGrid[col+v.dx]?.[row+v.dy]===TILE.FLOOR){col+=v.dx;row+=v.dy;}
-  if(isWall(col,row)||monsters.some(m=>isInMonsterFootprint(m,col,row)))return false;
+  if(isWall(col,row))return false;
+  const bumped=monsters.find(m=>m.hp>0&&isInMonsterFootprint(m,col,row));
+  const pushed=bumped&&singleStepPlayerPushTarget(bumped,col,row,old,v);
+  if(bumped&&!pushed)return false;
   extraAction=!frozen&&stepTestHooks.consumeExtra?.(type);
   const bomb=bombs.find(b=>b.roomId===currentRoomId&&b.col===col&&b.row===row);if(bomb)pushBomb(bomb,v.dx,v.dy);
-  player.col=col;player.row=row;const q=gridToPixel(col,row);player.targetPx=q.x;player.targetPy=q.y;player.animTime=0;player.shootTimer=0;
+  if(bumped)singleStepDisplaceMonster(bumped,pushed.col,pushed.row);
+  player.col=col;player.row=row;
+  if(bumped)damagePlayer(1,bumped.id);
+  const q=gridToPixel(col,row);player.targetPx=q.x;player.targetPy=q.y;player.animTime=0;player.shootTimer=0;
   const room=currentFloor.rooms.find(r=>r.id===currentRoomId);
   if(room?.bossLadderPending)placeBossLadder(room);
  }else if(type==='shoot'){
@@ -234,6 +248,7 @@ function singleStepAct(type,dir){
   const handled=stepTestHooks.bombAction?.(dir);
   if(handled===false)return false;
   if(handled===undefined){if(playerResources.bombs<=0)return false;placedBomb=placeBomb(player.col,player.row);}
+  if(!frozen)stepTestHooks.consumeExtra?.(type);
  }
  else return false;
  player.facing=dir||player.facing;
@@ -247,7 +262,7 @@ function singleStepAct(type,dir){
   if(normalStep)SINGLE_STEP.spikeTurn=(SINGLE_STEP.spikeTurn+1)%STEP_SPIKE_CYCLE.length;
   if(normalStep||type==='move')checkSpikeUnderPlayer();
   let dodged=leftSpike;
-  const avoided=[];
+  const avoided=[],pendingEnemyPlans=[];
   if(normalStep){
    tickBombCountdown(placedBomb);
    tickWeaponPoison();
@@ -263,14 +278,13 @@ function singleStepAct(type,dir){
      if(!singleStepIsAttackPlan(preview)&&!stepTestHooks.isEnemyWindup?.(preview))attack=null;
     }
     if(attack){
-     SINGLE_STEP.plans.set(m.id,attack);
+     SINGLE_STEP.plans.delete(m.id);
+     pendingEnemyPlans.push({m,reevaluate:true});
     }else{
      const wasHit=plan.cells.some(p=>p.col===old.col&&p.row===old.row),nowHit=plan.cells.some(p=>p.col===player.col&&p.row===player.row);
-     if(STEP_ATTACK_REWARDS_ENABLED&&type==='move'&&wasHit&&!nowHit&&plan.attackColor!=='yellow'){dodged=true;avoided.push(m);}
+     if(STEP_ATTACK_REWARDS_ENABLED&&type==='move'&&wasHit&&!nowHit&&plan.attackColor!=='yellow'&&singleStepIsAttackPlan(plan)){dodged=true;avoided.push(m);}
      singleStepApplyPlan(m,plan);SINGLE_STEP.plans.delete(m.id);
-     const nextPlan=stepTestHooks.nextEnemyPlan?.(m,plan);
-     if(nextPlan)SINGLE_STEP.plans.set(m.id,nextPlan);
-     else if(singleStepRecovery(m,plan))SINGLE_STEP.plans.set(m.id,{type:'recover',cells:[]});
+     pendingEnemyPlans.push({m,plan});
     }
     if(m.hp>0&&monsters.includes(m)&&!m.jumperVanished&&!m.movementTags?.includes('飞行')&&
        singleStepFootprint(m).some(c=>singleStepSpikeAt(c.col,c.row)==='extended')){
@@ -282,7 +296,7 @@ function singleStepAct(type,dir){
   singleStepPickup();updateRoomCombatState();SINGLE_STEP.step++;turnState.turnNumber=SINGLE_STEP.step;
   if(frozen)SINGLE_STEP.bonus=SINGLE_STEP.damaged?0:Math.max(0,SINGLE_STEP.bonus-1);
   else if(dodged&&!SINGLE_STEP.damaged&&!gameOver&&(hasMonstersAlive()||leftSpike)){
-   SINGLE_STEP.bonus=STEP_STARTING_AGILITY;
+   SINGLE_STEP.bonus=singleStepAgility();
    recordRunStat('bulletTime');
    if(trialPassive('echo'))SINGLE_STEP.echo=old;
    stepTestHooks.onDodge?.(old,avoided);
@@ -292,6 +306,13 @@ function singleStepAct(type,dir){
    arenaEffects.moveCredit=arenaEffects.shootCredit=0;
   }
   if(!SINGLE_STEP.bonus){SINGLE_STEP.echo=null;arenaEffects.avoided.clear();}
+  for(const {m,plan,reevaluate} of pendingEnemyPlans){
+   if(m.hp<=0||!monsters.includes(m))continue;
+   if(reevaluate){SINGLE_STEP.plans.set(m.id,stepEnemyPlan(m));continue;}
+   const nextPlan=stepTestHooks.nextEnemyPlan?.(m,plan);
+   if(nextPlan)SINGLE_STEP.plans.set(m.id,nextPlan);
+   else if(singleStepRecovery(m,plan))SINGLE_STEP.plans.set(m.id,{type:'recover',cells:[]});
+  }
   singleStepPlan();
   if(currentRoomGrid[player.col]?.[player.row]===TILE.LADDER){const next=currentFloor.floorNum+1;if(next>Object.keys(FLOOR_CONFIG).length)triggerVictoryScreen();else enterFloor(next);}
   updateDoorsLocked();updateUI();updateActionBar();return true;
@@ -307,6 +328,7 @@ const stepOldRoomUpdate=updateRoomCombatState;
 let stepClearedRooms=new WeakSet();
 const stepResetRoomsBase=resetGameToFloor1;
 resetGameToFloor1=function(){
+ SINGLE_STEP.shotRemainder=0;
  stepClearedRooms=new WeakSet();
  stepResetRoomsBase();
  const start=currentFloor?.rooms.find(room=>room.id===currentRoomId);
@@ -419,7 +441,7 @@ drawBullets=function(){
 const stepOldHUD=scrapUpdateHUD;
 scrapUpdateHUD=function(){
  stepOldHUD();
- for(const [id,value] of [['fire-rate',playerStats.fireRate],['agility',STEP_STARTING_AGILITY],['luck',playerStats.luck]]){
+ for(const [id,value] of [['fire-rate',playerStats.fireRate],['agility',singleStepAgility()],['luck',playerStats.luck]]){
   const stat=document.getElementById('step-'+id),text=String(value);
   if(stat.textContent!==text)stat.textContent=text;
  }
@@ -465,8 +487,8 @@ function updateStepCombatHelp(variants = false) {
   const controls = [
     ['WASD', '移动一格'],
     ['方向键', '朝对应方向射击'],
-    ...(variants ? [['黄格', STEP_ATTACK_REWARDS_ENABLED ? '射击直接命中出招的敌人，可打断这次攻击' : '已锁定的攻击范围，本次难度测试中射击命中无法打断', '#ffcc44']] : []),
-    ['红格', STEP_ATTACK_REWARDS_ENABLED ? '从会被击中的位置躲开且这一步没受伤，可获得两次额外行动' : '已锁定的危险范围，躲开怪物红招不触发子弹时间，地刺闪避照常', '#ff7979'],
+    ...(variants ? [['黄格', STEP_ATTACK_REWARDS_ENABLED ? '站在闪白光的黄格射中敌人，可打断这次攻击' : '已锁定的攻击范围，本次难度测试中射击命中无法打断', '#ffcc44']] : []),
+    ['红格', STEP_ATTACK_REWARDS_ENABLED ? '从会被击中的位置躲开且这一步没受伤，初始可获得两次额外行动，次数随敏捷增加' : '已锁定的危险范围，躲开怪物红招不触发子弹时间，地刺闪避照常', '#ff7979'],
     ['E', '在脚下放置炸弹，之后的普通行动推进倒计时'],
     ['M / Esc', hasSidebar ? '右侧显示小地图。M 放大，Esc 关闭' : 'M 打开地图，Esc 关闭'],
     ['R', hasSidebar ? '回到开始界面，重新开局' : '重新开始测试'],
